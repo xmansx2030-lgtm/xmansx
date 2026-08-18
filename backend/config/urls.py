@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/v1/session/", include("memberships.urls")),
     path("api/v1/school/", include("schools.urls")),
     path("api/v1/school/", include("academics.urls")),
+    path("api/v1/", include("students.urls")),
 ]
 
 # Media للتطوير فقط (شعارات المدارس) — الإنتاج عبر Object Storage لاحقًا

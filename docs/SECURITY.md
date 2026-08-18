@@ -36,7 +36,7 @@
 - لا JWT في LocalStorage؛ لا أسرار في bundle الواجهة.
 - تبديل المدرسة: POST + CSRF + تحقق عضوية + حدث Audit `SWITCH_SCHOOL`.
 
-## 4. حماية رقم الهوية (ADR-009)
+## 4. حماية رقم الهوية (ADR-009) — ✅ نفذ في المرحلة 4 (التفصيل: IDENTIFIER_SECURITY.md)
 
 - تخزين: `national_id_encrypted` (Fernet/AES، مفتاح بيئة قابل للتدوير عبر MultiFernet) + `national_id_lookup_hash` (HMAC-SHA256 بمفتاح ثانٍ منفصل) للبحث الدقيق والتكرارات.
 - عرض: مفكوك فقط للأدوار المصرح لها؛ يظهر مقنعًا (`****3456`) في القوائم والسجلات.

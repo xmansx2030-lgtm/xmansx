@@ -6,7 +6,7 @@ production.py يعيد فرض المتغيرات الحساسة كمتغيرات
 
 from pathlib import Path
 
-from config.env import env_int, env_str
+from config.env import env_int, env_list, env_str
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "schools",
     "memberships",
     "academics",
+    "students",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -126,8 +127,25 @@ CACHES = {
 }
 
 # ---- Login rate limiting: (الحد الأقصى، النافذة بالثواني) ----
-LOGIN_RATE_LIMIT_IP = (20, 300)      # كل المحاولات لكل IP
-LOGIN_RATE_LIMIT_MOBILE = (5, 300)   # المحاولات الفاشلة لكل جوال (تصفر عند النجاح)
+# قابلة للضبط بالبيئة: التطوير/E2E يرفعها — الإنتاج يبقى على الافتراضي الصارم
+LOGIN_RATE_LIMIT_IP = (env_int("LOGIN_RATE_LIMIT_IP_MAX", 20), 300)
+LOGIN_RATE_LIMIT_MOBILE = (env_int("LOGIN_RATE_LIMIT_MOBILE_MAX", 5), 300)
+
+# ---- تشفير المعرفات الحساسة (ADR-009) ----
+# مفاتيح تطوير فقط — production.py يفرضها من البيئة ويفشل بدونها
+FIELD_ENCRYPTION_KEYS = env_list(
+    "FIELD_ENCRYPTION_KEYS",
+    ["g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo="],  # dev-only Fernet key
+)
+NATIONAL_ID_HMAC_KEY = env_str(
+    "NATIONAL_ID_HMAC_KEY", "dev-only-hmac-key-not-for-production"
+)
+
+# ---- حدود استيراد الطلاب ----
+STUDENT_IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024      # 10MB
+STUDENT_IMPORT_MAX_ROWS = 10_000
+STUDENT_IMPORT_MAX_ZIP_ENTRIES = 200
+STUDENT_IMPORT_MAX_UNCOMPRESSED_BYTES = 60 * 1024 * 1024  # حماية zip bomb
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL

@@ -204,3 +204,7 @@ backend (Django/gunicorn) ── postgres
 > SchoolWeekDay نفذت (انظر SCHOOL_SETTINGS.md / ACADEMIC_CALENDAR.md / BELL_SCHEDULES.md)
 > مع أساس موحد للـ endpoints المدرسية: `memberships/api_base.SchoolScopedAPIView`.
 > OpenAPI (drf-spectacular) مؤجل كدين تقني موثق — الواجهة تستخدم أنواعًا يدوية مطابقة.
+>
+> المرحلة 4: Students/Grades/Sections/Enrollments + استيراد نور عبر Celery نفذت
+> (STUDENTS.md / STUDENT_IMPORT.md / IDENTIFIER_SECURITY.md). **موعد نهائي لدين OpenAPI:
+> يعالج في بداية المرحلة 5 أو 6 على الأكثر — قبل بناء APIs الحضور المركزية.**

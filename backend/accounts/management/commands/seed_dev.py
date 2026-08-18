@@ -45,11 +45,24 @@ class Command(BaseCommand):
         if not settings.DEBUG:
             raise CommandError("seed_dev يعمل في بيئة التطوير فقط (DEBUG=True).")
 
+        from datetime import date
+
+        from academics.models import AcademicYear, AcademicYearStatus
+
         password = options["password"]
         schools: dict[str, School] = {}
         for name, slug in SCHOOLS:
             school, _ = School.objects.get_or_create(slug=slug, defaults={"name": name})
             schools[slug] = school
+            # عام دراسي نشط لكل مدرسة (يلزم للاستيراد) — idempotent
+            if not AcademicYear.objects.filter(
+                school=school, status=AcademicYearStatus.ACTIVE
+            ).exists():
+                AcademicYear.objects.create(
+                    school=school, name="2026/2027",
+                    start_date=date(2026, 8, 23), end_date=date(2027, 6, 25),
+                    status=AcademicYearStatus.ACTIVE,
+                )
             self.stdout.write(f"school: {school.name} (id={school.id}, slug={slug})")
 
         for mobile, first, last, assignments in SEED:

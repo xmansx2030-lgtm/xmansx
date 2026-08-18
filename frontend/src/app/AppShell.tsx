@@ -6,6 +6,7 @@ import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
 
 const SETTINGS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
+const STUDENTS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
 /** الهيكل العام بعد اختيار المدرسة: المستخدم، المدرسة الحالية، الأدوار، التبديل، الخروج. */
 export function AppShell() {
@@ -20,6 +21,16 @@ export function AppShell() {
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold text-slate-800">منصة المواظبة</h1>
             <SchoolSwitcher />
+            {me.isSuccess && me.data.roles.some((r) => STUDENTS_ROLES.includes(r)) && (
+              <NavLink
+                to="/students"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                الطلاب
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((r) => SETTINGS_ROLES.includes(r)) && (
               <NavLink
                 to="/settings"

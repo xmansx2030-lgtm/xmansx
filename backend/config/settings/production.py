@@ -32,6 +32,13 @@ REDIS_URL = env_str("REDIS_URL")
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 
+# مفاتيح تشفير المعرفات — إلزامية في الإنتاج (ADR-009)
+FIELD_ENCRYPTION_KEYS = env_list("FIELD_ENCRYPTION_KEYS")
+NATIONAL_ID_HMAC_KEY = env_str("NATIONAL_ID_HMAC_KEY")
+
+if NATIONAL_ID_HMAC_KEY.startswith("dev-only"):
+    raise ImproperlyConfigured("NATIONAL_ID_HMAC_KEY is set to an insecure development value")
+
 if SECRET_KEY.startswith("django-insecure"):
     raise ImproperlyConfigured("DJANGO_SECRET_KEY is set to an insecure development value")
 

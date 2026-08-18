@@ -1,0 +1,230 @@
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
+import { Button } from "@/components/Button";
+import { ErrorState } from "@/components/ErrorState";
+import { Spinner } from "@/components/Spinner";
+import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { useActiveSchoolId } from "@/features/settings/hooks";
+import { getGrades, getSections, getStudents } from "@/features/students/api";
+
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "منتظم",
+  INACTIVE: "غير نشط",
+  TRANSFERRED: "منقول",
+  GRADUATED: "متخرج",
+  ARCHIVED: "مؤرشف",
+};
+
+const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
+
+export function StudentsPage() {
+  const me = useMe();
+  const schoolId = useActiveSchoolId();
+  const canImport = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
+  const canRead = me.data?.roles.some((r) => READ_ROLES.includes(r)) ?? true;
+
+  const [search, setSearch] = useState("");
+  const [nationalId, setNationalId] = useState("");
+  const [gradeFilter, setGradeFilter] = useState<number | "">("");
+  const [sectionFilter, setSectionFilter] = useState<number | "">("");
+  const [page, setPage] = useState(1);
+
+  const grades = useQuery({
+    queryKey: schoolScopedKey(schoolId, "grades"),
+    queryFn: ({ signal }) => getGrades(signal),
+    enabled: schoolId > 0,
+  });
+  const sections = useQuery({
+    queryKey: schoolScopedKey(schoolId, "sections"),
+    queryFn: ({ signal }) => getSections(signal),
+    enabled: schoolId > 0,
+  });
+  const students = useQuery({
+    queryKey: schoolScopedKey(schoolId, "students", {
+      page, search, nationalId, gradeFilter, sectionFilter,
+    }),
+    queryFn: ({ signal }) =>
+      getStudents(
+        {
+          page,
+          search,
+          national_id: nationalId,
+          grade: gradeFilter,
+          section: sectionFilter,
+        },
+        signal,
+      ),
+    enabled: schoolId > 0,
+    placeholderData: (previous) => previous,
+  });
+
+  const totalPages = students.data ? Math.max(1, Math.ceil(students.data.count / 25)) : 1;
+  const visibleSections = (sections.data ?? []).filter(
+    (s) => !gradeFilter || s.grade.id === gradeFilter,
+  );
+
+  if (me.isSuccess && !canRead) {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض قائمة الطلاب</h2>
+        <p className="text-slate-600">وصول المعلم لطلاب فصله يأتي مع شاشة التحضير.</p>
+      </section>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">الطلاب</h2>
+        {canImport && (
+          <Link to="/students/import">
+            <Button>استيراد من نور</Button>
+          </Link>
+        )}
+      </div>
+
+      {/* الفلاتر */}
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="search-name" className="text-sm font-medium text-slate-700">
+            بحث بالاسم
+          </label>
+          <input
+            id="search-name"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="اسم الطالب"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="search-nid" className="text-sm font-medium text-slate-700">
+            بحث برقم الهوية (مطابقة تامة)
+          </label>
+          <input
+            id="search-nid"
+            dir="ltr"
+            value={nationalId}
+            onChange={(e) => {
+              setNationalId(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="1XXXXXXXXX"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-grade" className="text-sm font-medium text-slate-700">
+            الصف
+          </label>
+          <select
+            id="filter-grade"
+            value={gradeFilter}
+            onChange={(e) => {
+              setGradeFilter(e.target.value ? Number(e.target.value) : "");
+              setSectionFilter("");
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">الكل</option>
+            {(grades.data ?? []).map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-section" className="text-sm font-medium text-slate-700">
+            الفصل
+          </label>
+          <select
+            id="filter-section"
+            value={sectionFilter}
+            onChange={(e) => {
+              setSectionFilter(e.target.value ? Number(e.target.value) : "");
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">الكل</option>
+            {visibleSections.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.grade.name} / {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {students.isPending && <Spinner />}
+      {students.isError && <ErrorState error={students.error} />}
+
+      {students.data && (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="p-3 text-start">الاسم</th>
+                  <th className="p-3 text-start">رقم الهوية</th>
+                  <th className="p-3 text-start">الصف</th>
+                  <th className="p-3 text-start">الفصل</th>
+                  <th className="p-3 text-start">الحالة</th>
+                </tr>
+              </thead>
+              <tbody data-testid="students-table-body">
+                {students.data.results.map((student) => (
+                  <tr key={student.id} className="border-b border-slate-100">
+                    <td className="p-3 font-medium">{student.full_name}</td>
+                    <td className="p-3" dir="ltr">
+                      {student.national_id_masked}
+                    </td>
+                    <td className="p-3">{student.grade?.name ?? "—"}</td>
+                    <td className="p-3">{student.section?.name ?? "—"}</td>
+                    <td className="p-3">{STATUS_LABELS[student.status] ?? student.status}</td>
+                  </tr>
+                ))}
+                {students.data.results.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-slate-400">
+                      لا يوجد طلاب مطابقون.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
+            <span className="text-slate-500">
+              الإجمالي: {students.data.count} طالبًا — صفحة {page} من {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                السابق
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                التالي
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

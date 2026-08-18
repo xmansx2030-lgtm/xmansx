@@ -19,6 +19,18 @@ class AuditAction(models.TextChoices):
     BELL_SCHEDULE_UPDATED = "BELL_SCHEDULE_UPDATED", "تحديث جدول حصص"
     BELL_SCHEDULE_ARCHIVED = "BELL_SCHEDULE_ARCHIVED", "أرشفة جدول حصص"
     SCHOOL_DAY_SCHEDULE_CHANGED = "SCHOOL_DAY_SCHEDULE_CHANGED", "تغيير جداول أيام الدراسة"
+    # المرحلة 4 — الطلاب والاستيراد
+    STUDENT_IMPORT_UPLOADED = "STUDENT_IMPORT_UPLOADED", "رفع ملف استيراد"
+    STUDENT_IMPORT_VALIDATED = "STUDENT_IMPORT_VALIDATED", "تحقق ملف استيراد"
+    STUDENT_IMPORT_COMMITTED = "STUDENT_IMPORT_COMMITTED", "اعتماد استيراد"
+    STUDENT_IMPORT_FAILED = "STUDENT_IMPORT_FAILED", "فشل استيراد"
+    STUDENT_CREATED = "STUDENT_CREATED", "إنشاء طالب"
+    STUDENT_UPDATED = "STUDENT_UPDATED", "تحديث طالب"
+    STUDENT_STATUS_CHANGED = "STUDENT_STATUS_CHANGED", "تغيير حالة طالب"
+    STUDENT_ENROLLMENT_CREATED = "STUDENT_ENROLLMENT_CREATED", "إنشاء قيد"
+    STUDENT_ENROLLMENT_ENDED = "STUDENT_ENROLLMENT_ENDED", "إنهاء قيد"
+    GRADE_CREATED = "GRADE_CREATED", "إنشاء صف"
+    SECTION_CREATED = "SECTION_CREATED", "إنشاء فصل"
 
 
 class AuditLog(models.Model):

@@ -171,7 +171,8 @@ erDiagram
 
 ---
 
-## 6. students
+## 6. students — ✅ نفذ في المرحلة 4 (كما مبين، مع national_id_masked إضافي على Student،
+## وStudentImportJob/Row بدل ImportBatch — القيود الفريدة كلها في DB. التفصيل: STUDENTS.md وSTUDENT_IMPORT.md)
 
 ### Student
 | الحقل | النوع | ملاحظات |

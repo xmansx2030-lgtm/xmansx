@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /** E2E smoke — يتطلب backend يعمل على :8000 (docker compose up backend). */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   timeout: 30_000,
   retries: 0,
   reporter: [["list"]],
