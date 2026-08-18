@@ -21,7 +21,8 @@ SEED = [
         "المعلم",
         [("school-a", ["TEACHER"]), ("school-b", ["TEACHER", "COUNSELOR"])],
     ),
-    ("0550000002", "خالد", "المدير", [("school-a", ["SCHOOL_MANAGER"])]),
+    # مدير في A ومعلم في B — سيناريو E2E للصلاحيات متعددة المدارس
+    ("0550000002", "خالد", "المدير", [("school-a", ["SCHOOL_MANAGER"]), ("school-b", ["TEACHER"])]),
     ("0550000003", "سعد", "الوكيل", [("school-a", ["VICE_PRINCIPAL"])]),
     ("0550000004", "فهد", "المرشد", [("school-c", ["COUNSELOR"])]),
 ]

@@ -1,6 +1,9 @@
 from django.db import models
 
 from common.models import TimestampedModel
+from schools.settings_models import EducationStage, SchoolSettings
+
+__all__ = ["School", "SchoolStatus", "SchoolSettings", "EducationStage"]
 
 
 class SchoolStatus(models.TextChoices):

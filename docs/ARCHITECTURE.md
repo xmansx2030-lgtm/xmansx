@@ -199,3 +199,8 @@ backend (Django/gunicorn) ── postgres
 > حالة التنفيذ: §6 (الهوية والعضوية) و§7 (المصادقة) نفذا في المرحلة 2 مع فارقين عن الخطة:
 > Rate limiting عبر Django cache فوق Redis، وأخطاء السياق تحمل رموزًا دقيقة
 > (MEMBERSHIP_SUSPENDED/SCHOOL_SUSPENDED/INVALID_SCHOOL_MEMBERSHIP) بدل رمز واحد عام.
+>
+> المرحلة 3: SchoolSettings + AcademicYear/Semester + BellSchedule/BellPeriod +
+> SchoolWeekDay نفذت (انظر SCHOOL_SETTINGS.md / ACADEMIC_CALENDAR.md / BELL_SCHEDULES.md)
+> مع أساس موحد للـ endpoints المدرسية: `memberships/api_base.SchoolScopedAPIView`.
+> OpenAPI (drf-spectacular) مؤجل كدين تقني موثق — الواجهة تستخدم أنواعًا يدوية مطابقة.

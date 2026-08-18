@@ -84,36 +84,42 @@ erDiagram
 | vice_membership | FK→SchoolMembership null | الوكيل المسؤول |
 | status | enum | ACTIVE / SUSPENDED (تُشتق أيضًا من الاشتراك) |
 
-### SchoolSettings (1:1 مع School)
+### SchoolSettings (1:1 مع School) — ✅ نفذ في المرحلة 3
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK unique | |
-| unprepared_period_alert_minutes | int | مثال 25 |
-| attendance_edit_window_minutes | int | مثال 15 |
+| ministry_school_number / city / official_principal_name | varchar blank | الأخير للطباعة فقط |
+| education_stage | enum | ELEMENTARY/MIDDLE/SECONDARY/MULTI_STAGE |
+| logo | ImageField | تحقق رباعي؛ Local media للتطوير |
+| unprepared_period_alert_minutes | int 1–120 | check constraint، افتراضي 25 |
+| attendance_edit_window_minutes | int 0–120 | check constraint، افتراضي 15 |
 | timezone | varchar | default `Asia/Riyadh` |
 
-### SchoolDay
+### SchoolWeekDay — ✅ نفذ في المرحلة 3 (يدمج SchoolDay + ربط الجدول)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK | |
-| day_of_week | int (0=الأحد…) | **Unique (school, day_of_week)** |
+| weekday | int (0=الأحد…6=السبت) | **Unique (school, weekday)** |
 | is_school_day | bool | |
-| periods_count | int | عدد حصص هذا اليوم |
+| bell_schedule | FK null | «الجدول النشط لكل يوم» — نفس الجدول لعدة أيام؛ عدد الحصص يستنتج من الجدول |
 
-### BellSchedule
+### BellSchedule — ✅ نفذ في المرحلة 3
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK | |
 | name | varchar | عادي / رمضان / اختبارات / مؤقت |
-| is_active | bool | **جدول نشط واحد فقط لكل مدرسة** (partial unique index: `(school) WHERE is_active`) |
+| status | enum | ACTIVE/INACTIVE/ARCHIVED — «النشط» يحدد بربط الأيام لا بقيد وحيد |
+| valid_from / valid_to | date null | لصلاحية زمنية مستقبلية |
 
-### BellSchedulePeriod
+### BellPeriod — ✅ نفذ في المرحلة 3 (اسم التنفيذ لـ BellSchedulePeriod)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
+| school | FK | denormalized من الجدول |
 | bell_schedule | FK | |
-| period_number | int | **Unique (bell_schedule, period_number)** |
-| start_time | time | |
-| end_time | time | check: end > start |
+| sequence | int | **Unique (bell_schedule, sequence)** |
+| name | varchar | الحصة الأولى / الفسحة |
+| start_time / end_time | time | check: end > start؛ منع التداخل في الـ Service |
+| is_attendance_period | bool | الفسحة = false |
 
 > الحصة الحالية = period التي `start_time ≤ now < end_time` بتوقيت المدرسة، من الجدول النشط، إذا كان اليوم يوم دراسة و `period_number ≤ periods_count` لليوم.
 
@@ -141,13 +147,15 @@ erDiagram
 
 ---
 
-## 5. academics
+## 5. academics — AcademicYear/Semester ✅ نفذا في المرحلة 3
 
 ### AcademicYear
-`school`, `name`, `start_date`, `end_date`, `is_active` (partial unique على النشط لكل مدرسة).
+`school`, `name`, `start_date`, `end_date`, `status` (UPCOMING/ACTIVE/CLOSED/ARCHIVED) —
+**partial unique `(school) WHERE status='ACTIVE'`** + check start<end.
 
 ### Semester
-`academic_year FK`, `name`, `start_date`, `end_date`, `is_active`.
+`school` (denorm), `academic_year FK`, `name`, `sequence` (**unique داخل العام**),
+`start_date`, `end_date`, `status` — **partial unique ACTIVE لكل مدرسة** + ضمن حدود العام (service).
 
 ### Grade
 `school`, `name` (مثل «الأول الثانوي»), `sort_order`. **Unique (school, name)**.

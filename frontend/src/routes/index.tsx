@@ -4,6 +4,7 @@ import { AppShell } from "@/app/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireActiveSchool, RequireAuth } from "@/features/auth/guards";
 import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { RouteErrorPage } from "@/routes/RouteErrorPage";
@@ -25,6 +26,7 @@ export const routes = [
                 element: <AppShell />,
                 children: [
                   { index: true, element: <HomePage /> },
+                  { path: "settings", element: <SettingsPage /> },
                   { path: "*", element: <NotFoundPage /> },
                 ],
               },

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "accounts",
     "schools",
     "memberships",
+    "academics",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
