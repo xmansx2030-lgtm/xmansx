@@ -1,0 +1,12 @@
+# توحيد نهايات الأسطر: LF في المستودع دائمًا (يمنع اختلاف Windows/Docker/CI)
+* text=auto eol=lf
+
+# ملفات Windows الصرفة
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# ثنائية
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
