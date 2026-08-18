@@ -38,6 +38,14 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
+/** قراءة cookie بالاسم — تستخدم لإرسال X-CSRFToken (الـ cookie ليست HttpOnly بتصميم Django). */
+export function getCookie(name: string): string | null {
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
 function isApiErrorBody(value: unknown): value is ApiErrorBody {
   return (
     typeof value === "object" &&
@@ -53,12 +61,24 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
+  const headers: Record<string, string> = {};
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (method !== "GET") {
+    // CSRF لكل العمليات المعدلة — الجلسات Cookie-based
+    const csrfToken = getCookie("csrftoken");
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken;
+    }
+  }
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       credentials: "include",
-      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: combinedSignal,
     });

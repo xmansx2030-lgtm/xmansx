@@ -17,15 +17,24 @@ DEBUG = False  # كل بيئة تحدد قيمتها صراحةً
 
 ALLOWED_HOSTS: list[str] = []
 
+# التطبيقات المحلية أولاً: يتيح تجاوز أوامر الإدارة القياسية (مثل createsuperuser)
 INSTALLED_APPS = [
+    "common",
+    "accounts",
+    "schools",
+    "memberships",
+    "audit",
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "django.contrib.messages",
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
-    "common",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -36,6 +45,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "memberships.middleware.TenantContextMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
     "csp.middleware.CSPMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -51,6 +62,7 @@ TEMPLATES = [
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
@@ -74,6 +86,13 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Argon2id أولاً (ADR-004) — البقية للتوافق مع hashes قديمة فقط
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -96,6 +115,18 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 # ---- Redis / Celery (foundation فقط — لا مهام أعمال بعد) ----
 REDIS_URL = env_str("REDIS_URL", "redis://localhost:6379/0")
 READINESS_CHECK_TIMEOUT_SECONDS = 2
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "KEY_PREFIX": "xmansx",
+    }
+}
+
+# ---- Login rate limiting: (الحد الأقصى، النافذة بالثواني) ----
+LOGIN_RATE_LIMIT_IP = (20, 300)      # كل المحاولات لكل IP
+LOGIN_RATE_LIMIT_MOBILE = (5, 300)   # المحاولات الفاشلة لكل جوال (تصفر عند النجاح)
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL

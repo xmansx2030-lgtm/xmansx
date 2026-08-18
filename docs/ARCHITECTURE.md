@@ -192,4 +192,10 @@ backend (Django/gunicorn) ── postgres
 - [ERD.md](ERD.md) — الكيانات والعلاقات والقيود والفهارس.
 - [PERMISSIONS.md](PERMISSIONS.md) — مصفوفة الصلاحيات.
 - [SECURITY.md](SECURITY.md) — النموذج الأمني.
+- [AUTHENTICATION.md](AUTHENTICATION.md) — المصادقة كما نفذت (المرحلة 2).
+- [MULTI_TENANCY.md](MULTI_TENANCY.md) — تعدد المستأجرين كما نفذ + الثوابت الأمنية (المرحلة 2).
 - [PHASE_PLAN.md](PHASE_PLAN.md) — خطة المراحل 0–20 ومعايير الخروج.
+
+> حالة التنفيذ: §6 (الهوية والعضوية) و§7 (المصادقة) نفذا في المرحلة 2 مع فارقين عن الخطة:
+> Rate limiting عبر Django cache فوق Redis، وأخطاء السياق تحمل رموزًا دقيقة
+> (MEMBERSHIP_SUSPENDED/SCHOOL_SUSPENDED/INVALID_SCHOOL_MEMBERSHIP) بدل رمز واحد عام.

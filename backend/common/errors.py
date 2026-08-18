@@ -15,9 +15,29 @@ from rest_framework.views import exception_handler as drf_exception_handler
 
 logger = logging.getLogger("xmansx.errors")
 
+
+class ApiError(exceptions.APIException):
+    """استثناء أعمال برمز ثابت ورسالة عربية — يمر عبر api_exception_handler.
+
+    الاستخدام: raise ApiError("SCHOOL_SUSPENDED", "المدرسة موقوفة حالياً.", status_code=403)
+    """
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+        details: dict | None = None,
+    ):
+        self.code = code
+        self.status_code = status_code
+        self.error_details = details or {}
+        super().__init__(detail=message)
+
+
 _EXCEPTION_MAP: list[tuple[type[Exception], str, str]] = [
     (exceptions.ValidationError, "VALIDATION_ERROR", "البيانات المدخلة غير صحيحة."),
-    (exceptions.NotAuthenticated, "NOT_AUTHENTICATED", "يجب تسجيل الدخول أولاً."),
+    (exceptions.NotAuthenticated, "AUTHENTICATION_REQUIRED", "يجب تسجيل الدخول أولاً."),
     (exceptions.AuthenticationFailed, "AUTHENTICATION_FAILED", "بيانات الدخول غير صحيحة."),
     (exceptions.PermissionDenied, "PERMISSION_DENIED", "ليست لديك صلاحية لتنفيذ هذا الإجراء."),
     (exceptions.NotFound, "NOT_FOUND", "المورد المطلوب غير موجود."),
@@ -40,6 +60,14 @@ def api_exception_handler(exc: Exception, context: dict) -> Response | None:
     if response is None:
         # استثناء غير متوقع → يصعد لـ Django (handler500 يعيد JSON بلا تفاصيل داخلية)
         return None
+
+    if isinstance(exc, ApiError):
+        response.data = {
+            "code": exc.code,
+            "message": str(exc.detail),
+            "details": exc.error_details,
+        }
+        return response
 
     code, message = _resolve(exc)
     details = {}

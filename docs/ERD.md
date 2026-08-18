@@ -53,28 +53,29 @@ erDiagram
 
 ---
 
-## 2. accounts
+## 2. accounts — ✅ نفذ في المرحلة 2
 
-### User (عالمي — بلا school_id)
+### User (عالمي — بلا school_id) — `AbstractUser` بإزالة username
 | الحقل | النوع | ملاحظات |
 |---|---|---|
-| phone | varchar(16) | **Unique**، مطبّع `+9665XXXXXXXX` |
+| mobile | varchar(16) | **Unique عالميًا**، مطبّع `+9665XXXXXXXX`، USERNAME_FIELD |
 | password | varchar | Argon2id hash |
-| full_name | varchar(150) | |
-| is_platform_admin | bool | default false |
-| is_active | bool | |
-| last_login_at | datetime | |
+| first_name / last_name | varchar | |
+| email | varchar blank | ليس للدخول |
+| is_active / is_staff / is_superuser | bool | `is_platform_admin` = is_superuser (خاصية) |
+| date_joined / last_login | datetime | + created_at/updated_at (TimestampedModel) |
 
-فهارس: unique على `phone`.
+فهارس: unique على `mobile`.
 
 ---
 
-## 3. schools
+## 3. schools — School الأساس ✅ نفذ في المرحلة 2 (name/slug/status)؛ البقية في المرحلة 3
 
 ### School (جذر المستأجر — بلا school_id)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | name | varchar(200) | |
+| slug | varchar(100) | **Unique** — نفذ في المرحلة 2 |
 | logo | file ref | Object Storage، Signed URL |
 | ministry_number | varchar(30) null | اختياري |
 | stage | enum | ELEMENTARY / MIDDLE / HIGH |
@@ -118,16 +119,19 @@ erDiagram
 
 ---
 
-## 4. memberships
+## 4. memberships — ✅ نفذ في المرحلة 2
 
 ### SchoolMembership
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | user | FK→User | |
-| school | FK→School | **Unique (user, school)** |
-| is_active | bool | التعطيل لا يحذف |
+| school | FK→School | **Unique (user, school)** — قيد DB فعلي |
+| status | enum | ACTIVE / INVITED / SUSPENDED / LEFT |
+| joined_at | datetime | |
 
-### MembershipRole
+فهرس: `(school, status)`.
+
+### SchoolMembershipRole (اسم التنفيذ لـ MembershipRole)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | membership | FK | |

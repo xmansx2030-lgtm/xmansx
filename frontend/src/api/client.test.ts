@@ -42,6 +42,17 @@ describe("apiRequest", () => {
     expect((error as ApiError).code).toBe("NETWORK_ERROR");
   });
 
+  it("sends X-CSRFToken header on mutating requests", async () => {
+    document.cookie = "csrftoken=csrf-test-value";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ detail: "ok" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await apiRequest("/auth/logout/", { method: "POST" });
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>)["X-CSRFToken"]).toBe("csrf-test-value");
+  });
+
   it("sends credentials for session cookies", async () => {
     const fetchMock = vi
       .fn()
