@@ -8,14 +8,16 @@ export interface MockRoute {
 }
 
 /** يركب fetch وهمي يطابق المسارات بالاحتواء — آخر تعريف مطابق يفوز. */
-export function mockApi(routes: Record<string, MockRoute | (() => MockRoute)>) {
+export function mockApi(
+  routes: Record<string, MockRoute | ((init?: RequestInit) => MockRoute)>,
+) {
   const calls: { url: string; init?: RequestInit }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init });
     for (const [pattern, route] of Object.entries(routes)) {
       if (url.includes(pattern)) {
-        const resolved = typeof route === "function" ? route() : route;
+        const resolved = typeof route === "function" ? route(init) : route;
         return new Response(JSON.stringify(resolved.body), {
           status: resolved.status ?? 200,
           headers: { "Content-Type": "application/json", "X-Request-ID": "test-req-id" },

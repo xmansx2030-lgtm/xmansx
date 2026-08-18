@@ -137,4 +137,4 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     summary["will_create_grades"] = [name for _, name in will_create_grades]
     summary["will_create_sections"] = [f"{g} / {n}" for g, n in will_create_sections]
 
-    return {"rows": normalized_rows, "summary": summary, "missing": missing[:50]}
+    return {"rows": normalized_rows, "summary": summary, "missing": missing[:500]}

@@ -59,10 +59,11 @@ class Section(TimestampedModel):
 
 
 class StudentStatus(models.TextChoices):
-    ACTIVE = "ACTIVE", "منتظم"
-    INACTIVE = "INACTIVE", "غير نشط"
-    TRANSFERRED = "TRANSFERRED", "منقول"
+    ACTIVE = "ACTIVE", "نشط"
     GRADUATED = "GRADUATED", "متخرج"
+    TRANSFERRED = "TRANSFERRED", "منتقل"
+    WITHDRAWN = "WITHDRAWN", "منسحب"
+    INACTIVE = "INACTIVE", "غير نشط"
     ARCHIVED = "ARCHIVED", "مؤرشف"
 
 
@@ -81,6 +82,17 @@ class Student(TimestampedModel):
     status = models.CharField(
         max_length=20, choices=StudentStatus.choices, default=StudentStatus.ACTIVE
     )
+    # دورة الحياة (المرحلة 4.1)
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    status_changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    exit_date = models.DateField(null=True, blank=True)
+    exit_reason = models.CharField(max_length=300, blank=True, default="")
 
     class Meta:
         verbose_name = "طالب"
@@ -223,6 +235,62 @@ class StudentImportJob(TimestampedModel):
 
     def __str__(self) -> str:
         return f"Import #{self.pk} — {self.school} ({self.status})"
+
+
+class PurgeJobStatus(models.TextChoices):
+    PENDING = "PENDING", "بانتظار التنفيذ"
+    RUNNING = "RUNNING", "قيد التنفيذ"
+    COMPLETED = "COMPLETED", "مكتمل"
+    PARTIALLY_FAILED = "PARTIALLY_FAILED", "مكتمل جزئيًا"
+    FAILED = "FAILED", "فشل"
+
+
+class StudentPurgeJob(TimestampedModel):
+    """حذف نهائي جماعي عبر Celery.
+
+    الخصوصية (البند 29-30): student_ids تعيش أثناء التنفيذ فقط وتمسح عند
+    الاكتمال — لا يبقى في الـ Job أو الـ Audit أي معرف قابل للربط بطالب محذوف؛
+    فقط أعداد وسبب.
+    """
+
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, related_name="purge_jobs"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="purge_jobs"
+    )
+    reason = models.CharField(max_length=100, blank=True, default="")  # مثل: GRADUATED
+    status = models.CharField(
+        max_length=20, choices=PurgeJobStatus.choices, default=PurgeJobStatus.PENDING
+    )
+    student_ids = models.JSONField(default=list, blank=True)  # تمسح بعد الاكتمال
+
+    total_students = models.PositiveIntegerField(default=0)
+    processed_students = models.PositiveIntegerField(default=0)
+    deleted_students = models.PositiveIntegerField(default=0)
+    failed_students = models.PositiveIntegerField(default=0)
+    db_records_deleted = models.PositiveIntegerField(default=0)
+    storage_objects_deleted = models.PositiveIntegerField(default=0)
+    storage_objects_failed = models.PositiveIntegerField(default=0)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    failed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "مهمة حذف نهائي"
+        verbose_name_plural = "مهام الحذف النهائي"
+        constraints = [
+            # لا عمليتا حذف جاريتان لنفس المدرسة
+            models.UniqueConstraint(
+                fields=["school"],
+                condition=models.Q(status__in=["PENDING", "RUNNING"]),
+                name="uniq_running_purge_per_school",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Purge #{self.pk} — {self.school} ({self.status})"
 
 
 class ImportRowStatus(models.TextChoices):

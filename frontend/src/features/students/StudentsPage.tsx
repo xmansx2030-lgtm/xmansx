@@ -1,13 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { useActiveSchoolId } from "@/features/settings/hooks";
-import { getGrades, getSections, getStudents } from "@/features/students/api";
+import {
+  bulkSetStatus,
+  getGrades,
+  getSections,
+  getStudents,
+} from "@/features/students/api";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "منتظم",
@@ -25,11 +31,30 @@ export function StudentsPage() {
   const canImport = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const canRead = me.data?.roles.some((r) => READ_ROLES.includes(r)) ?? true;
 
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [gradeFilter, setGradeFilter] = useState<number | "">("");
   const [sectionFilter, setSectionFilter] = useState<number | "">("");
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  const graduateMutation = useMutation({
+    mutationFn: (ids: number[]) => bulkSetStatus(ids, "GRADUATED"),
+    onSuccess: () => {
+      setBulkError(null);
+      setSelected(new Set());
+      void queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "students"),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "inactive-students"),
+      });
+    },
+    onError: (e) =>
+      setBulkError(e instanceof ApiError ? e.message : "تعذر تنفيذ التخريج."),
+  });
 
   const grades = useQuery({
     queryKey: schoolScopedKey(schoolId, "grades"),
@@ -53,6 +78,7 @@ export function StudentsPage() {
           national_id: nationalId,
           grade: gradeFilter,
           section: sectionFilter,
+          status: "ACTIVE", // صفحة النشطين — الخارجون في صفحتهم المستقلة
         },
         signal,
       ),
@@ -77,13 +103,36 @@ export function StudentsPage() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">الطلاب</h2>
-        {canImport && (
-          <Link to="/students/import">
-            <Button>استيراد من نور</Button>
+        <h2 className="text-2xl font-bold">الطلاب النشطون</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/students/inactive" className="text-sm text-blue-700 underline">
+            الطلاب غير النشطين
           </Link>
-        )}
+          {canImport && (
+            <Link to="/students/import">
+              <Button>استيراد من نور</Button>
+            </Link>
+          )}
+        </div>
       </div>
+
+      {canImport && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <span className="text-sm text-slate-600">تخريج دفعة — المحددون: {selected.size}</span>
+          <Button
+            variant="secondary"
+            disabled={selected.size === 0 || graduateMutation.isPending}
+            onClick={() => graduateMutation.mutate([...selected])}
+          >
+            تعيين المحددين كخريجين
+          </Button>
+          {bulkError && (
+            <span role="alert" className="text-sm text-red-700">
+              {bulkError}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* الفلاتر */}
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -172,6 +221,26 @@ export function StudentsPage() {
             <table className="w-full min-w-150 text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
+                  {canImport && (
+                    <th className="p-3">
+                      <input
+                        type="checkbox"
+                        aria-label="تحديد الكل"
+                        checked={
+                          students.data.results.length > 0 &&
+                          students.data.results.every((r) => selected.has(r.id))
+                        }
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked
+                              ? new Set(students.data!.results.map((r) => r.id))
+                              : new Set(),
+                          )
+                        }
+                        className="size-4"
+                      />
+                    </th>
+                  )}
                   <th className="p-3 text-start">الاسم</th>
                   <th className="p-3 text-start">رقم الهوية</th>
                   <th className="p-3 text-start">الصف</th>
@@ -182,6 +251,22 @@ export function StudentsPage() {
               <tbody data-testid="students-table-body">
                 {students.data.results.map((student) => (
                   <tr key={student.id} className="border-b border-slate-100">
+                    {canImport && (
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`تحديد ${student.full_name}`}
+                          checked={selected.has(student.id)}
+                          onChange={(e) => {
+                            const next = new Set(selected);
+                            if (e.target.checked) next.add(student.id);
+                            else next.delete(student.id);
+                            setSelected(next);
+                          }}
+                          className="size-4"
+                        />
+                      </td>
+                    )}
                     <td className="p-3 font-medium">{student.full_name}</td>
                     <td className="p-3" dir="ltr">
                       {student.national_id_masked}
@@ -193,7 +278,7 @@ export function StudentsPage() {
                 ))}
                 {students.data.results.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-slate-400">
+                    <td colSpan={canImport ? 6 : 5} className="p-6 text-center text-slate-400">
                       لا يوجد طلاب مطابقون.
                     </td>
                   </tr>

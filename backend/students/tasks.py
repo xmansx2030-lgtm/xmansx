@@ -96,6 +96,94 @@ def process_import_job(job_id: int) -> str:
             return "failed"
 
 
+@shared_task(name="students.run_purge_job")
+def run_purge_job(job_id: int) -> str:
+    """تنفيذ الحذف الجماعي بدفعات — tenant من الـ Job، idempotent بحالة الـ Job."""
+    from django.utils import timezone
+
+    from students.models import PurgeJobStatus, Student, StudentPurgeJob
+    from students.services.purge import PURGE_BATCH_SIZE, purge_student
+
+    with transaction.atomic():
+        job = (
+            StudentPurgeJob.objects.select_for_update()
+            .select_related("school")
+            .filter(id=job_id)
+            .first()
+        )
+        if job is None or job.status != PurgeJobStatus.PENDING:
+            return "skipped"  # retry لا يكرر عملية منتهية
+        job.status = PurgeJobStatus.RUNNING
+        job.started_at = timezone.now()
+        job.save(update_fields=["status", "started_at", "updated_at"])
+
+    ids = list(job.student_ids)
+    deleted = failed = db_rows = storage_ok = storage_failed = 0
+
+    for start in range(0, len(ids), PURGE_BATCH_SIZE):
+        batch = ids[start:start + PURGE_BATCH_SIZE]
+        # العزل: الطلاب من مدرسة الـ Job حصرًا (حتى لو تسللت معرفات غريبة)
+        students = list(Student.objects.filter(school=job.school, id__in=batch))
+        found_ids = {s.id for s in students}
+        failed += len([i for i in batch if i not in found_ids])
+        for student in students:
+            try:
+                rows, ok, bad = purge_student(student)
+                deleted += 1
+                db_rows += rows
+                storage_ok += ok
+                storage_failed += bad
+            except Exception:
+                logger.exception("purge job %s: student purge failed", job.id)
+                failed += 1
+        job.processed_students = min(start + len(batch), len(ids))
+        job.deleted_students = deleted
+        job.failed_students = failed
+        job.db_records_deleted = db_rows
+        job.storage_objects_deleted = storage_ok
+        job.storage_objects_failed = storage_failed
+        job.save(
+            update_fields=[
+                "processed_students", "deleted_students", "failed_students",
+                "db_records_deleted", "storage_objects_deleted",
+                "storage_objects_failed", "updated_at",
+            ]
+        )
+
+    if deleted == 0 and failed > 0:
+        job.status = PurgeJobStatus.FAILED
+        job.failed_at = timezone.now()
+    elif failed > 0 or storage_failed > 0:
+        # ملفات لم تنظف/طلاب فشلوا — لا ندعي COMPLETED
+        job.status = PurgeJobStatus.PARTIALLY_FAILED
+        job.completed_at = timezone.now()
+    else:
+        job.status = PurgeJobStatus.COMPLETED
+        job.completed_at = timezone.now()
+    job.student_ids = []  # خصوصية: لا معرفات قابلة للربط بعد الحذف
+    job.save(
+        update_fields=["status", "completed_at", "failed_at", "student_ids", "updated_at"]
+    )
+
+    record_event(
+        "STUDENT_BULK_PURGE_COMPLETED",
+        school=job.school,
+        actor=job.created_by,
+        target_type="StudentPurgeJob",
+        target_id=job.id,
+        metadata={
+            "status": job.status,
+            "reason": job.reason,
+            "students": deleted,
+            "failed": failed,
+            "database_records": db_rows,
+            "storage_objects": storage_ok,
+            "storage_objects_failed": storage_failed,
+        },  # لا اسم/هوية/جوال — أعداد فقط
+    )
+    return job.status
+
+
 def _fail(job, error_code: str) -> None:
     from students.models import ImportJobStatus
 

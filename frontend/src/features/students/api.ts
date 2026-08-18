@@ -101,6 +101,7 @@ export function getStudents(
     national_id?: string;
     grade?: number | "";
     section?: number | "";
+    status?: string;
   },
   signal?: AbortSignal,
 ): Promise<Paginated<StudentRow>> {
@@ -110,6 +111,7 @@ export function getStudents(
   if (params.national_id) query.set("national_id", params.national_id);
   if (params.grade) query.set("grade", String(params.grade));
   if (params.section) query.set("section", String(params.section));
+  if (params.status) query.set("status", params.status);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<Paginated<StudentRow>>(`/students/${suffix}`, { signal });
 }
@@ -169,6 +171,96 @@ export const MAPPING_LABELS: Record<MappingField, string> = {
   student_number: "رقم الطالب",
   guardian_name: "اسم ولي الأمر",
   guardian_mobile: "جوال ولي الأمر",
+};
+
+// ---- دورة الحياة والحذف النهائي (المرحلة 4.1) ----
+
+export interface InactiveStudent {
+  id: number;
+  full_name: string;
+  national_id_masked: string;
+  status: string;
+  exit_date: string | null;
+  exit_reason: string;
+  grade: { name: string } | null;
+  section: { name: string } | null;
+}
+
+export interface PurgePreview {
+  confirmation_token: string;
+  summary: Record<string, number> & { students: number; database_records: number };
+  expires_in_seconds: number;
+}
+
+export interface PurgeJob {
+  id: number;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "PARTIALLY_FAILED" | "FAILED";
+  reason: string;
+  total_students: number;
+  processed_students: number;
+  deleted_students: number;
+  failed_students: number;
+  db_records_deleted: number;
+  storage_objects_deleted: number;
+  storage_objects_failed: number;
+}
+
+export function getInactiveStudents(
+  params: {
+    page?: number;
+    status?: string;
+    missing_last_import?: boolean;
+    search?: string;
+  },
+  signal?: AbortSignal,
+): Promise<Paginated<InactiveStudent>> {
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.status) query.set("status", params.status);
+  if (params.missing_last_import) query.set("missing_last_import", "1");
+  if (params.search) query.set("search", params.search);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<Paginated<InactiveStudent>>(`/students/inactive/${suffix}`, { signal });
+}
+
+export const setStudentStatus = (
+  studentId: number,
+  status: string,
+  exitReason = "",
+) =>
+  apiRequest<{ id: number; status: string }>(`/students/${studentId}/status/`, {
+    method: "POST",
+    body: { status, exit_reason: exitReason },
+  });
+
+export const bulkSetStatus = (studentIds: number[], status: string, exitReason = "") =>
+  apiRequest<{ updated: number; status: string }>("/students/bulk-status/", {
+    method: "POST",
+    body: { student_ids: studentIds, status, exit_reason: exitReason },
+  });
+
+export const purgePreview = (studentIds: number[]) =>
+  apiRequest<PurgePreview>("/student-purges/preview/", {
+    method: "POST",
+    body: { student_ids: studentIds },
+  });
+
+export const createPurge = (confirmationToken: string, reason = "") =>
+  apiRequest<PurgeJob>("/student-purges/", {
+    method: "POST",
+    body: { confirmation_token: confirmationToken, reason },
+  });
+
+export const getPurgeJob = (jobId: number, signal?: AbortSignal) =>
+  apiRequest<PurgeJob>(`/student-purges/${jobId}/`, { signal });
+
+export const LIFECYCLE_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "نشط",
+  GRADUATED: "متخرج",
+  TRANSFERRED: "منتقل",
+  WITHDRAWN: "منسحب",
+  INACTIVE: "غير نشط",
+  ARCHIVED: "مؤرشف",
 };
 
 export const CATEGORY_LABELS: Record<string, string> = {

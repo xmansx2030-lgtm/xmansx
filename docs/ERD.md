@@ -178,6 +178,9 @@ erDiagram
 
 ## 6. students — ✅ نفذ في المرحلة 4 (كما مبين، مع national_id_masked إضافي على Student،
 ## وStudentImportJob/Row بدل ImportBatch — القيود الفريدة كلها في DB. التفصيل: STUDENTS.md وSTUDENT_IMPORT.md)
+## م4.1: Student.status صار (ACTIVE/GRADUATED/TRANSFERRED/WITHDRAWN/INACTIVE/ARCHIVED)
+## + status_changed_at/by + exit_date/reason،
+## + StudentPurgeJob (قيد: عملية جارية واحدة لكل مدرسة؛ student_ids تمسح بعد الاكتمال).
 
 ### Student
 | الحقل | النوع | ملاحظات |

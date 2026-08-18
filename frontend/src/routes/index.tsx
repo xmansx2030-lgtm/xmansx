@@ -9,6 +9,7 @@ import { SettingsPage } from "@/features/settings/SettingsPage";
 import { StaffImportWizard } from "@/features/staff/StaffImportWizard";
 import { StaffPage } from "@/features/staff/StaffPage";
 import { ImportWizard } from "@/features/students/ImportWizard";
+import { InactiveStudentsPage } from "@/features/students/InactiveStudentsPage";
 import { StudentsPage } from "@/features/students/StudentsPage";
 import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
@@ -34,6 +35,7 @@ export const routes = [
                   { index: true, element: <HomePage /> },
                   { path: "settings", element: <SettingsPage /> },
                   { path: "students", element: <StudentsPage /> },
+                  { path: "students/inactive", element: <InactiveStudentsPage /> },
                   { path: "students/import", element: <ImportWizard /> },
                   { path: "staff", element: <StaffPage /> },
                   { path: "staff/import", element: <StaffImportWizard /> },

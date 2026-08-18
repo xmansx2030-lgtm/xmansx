@@ -26,5 +26,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/setupTests.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    testTimeout: 20_000,
+    // استقرار على أجهزة التطوير التي تشغل Docker بالتوازي
+    maxWorkers: 4,
   },
 });

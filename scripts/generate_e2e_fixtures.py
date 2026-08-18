@@ -91,8 +91,26 @@ def main() -> None:
         [["فهد المرشد", "0550000004", f"C-{tag}-4"]],
     )
 
+    # ---- ملفات دورة الحياة (المرحلة 4.1) — طلاب مستقلون عن بقية الـ specs ----
+    def lc_nid(n: int) -> str:
+        return f"2{tag}{n:03d}"  # إقامة تبدأ بـ 2 — لا تصادم مع nid()
+
+    def lc_name(n: int) -> str:
+        return f"طالب دورة {tag}-{n}"
+
+    lifecycle_rows = [
+        [lc_nid(1), lc_name(1), "الثالث الثانوي", "1", ""],
+        [lc_nid(2), lc_name(2), "الثالث الثانوي", "1", ""],
+        [lc_nid(3), lc_name(3), "الثالث الثانوي", "2", ""],
+    ]
+    _write(FIXTURES_DIR / "noor-3.xlsx", lifecycle_rows)
+    # الملف التالي بلا الطالب 3 → «غير موجود في آخر ملف»
+    _write(FIXTURES_DIR / "noor-3b.xlsx", lifecycle_rows[:2])
+
     meta = {
         "tag": tag,
+        "lifecycle_prefix": f"طالب دورة {tag}",
+        "lifecycle_missing": lc_name(3),
         "first_student": name(1),
         "moved_student": name(1),
         "missing_student": name(8),

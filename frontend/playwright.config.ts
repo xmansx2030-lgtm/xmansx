@@ -4,7 +4,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
-  timeout: 30_000,
+  // الملفات تتشارك مدارس الـ seed وقيود «عملية واحدة جارية لكل مدرسة» — تسلسل كامل
+  workers: 1,
+  timeout: 60_000,
   retries: 0,
   reporter: [["list"]],
   use: {

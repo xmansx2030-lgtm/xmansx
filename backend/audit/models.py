@@ -31,6 +31,10 @@ class AuditAction(models.TextChoices):
     STUDENT_ENROLLMENT_ENDED = "STUDENT_ENROLLMENT_ENDED", "إنهاء قيد"
     GRADE_CREATED = "GRADE_CREATED", "إنشاء صف"
     SECTION_CREATED = "SECTION_CREATED", "إنشاء فصل"
+    # المرحلة 4.1 — دورة الحياة والحذف النهائي (بلا PII في metadata)
+    STUDENT_PERMANENTLY_PURGED = "STUDENT_PERMANENTLY_PURGED", "حذف نهائي لطالب"
+    STUDENT_BULK_PURGE_STARTED = "STUDENT_BULK_PURGE_STARTED", "بدء حذف جماعي"
+    STUDENT_BULK_PURGE_COMPLETED = "STUDENT_BULK_PURGE_COMPLETED", "اكتمال حذف جماعي"
     # المرحلة 5 — الموظفون والدعوات
     STAFF_IMPORT_UPLOADED = "STAFF_IMPORT_UPLOADED", "رفع ملف موظفين"
     STAFF_IMPORT_VALIDATED = "STAFF_IMPORT_VALIDATED", "تحقق ملف موظفين"
