@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* الأساس: عربي RTL أولاً */
+:root {
+  --font-arabic: "Segoe UI", "Tahoma", system-ui, sans-serif;
+}
+
+html {
+  direction: rtl;
+}
+
+body {
+  font-family: var(--font-arabic);
+  @apply bg-slate-50 text-slate-900 antialiased;
+}

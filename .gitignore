@@ -1,0 +1,56 @@
+# ---- Environment / Secrets (never commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+*.dump
+*.sql.gz
+
+# ---- Python / Django ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+db.sqlite3
+backend/staticfiles/
+backend/mediafiles/
+backend/local_storage/
+celerybeat-schedule*
+
+# ---- Node / React / Vite ----
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+*.tsbuildinfo
+.eslintcache
+
+# ---- Testing artifacts ----
+frontend/coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# ---- IDEs / OS ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- Docker local overrides ----
+docker-compose.override.yml
+
+# ---- Uploaded / local data ----
+uploads/
+data/

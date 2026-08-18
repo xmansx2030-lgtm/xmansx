@@ -1,0 +1,60 @@
+[project]
+name = "xmansx-backend"
+version = "0.1.0"
+description = "منصة المواظبة والمتابعة الطلابية — Backend"
+requires-python = ">=3.13"
+dependencies = [
+    "Django>=5.2,<5.3",
+    "djangorestframework>=3.16,<3.17",
+    "psycopg[binary]>=3.2,<4",
+    "celery[redis]>=5.6,<5.7",
+    "django-cors-headers>=4.7,<5",
+    "django-csp>=4,<5",
+    "gunicorn>=23,<24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9,<1",
+]
+test = [
+    "pytest>=8.3,<9",
+    "pytest-django>=4.9,<5",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+exclude = ["**/migrations/**"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "DJ",  # flake8-django
+    "S",   # bandit (security)
+    "UP",  # pyupgrade
+]
+ignore = [
+    "S101", # assert allowed (tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+"config/settings/**" = ["F403", "F405"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"
