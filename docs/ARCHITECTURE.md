@@ -206,5 +206,13 @@ backend (Django/gunicorn) ── postgres
 > OpenAPI (drf-spectacular) مؤجل كدين تقني موثق — الواجهة تستخدم أنواعًا يدوية مطابقة.
 >
 > المرحلة 4: Students/Grades/Sections/Enrollments + استيراد نور عبر Celery نفذت
-> (STUDENTS.md / STUDENT_IMPORT.md / IDENTIFIER_SECURITY.md). **موعد نهائي لدين OpenAPI:
-> يعالج في بداية المرحلة 5 أو 6 على الأكثر — قبل بناء APIs الحضور المركزية.**
+> (STUDENTS.md / STUDENT_IMPORT.md / IDENTIFIER_SECURITY.md).
+>
+> المرحلة 5: **دين OpenAPI سُدد** (OPENAPI.md — schema/docs/CI + قاعدة serializer-first
+> للمراحل القادمة). StaffProfile + استيراد المعلمين + الدعوات + كلمة المرور المؤقتة
+> نفذت (STAFF.md / STAFF_IMPORT.md / INVITATIONS.md).
+>
+> **قرار المرحلة 6 المسبق (هوية المعلم في الحضور):** AttendanceSession سيحفظ
+> `submitted_by_membership` (FK إلى SchoolMembership) — لا User وحده، لأن المستخدم
+> متعدد المدارس؛ العضوية تحدد هويته داخل المدرسة، ومنها StaffProfile.display_name
+> عبر `get_current_staff_profile` الجاهز.

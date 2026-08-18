@@ -376,7 +376,7 @@ function PreviewStep({
       {rowsQuery.isPending && <Spinner />}
       {rowsQuery.data && (
         <div className="mb-4 overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-140 text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="p-2 text-start">الصف بالملف</th>

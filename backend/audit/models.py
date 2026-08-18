@@ -31,6 +31,21 @@ class AuditAction(models.TextChoices):
     STUDENT_ENROLLMENT_ENDED = "STUDENT_ENROLLMENT_ENDED", "إنهاء قيد"
     GRADE_CREATED = "GRADE_CREATED", "إنشاء صف"
     SECTION_CREATED = "SECTION_CREATED", "إنشاء فصل"
+    # المرحلة 5 — الموظفون والدعوات
+    STAFF_IMPORT_UPLOADED = "STAFF_IMPORT_UPLOADED", "رفع ملف موظفين"
+    STAFF_IMPORT_VALIDATED = "STAFF_IMPORT_VALIDATED", "تحقق ملف موظفين"
+    STAFF_IMPORT_COMMITTED = "STAFF_IMPORT_COMMITTED", "اعتماد استيراد موظفين"
+    STAFF_IMPORT_FAILED = "STAFF_IMPORT_FAILED", "فشل استيراد موظفين"
+    STAFF_PROFILE_CREATED = "STAFF_PROFILE_CREATED", "إنشاء ملف موظف"
+    STAFF_PROFILE_UPDATED = "STAFF_PROFILE_UPDATED", "تحديث ملف موظف"
+    SCHOOL_MEMBERSHIP_INVITED = "SCHOOL_MEMBERSHIP_INVITED", "دعوة عضوية"
+    SCHOOL_MEMBERSHIP_ACCEPTED = "SCHOOL_MEMBERSHIP_ACCEPTED", "قبول دعوة"
+    SCHOOL_MEMBERSHIP_DECLINED = "SCHOOL_MEMBERSHIP_DECLINED", "رفض دعوة"
+    STAFF_ROLE_ADDED = "STAFF_ROLE_ADDED", "إضافة دور"
+    STAFF_ROLE_REMOVED = "STAFF_ROLE_REMOVED", "إزالة دور"
+    STAFF_SUSPENDED = "STAFF_SUSPENDED", "إيقاف موظف"
+    STAFF_REACTIVATED = "STAFF_REACTIVATED", "إعادة تفعيل موظف"
+    INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
 
 
 class AuditLog(models.Model):

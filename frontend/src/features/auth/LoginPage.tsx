@@ -26,12 +26,19 @@ export function LoginPage() {
     mutationFn: () => login(mobile.trim(), password),
     onSuccess: (data: Me) => {
       queryClient.setQueryData(ME_QUERY_KEY, data);
-      navigate(data.active_school ? "/" : "/select-school", { replace: true });
+      if (data.must_change_password) {
+        navigate("/change-password", { replace: true });
+      } else {
+        navigate(data.active_school ? "/" : "/select-school", { replace: true });
+      }
     },
   });
 
   // مسجل دخول بالفعل؟ لا معنى لصفحة الدخول
   if (me.isSuccess) {
+    if (me.data.must_change_password) {
+      return <Navigate to="/change-password" replace />;
+    }
     return <Navigate to={me.data.active_school ? "/" : "/select-school"} replace />;
   }
 

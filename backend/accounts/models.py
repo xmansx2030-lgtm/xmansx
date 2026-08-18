@@ -24,6 +24,9 @@ class User(AbstractUser, TimestampedModel):
         error_messages={"unique": "رقم الجوال مسجل مسبقاً."},
     )
 
+    # الحسابات المنشأة بكلمة مرور مؤقتة تجبر على تغييرها قبل أي استخدام تشغيلي
+    must_change_password = models.BooleanField(default=False)
+
     USERNAME_FIELD = "mobile"
     REQUIRED_FIELDS: list[str] = []
 

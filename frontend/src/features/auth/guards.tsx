@@ -12,7 +12,8 @@ function FullPageSpinner() {
   );
 }
 
-/** غير مسجل → /login. (الحماية الحقيقية على الـ Backend — هذا UX فقط) */
+/** غير مسجل → /login، وكلمة مؤقتة → شاشة التغيير الإجبارية.
+ *  (الحماية الحقيقية على الـ Backend — هذا UX فقط) */
 export function RequireAuth() {
   const me = useMe();
 
@@ -22,6 +23,9 @@ export function RequireAuth() {
       return <Navigate to="/login" replace />;
     }
     throw me.error; // أخطاء أخرى → صفحة الخطأ العامة
+  }
+  if (me.data.must_change_password) {
+    return <Navigate to="/change-password" replace />;
   }
   return <Outlet />;
 }
@@ -34,7 +38,7 @@ export function RequireActiveSchool() {
   if (me.isError) return <Navigate to="/login" replace />;
 
   if (me.data.active_school === null) {
-    if (me.data.memberships.length > 0) {
+    if (me.data.memberships.length > 0 || me.data.invitations.length > 0) {
       return <Navigate to="/select-school" replace />;
     }
     return (

@@ -7,6 +7,7 @@ import { roleLabels } from "@/utils/roles";
 
 const SETTINGS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STUDENTS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
+const STAFF_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 
 /** الهيكل العام بعد اختيار المدرسة: المستخدم، المدرسة الحالية، الأدوار، التبديل، الخروج. */
 export function AppShell() {
@@ -29,6 +30,16 @@ export function AppShell() {
                 }
               >
                 الطلاب
+              </NavLink>
+            )}
+            {me.isSuccess && me.data.roles.some((r) => STAFF_ROLES.includes(r)) && (
+              <NavLink
+                to="/staff"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                الموظفون
               </NavLink>
             )}
             {me.isSuccess && me.data.roles.some((r) => SETTINGS_ROLES.includes(r)) && (

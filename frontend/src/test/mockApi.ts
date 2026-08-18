@@ -51,9 +51,11 @@ export function buildMe(overrides: Partial<Me> = {}): Me {
     mobile: "+966550000001",
     name: "أحمد المعلم",
     is_platform_admin: false,
+    must_change_password: false,
     active_school: null,
     roles: [],
     memberships: [],
+    invitations: [],
     ...overrides,
   };
 }

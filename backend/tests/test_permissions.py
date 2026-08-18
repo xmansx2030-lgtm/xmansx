@@ -23,6 +23,7 @@ class _FakeRequest:
 
 class _AuthedUser:
     is_authenticated = True
+    must_change_password = False
 
 
 def test_has_school_role_requires_active_school():

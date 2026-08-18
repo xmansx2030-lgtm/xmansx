@@ -202,7 +202,7 @@ function ScheduleEditor({
 
       {/* جدول الحصص — يتحول لبطاقات ضمنيًا عبر التفاف الأعمدة على الشاشات الصغيرة */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[540px] text-sm">
+        <table className="w-full min-w-135 text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-start text-slate-500">
               <th className="py-2 text-start">#</th>

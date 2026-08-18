@@ -65,6 +65,12 @@ POST /api/v1/session/active-school/ ← switch (انظر MULTI_TENANCY.md)
 يعمل بالجوال (أمر مخصص في `accounts/management/commands/` يطبّع الإدخال). مجرب فعليًا:
 `manage.py createsuperuser --noinput --mobile 05XXXXXXXX` مع `DJANGO_SUPERUSER_PASSWORD`.
 
+## كلمة المرور المؤقتة (المرحلة 5)
+
+- الحسابات الجديدة من استيراد المعلمين: كلمة مؤقتة (`secrets`) + `User.must_change_password=True`.
+- البوابة: `must_change_password` يمنع كل الـ APIs المدرسية والتبديل (رمز `INITIAL_PASSWORD_CHANGE_REQUIRED`) حتى `POST /api/v1/auth/change-initial-password/` (كلمة حالية + جديدة + تأكيد؛ سياسة: ≥8، ليست أرقامًا فقط، ليست الجوال؛ رسائل عربية) ثم `update_session_auth_hash` + تدوير الجلسة + Audit.
+- التغيير **عالمي** (يخص User لا مدرسة) — مدير المدرسة لا يعيد تعيين كلمات مرور مستخدمين موجودين (تمس مدارسهم الأخرى).
+
 ## خارج نطاق المرحلة (بقرار)
 
-لا Password Reset ولا OTP/SMS ولا Self-Registration — الحسابات من Admin أو `seed_dev` أو استيراد المعلمين (مرحلة 5).
+لا Password Reset عام ولا OTP/SMS ولا Self-Registration — الحسابات من Admin أو `seed_dev` أو استيراد المعلمين. إعادة إصدار كلمة مؤقتة/استرجاع الحساب: ميزة مستقبلية موثقة.

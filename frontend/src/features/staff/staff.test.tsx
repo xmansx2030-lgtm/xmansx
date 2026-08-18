@@ -1,0 +1,206 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { queryClient } from "@/app/queryClient";
+import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
+import { renderApp } from "@/test/renderApp";
+
+function meWithRoles(roles: ("SCHOOL_MANAGER" | "TEACHER" | "VICE_PRINCIPAL")[]) {
+  return buildMe({
+    active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+    roles,
+    memberships: [membership(1, 10, "ثانوية الأندلس", roles)],
+  });
+}
+
+const STAFF_PAGE = {
+  count: 2,
+  next: null,
+  previous: null,
+  results: [
+    {
+      id: 1, display_name: "أحمد الغامدي", employee_number: "T-1", job_title: "معلم",
+      mobile: "+9665****0001", roles: ["TEACHER"], membership_status: "ACTIVE",
+      joined_at: "2026-08-18", is_active: true,
+    },
+    {
+      id: 2, display_name: "فهد المرشد", employee_number: null, job_title: "",
+      mobile: "+9665****0004", roles: ["COUNSELOR", "TEACHER"],
+      membership_status: "ACTIVE", joined_at: "2026-08-18", is_active: true,
+    },
+  ],
+};
+
+describe("StaffPage", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    document.cookie = "csrftoken=test-token";
+  });
+
+  it("manager sees directory with masked mobiles, roles and import button", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    expect(await screen.findByText("أحمد الغامدي")).toBeInTheDocument();
+    expect(screen.getByText("+9665****0001")).toBeInTheDocument();
+    expect(screen.getAllByText("المرشد الطلابي").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "استيراد معلمين" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "إدارة" }).length).toBe(2);
+  });
+
+  it("vice principal reads directory without import or manage controls", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["VICE_PRINCIPAL"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    expect(await screen.findByText("أحمد الغامدي")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "استيراد معلمين" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إدارة" })).not.toBeInTheDocument();
+  });
+
+  it("teacher denied staff directory and nav hidden", async () => {
+    mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
+    renderApp("/staff");
+    expect(
+      await screen.findByText("لا تملك صلاحية عرض دليل الموظفين"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "الموظفون" })).not.toBeInTheDocument();
+  });
+});
+
+describe("StaffImportWizard", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    document.cookie = "csrftoken=test-token";
+  });
+
+  const UPLOADED = {
+    id: 7, status: "UPLOADED", original_filename: "staff.xlsx",
+    headers: ["اسم المعلم", "رقم الجوال"],
+    suggested_mapping: { full_name: 0, mobile: 1 },
+    total_rows: 0, invalid_rows: 0, duplicate_rows: 0, summary: {}, error_code: "",
+  };
+  const READY = {
+    ...UPLOADED, status: "READY_FOR_REVIEW", total_rows: 2,
+    summary: { new: 1, invite: 1, add_role: 0, profile_update: 0, unchanged: 0,
+               invitation_pending: 0, manual: 0, errors: 0, duplicates: 0 },
+  };
+
+  it("full flow shows one-time credentials in the result", async () => {
+    mockApi({
+      "/staff-imports/7/process/": { body: READY },
+      "/staff-imports/7/preview/": {
+        body: {
+          count: 2, next: null, previous: null,
+          results: [
+            { row_number: 2, status: "NEW",
+              data: { full_name: "معلم جديد", mobile_masked: "+9665****9001" },
+              error_codes: [], error_message: "" },
+            { row_number: 3, status: "EXISTING_USER_INVITE",
+              data: { full_name: "موجود", mobile_masked: "+9665****9002" },
+              error_codes: [], error_message: "" },
+          ],
+        },
+      },
+      "/staff-imports/7/commit/": {
+        body: {
+          ...READY, status: "COMPLETED",
+          summary: { ...READY.summary, created: 1, invited: 1, roles_added: 0,
+                     profiles_updated: 0 },
+          new_credentials: [
+            { name: "معلم جديد", mobile_masked: "+9665****9001",
+              temporary_password: "Xy9-secret12" },
+          ],
+        },
+      },
+      "/staff-imports/7/": { body: READY },
+      "/staff-imports/": { status: 201, body: UPLOADED },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+    });
+
+    renderApp("/staff/import");
+    const user = userEvent.setup();
+    const file = new File([new Uint8Array([80, 75, 3, 4])], "staff.xlsx");
+    await user.upload(
+      (await screen.findByTestId("staff-file-input")) as HTMLInputElement, file,
+    );
+    await user.click(screen.getByRole("button", { name: "رفع الملف" }));
+
+    expect(await screen.findByText("مطابقة الأعمدة")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "بدء التحليل" }));
+
+    expect(await screen.findByRole("tab", { name: "معلمون جدد (1)" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "حسابات موجودة — دعوة (1)" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "متابعة إلى التأكيد" }));
+
+    expect(await screen.findByTestId("staff-confirm-summary")).toHaveTextContent(
+      "حسابات معلمين جديدة: 1",
+    );
+    await user.click(screen.getByRole("button", { name: "اعتماد الاستيراد" }));
+
+    const credentials = await screen.findByTestId("new-credentials");
+    expect(credentials).toHaveTextContent("Xy9-secret12");
+    expect(credentials).toHaveTextContent("مرة واحدة فقط");
+  });
+});
+
+describe("Invitations & initial password", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    document.cookie = "csrftoken=test-token";
+  });
+
+  it("pending invitation shown on select-school and accept adds the school", async () => {
+    const withInvite = buildMe({
+      memberships: [membership(1, 10, "ثانوية الأندلس", ["TEACHER"])],
+      invitations: [
+        { id: 5, school: { id: 20, name: "مدارس الرواد", slug: "rowad" }, roles: ["TEACHER"] },
+      ],
+    });
+    const afterAccept = buildMe({
+      memberships: [
+        membership(1, 10, "ثانوية الأندلس", ["TEACHER"]),
+        membership(5, 20, "مدارس الرواد", ["TEACHER"]),
+      ],
+    });
+    mockApi({
+      "/auth/invitations/5/accept/": { body: afterAccept },
+      "/auth/me/": { body: withInvite },
+    });
+    renderApp("/select-school");
+    const user = userEvent.setup();
+
+    const invitations = await screen.findByTestId("invitations-section");
+    expect(invitations).toHaveTextContent("مدارس الرواد");
+    await user.click(screen.getByRole("button", { name: "قبول" }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("invitations-section")).not.toBeInTheDocument();
+    });
+    // المدرستان أصبحتا متاحتين للدخول
+    expect(screen.getAllByRole("button", { name: "دخول" }).length).toBe(2);
+  });
+
+  it("must_change_password forces the change screen before the app", async () => {
+    mockApi({
+      "/auth/me/": { body: buildMe({ must_change_password: true }) },
+    });
+    renderApp("/");
+    expect(
+      await screen.findByRole("heading", { name: "تغيير كلمة المرور" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("كلمة المرور الجديدة")).toBeInTheDocument();
+  });
+
+  it("unauthenticated user on change-password goes to login", async () => {
+    mockApi({ "/auth/me/": UNAUTHENTICATED });
+    renderApp("/change-password");
+    expect(await screen.findByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
+  });
+});

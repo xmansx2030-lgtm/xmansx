@@ -49,6 +49,12 @@ class ActiveSchoolRequired(BasePermission):
     def has_permission(self, request, view) -> bool:
         if not (request.user and request.user.is_authenticated):
             return False  # → AUTHENTICATION_REQUIRED من DRF
+        if request.user.must_change_password:
+            raise ApiError(
+                "INITIAL_PASSWORD_CHANGE_REQUIRED",
+                "يجب تغيير كلمة المرور المؤقتة قبل متابعة استخدام المنصة.",
+                status_code=403,
+            )
         if request.school is None:
             raise_school_context_error(request)
         return True

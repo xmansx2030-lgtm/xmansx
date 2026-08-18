@@ -36,3 +36,26 @@ export function switchActiveSchool(schoolId: number): Promise<Me> {
     body: { school_id: schoolId },
   });
 }
+
+export function acceptInvitation(invitationId: number): Promise<Me> {
+  return apiRequest<Me>(`/auth/invitations/${invitationId}/accept/`, { method: "POST" });
+}
+
+export function declineInvitation(invitationId: number): Promise<Me> {
+  return apiRequest<Me>(`/auth/invitations/${invitationId}/decline/`, { method: "POST" });
+}
+
+export function changeInitialPassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<Me> {
+  return apiRequest<Me>("/auth/change-initial-password/", {
+    method: "POST",
+    body: {
+      current_password: currentPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    },
+  });
+}

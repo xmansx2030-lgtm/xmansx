@@ -57,6 +57,12 @@ def get_students(*, school, actor):  # school و actor صريحان دائمًا
 - التبديل يفرغ كل cache غير `["me"]` (`removeQueries`) — لا Flash لبيانات مدرسة سابقة (مغطى باختبار يزرع بيانات مدرسية قديمة ويتأكد من زوالها).
 - مفاتيح البيانات المدرسية المستقبلية: `["school", activeSchoolId, ...]` عبر `schoolScopedKey()`.
 
+## الدعوات (المرحلة 5)
+
+إضافة مستخدم موجود لمدرسة جديدة لا تتم بصمت: عضوية `INVITED` يقبلها/يرفضها صاحبها
+(انظر INVITATIONS.md). الرفض `DECLINED` لا يحذف، وإعادة الدعوة إجراء صريح.
+دليل الموظفين لا يكشف مدارس المستخدم الأخرى أو أدواره فيها (STAFF.md).
+
 ## Security Invariants (ثوابت ملزمة لكل المراحل)
 
 1. **A user cannot access a school without an ACTIVE membership.**

@@ -1,15 +1,17 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
+import { acceptInvitation, declineInvitation } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
-import { useLogout, useMe, useSwitchSchool } from "@/features/auth/useMe";
+import { ME_QUERY_KEY, useLogout, useMe, useSwitchSchool } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
 
 export function SelectSchoolPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const me = useMe();
   const switchSchool = useSwitchSchool();
   const doLogout = useLogout();
@@ -21,6 +23,14 @@ export function SelectSchoolPage() {
     onSettled: () => setPendingId(null),
   });
 
+  const invitationMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "accept" | "decline" }) =>
+      action === "accept" ? acceptInvitation(id) : declineInvitation(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(ME_QUERY_KEY, updated);
+    },
+  });
+
   if (me.isPending) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
@@ -29,7 +39,10 @@ export function SelectSchoolPage() {
     );
   }
   if (me.isError) return <Navigate to="/login" replace />;
-  if (me.data.memberships.length === 0) return <Navigate to="/" replace />;
+  if (me.data.must_change_password) return <Navigate to="/change-password" replace />;
+  if (me.data.memberships.length === 0 && me.data.invitations.length === 0) {
+    return <Navigate to="/" replace />;
+  }
 
   const apiError = switchMutation.error instanceof ApiError ? switchMutation.error : null;
 
@@ -45,6 +58,50 @@ export function SelectSchoolPage() {
           <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             {apiError.message}
           </p>
+        )}
+
+        {me.data.invitations.length > 0 && (
+          <section className="mb-6" data-testid="invitations-section">
+            <h2 className="mb-2 font-bold text-slate-700">دعوات مدارس</h2>
+            <ul className="space-y-3">
+              {me.data.invitations.map((invitation) => (
+                <li
+                  key={invitation.id}
+                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                >
+                  <p className="font-bold text-slate-800">{invitation.school.name}</p>
+                  <p className="mb-3 text-sm text-slate-600">
+                    تدعو حسابك للانضمام{" "}
+                    {invitation.roles.length > 0 ? `(${roleLabels(invitation.roles)})` : ""}
+                  </p>
+                  {invitationMutation.error instanceof ApiError && (
+                    <p role="alert" className="mb-2 text-sm text-red-700">
+                      {invitationMutation.error.message}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={invitationMutation.isPending}
+                      onClick={() =>
+                        invitationMutation.mutate({ id: invitation.id, action: "accept" })
+                      }
+                    >
+                      قبول
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={invitationMutation.isPending}
+                      onClick={() =>
+                        invitationMutation.mutate({ id: invitation.id, action: "decline" })
+                      }
+                    >
+                      رفض
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         <ul className="space-y-3">

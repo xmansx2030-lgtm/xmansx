@@ -13,6 +13,16 @@ def active_memberships_for_user(user):
     )
 
 
+def invited_memberships_for_user(user):
+    """دعوات المستخدم القائمة — تعرض له بعد الدخول."""
+    return (
+        SchoolMembership.objects.filter(user=user, status=MembershipStatus.INVITED)
+        .select_related("school")
+        .prefetch_related("roles")
+        .order_by("school__name")
+    )
+
+
 def get_membership(user, school_id) -> SchoolMembership | None:
     """عضوية المستخدم في مدرسة (أي حالة) — للتحقق التفصيلي عند التبديل."""
     return (

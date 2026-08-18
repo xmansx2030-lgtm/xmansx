@@ -25,6 +25,11 @@ SEED = [
     ("0550000002", "خالد", "المدير", [("school-a", ["SCHOOL_MANAGER"]), ("school-b", ["TEACHER"])]),
     ("0550000003", "سعد", "الوكيل", [("school-a", ["VICE_PRINCIPAL"])]),
     ("0550000004", "فهد", "المرشد", [("school-c", ["COUNSELOR"])]),
+    # مديرة B وC — لسيناريوهات استيراد الموظفين متعددة المدارس
+    ("0550000006", "منى", "المديرة", [
+        ("school-b", ["SCHOOL_MANAGER"]),
+        ("school-c", ["SCHOOL_MANAGER"]),
+    ]),
 ]
 
 SCHOOLS = [

@@ -1,10 +1,13 @@
 import { createBrowserRouter } from "react-router-dom";
 
 import { AppShell } from "@/app/AppShell";
+import { ChangeInitialPasswordPage } from "@/features/auth/ChangeInitialPasswordPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireActiveSchool, RequireAuth } from "@/features/auth/guards";
 import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import { StaffImportWizard } from "@/features/staff/StaffImportWizard";
+import { StaffPage } from "@/features/staff/StaffPage";
 import { ImportWizard } from "@/features/students/ImportWizard";
 import { StudentsPage } from "@/features/students/StudentsPage";
 import { HomePage } from "@/routes/HomePage";
@@ -16,6 +19,7 @@ export const routes = [
     errorElement: <RouteErrorPage />,
     children: [
       { path: "/login", element: <LoginPage /> },
+      { path: "/change-password", element: <ChangeInitialPasswordPage /> },
       {
         element: <RequireAuth />,
         children: [
@@ -31,6 +35,8 @@ export const routes = [
                   { path: "settings", element: <SettingsPage /> },
                   { path: "students", element: <StudentsPage /> },
                   { path: "students/import", element: <ImportWizard /> },
+                  { path: "staff", element: <StaffPage /> },
+                  { path: "staff/import", element: <StaffImportWizard /> },
                   { path: "*", element: <NotFoundPage /> },
                 ],
               },

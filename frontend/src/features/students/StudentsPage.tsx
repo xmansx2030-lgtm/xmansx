@@ -169,7 +169,7 @@ export function StudentsPage() {
       {students.data && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-sm">
+            <table className="w-full min-w-150 text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="p-3 text-start">الاسم</th>

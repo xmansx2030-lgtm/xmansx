@@ -24,6 +24,7 @@ def test_login_success_creates_authenticated_session(make_user, login_client):
     body = response.json()
     assert body["mobile"] == "+966550000200"
     assert body["name"] == "أحمد محمد"
+    body.pop("must_change_password")  # علم منطقي معلن — ليس سرًا
     assert "password" not in str(body)
     # الجلسة أصبحت مصادقة فعلاً
     me = client.get("/api/v1/auth/me/")
@@ -122,6 +123,7 @@ def test_me_payload_has_no_sensitive_fields(make_user, login_client):
     make_user("0550000206")
     client, _ = login_client("0550000206")
     body = client.get("/api/v1/auth/me/").json()
+    assert body.pop("must_change_password") is False  # علم منطقي معلن — ليس سرًا
     text = str(body)
     assert "password" not in text
     assert "argon2" not in text

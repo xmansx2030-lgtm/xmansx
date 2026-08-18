@@ -35,16 +35,31 @@ def serialize_membership(membership: SchoolMembership) -> dict:
     }
 
 
-def build_me_payload(user, memberships, active_membership: SchoolMembership | None) -> dict:
+def serialize_invitation(membership: SchoolMembership) -> dict:
+    return {
+        "id": membership.id,
+        "school": serialize_school(membership.school),
+        "roles": membership.role_codes(),
+    }
+
+
+def build_me_payload(
+    user,
+    memberships,
+    active_membership: SchoolMembership | None,
+    invitations=(),
+) -> dict:
     """الاستجابة الموحدة لـ /me وlogin وswitch — لا حقول حساسة (hash/permissions داخلية)."""
     return {
         "id": user.id,
         "mobile": user.mobile,
         "name": user.display_name,
         "is_platform_admin": user.is_platform_admin,
+        "must_change_password": user.must_change_password,
         "active_school": (
             serialize_school(active_membership.school) if active_membership else None
         ),
         "roles": active_membership.role_codes() if active_membership else [],
         "memberships": [serialize_membership(m) for m in memberships],
+        "invitations": [serialize_invitation(m) for m in invitations],
     }

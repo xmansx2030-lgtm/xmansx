@@ -7,6 +7,7 @@ from common.models import TimestampedModel
 class MembershipStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "فعالة"
     INVITED = "INVITED", "مدعو"
+    DECLINED = "DECLINED", "مرفوضة"  # المرحلة 5: رفض الدعوة لا يحذف السجل
     SUSPENDED = "SUSPENDED", "موقوفة"
     LEFT = "LEFT", "منتهية"
 

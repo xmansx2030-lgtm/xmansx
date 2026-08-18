@@ -132,8 +132,13 @@ erDiagram
 |---|---|---|
 | user | FK→User | |
 | school | FK→School | **Unique (user, school)** — قيد DB فعلي |
-| status | enum | ACTIVE / INVITED / SUSPENDED / LEFT |
+| status | enum | ACTIVE / INVITED / **DECLINED** (م5) / SUSPENDED / LEFT |
 | joined_at | datetime | |
+
+### StaffProfile — ✅ نفذ في المرحلة 5 (staff app)
+`school FK`, `membership OneToOne`, `display_name`, `employee_number` (partial unique لكل مدرسة),
+`job_title`, `source` (IMPORT/MANUAL), `is_active` — بيانات الموظف الخاصة بالمدرسة، لا role فيه.
++ `StaffImportJob/Row` بنمط استيراد الطلاب. و`User.must_change_password` (م5).
 
 فهرس: `(school, status)`.
 

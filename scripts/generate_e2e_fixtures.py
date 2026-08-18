@@ -53,6 +53,44 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-2.xlsx", update_rows)
 
+    # ---- ملفات المعلمين (المرحلة 5) — جوالات فريدة لكل تشغيل ----
+    staff_headers = ["اسم المعلم", "رقم الجوال", "الرقم الوظيفي"]
+
+    def teacher_mobile(n: int) -> str:
+        return f"05{tag}{n:02d}"  # 05 + tag(6) + NN = 10 أرقام
+
+    def teacher_name(n: int) -> str:
+        return f"معلم تجربة {tag}-{n}"
+
+    def _write_staff(path: Path, rows: list[list]) -> None:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(staff_headers)
+        for row in rows:
+            sheet.append(row)
+        workbook.save(path)
+
+    _write_staff(
+        FIXTURES_DIR / "staff-a.xlsx",
+        [
+            [teacher_name(1), teacher_mobile(1), f"A-{tag}-1"],
+            [teacher_name(2), teacher_mobile(2), f"A-{tag}-2"],
+        ],
+    )
+    # مدرسة B: نفس جوال المعلم 1 (موجود → دعوة) + معلم جديد 3
+    _write_staff(
+        FIXTURES_DIR / "staff-b.xlsx",
+        [
+            [teacher_name(1), teacher_mobile(1), f"B-{tag}-1"],
+            [teacher_name(3), teacher_mobile(3), f"B-{tag}-3"],
+        ],
+    )
+    # مدرسة C: فهد المرشد (0550000004) يستورد كمعلم → إضافة دور
+    _write_staff(
+        FIXTURES_DIR / "staff-c.xlsx",
+        [["فهد المرشد", "0550000004", f"C-{tag}-4"]],
+    )
+
     meta = {
         "tag": tag,
         "first_student": name(1),
@@ -61,6 +99,10 @@ def main() -> None:
         "new_student": name(9),
         "first_nid_last4": nid(1)[-4:],
         "first_nid_full": nid(1),
+        "teacher1_name": teacher_name(1),
+        "teacher1_mobile": teacher_mobile(1),
+        "teacher2_name": teacher_name(2),
+        "teacher3_name": teacher_name(3),
     }
     (FIXTURES_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
     print(f"fixtures generated (tag={tag})")

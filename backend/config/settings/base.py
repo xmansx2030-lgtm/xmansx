@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "memberships",
     "academics",
     "students",
+    "staff",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "drf_spectacular",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -162,6 +164,17 @@ REST_FRAMEWORK = {
     # آمن افتراضيًا: كل endpoint مغلق ما لم يصرح بعكس ذلك (health تصرح بـ AllowAny)
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "common.errors.api_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "منصة المواظبة والمتابعة الطلابية — API",
+    "VERSION": "1.0.0",
+    "DESCRIPTION": "واجهات SaaS متعددة المدارس. المدرسة تستمد من الجلسة — لا school_id من العميل.",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # الإنتاج: الوثائق للمستخدمين المصادقين فقط — local.py يفتحها للتطوير
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
 # ---- CORS: مغلق افتراضيًا؛ local.py يسمح لـ Vite dev فقط ----

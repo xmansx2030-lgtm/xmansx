@@ -1,0 +1,30 @@
+# الموظفون — كما نفذ في المرحلة 5
+
+## User vs Membership vs StaffProfile
+
+```text
+User (هوية عالمية: جوال + كلمة مرور واحدة لكل المدارس)
+  └── SchoolMembership (الانتماء + الحالة)
+        ├── SchoolMembershipRole (الأدوار — تعددية)
+        └── StaffProfile (OneToOne: بيانات الموظف الخاصة بالمدرسة)
+```
+
+- **StaffProfile** يحمل: display_name، employee_number (فريد جزئيًا لكل مدرسة)، job_title، source، is_active — **لا role فيه** ولا يعدل اسم User العالمي أبدًا (مدرسة B لا تغير هوية عالمية بصمت؛ اسمها الخاص في display_name).
+- نفس User = ملفات وظيفية مختلفة في كل مدرسة (اسم عرض/رقم وظيفي مختلفان) — مغطى باختبار.
+- Selector جاهز للمرحلة 6: `staff.services.directory.get_current_staff_profile(user, school)`.
+
+## الأدوار
+
+الإدارة عبر `staff/services/management.py`: add/remove role (رموز `ROLE_ALREADY_ASSIGNED`/`ROLE_NOT_ASSIGNED`) مع حمايتين صلبتين:
+- **آخر مدير فعال:** إزالة دوره أو إيقافه → `LAST_SCHOOL_MANAGER_REQUIRED` (409).
+- **آخر دور للعضوية:** الإزالة مرفوضة — الإيقاف الصريح هو البديل (`LAST_ROLE_SUSPEND_INSTEAD`) — لا عضوية فعالة بلا دور تشغيلي.
+
+## الإيقاف
+
+`suspend` يوقف العضوية في هذه المدرسة فقط: لا يمس User العالمي ولا عضويات المدارس الأخرى (مغطى باختبار) ولا يحذف تاريخًا. `reactivate` يعيدها.
+
+## العرض والخصوصية
+
+- القائمة: جوال **مقنع** دائمًا حتى للمدير؛ الكامل في شاشة التفاصيل للمدير فقط (سياسة موثقة).
+- VICE_PRINCIPAL: دليل أساسي قراءة فقط (بلا تفاصيل/إدارة). COUNSELOR/TEACHER: محجوبان.
+- **لا كشف عبر المدارس:** لا endpoint يعرض عدد مدارس المستخدم أو أسماءها أو أدواره فيها، ولا يوجد Global User Search — البحث داخل موظفي المدرسة فقط (اسم/رقم وظيفي/جوال كامل مطابقة تامة).

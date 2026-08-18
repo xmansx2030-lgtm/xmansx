@@ -15,3 +15,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# وثائق API مفتوحة في التطوير فقط
+SPECTACULAR_SETTINGS = {
+    **SPECTACULAR_SETTINGS,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+}

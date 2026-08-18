@@ -51,6 +51,8 @@ jobs:
         run: python manage.py check
       - name: Migration check (no missing migrations)
         run: python manage.py makemigrations --check --dry-run
+      - name: OpenAPI schema generation
+        run: python manage.py spectacular --file /tmp/schema.yml --validate
       - name: Tests
         run: pytest
 
