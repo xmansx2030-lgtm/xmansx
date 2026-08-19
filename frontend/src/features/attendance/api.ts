@@ -17,6 +17,7 @@ export interface CurrentPeriodResponse {
 export interface AttendanceSection {
   id: number;
   name: string;
+  grade_id?: number;
   grade_name: string;
   students_count: number;
 }
@@ -147,3 +148,107 @@ export interface MonitoringResponse {
 
 export const getMonitoring = (signal?: AbortSignal) =>
   apiRequest<MonitoringResponse>("/attendance/monitoring/current/", { signal });
+
+// ---- تحليلات الغياب (المرحلة 8) — بلا PII: لا هوية ولا بيانات ولي أمر ----
+
+export type MatchMode = "ALL_ABSENT" | "ANY_ABSENT";
+
+export interface PeriodName {
+  sequence: number;
+  name: string;
+}
+
+export interface AnalyticsStudent {
+  student_id: number;
+  full_name: string;
+  grade_name: string;
+  section_name: string;
+  period_statuses: { sequence: number; status: "ABSENT" | "LATE" | "PRESENT" }[];
+}
+
+export interface IncompleteSection {
+  section_id: number;
+  section_name: string;
+  grade_name: string;
+  missing_sequences: number[];
+  reason: string;
+}
+
+export interface MultiPeriodResponse {
+  date: string;
+  periods: PeriodName[];
+  match: MatchMode;
+  summary: {
+    matching_students: number;
+    complete_sections: number;
+    incomplete_sections: number;
+  };
+  students: AnalyticsStudent[];
+  incomplete_sections: IncompleteSection[];
+  day_periods: PeriodName[];
+  page: number;
+  page_size: number;
+  total_students: number;
+}
+
+export interface MultiPeriodParams {
+  date: string;
+  period_sequences: number[];
+  match: MatchMode;
+  grade_id?: number | null;
+  section_id?: number | null;
+  page?: number;
+  page_size?: number;
+}
+
+export const postMultiPeriodAnalytics = (params: MultiPeriodParams) =>
+  apiRequest<MultiPeriodResponse>("/attendance/analytics/multi-period/", {
+    method: "POST",
+    body: params,
+  });
+
+export interface DailyAnalyticsResponse {
+  date: string;
+  is_school_day: boolean;
+  expected_periods: number;
+  day_periods: PeriodName[];
+  summary: {
+    total_students: number;
+    complete_students: number;
+    incomplete_students: number;
+    full_absent: number;
+    partial_absent: number;
+    no_absence: number;
+    undetermined: number;
+    late_students: number;
+    late_occurrences: number;
+    late_minutes: number;
+  };
+  students: {
+    student_id: number;
+    full_name: string;
+    grade_name: string;
+    section_name: string;
+    absent_periods: number;
+    late_periods: number;
+    total_late_minutes: number;
+    submitted_periods: number;
+    expected_periods: number;
+  }[];
+  page: number;
+  page_size: number;
+  total_students_filtered: number;
+}
+
+export const getDailyAnalytics = (
+  params: { date: string; status?: string; page?: number },
+  signal?: AbortSignal,
+) => {
+  const query = new URLSearchParams({ date: params.date });
+  if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  return apiRequest<DailyAnalyticsResponse>(
+    `/attendance/analytics/daily/?${query.toString()}`,
+    { signal },
+  );
+};

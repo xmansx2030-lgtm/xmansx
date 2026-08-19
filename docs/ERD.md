@@ -250,23 +250,35 @@ erDiagram
 
 فهارس: `(school, student)`, `(school, status)`. حقل `excuse_status` يضاف في مرحلة الأعذار.
 
+### AttendanceDayContext — ✅ م8 (التفصيل: ATTENDANCE_ANALYTICS.md)
+`school`, `academic_year null`, `attendance_date`, `schedule_snapshot JSON`
+(جدول اليوم كاملًا: الحصص وأوقاتها و`is_attendance_period`), `timezone_snapshot`.
+**Unique (school, attendance_date)** — ينشأ lazy عند أول نشاط حضور ثم Immutable:
+تعديل الجدول لاحقًا لا يغير تحليلات الماضي. قراءة فقط في Admin.
+
+### DailyAttendanceSummary — ✅ م8 (التفصيل: DAILY_ATTENDANCE.md)
+| الحقل | النوع | ملاحظات |
+|---|---|---|
+| school / student / attendance_date | | **Unique (school, student, attendance_date)**؛ ‏student **PROTECT** (حارس Purge) |
+| academic_year / section | FK PROTECT | الفصل التاريخي ذلك اليوم — النقل لاحقًا لا يغير الماضي |
+| expected_periods | int | من سياق اليوم المجمد لا الجدول الحي |
+| submitted_periods / absent_periods / late_periods / present_periods | int | ‏present+absent+late = submitted |
+| total_late_minutes | int | دقائق Integer — لا تحويل لساعات في DB |
+| completeness_status | enum | COMPLETE / INCOMPLETE |
+| absence_status | enum | UNDETERMINED / NONE / PARTIAL / FULL — الناقص UNDETERMINED أبدًا لا FULL |
+| calculated_at | datetime | إعادة الحساب idempotent متزامنة مع الاعتماد/التعديل |
+
+فهرس: `(school, attendance_date, absence_status)`. يعاد بناؤه بـ
+`rebuild_daily_attendance_summaries` — ليس مصدر إدخال يدوي (قراءة فقط في Admin).
+
 ### AttendanceChange (اسم التنفيذ لـ AttendanceMarkChange — ADR-010)
 `school`, `session FK`, `student FK PROTECT`, `actor_membership`, `previous_status/new_status`
 (تشمل `PRESENT`), `previous_late_minutes/new_late_minutes`, `reason`, `changed_at`.
 سجل علائقي append-only (قراءة فقط في الإدارة)، مسجل في PURGE_STEPS مع العلامات.
 
-### DailyAttendanceSummary (مجدولة عبر Celery — للوحات والتقارير)
-| الحقل | النوع | ملاحظات |
-|---|---|---|
-| school / student / date | | **Unique (school, student, date)** |
-| day_status | enum | PRESENT / FULL_DAY_ABSENCE / PARTIAL_ABSENCE / INCOMPLETE |
-| absent_periods / late_periods | int | |
-| late_minutes_total | int | |
-| excused_absent_periods | int | |
-| sessions_expected / sessions_submitted | int | INCOMPLETE عندما expected > submitted |
-
-فهارس: `(school, date)`, `(school, student, date)`, `(school, date, day_status)`.
-إعادة الحساب Idempotent (upsert) عند: اعتماد جلسة، تعديل علامة، اعتماد عذر.
+> ‏DailyAttendanceSummary نفذت في م8 أعلاه بحساب متزامن (لا Celery) وحالة
+> `UNDETERMINED` بدل تحميل INCOMPLETE معنيين؛ ‏`excused_absent_periods` يضاف في
+> مرحلة الأعذار (أعمدة جديدة فقط — لا هدم).
 
 ---
 

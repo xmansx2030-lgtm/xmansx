@@ -141,8 +141,31 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-5.xlsx", monitoring_rows)
 
+    # ---- ملف التحليلات (المرحلة 8) — صف فريد وفصلان: A1 (3 طلاب) وA2 (2)
+    def ana_nid(n: int) -> str:
+        return f"1{tag}7{n:02d}"  # بادئة 7 — لا تصادم مع بقية المولدات
+
+    analytics_grade = f"صف التحليلات {tag}"
+    ana_section_1 = f"T1-{tag}"
+    ana_section_2 = f"T2-{tag}"
+    ana_students_1 = [f"محمد تحليل {tag}", f"خالد تحليل {tag}", f"سعد تحليل {tag}"]
+    ana_students_2 = [f"فهد تحليل {tag}", f"عمر تحليل {tag}"]
+    analytics_rows = [
+        [ana_nid(i + 1), name, analytics_grade, ana_section_1, ""]
+        for i, name in enumerate(ana_students_1)
+    ] + [
+        [ana_nid(i + 4), name, analytics_grade, ana_section_2, ""]
+        for i, name in enumerate(ana_students_2)
+    ]
+    _write(FIXTURES_DIR / "noor-6.xlsx", analytics_rows)
+
     meta = {
         "tag": tag,
+        "analytics_grade": analytics_grade,
+        "analytics_section_1": ana_section_1,
+        "analytics_section_2": ana_section_2,
+        "analytics_students_1": ana_students_1,
+        "analytics_students_2": ana_students_2,
         "monitoring_grade": monitoring_grade,
         "monitoring_sections": monitoring_sections,
         "attendance_section_manual": att_section_manual,

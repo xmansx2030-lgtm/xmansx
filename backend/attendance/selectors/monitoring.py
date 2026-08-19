@@ -39,6 +39,27 @@ _SORT_RANK = {
 }
 
 
+def expected_sections_queryset(*, school, year):
+    """الفصول المتوقع تحضيرها: فعالة وفيها طلاب ACTIVE بقيد ACTIVE في العام النشط.
+    مشتركة بين المراقبة (م7) والتحليلات (م8) — تعريف واحد للفصل «المتوقع»."""
+    return (
+        Section.objects.filter(school=school, is_active=True)
+        .select_related("grade")
+        .annotate(
+            active_students=Count(
+                "enrollments",
+                filter=Q(
+                    enrollments__status=EnrollmentStatus.ACTIVE,
+                    enrollments__academic_year=year,
+                    enrollments__student__status="ACTIVE",
+                ),
+            )
+        )
+        .filter(active_students__gt=0)
+        .order_by("grade__sequence", "code")
+    )
+
+
 def _membership_name(membership) -> str | None:
     if membership is None:
         return None
@@ -70,6 +91,11 @@ def get_current_section_attendance_statuses(*, school, now: datetime | None = No
     if period is None:
         return payload  # لا حصة → لا توقعات ولا تنبيهات (حالة واضحة، ليست خطأ)
 
+    # يوم دراسي نشط → تثبيت سياق اليوم مبكرًا (م8) — مرجع التحليلات التاريخي
+    from attendance.services.day_context import get_or_create_attendance_day_context
+
+    get_or_create_attendance_day_context(school=school, attendance_date=local_date)
+
     current_alert_at = alert_at_for(
         day=local_date,
         start_time=period.start_time,
@@ -78,23 +104,7 @@ def get_current_section_attendance_statuses(*, school, now: datetime | None = No
     )
     tz = current_alert_at.tzinfo
 
-    # الفصول المتوقعة: فعالة وفيها طلاب ACTIVE بقيد ACTIVE في العام النشط
-    sections = list(
-        Section.objects.filter(school=school, is_active=True)
-        .select_related("grade")
-        .annotate(
-            active_students=Count(
-                "enrollments",
-                filter=Q(
-                    enrollments__status=EnrollmentStatus.ACTIVE,
-                    enrollments__academic_year=year,
-                    enrollments__student__status="ACTIVE",
-                ),
-            )
-        )
-        .filter(active_students__gt=0)
-        .order_by("grade__sequence", "code")
-    )
+    sections = list(expected_sections_queryset(school=school, year=year))
 
     # جلسات الحصة الحالية — العزل بحقل school (جلسة مدرسة أخرى لا تنضم ولو تطابقت
     # المعرفات)، والربط بالفصل داخل نفس النتيجة المعزولة

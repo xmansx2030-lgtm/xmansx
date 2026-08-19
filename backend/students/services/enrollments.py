@@ -31,6 +31,22 @@ def students_for_section(*, school, section, academic_year):
     )
 
 
+def enrollments_on_date(*, school, on_date, section=None):
+    """القيود السارية في تاريخ معين — المصدر التاريخي (م8): النقل لاحقًا لا يغير الماضي.
+
+    الدلالة: قيد ساري في D إذا enrolled_at <= D و(ended_at غير محدد أو ended_at > D)
+    — يوم النقل نفسه يتبع الفصل الجديد (القديم ينتهي بـ ended_at = يوم النقل).
+    """
+    from django.db.models import Q
+
+    qs = StudentEnrollment.objects.filter(school=school, enrolled_at__lte=on_date).filter(
+        Q(ended_at__isnull=True) | Q(ended_at__gt=on_date)
+    )
+    if section is not None:
+        qs = qs.filter(section=section)
+    return qs
+
+
 def validate_enrollment_integrity(*, school, student, grade, section, academic_year) -> None:
     """كل الأطراف من نفس المدرسة — Cross-Tenant FK ممنوع حتى بمعرفات يدوية."""
     for obj, label in (

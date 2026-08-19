@@ -87,6 +87,11 @@ def start_session(
             status_code=409,
         )
 
+    # سياق اليوم يتجمد عند أول نشاط حضور (م8) — مرجع expected_periods التاريخي
+    from attendance.services.day_context import get_or_create_attendance_day_context
+
+    get_or_create_attendance_day_context(school=school, attendance_date=local_date)
+
     roster = get_roster(school=school, section=section, academic_year=year)
     settings_obj = get_or_create_settings(school=school)
     semester = Semester.objects.filter(
@@ -228,6 +233,13 @@ def submit_session(*, session_id: int, school, membership, marks: list[dict],
         )
     if deferred_error is not None:
         raise deferred_error
+
+    # تحديث ملخصات اليوم متزامنًا (م8) — الوكيل لا ينتظر worker ليرى التحليلات
+    from attendance.services.daily_summary import recalculate_daily_attendance_for_section
+
+    recalculate_daily_attendance_for_section(
+        school=school, section=session.section, attendance_date=session.attendance_date
+    )
 
     validated_count = session.marks.count()
     absent = session.marks.filter(status=AttendanceMarkStatus.ABSENT).count()
@@ -383,4 +395,13 @@ def edit_session(*, session_id: int, school, membership, roles: list[str],
                 target_id=session.id,
                 metadata={"changes": len(changes)},
             )
+    if changes:
+        # التعديل يعيد حساب ملخصات اليوم فورًا (م8) — بعد commit العلامات
+        from attendance.services.daily_summary import (
+            recalculate_daily_attendance_for_section,
+        )
+
+        recalculate_daily_attendance_for_section(
+            school=school, section=session.section, attendance_date=session.attendance_date
+        )
     return session

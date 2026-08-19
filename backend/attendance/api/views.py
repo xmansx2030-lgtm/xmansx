@@ -13,8 +13,11 @@ from rest_framework.response import Response
 from attendance.api.serializers import (
     AttendanceSectionSerializer,
     CurrentPeriodResponseSerializer,
+    DailyResponseSerializer,
     EditSessionSerializer,
     MonitoringResponseSerializer,
+    MultiPeriodRequestSerializer,
+    MultiPeriodResponseSerializer,
     QrInfoSerializer,
     QrResolveSerializer,
     SessionSerializer,
@@ -110,6 +113,7 @@ class AttendanceSectionsView(SchoolScopedAPIView):
                 {
                     "id": s.id,
                     "name": s.name,
+                    "grade_id": s.grade_id,
                     "grade_name": s.grade.name,
                     "students_count": s.students_count,
                 }
@@ -274,6 +278,114 @@ class SectionQrView(SchoolScopedAPIView):
             section=section, actor=request.user, request=request
         )
         return Response(_qr_payload(section, token))
+
+
+MONITORING_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+
+def _parse_date(value: str | None):
+    from datetime import date as date_cls
+
+    if not value:
+        return None
+    try:
+        return date_cls.fromisoformat(value)
+    except ValueError:
+        raise ApiError("VALIDATION_ERROR", "صيغة التاريخ غير صحيحة (YYYY-MM-DD).") from None
+
+
+class PeriodAnalyticsView(SchoolScopedAPIView):
+    """الغائبون عن حصة محددة — يفوض للتقرير متعدد الحصص بحصة واحدة (منطق واحد)."""
+
+    read_roles = MONITORING_ROLES
+    write_roles = MONITORING_ROLES
+
+    @extend_schema(responses=MultiPeriodResponseSerializer)
+    def get(self, request: Request) -> Response:
+        from attendance.selectors.analytics import get_multi_period_report
+        from attendance.services.periods import school_now
+
+        target_date = _parse_date(request.query_params.get("date"))
+        if target_date is None:
+            target_date = school_now(request.school).date()
+        try:
+            sequence = int(request.query_params.get("period", ""))
+        except ValueError:
+            raise ApiError("INVALID_PERIOD_SELECTION", "حدد رقم الحصة.") from None
+        payload = get_multi_period_report(
+            school=request.school,
+            attendance_date=target_date,
+            sequences=[sequence],
+            match="ALL_ABSENT",
+            grade_id=_int_or_none(request.query_params.get("grade")),
+            section_id=_int_or_none(request.query_params.get("section")),
+            page=_int_or_none(request.query_params.get("page")) or 1,
+            page_size=_int_or_none(request.query_params.get("page_size")) or 25,
+        )
+        return Response(payload)
+
+
+def _int_or_none(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise ApiError("VALIDATION_ERROR", "قيمة رقمية غير صحيحة.") from None
+
+
+class MultiPeriodAnalyticsView(SchoolScopedAPIView):
+    """غائبو عدة حصص — ALL_ABSENT (الأساسي) أو ANY_ABSENT. لا school_id في الطلب."""
+
+    read_roles = MONITORING_ROLES
+    write_roles = MONITORING_ROLES
+
+    @extend_schema(
+        request=MultiPeriodRequestSerializer, responses=MultiPeriodResponseSerializer
+    )
+    def post(self, request: Request) -> Response:
+        from attendance.selectors.analytics import get_multi_period_report
+
+        serializer = MultiPeriodRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        payload = get_multi_period_report(
+            school=request.school,
+            attendance_date=data["date"],
+            sequences=data["period_sequences"],
+            match=data["match"],
+            grade_id=data.get("grade_id"),
+            section_id=data.get("section_id"),
+            page=data["page"],
+            page_size=data["page_size"],
+        )
+        return Response(payload)
+
+
+class DailyAnalyticsView(SchoolScopedAPIView):
+    read_roles = MONITORING_ROLES
+    write_roles = MONITORING_ROLES
+
+    @extend_schema(responses=DailyResponseSerializer)
+    def get(self, request: Request) -> Response:
+        from attendance.models import DailyAbsenceStatus
+        from attendance.selectors.analytics import get_daily_report
+        from attendance.services.periods import school_now
+
+        target_date = _parse_date(request.query_params.get("date"))
+        if target_date is None:
+            target_date = school_now(request.school).date()
+        status_filter = request.query_params.get("status") or None
+        if status_filter and status_filter not in DailyAbsenceStatus.values:
+            raise ApiError("VALIDATION_ERROR", "حالة غياب غير معروفة.")
+        payload = get_daily_report(
+            school=request.school,
+            attendance_date=target_date,
+            status_filter=status_filter,
+            page=_int_or_none(request.query_params.get("page")) or 1,
+            page_size=_int_or_none(request.query_params.get("page_size")) or 25,
+        )
+        return Response(payload)
 
 
 class MonitoringCurrentView(SchoolScopedAPIView):

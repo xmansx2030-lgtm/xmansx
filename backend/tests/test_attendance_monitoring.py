@@ -452,6 +452,7 @@ def test_query_count_constant(env, django_assert_max_num_queries):
         make_students(env["school"], section, year, 2, prefix=f"18{i:02d}")
     make_session(env, env["sections"]["1"], status="SUBMITTED", submitted_at=at(8, 40))
 
+    monitor(env, at(9, 0))  # تهيئة: أول نداء ينشئ سياق اليوم (م8) — نقيس الحالة المستقرة
     with django_assert_max_num_queries(10):
         payload = monitor(env, at(9, 0))
     assert payload["summary"]["total"] == 33

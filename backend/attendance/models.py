@@ -103,6 +103,120 @@ class AttendanceSession(TimestampedModel):
         )
 
 
+class AttendanceDayContext(TimestampedModel):
+    """تجميد جدول اليوم كما استخدمه الحضور (م8) — تحليل الماضي لا يقرأ الجدول الحي.
+
+    ينشأ lazy عند أول نشاط حضور في اليوم (بدء/مراقبة/تحليل) ثم يصبح Immutable:
+    تعديل BellSchedule لاحقًا لا يغير expected_periods لأيام مضت.
+    """
+
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, related_name="attendance_day_contexts"
+    )
+    academic_year = models.ForeignKey(
+        "academics.AcademicYear",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="attendance_day_contexts",
+    )
+    attendance_date = models.DateField()
+    # {"schedule_name", "is_school_day",
+    #  "periods": [{sequence, name, start, end, is_attendance_period}]}
+    schedule_snapshot = models.JSONField()
+    timezone_snapshot = models.CharField(max_length=50)
+
+    class Meta:
+        verbose_name = "سياق يوم الحضور"
+        verbose_name_plural = "سياقات أيام الحضور"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "attendance_date"], name="uniq_day_context_per_school_date"
+            ),
+        ]
+
+    @property
+    def attendance_periods(self) -> list[dict]:
+        return [
+            p for p in self.schedule_snapshot.get("periods", []) if p["is_attendance_period"]
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.school_id} — {self.attendance_date}"
+
+
+class DailyCompleteness(models.TextChoices):
+    COMPLETE = "COMPLETE", "مكتمل"
+    INCOMPLETE = "INCOMPLETE", "غير مكتمل"
+
+
+class DailyAbsenceStatus(models.TextChoices):
+    # UNDETERMINED: يوم غير مكتمل — لا حكم نهائيًا ولو عرفنا غيابات جزئية
+    UNDETERMINED = "UNDETERMINED", "غير محسوم"
+    NONE = "NONE", "لا غياب"
+    PARTIAL = "PARTIAL", "غياب جزئي"
+    FULL = "FULL", "غياب يوم كامل"
+
+
+class DailyAttendanceSummary(TimestampedModel):
+    """ملخص يوم الطالب (م8) — يعاد حسابه idempotent عند الاعتماد/التعديل.
+
+    - present + absent + late = submitted (‏LATE ليست حضورًا كاملًا ولا غيابًا).
+    - ‏FULL فقط عند اكتمال كل الحصص وغيابها كلها — الناقص UNDETERMINED أبدًا لا FULL.
+    - ‏section = فصل الطالب ذلك اليوم (من تاريخ القيد) — النقل لاحقًا لا يغير الماضي.
+    - ‏student بـ PROTECT: نسيان تسجيل الحذف النهائي يفشل صاخبًا (نمط م4.1).
+    - جاهز لإضافة excused/unexcused في مرحلة الأعذار دون هدم (أعمدة جديدة فقط).
+    """
+
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, related_name="daily_attendance_summaries"
+    )
+    student = models.ForeignKey(
+        "students.Student", on_delete=models.PROTECT, related_name="daily_attendance_summaries"
+    )
+    academic_year = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        related_name="daily_attendance_summaries",
+    )
+    section = models.ForeignKey(
+        "students.Section",
+        on_delete=models.PROTECT,
+        related_name="daily_attendance_summaries",
+    )
+    attendance_date = models.DateField()
+
+    expected_periods = models.PositiveSmallIntegerField()
+    submitted_periods = models.PositiveSmallIntegerField()
+    absent_periods = models.PositiveSmallIntegerField()
+    late_periods = models.PositiveSmallIntegerField()
+    present_periods = models.PositiveSmallIntegerField()
+    total_late_minutes = models.PositiveIntegerField(default=0)
+
+    completeness_status = models.CharField(max_length=12, choices=DailyCompleteness.choices)
+    absence_status = models.CharField(max_length=14, choices=DailyAbsenceStatus.choices)
+    calculated_at = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "ملخص حضور يومي"
+        verbose_name_plural = "ملخصات الحضور اليومية"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "student", "attendance_date"],
+                name="uniq_daily_summary_per_student_date",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["school", "attendance_date", "absence_status"],
+                name="daily_school_date_status_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.student_id} — {self.attendance_date} ({self.absence_status})"
+
+
 class AttendanceMarkStatus(models.TextChoices):
     ABSENT = "ABSENT", "غائب"
     LATE = "LATE", "متأخر"

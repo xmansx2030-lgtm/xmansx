@@ -44,14 +44,24 @@ export function AppShell() {
             )}
             {me.isSuccess &&
               me.data.roles.some((r) => ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(r)) && (
-                <NavLink
-                  to="/attendance/monitoring"
-                  className={({ isActive }) =>
-                    `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
-                  }
-                >
-                  متابعة التحضير
-                </NavLink>
+                <>
+                  <NavLink
+                    to="/attendance/monitoring"
+                    className={({ isActive }) =>
+                      `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                    }
+                  >
+                    متابعة التحضير
+                  </NavLink>
+                  <NavLink
+                    to="/attendance/analytics"
+                    className={({ isActive }) =>
+                      `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                    }
+                  >
+                    الغياب والحضور
+                  </NavLink>
+                </>
               )}
             {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
               <NavLink

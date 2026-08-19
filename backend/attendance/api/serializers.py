@@ -48,6 +48,7 @@ class CurrentPeriodResponseSerializer(serializers.Serializer):
 class AttendanceSectionSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
+    grade_id = serializers.IntegerField(required=False)
     grade_name = serializers.CharField()
     students_count = serializers.IntegerField()
 
@@ -84,6 +85,105 @@ class QrInfoSerializer(serializers.Serializer):
     grade_name = serializers.CharField()
     token = serializers.CharField()
     url_path = serializers.CharField()
+
+
+# ---- التحليلات (م8) — بلا PII طلاب: لا هوية ولا جوال ولي أمر ----
+
+
+class MultiPeriodRequestSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    period_sequences = serializers.ListField(
+        child=serializers.IntegerField(min_value=1, max_value=99),
+        min_length=1,
+        max_length=20,
+    )
+    match = serializers.ChoiceField(choices=["ALL_ABSENT", "ANY_ABSENT"], default="ALL_ABSENT")
+    grade_id = serializers.IntegerField(required=False, allow_null=True)
+    section_id = serializers.IntegerField(required=False, allow_null=True)
+    page = serializers.IntegerField(min_value=1, default=1)
+    page_size = serializers.ChoiceField(choices=[25, 50, 100], default=25)
+
+
+class PeriodStatusSerializer(serializers.Serializer):
+    sequence = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=["ABSENT", "LATE", "PRESENT"])
+
+
+class AnalyticsStudentSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    grade_name = serializers.CharField()
+    section_name = serializers.CharField()
+    period_statuses = PeriodStatusSerializer(many=True)
+
+
+class IncompleteSectionSerializer(serializers.Serializer):
+    section_id = serializers.IntegerField()
+    section_name = serializers.CharField()
+    grade_name = serializers.CharField()
+    missing_sequences = serializers.ListField(child=serializers.IntegerField())
+    reason = serializers.CharField()
+
+
+class PeriodNameSerializer(serializers.Serializer):
+    sequence = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class MultiPeriodSummarySerializer(serializers.Serializer):
+    matching_students = serializers.IntegerField()
+    complete_sections = serializers.IntegerField()
+    incomplete_sections = serializers.IntegerField()
+
+
+class MultiPeriodResponseSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    periods = PeriodNameSerializer(many=True)
+    match = serializers.CharField()
+    summary = MultiPeriodSummarySerializer()
+    students = AnalyticsStudentSerializer(many=True)
+    incomplete_sections = IncompleteSectionSerializer(many=True)
+    day_periods = PeriodNameSerializer(many=True)
+    page = serializers.IntegerField()
+    page_size = serializers.IntegerField()
+    total_students = serializers.IntegerField()
+
+
+class DailySummaryKpisSerializer(serializers.Serializer):
+    total_students = serializers.IntegerField()
+    complete_students = serializers.IntegerField()
+    incomplete_students = serializers.IntegerField()
+    full_absent = serializers.IntegerField()
+    partial_absent = serializers.IntegerField()
+    no_absence = serializers.IntegerField()
+    undetermined = serializers.IntegerField()
+    late_students = serializers.IntegerField()
+    late_occurrences = serializers.IntegerField()
+    late_minutes = serializers.IntegerField()
+
+
+class DailyStudentSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    grade_name = serializers.CharField()
+    section_name = serializers.CharField()
+    absent_periods = serializers.IntegerField()
+    late_periods = serializers.IntegerField()
+    total_late_minutes = serializers.IntegerField()
+    submitted_periods = serializers.IntegerField()
+    expected_periods = serializers.IntegerField()
+
+
+class DailyResponseSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    is_school_day = serializers.BooleanField()
+    expected_periods = serializers.IntegerField()
+    day_periods = PeriodNameSerializer(many=True)
+    summary = DailySummaryKpisSerializer()
+    students = DailyStudentSerializer(many=True)
+    page = serializers.IntegerField()
+    page_size = serializers.IntegerField()
+    total_students_filtered = serializers.IntegerField()
 
 
 # ---- لوحة المتابعة (م7) — إخراج فقط، الاشتقاق كله في selectors/monitoring ----

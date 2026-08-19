@@ -28,11 +28,13 @@ def make_students(school, section, year, count: int, prefix: str = "10660") -> l
             national_id_encrypted=encrypt_national_id(nid),
             national_id_lookup_hash=national_id_lookup_hash(nid),
             national_id_masked=mask_national_id(nid),
-            full_name=f"طالب حضور {i:02d}",
+            full_name=f"طالب حضور {prefix}-{i:02d}",  # البادئة تمنع تطابق الأسماء بين الفصول
         )
         StudentEnrollment.objects.create(
             school=school, student=student, academic_year=year,
-            grade=grade, section=section, enrolled_at=date(2026, 8, 23),
+            grade=grade, section=section,
+            # تاريخ ماضٍ دائمًا — enrollments_on_date(اليوم الفعلي أو 2026-08-23) يجدهم
+            enrolled_at=date(2026, 8, 1),
         )
         students.append(student)
     return students
