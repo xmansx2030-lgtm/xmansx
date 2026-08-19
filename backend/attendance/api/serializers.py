@@ -86,6 +86,51 @@ class QrInfoSerializer(serializers.Serializer):
     url_path = serializers.CharField()
 
 
+# ---- لوحة المتابعة (م7) — إخراج فقط، الاشتقاق كله في selectors/monitoring ----
+
+
+class MonitoringAlertSerializer(serializers.Serializer):
+    minutes = serializers.IntegerField()
+    alert_at = serializers.CharField()
+
+
+class MonitoringSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    submitted = serializers.IntegerField()
+    in_progress = serializers.IntegerField()
+    not_started = serializers.IntegerField()
+    overdue_total = serializers.IntegerField()
+    overdue_submitted = serializers.IntegerField()
+    overdue_in_progress = serializers.IntegerField()
+    overdue_not_started = serializers.IntegerField()
+
+
+class MonitoringSectionSerializer(serializers.Serializer):
+    section_id = serializers.IntegerField()
+    section_name = serializers.CharField()
+    grade_id = serializers.IntegerField()
+    grade_name = serializers.CharField()
+    students_count = serializers.IntegerField()
+    attendance_status = serializers.ChoiceField(
+        choices=["SUBMITTED", "IN_PROGRESS", "NOT_STARTED"]
+    )
+    timeliness_status = serializers.ChoiceField(choices=["ON_TIME", "OVERDUE"])
+    started_at = serializers.CharField(allow_null=True)
+    submitted_at = serializers.CharField(allow_null=True)
+    minutes_overdue = serializers.IntegerField(allow_null=True)
+    teacher_name = serializers.CharField(allow_null=True)
+    session_id = serializers.IntegerField(allow_null=True)
+
+
+class MonitoringResponseSerializer(serializers.Serializer):
+    school_time = serializers.DateTimeField()
+    date = serializers.DateField()
+    period = PeriodSerializer(allow_null=True)
+    alert = MonitoringAlertSerializer(allow_null=True)
+    summary = MonitoringSummarySerializer(allow_null=True)
+    sections = MonitoringSectionSerializer(many=True)
+
+
 def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edit: bool) -> dict:
     submitter = None
     if session.submitted_by_membership_id:

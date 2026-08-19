@@ -104,3 +104,46 @@ export const getSectionQr = (sectionId: number, signal?: AbortSignal) =>
 
 export const rotateSectionQr = (sectionId: number) =>
   apiRequest<QrInfo>(`/sections/${sectionId}/qr/`, { method: "POST" });
+
+// ---- لوحة المتابعة (المرحلة 7) — الحالة والتأخر من الخادم حصرًا ----
+
+export type MonitoringAttendanceStatus = "SUBMITTED" | "IN_PROGRESS" | "NOT_STARTED";
+export type TimelinessStatus = "ON_TIME" | "OVERDUE";
+
+export interface MonitoringSection {
+  section_id: number;
+  section_name: string;
+  grade_id: number;
+  grade_name: string;
+  students_count: number;
+  attendance_status: MonitoringAttendanceStatus;
+  timeliness_status: TimelinessStatus;
+  started_at: string | null;
+  submitted_at: string | null;
+  minutes_overdue: number | null;
+  teacher_name: string | null;
+  session_id: number | null;
+}
+
+export interface MonitoringSummary {
+  total: number;
+  submitted: number;
+  in_progress: number;
+  not_started: number;
+  overdue_total: number;
+  overdue_submitted: number;
+  overdue_in_progress: number;
+  overdue_not_started: number;
+}
+
+export interface MonitoringResponse {
+  school_time: string;
+  date: string;
+  period: CurrentPeriod | null;
+  alert: { minutes: number; alert_at: string } | null;
+  summary: MonitoringSummary | null;
+  sections: MonitoringSection[];
+}
+
+export const getMonitoring = (signal?: AbortSignal) =>
+  apiRequest<MonitoringResponse>("/attendance/monitoring/current/", { signal });

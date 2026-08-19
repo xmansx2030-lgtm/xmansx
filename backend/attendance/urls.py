@@ -12,6 +12,8 @@ urlpatterns = [
         views.SubmitSessionView.as_view(),
     ),
     path("attendance/qr/resolve/", views.QrResolveView.as_view()),
+    # لوحة المتابعة (م7) — لا school_id في المسار: request.school من الجلسة حصرًا
+    path("attendance/monitoring/current/", views.MonitoringCurrentView.as_view()),
     # GET = عرض/توليد أول مرة، POST = تجديد (يبطل القديم)
     path("sections/<int:section_id>/qr/", views.SectionQrView.as_view()),
 ]

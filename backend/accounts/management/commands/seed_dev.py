@@ -95,18 +95,20 @@ class Command(BaseCommand):
 
         from academics.models import BellPeriod, BellSchedule, SchoolWeekDay, Weekday
 
+        # 24 حصة × ساعة: أقصى مسافة عن بداية الحصة 60 دقيقة < حد المهلة 120 —
+        # فاختبارات E2E تستطيع دائمًا جعل الفصل «في الوقت» أو «متأخرًا» عبر الإعداد
         schedule, created = BellSchedule.objects.get_or_create(
-            school=school, name="جدول التطوير (يوم كامل)"
+            school=school, name="جدول التطوير (24 حصة)"
         )
         if created:
-            for i in range(8):  # 8 حصص × 3 ساعات = 24 ساعة
+            for i in range(24):
                 BellPeriod.objects.create(
                     school=school,
                     bell_schedule=schedule,
                     sequence=i + 1,
                     name=f"الحصة {i + 1}",
-                    start_time=time(i * 3, 0),
-                    end_time=time(i * 3 + 2, 59, 59),
+                    start_time=time(i, 0),
+                    end_time=time(i, 59, 59),
                 )
         for weekday in Weekday.values:
             SchoolWeekDay.objects.update_or_create(

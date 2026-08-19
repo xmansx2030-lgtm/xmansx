@@ -14,6 +14,7 @@ from attendance.api.serializers import (
     AttendanceSectionSerializer,
     CurrentPeriodResponseSerializer,
     EditSessionSerializer,
+    MonitoringResponseSerializer,
     QrInfoSerializer,
     QrResolveSerializer,
     SessionSerializer,
@@ -22,6 +23,7 @@ from attendance.api.serializers import (
     serialize_session,
 )
 from attendance.models import AttendanceSession, AttendanceSessionStatus
+from attendance.selectors.monitoring import get_current_section_attendance_statuses
 from attendance.services import qr as qr_service
 from attendance.services import sessions as sessions_service
 from attendance.services.periods import get_current_attendance_period
@@ -272,6 +274,22 @@ class SectionQrView(SchoolScopedAPIView):
             section=section, actor=request.user, request=request
         )
         return Response(_qr_payload(section, token))
+
+
+class MonitoringCurrentView(SchoolScopedAPIView):
+    """لوحة متابعة الحصة الحالية — للوكيل والمدير حصرًا (المعلم/المرشد يرفضان
+    بالكود المركزي PERMISSION_DENIED — انحراف موثق كنمط المرحلة 3).
+
+    الحالة مشتقة بالكامل في selector — لا كتابة، لا Audit لكل Poll (ضجيج ممنوع).
+    """
+
+    read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+    write_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+    @extend_schema(responses=MonitoringResponseSerializer)
+    def get(self, request: Request) -> Response:
+        payload = get_current_section_attendance_statuses(school=request.school)
+        return Response(payload)
 
 
 def _qr_payload(section: Section, token: str) -> dict:

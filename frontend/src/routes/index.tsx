@@ -6,6 +6,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireActiveSchool, RequireAuth } from "@/features/auth/guards";
 import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
 import { AttendanceSessionPage } from "@/features/attendance/AttendanceSessionPage";
+import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -43,6 +44,7 @@ export const routes = [
                   { path: "staff", element: <StaffPage /> },
                   { path: "staff/import", element: <StaffImportWizard /> },
                   { path: "attendance/section/:sectionId", element: <AttendanceSessionPage /> },
+                  { path: "attendance/monitoring", element: <MonitoringPage /> },
                   { path: "attendance/qr", element: <SectionQrPage /> },
                   { path: "qr/:token", element: <QrScanPage /> },
                   { path: "*", element: <NotFoundPage /> },

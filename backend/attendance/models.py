@@ -56,6 +56,9 @@ class AttendanceSession(TimestampedModel):
         default=AttendanceSessionStatus.IN_PROGRESS,
     )
     roster_fingerprint = models.CharField(max_length=64)  # لكشف تغير الفصل قبل الاعتماد
+    # snapshot مهلة التنبيه وقت الفتح (م7) — تغيير الإعداد لاحقًا لا يعيد كتابة
+    # تاريخ الالتزام (جلسة اعتمدت «في الوقت» تبقى كذلك للأبد)
+    unprepared_alert_minutes_snapshot = models.PositiveSmallIntegerField()
 
     started_by_membership = models.ForeignKey(
         "memberships.SchoolMembership",

@@ -231,6 +231,7 @@ erDiagram
 | started_at / submitted_at | datetime | |
 | bell_period_snapshot | json | وقت بداية/نهاية الحصة وقت التحضير (يثبت حساب late_minutes حتى لو تغير الجدول) |
 | roster_fingerprint | char(64) | SHA-256 لقائمة الفصل وقت الفتح — كشف تغيرها قبل الإرسال |
+| unprepared_alert_minutes_snapshot | smallint | ✅ م7: مهلة التنبيه وقت الفتح — تقييم «اعتمد متأخرًا» تاريخيًا لا يتأثر بتغيير الإعداد (ATTENDANCE_MONITORING.md) |
 
 قيود وفهارس:
 - **Unique (school, section, attendance_date, period_sequence)** ← منع التحضير مرتين (Race-safe).

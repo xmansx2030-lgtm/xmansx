@@ -127,8 +127,24 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-4.xlsx", attendance_rows)
 
+    # ---- ملف المتابعة (المرحلة 7) — صف فريد لكل تشغيل ليعزل عدادات اللوحة
+    # عبر فلتر الصف (KPIs تتبع الفلاتر — سلوك موثق)
+    def mon_nid(n: int) -> str:
+        return f"1{tag}8{n:02d}"  # بادئة 8 — لا تصادم مع بقية المولدات
+
+    monitoring_grade = f"صف المتابعة {tag}"
+    monitoring_sections = [f"M1-{tag}", f"M2-{tag}", f"M3-{tag}"]
+    monitoring_rows = [
+        [mon_nid(i * 2 + j), f"طالب متابعة {tag}-{i * 2 + j}", monitoring_grade, sec, ""]
+        for i, sec in enumerate(monitoring_sections)
+        for j in (1, 2)
+    ]
+    _write(FIXTURES_DIR / "noor-5.xlsx", monitoring_rows)
+
     meta = {
         "tag": tag,
+        "monitoring_grade": monitoring_grade,
+        "monitoring_sections": monitoring_sections,
         "attendance_section_manual": att_section_manual,
         "attendance_section_qr": att_section_qr,
         "attendance_students": [att_name(1), att_name(2), att_name(3)],

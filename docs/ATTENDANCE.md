@@ -31,6 +31,10 @@
 - الحالات: `IN_PROGRESS` → `SUBMITTED` (لا حالات أخرى في هذه المرحلة).
 - الإسناد بالعضوية (`started_by_membership` / `submitted_by_membership`) لا بالمستخدم —
   معلم في مدرستين تنسب جلسته للعضوية الصحيحة.
+- م7: `unprepared_alert_minutes_snapshot` يلتقط مهلة التنبيه وقت الفتح — تغيير الإعداد
+  لا يعيد كتابة تاريخ الالتزام. **ثبات الأوقات:** `submitted_at` = أول اعتماد نهائي
+  و`started_at` = أول فتح؛ التعديل والاستئناف لا يغيرانهما (اختبارات regression —
+  قياس الالتزام في ATTENDANCE_MONITORING.md يعتمد عليهما).
 
 ### سياسات الفتح (`start_session`)
 

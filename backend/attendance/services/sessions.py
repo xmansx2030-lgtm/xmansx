@@ -107,6 +107,9 @@ def start_session(
                     period, local_date, settings_obj.timezone
                 ),
                 roster_fingerprint=roster_fingerprint(roster),
+                unprepared_alert_minutes_snapshot=(
+                    settings_obj.unprepared_period_alert_minutes
+                ),
                 started_by_membership=membership,
             )
         record_event(
