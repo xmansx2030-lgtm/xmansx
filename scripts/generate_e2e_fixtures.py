@@ -107,8 +107,32 @@ def main() -> None:
     # الملف التالي بلا الطالب 3 → «غير موجود في آخر ملف»
     _write(FIXTURES_DIR / "noor-3b.xlsx", lifecycle_rows[:2])
 
+    # ---- ملف الحضور (المرحلة 6) — فصلان مستقلان "8" و"9" لاختبارات التحضير ----
+    def att_nid(n: int) -> str:
+        return f"1{tag}9{n:02d}"  # لا تصادم: nid يستخدم NNN بلا 9 في البادئة
+
+    def att_name(n: int) -> str:
+        return f"طالب حضور {tag}-{n}"
+
+    # أكواد فصول فريدة لكل تشغيل — جلسة الحضور UNIQUE لكل (فصل، تاريخ، حصة)
+    # فلو أعيد استخدام نفس الفصل لاصطدم التشغيل بجلسة التشغيل السابق المرسلة
+    att_section_manual = f"8-{tag}"
+    att_section_qr = f"9-{tag}"
+    attendance_rows = [
+        [att_nid(1), att_name(1), "الأول الثانوي", att_section_manual, ""],
+        [att_nid(2), att_name(2), "الأول الثانوي", att_section_manual, ""],
+        [att_nid(3), att_name(3), "الأول الثانوي", att_section_manual, ""],
+        [att_nid(4), att_name(4), "الأول الثانوي", att_section_qr, ""],
+        [att_nid(5), att_name(5), "الأول الثانوي", att_section_qr, ""],
+    ]
+    _write(FIXTURES_DIR / "noor-4.xlsx", attendance_rows)
+
     meta = {
         "tag": tag,
+        "attendance_section_manual": att_section_manual,
+        "attendance_section_qr": att_section_qr,
+        "attendance_students": [att_name(1), att_name(2), att_name(3)],
+        "attendance_qr_students": [att_name(4), att_name(5)],
         "lifecycle_prefix": f"طالب دورة {tag}",
         "lifecycle_missing": lc_name(3),
         "first_student": name(1),

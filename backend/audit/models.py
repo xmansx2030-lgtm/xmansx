@@ -32,6 +32,11 @@ class AuditAction(models.TextChoices):
     GRADE_CREATED = "GRADE_CREATED", "إنشاء صف"
     SECTION_CREATED = "SECTION_CREATED", "إنشاء فصل"
     # المرحلة 4.1 — دورة الحياة والحذف النهائي (بلا PII في metadata)
+    # المرحلة 6 — الحضور وQR
+    ATTENDANCE_STARTED = "ATTENDANCE_STARTED", "بدء تحضير"
+    ATTENDANCE_SUBMITTED = "ATTENDANCE_SUBMITTED", "اعتماد تحضير"
+    ATTENDANCE_EDITED = "ATTENDANCE_EDITED", "تعديل تحضير"
+    SECTION_QR_ROTATED = "SECTION_QR_ROTATED", "تجديد QR فصل"
     STUDENT_PERMANENTLY_PURGED = "STUDENT_PERMANENTLY_PURGED", "حذف نهائي لطالب"
     STUDENT_BULK_PURGE_STARTED = "STUDENT_BULK_PURGE_STARTED", "بدء حذف جماعي"
     STUDENT_BULK_PURGE_COMPLETED = "STUDENT_BULK_PURGE_COMPLETED", "اكتمال حذف جماعي"

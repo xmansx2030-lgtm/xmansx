@@ -42,6 +42,16 @@ export function AppShell() {
                 الموظفون
               </NavLink>
             )}
+            {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
+              <NavLink
+                to="/attendance/qr"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                رموز QR
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((r) => SETTINGS_ROLES.includes(r)) && (
               <NavLink
                 to="/settings"

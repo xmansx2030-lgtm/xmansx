@@ -171,7 +171,7 @@ erDiagram
 | school | FK | denormalized للعزل والفهارس |
 | grade | FK | |
 | name | varchar | مثل «1» — **Unique (school, grade, name)** |
-| qr_token | varchar(64) | عشوائي غير قابل للتخمين (secrets)، unique — لدعم QR مستقبلًا |
+| qr_token | varchar(64) null | ✅ م6: `secrets.token_urlsafe(24)`، unique، nullable — يولد عند أول طلب مدير (التفصيل: ATTENDANCE_QR.md) |
 | is_active | bool | |
 
 ---
@@ -215,40 +215,44 @@ erDiagram
 
 ---
 
-## 7. attendance
+## 7. attendance — ✅ نفذ في المرحلة 6 (التفصيل: ATTENDANCE.md وATTENDANCE_QR.md)
 
 ### AttendanceSession
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK | |
-| section | FK | |
-| date | date | |
-| period_number | int | |
-| status | enum | NOT_STARTED / IN_PROGRESS / SUBMITTED |
-| started_by / submitted_by | FK→SchoolMembership | |
+| academic_year / semester | FK PROTECT / FK null | العام النشط وقت الفتح |
+| section | FK PROTECT | |
+| attendance_date | date | (اسم التنفيذ لـ date) |
+| period_sequence | int | (اسم التنفيذ لـ period_number) — عمود القيد الفريد |
+| bell_period | FK SET_NULL null | مرجعي فقط — `replace_schedule_periods` يحذف الحصص |
+| status | enum | IN_PROGRESS / SUBMITTED (لا NOT_STARTED — عدم الوجود هو «لم يبدأ») |
+| started_by_membership / submitted_by_membership | FK→SchoolMembership PROTECT | |
 | started_at / submitted_at | datetime | |
 | bell_period_snapshot | json | وقت بداية/نهاية الحصة وقت التحضير (يثبت حساب late_minutes حتى لو تغير الجدول) |
+| roster_fingerprint | char(64) | SHA-256 لقائمة الفصل وقت الفتح — كشف تغيرها قبل الإرسال |
 
 قيود وفهارس:
-- **Unique (school, section, date, period_number)** ← منع التحضير مرتين (Race-safe).
-- فهرس `(school, date, period_number, status)` — لوحة الوكيل والفصول غير المحضرة.
-- فهرس `(school, section, date)`.
+- **Unique (school, section, attendance_date, period_sequence)** ← منع التحضير مرتين (Race-safe).
+- فهرس `(school, attendance_date, period_sequence)` — لوحة الوكيل لاحقًا.
+- فهرس `(school, section, attendance_date)`.
 
 ### AttendanceMark (استثناءات فقط — ADR-006)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK | denormalized |
 | session | FK | |
-| student | FK | **Unique (session, student)** |
-| status | enum | ABSENT / LATE |
-| excuse_status | enum | UNEXCUSED / EXCUSED — default UNEXCUSED |
+| student | FK **PROTECT** | **Unique (session, student)** — PROTECT يفشل الحذف النهائي بصوت عالٍ إن نسي التسجيل في PURGE_STEPS |
+| status | enum | ABSENT / LATE (لا EXCUSED — يأتي مع مرحلة الأعذار) |
 | arrival_time | time null | مطلوب عند LATE |
-| late_minutes | int null | محسوب: arrival − بداية الحصة (من snapshot) |
+| late_minutes | int null | محسوب خادميًا: arrival − بداية الحصة (من snapshot)؛ قيمة العميل ترفض |
 
-فهارس: `(school, student)`, `(school, session)`, `(school, status, excuse_status)`.
+فهارس: `(school, student)`, `(school, status)`. حقل `excuse_status` يضاف في مرحلة الأعذار.
 
-### AttendanceMarkChange (سجل تعديل — ADR-010)
-`mark FK`, `changed_by`, `changed_at`, `field`, `old_value`, `new_value`, `reason`. يشمل تحويل UNEXCUSED→EXCUSED وتعديلات ما بعد نافذة المعلم.
+### AttendanceChange (اسم التنفيذ لـ AttendanceMarkChange — ADR-010)
+`school`, `session FK`, `student FK PROTECT`, `actor_membership`, `previous_status/new_status`
+(تشمل `PRESENT`), `previous_late_minutes/new_late_minutes`, `reason`, `changed_at`.
+سجل علائقي append-only (قراءة فقط في الإدارة)، مسجل في PURGE_STEPS مع العلامات.
 
 ### DailyAttendanceSummary (مجدولة عبر Celery — للوحات والتقارير)
 | الحقل | النوع | ملاحظات |

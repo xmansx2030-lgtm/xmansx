@@ -42,6 +42,9 @@ class Section(TimestampedModel):
     name = models.CharField("اسم الفصل", max_length=50)  # للعرض: 1 أو أ
     code = models.CharField("الرمز", max_length=50)  # normalized key
     is_active = models.BooleanField(default=True)
+    # QR الفصل (المرحلة 6): token عتيم غير قابل للتخمين — لا يمنح صلاحية،
+    # يحدد الفصل فقط. null حتى يولده المدير؛ التدوير يستبدله فيبطل القديم.
+    qr_token = models.CharField(max_length=64, null=True, blank=True, unique=True)  # noqa: DJ001
 
     class Meta:
         verbose_name = "فصل"

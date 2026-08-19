@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "academics",
     "students",
     "staff",
+    "attendance",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",

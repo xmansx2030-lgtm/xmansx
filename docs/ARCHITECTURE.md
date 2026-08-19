@@ -44,7 +44,7 @@ backend/
 ├── academics/       # AcademicYear, Semester, Grade, Section
 ├── students/        # Student, StudentEnrollment, استيراد نور
 ├── staff/           # استيراد المعلمين وربطهم بالعضويات
-├── attendance/      # AttendanceSession, AttendanceMark, DailyAttendanceSummary
+├── attendance/      # ✅ م6: AttendanceSession/Mark/Change + QR (الملخص اليومي في مرحلته)
 ├── excuses/         # Excuse, ExcuseAttachment, تحويل UNEXCUSED→EXCUSED
 ├── warnings/        # WarningRule, StudentWarning (snapshots)
 ├── actions/         # StudentAction (إجراءات الوكيل/الإدارة)

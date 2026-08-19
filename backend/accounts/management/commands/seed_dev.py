@@ -68,6 +68,7 @@ class Command(BaseCommand):
                     start_date=date(2026, 8, 23), end_date=date(2027, 6, 25),
                     status=AcademicYearStatus.ACTIVE,
                 )
+            self._seed_all_day_schedule(school)
             self.stdout.write(f"school: {school.name} (id={school.id}, slug={slug})")
 
         for mobile, first, last, assignments in SEED:
@@ -87,3 +88,29 @@ class Command(BaseCommand):
             self.stdout.write(f"user: {user.display_name} ({user.mobile}) id={user.id}")
 
         self.stdout.write(self.style.SUCCESS("Seed completed."))
+
+    def _seed_all_day_schedule(self, school):
+        """جدول تطويري يغطي اليوم كاملًا كل أيام الأسبوع — حتمية E2E في أي وقت تشغيل."""
+        from datetime import time
+
+        from academics.models import BellPeriod, BellSchedule, SchoolWeekDay, Weekday
+
+        schedule, created = BellSchedule.objects.get_or_create(
+            school=school, name="جدول التطوير (يوم كامل)"
+        )
+        if created:
+            for i in range(8):  # 8 حصص × 3 ساعات = 24 ساعة
+                BellPeriod.objects.create(
+                    school=school,
+                    bell_schedule=schedule,
+                    sequence=i + 1,
+                    name=f"الحصة {i + 1}",
+                    start_time=time(i * 3, 0),
+                    end_time=time(i * 3 + 2, 59, 59),
+                )
+        for weekday in Weekday.values:
+            SchoolWeekDay.objects.update_or_create(
+                school=school,
+                weekday=weekday,
+                defaults={"is_school_day": True, "bell_schedule": schedule},
+            )
