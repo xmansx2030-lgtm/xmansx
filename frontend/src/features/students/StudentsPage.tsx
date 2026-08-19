@@ -267,7 +267,11 @@ export function StudentsPage() {
                         />
                       </td>
                     )}
-                    <td className="p-3 font-medium">{student.full_name}</td>
+                    <td className="p-3 font-medium">
+                      <Link to={`/students/${student.id}/attendance`} className="text-blue-700 hover:underline">
+                        {student.full_name}
+                      </Link>
+                    </td>
                     <td className="p-3" dir="ltr">
                       {student.national_id_masked}
                     </td>

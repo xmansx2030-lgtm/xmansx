@@ -73,6 +73,37 @@ export function AppShell() {
                 رموز QR
               </NavLink>
             )}
+            {me.isSuccess &&
+              me.data.roles.some((r) => ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(r)) && (
+                <NavLink
+                  to="/morning"
+                  className={({ isActive }) =>
+                    `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                  }
+                >
+                  الحضور الصباحي
+                </NavLink>
+              )}
+            {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
+              <NavLink
+                to="/devices"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                أجهزة الحضور
+              </NavLink>
+            )}
+            {me.isSuccess && me.data.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") && (
+              <NavLink
+                to="/devices/roster-sync"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                أجهزة الطلاب
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((r) => SETTINGS_ROLES.includes(r)) && (
               <NavLink
                 to="/settings"

@@ -241,11 +241,12 @@ export interface DailyAnalyticsResponse {
 }
 
 export const getDailyAnalytics = (
-  params: { date: string; status?: string; page?: number },
+  params: { date: string; status?: string; grade?: number | ""; page?: number },
   signal?: AbortSignal,
 ) => {
   const query = new URLSearchParams({ date: params.date });
   if (params.status) query.set("status", params.status);
+  if (params.grade) query.set("grade", String(params.grade));
   if (params.page) query.set("page", String(params.page));
   return apiRequest<DailyAnalyticsResponse>(
     `/attendance/analytics/daily/?${query.toString()}`,

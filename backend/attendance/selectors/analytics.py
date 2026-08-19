@@ -52,6 +52,24 @@ def _validate_sequences(sequences: list[int], context) -> list[int]:
     return normalized
 
 
+def _morning_arrivals(school, attendance_date, student_ids) -> dict[int, str]:
+    """أوقات دخول المدرسة (م8.5) بمنطقة المدرسة — None يعرض «لا توجد بصمة دخول»."""
+    from zoneinfo import ZoneInfo
+
+    from devices.models import SchoolArrival
+    from schools.services.settings import get_or_create_settings
+
+    if not student_ids:
+        return {}
+    tz = ZoneInfo(get_or_create_settings(school=school).timezone)
+    return {
+        a.student_id: a.first_arrival_at.astimezone(tz).strftime("%H:%M")
+        for a in SchoolArrival.objects.filter(
+            school=school, attendance_date=attendance_date, student_id__in=student_ids
+        )
+    }
+
+
 def _paginate(items: list, page: int, page_size: int) -> tuple[list, int]:
     page = max(page, 1)
     if page_size not in PAGE_SIZES:
@@ -179,6 +197,8 @@ def get_multi_period_report(
     names = dict(
         Student.objects.filter(id__in=matched_ids).values_list("id", "full_name")
     )
+    # مؤشر البصمة الصباحية (م8.5) — للمراجعة فقط: لا يغير الغياب ولا يعتمد عليه
+    arrivals = _morning_arrivals(school, attendance_date, matched_ids)
     students = []
     for student_id in matched_ids:
         section = section_by_student.get(student_id)
@@ -196,6 +216,7 @@ def get_multi_period_report(
                     {"sequence": seq, "status": statuses.get(seq, "PRESENT")}
                     for seq in sequences
                 ],
+                "morning_arrival": arrivals.get(student_id),
             }
         )
     students.sort(key=lambda s: s["_sort"])
@@ -230,6 +251,7 @@ def get_daily_report(
     school,
     attendance_date: date_cls,
     status_filter: str | None = None,
+    grade_id: int | None = None,
     page: int = 1,
     page_size: int = 25,
 ) -> dict:
@@ -241,6 +263,8 @@ def get_daily_report(
     rows = DailyAttendanceSummary.objects.filter(
         school=school, attendance_date=attendance_date
     )
+    if grade_id:
+        rows = rows.filter(section__grade_id=grade_id)
     aggregates = rows.aggregate(
         total_rows=Count("id"),
         complete=Count("id", filter=Q(completeness_status=DailyCompleteness.COMPLETE)),
@@ -254,12 +278,10 @@ def get_daily_report(
         late_occurrences=Sum("late_periods"),
         late_minutes=Sum("total_late_minutes"),
     )
-    total_students = (
-        enrollments_on_date(school=school, on_date=attendance_date)
-        .values("student_id")
-        .distinct()
-        .count()
-    )
+    enrollments = enrollments_on_date(school=school, on_date=attendance_date)
+    if grade_id:
+        enrollments = enrollments.filter(section__grade_id=grade_id)
+    total_students = enrollments.values("student_id").distinct().count()
     # «غير مكتمل» يشمل من لا صف ملخص له أصلًا (فصله لم يعتمد أي حصة)
     incomplete_students = total_students - aggregates["complete"]
 

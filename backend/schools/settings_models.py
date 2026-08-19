@@ -1,5 +1,7 @@
 """SchoolSettings — الإعدادات التشغيلية العامة للمدرسة (حقول صريحة، لا JSON شامل)."""
 
+from datetime import time
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -57,6 +59,14 @@ class SchoolSettings(TimestampedModel):
         "تنبيه عدم التحضير بعد (دقائق)",
         default=25,
         validators=[MinValueValidator(1), MaxValueValidator(120)],
+    )
+
+    # الحضور الصباحي (م8.5) — بداية الدوام مستقلة عن الحصة الأولى عمدًا
+    school_day_start_time = models.TimeField("بداية الدوام الصباحي", default=time(7, 0))
+    morning_late_grace_minutes = models.PositiveSmallIntegerField(
+        "فترة السماح الصباحية (دقائق)",
+        default=5,
+        validators=[MinValueValidator(0), MaxValueValidator(120)],
     )
 
     class Meta:

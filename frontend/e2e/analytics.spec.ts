@@ -182,6 +182,7 @@ test("daily summary: full, partial, incomplete, and late totals", async ({ page 
   await page.goto("/attendance/analytics");
   await page.getByRole("tab", { name: "ملخص اليوم" }).click();
   await expect(page.getByTestId("daily-kpis")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("daily-grade-filter").selectOption({ label: m.analytics_grade });
 
   // غياب يوم كامل: محمد (24/24 معتمدة وكلها غياب)
   await page.getByTestId("daily-status-filter").selectOption("FULL");
@@ -246,6 +247,8 @@ test("attendance edit updates analytics after refresh", async ({ page }) => {
   await expect(page.getByTestId("no-matching-students")).toBeVisible(); // محمد لم يعد غائب الأولى
 
   await page.getByRole("tab", { name: "ملخص اليوم" }).click();
+  await expect(page.getByTestId("daily-kpis")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("daily-grade-filter").selectOption({ label: m.analytics_grade });
   await page.getByTestId("daily-status-filter").selectOption("FULL");
   await expect(page.getByTestId("daily-students")).not.toContainText(mohammed, {
     timeout: 15_000,

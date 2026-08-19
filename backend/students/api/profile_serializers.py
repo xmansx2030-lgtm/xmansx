@@ -1,0 +1,60 @@
+from rest_framework import serializers
+
+
+class AttendanceProfileSummarySerializer(serializers.Serializer):
+    full_absence_days = serializers.IntegerField()
+    partial_absence_days = serializers.IntegerField()
+    undetermined_days = serializers.IntegerField()
+    absent_periods = serializers.IntegerField()
+    period_late_occurrences = serializers.IntegerField()
+    period_late_minutes = serializers.IntegerField()
+
+
+class AttendanceProfileSerializer(serializers.Serializer):
+    student = serializers.DictField()
+    period = serializers.DictField()
+    attendance = AttendanceProfileSummarySerializer()
+    morning_attendance = serializers.DictField()
+
+
+class MorningAttendanceHistorySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    arrival_time = serializers.DateTimeField()
+    status = serializers.CharField()
+    raw_late_minutes = serializers.IntegerField()
+    counted_late_minutes = serializers.IntegerField()
+    source = serializers.CharField()
+    grade_name = serializers.CharField(allow_null=True)
+    section_name = serializers.CharField(allow_null=True)
+
+
+class AttendanceDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    absence_status = serializers.CharField()
+    absence_status_label = serializers.CharField()
+    section = serializers.DictField(allow_null=True)
+    absent_periods = serializers.IntegerField()
+    late_periods = serializers.IntegerField()
+    total_late_minutes = serializers.IntegerField()
+
+
+class AttendancePeriodSerializer(serializers.Serializer):
+    date = serializers.DateField(source="session.attendance_date")
+    sequence = serializers.IntegerField(source="session.period_sequence")
+    period = serializers.DictField(source="session.bell_period_snapshot")
+    section = serializers.DictField()
+    arrival_time = serializers.CharField(allow_null=True)
+    late_minutes = serializers.IntegerField(allow_null=True)
+
+
+class AttendanceChangeSerializer(serializers.Serializer):
+    date = serializers.DateField(source="session.attendance_date")
+    sequence = serializers.IntegerField(source="session.period_sequence")
+    period = serializers.DictField(source="session.bell_period_snapshot")
+    previous_status = serializers.CharField()
+    new_status = serializers.CharField()
+    previous_late_minutes = serializers.IntegerField(allow_null=True)
+    new_late_minutes = serializers.IntegerField(allow_null=True)
+    reason = serializers.CharField(allow_blank=True)
+    actor = serializers.CharField(allow_null=True)
+    changed_at = serializers.DateTimeField()
