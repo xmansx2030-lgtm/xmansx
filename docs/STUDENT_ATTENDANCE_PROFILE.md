@@ -41,7 +41,7 @@ Attendance changes are history only and do not calculate current state. Actors u
 
 The profile is at `/students/{studentId}/attendance` and is linked from student search results. Tabs are lazy TanStack Query requests: summary, days, period absences, period lates, and manager/vice-principal-only changes. Keys include school ID, student ID, and both date boundaries. School switching removes all non-`me` queries, preventing a stale profile flash. The UI shows the student's current status and enrollment, but historical rows retain their dated section.
 
-Morning attendance is intentionally represented as `{ "status": "NOT_AVAILABLE" }` and the UI displays an unavailable message. No Phase 8.5 import or query exists in this branch, and morning lateness is kept separate from period lateness.
+Morning attendance is integrated from `SchoolArrival` as `{ "status": "AVAILABLE", "morning_late_occurrences": 0, "morning_late_minutes": 0 }` when the source is available. The UI keeps morning lateness separate from period lateness and exposes a lazy morning history tab.
 
 ## Integration With Phase 8.5
 

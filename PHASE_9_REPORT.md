@@ -58,32 +58,32 @@ The new views have explicit drf-spectacular response serializers. Range errors a
 
 ## Frontend
 
-Added `/students/:studentId/attendance`, typed API functions, date presets/custom range, KPI cards, incomplete-data banner, lazy TanStack Query tabs, day detail timeline, period absences/lates, and manager/vice-principal change history. Query keys include school, student, `from_date`, and `to_date`. `SchoolSwitcher` already removes all non-`me` queries, so profiles cannot persist across school switches. Morning attendance is explicitly `NOT_AVAILABLE` with no fake zero values.
+Added `/students/:studentId/attendance`, typed API functions, date presets/custom range, KPI cards, incomplete-data banner, lazy TanStack Query tabs, day detail timeline, period absences/lates, manager/vice-principal change history, and a separate morning attendance tab. Query keys include school, student, `from_date`, and `to_date`. `SchoolSwitcher` already removes all non-`me` queries, so profiles cannot persist across school switches. Morning lateness comes from `SchoolArrival` and remains separate from period lateness.
 
 ## Tests and validation
 
-Added focused backend tests for summary aggregation, search masking/tenant scope, role denial, IDOR, and the morning placeholder. Validation completed:
+Added focused backend tests for summary aggregation, search masking/tenant scope, role denial, IDOR, and separate morning/period lateness. Validation completed:
 
 - Backend profile modules compile.
 - Backend profile lint passes after import cleanup.
-- Django `check --deploy` passes.
+- Django `check` passes; local `check --deploy` retains expected development security warnings.
 - Frontend `typecheck` passes.
 - Frontend `lint` passes.
 - Frontend `build` passes.
 
-The existing and new Django tests could not execute because local PostgreSQL rejects the configured `xmansx` password. `makemigrations --check --dry-run` also reports the already-existing Phase 8.5 `SchoolSettings` migration from the dirty concurrent worktree; Phase 9 itself adds no migration.
+The full Django suite runs against Docker PostgreSQL on host port 5433 and passed 339 tests. Phase 9 itself adds no migration.
 
-Playwright, Docker, fresh-database, query-count, and performance benchmarks were not run because the database service/authentication was unavailable.
+Docker migration/health checks passed and Playwright passed 25 tests. Query-count and performance benchmarks were not captured.
 
 ## Morning attendance integration contract
 
 Current response:
 
 ```json
-{"morning_attendance": {"status": "NOT_AVAILABLE"}}
+{"morning_attendance": {"status": "AVAILABLE", "morning_late_occurrences": 0, "morning_late_minutes": 0}}
 ```
 
-No adapter, fake repository, import, query, or database table is present in this branch.
+With `SchoolArrival` records, the response is `AVAILABLE` and contains separate morning late counts and minutes.
 
 ## Expected integration work after Phase 8.5
 

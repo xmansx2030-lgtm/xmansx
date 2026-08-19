@@ -27,6 +27,11 @@ def test_schema_endpoint_generates_successfully(client):
         "/api/v1/staff/",
         "/api/v1/staff-imports/",
         "/api/v1/auth/invitations/",
+        "/api/v1/devices/{device_id}/roster-sync/analyze/",
+        "/api/v1/device-roster-syncs/{job_id}/",
+        "/api/v1/bridge/roster/read/",
+        "/api/v1/students/{student_id}/attendance-profile/",
+        "/api/v1/students/{student_id}/morning-attendance/",
     ]:
         assert path in content, f"missing path: {path}"
 

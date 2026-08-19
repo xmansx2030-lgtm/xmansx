@@ -21,6 +21,10 @@ urlpatterns = [
         views.StudentAttendanceDaysView.as_view(),
     ),
     path(
+        "students/<int:student_id>/morning-attendance/",
+        views.StudentMorningAttendanceView.as_view(),
+    ),
+    path(
         "students/<int:student_id>/attendance-days/<str:attendance_date>/",
         views.StudentAttendanceDayDetailView.as_view(),
     ),

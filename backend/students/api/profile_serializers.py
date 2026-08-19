@@ -17,6 +17,17 @@ class AttendanceProfileSerializer(serializers.Serializer):
     morning_attendance = serializers.DictField()
 
 
+class MorningAttendanceHistorySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    arrival_time = serializers.DateTimeField()
+    status = serializers.CharField()
+    raw_late_minutes = serializers.IntegerField()
+    counted_late_minutes = serializers.IntegerField()
+    source = serializers.CharField()
+    grade_name = serializers.CharField(allow_null=True)
+    section_name = serializers.CharField(allow_null=True)
+
+
 class AttendanceDaySerializer(serializers.Serializer):
     date = serializers.DateField()
     absence_status = serializers.CharField()

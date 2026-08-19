@@ -439,6 +439,7 @@ class DeviceRosterRetryView(SchoolScopedAPIView):
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
+    @extend_schema(request=None, responses=RosterSyncJobSerializer)
     def post(self, request: Request, job_id: int) -> Response:
         job = get_object_or_404(
             DeviceRosterSyncJob.objects.select_related("device"),

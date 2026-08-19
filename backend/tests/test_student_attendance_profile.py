@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
+from devices.models import SchoolArrival
 from students.models import StudentStatus
 from students.services.attendance_profile import get_profile_summary
 from tests.test_students_api import _enroll, _make_student
@@ -78,14 +79,18 @@ def test_profile_search_is_masked_tenant_scoped_and_inactive_filtered(role_clien
 
 
 @pytest.mark.django_db
-def test_profile_roles_and_morning_placeholder(role_client):
+def test_profile_roles_and_morning_summary_is_available(role_client):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     student = _make_student(school, "1012345678", "محمد")
     teacher, _, _ = role_client(["TEACHER"], school=school)
 
     response = manager.get(PROFILE_URL.format(student.id))
     assert response.status_code == 200
-    assert response.json()["morning_attendance"] == {"status": "NOT_AVAILABLE"}
+    assert response.json()["morning_attendance"] == {
+        "status": "AVAILABLE",
+        "morning_late_occurrences": 0,
+        "morning_late_minutes": 0,
+    }
     assert teacher.get(PROFILE_URL.format(student.id)).status_code == 403
 
 
@@ -97,3 +102,33 @@ def test_profile_idor_returns_404(role_client, make_school):
 
     assert client_a.get(PROFILE_URL.format(student_b.id)).status_code == 404
     assert school_a.id != school_b.id
+
+
+@pytest.mark.django_db
+def test_profile_separates_morning_late_from_period_late(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    student = _make_student(school, "1012345678", "محمد")
+    _enroll(school, student)
+    SchoolArrival.objects.create(
+        school=school,
+        student=student,
+        attendance_date=date(2026, 8, 24),
+        first_arrival_at=datetime(2026, 8, 24, 4, 13, tzinfo=UTC),
+        raw_late_minutes=18,
+        counted_late_minutes=13,
+        status="LATE",
+        source="BIOMETRIC",
+    )
+
+    response = client.get(
+        f"{PROFILE_URL.format(student.id)}?from_date=2026-08-24&to_date=2026-08-24"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["morning_attendance"] == {
+        "status": "AVAILABLE",
+        "morning_late_occurrences": 1,
+        "morning_late_minutes": 13,
+    }
+    assert body["attendance"]["period_late_occurrences"] == 0

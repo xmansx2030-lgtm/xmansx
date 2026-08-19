@@ -24,7 +24,22 @@ export interface AttendanceProfile {
     period_late_occurrences: number;
     period_late_minutes: number;
   };
-  morning_attendance: { status: "NOT_AVAILABLE" };
+  morning_attendance: {
+    status: "AVAILABLE" | "NOT_AVAILABLE";
+    morning_late_occurrences?: number;
+    morning_late_minutes?: number;
+  };
+}
+
+export interface MorningAttendanceHistory {
+  date: string;
+  arrival_time: string;
+  status: string;
+  raw_late_minutes: number;
+  counted_late_minutes: number;
+  source: string;
+  grade_name: string | null;
+  section_name: string | null;
 }
 
 export interface AttendanceDay {
@@ -202,6 +217,15 @@ export const getAttendanceDayDetail = (
   date: string,
   signal?: AbortSignal,
 ) => apiRequest<AttendanceDayDetail>(`/students/${studentId}/attendance-days/${date}/`, { signal });
+
+export const getMorningAttendance = (
+  studentId: number,
+  params: { fromDate: string; toDate: string },
+  signal?: AbortSignal,
+) => apiRequest<MorningAttendanceHistory[]>(
+  `/students/${studentId}/morning-attendance/${profileQuery(params)}`,
+  { signal },
+);
 
 export const getAttendancePeriodAbsences = (
   studentId: number,

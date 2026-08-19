@@ -13,6 +13,7 @@ import {
   getAttendancePeriodAbsences,
   getAttendancePeriodLates,
   getAttendanceProfile,
+  getMorningAttendance,
 } from "@/features/students/api";
 
 const DAY_LABELS: Record<string, string> = {
@@ -36,7 +37,7 @@ const STATUS_LABELS: Record<string, string> = {
   ARCHIVED: "مؤرشف",
 };
 
-type Tab = "summary" | "days" | "absences" | "lates" | "changes";
+type Tab = "summary" | "days" | "absences" | "lates" | "morning" | "changes";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -102,6 +103,11 @@ export function StudentAttendanceProfilePage() {
     queryFn: ({ signal }) => getAttendanceChanges(id, { ...range, page }, signal),
     enabled: tab === "changes" && canSeeChanges && schoolId > 0,
   });
+  const morning = useQuery({
+    queryKey: schoolScopedKey(schoolId, "student-morning-attendance", id, fromDate, toDate),
+    queryFn: ({ signal }) => getMorningAttendance(id, range, signal),
+    enabled: tab === "morning" && schoolId > 0,
+  });
 
   const setPreset = (preset: string) => {
     const end = new Date();
@@ -130,6 +136,7 @@ export function StudentAttendanceProfilePage() {
     ["days", "سجل الأيام"],
     ["absences", "غياب الحصص"],
     ["lates", "تأخر الحصص"],
+    ["morning", "الحضور الصباحي"],
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -177,9 +184,17 @@ export function StudentAttendanceProfilePage() {
           يوجد {attendance.undetermined_days} يومًا لم تكتمل فيها بيانات التحضير.
         </div>
       )}
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-        التأخر الصباحي: بيانات الحضور الصباحي ستتوفر بعد تفعيل أجهزة الحضور.
-      </div>
+      {profile.data.morning_attendance.status === "AVAILABLE" ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <strong className="block">التأخر عن الدوام الصباحي</strong>
+          <span>{profile.data.morning_attendance.morning_late_occurrences ?? 0} مرات، </span>
+          <span>{formatMinutes(profile.data.morning_attendance.morning_late_minutes ?? 0)}</span>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          التأخر الصباحي: بيانات الحضور الصباحي غير متاحة.
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200">
         {tabs.map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`border-b-2 px-3 py-2 text-sm ${tab === value ? "border-blue-700 text-blue-700" : "border-transparent text-slate-600"}`}>{label}</button>)}
@@ -189,9 +204,14 @@ export function StudentAttendanceProfilePage() {
       {tab === "days" && <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={selectedDay} onSelect={setSelectedDay} detail={dayDetail.data} />}
       {tab === "absences" && <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />}
       {tab === "lates" && <PeriodTab rows={lates.data?.results ?? []} count={lates.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حالات تأخر عن الحصص في الفترة." showLate />}
+      {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
       {tab === "changes" && <ChangesTab rows={changes.data?.results ?? []} count={changes.data?.count ?? 0} page={page} onPage={setPage} />}
     </div>
   );
+}
+
+function MorningTab({ rows }: { rows: Awaited<ReturnType<typeof getMorningAttendance>> }) {
+  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full text-sm"><thead><tr className="border-b text-slate-500"><th className="p-3 text-start">التاريخ</th><th className="p-3 text-start">وقت الدخول</th><th className="p-3 text-start">الحالة</th><th className="p-3 text-start">التأخر المحتسب</th><th className="p-3 text-start">المصدر</th></tr></thead><tbody>{rows.map((row) => <tr key={row.date} className="border-b"><td className="p-3">{formatDate(row.date)}</td><td className="p-3">{new Date(row.arrival_time).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td><td className="p-3">{row.status === "LATE" ? "متأخر" : "في الوقت"}</td><td className="p-3">{row.counted_late_minutes} دقيقة</td><td className="p-3">{row.source === "BIOMETRIC" ? "جهاز" : "يدوي"}</td></tr>)}{rows.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">لا توجد سجلات حضور صباحي في الفترة.</td></tr>}</tbody></table></div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

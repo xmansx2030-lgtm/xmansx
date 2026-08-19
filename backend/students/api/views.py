@@ -22,6 +22,7 @@ from students.api.profile_serializers import (
     AttendanceDaySerializer,
     AttendancePeriodSerializer,
     AttendanceProfileSerializer,
+    MorningAttendanceHistorySerializer,
 )
 from students.models import (
     Grade,
@@ -30,6 +31,7 @@ from students.models import (
     StudentImportJob,
 )
 from students.services import attendance_profile as attendance_profile_service
+from students.services import morning_profile as morning_profile_service
 from students.services.imports import commit as commit_service
 from students.services.imports import mapping as mapping_service
 from students.services.imports import parser as parser_service
@@ -345,7 +347,9 @@ class StudentAttendanceProfileView(SchoolScopedAPIView):
             "attendance": attendance_profile_service.get_profile_summary(
                 school=request.school, student=student, from_date=from_date, to_date=to_date
             ),
-            "morning_attendance": {"status": "NOT_AVAILABLE"},
+            "morning_attendance": morning_profile_service.get_morning_profile_summary(
+                school=request.school, student=student, from_date=from_date, to_date=to_date
+            ),
         })
 
 
@@ -380,6 +384,22 @@ class StudentAttendanceDaysView(SchoolScopedAPIView):
             }
             for row in page
         ])
+
+
+class StudentMorningAttendanceView(SchoolScopedAPIView):
+    read_roles = PROFILE_READ_ROLES
+    write_roles = PROFILE_ADMIN_ROLES
+
+    @extend_schema(responses=MorningAttendanceHistorySerializer(many=True))
+    def get(self, request: Request, student_id: int) -> Response:
+        student = _profile_student(request, student_id)
+        from_date, to_date = _profile_dates(request)
+        arrivals = morning_profile_service.get_morning_profile_history(
+            school=request.school, student=student, from_date=from_date, to_date=to_date
+        )
+        return Response(morning_profile_service.serialize_morning_history(
+            school=request.school, arrivals=arrivals
+        ))
 
 
 class StudentAttendanceDayDetailView(SchoolScopedAPIView):
