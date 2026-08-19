@@ -21,6 +21,7 @@ import {
   getAttendanceProfile,
   getMorningAttendance,
 } from "@/features/students/api";
+import { localIsoDate } from "@/utils/dates";
 
 const DAY_LABELS: Record<string, string> = {
   FULL: "غياب يوم كامل",
@@ -53,9 +54,7 @@ type Tab =
   | "warnings"
   | "changes";
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+const isoDate = localIsoDate;
 
 function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);

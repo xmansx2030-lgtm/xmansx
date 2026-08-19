@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/Button";
 import { StudentPicker } from "@/features/devices/StudentPicker";
 import { type ReasonType, REASON_LABELS, createExcuse } from "@/features/excuses/api";
+import { localIsoDate } from "@/utils/dates";
 
 type Scope = "FULL_DAY" | "PERIODS";
 
@@ -21,7 +22,7 @@ export function ExcuseCreateCard({
   fixedDate?: string;
   fixedPeriod?: number;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate();
   const [student, setStudent] = useState<{ id: number; name: string } | null>(
     fixedStudent ?? null,
   );
@@ -191,7 +192,7 @@ function datesBetween(from: string, to: string): string[] {
   const dates: string[] = [];
   const cursor = new Date(start);
   while (cursor <= end && dates.length < 60) {
-    dates.push(cursor.toISOString().slice(0, 10));
+    dates.push(localIsoDate(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
