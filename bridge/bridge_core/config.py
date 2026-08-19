@@ -10,6 +10,7 @@ DEFAULTS = {
     "queue_path": "bridge-queue.sqlite3",
     "heartbeat_seconds": 60,
     "batch_size": 200,
+    "simulator_users_file": "",
 }
 
 

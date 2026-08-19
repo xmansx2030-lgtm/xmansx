@@ -18,7 +18,12 @@ from bridge_core.queue import DurableQueue
 def _engine(config: dict) -> BridgeEngine:
     client = SaaSClient(base_url=config["saas_url"], credential=config["credential"])
     queue = DurableQueue(config["queue_path"])
-    return BridgeEngine(client=client, queue=queue, batch_size=int(config["batch_size"]))
+    return BridgeEngine(
+        client=client,
+        queue=queue,
+        batch_size=int(config["batch_size"]),
+        simulator_users_file=config.get("simulator_users_file", ""),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

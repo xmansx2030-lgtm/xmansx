@@ -110,6 +110,7 @@ class MorningSummarySerializer(serializers.Serializer):
 
 
 class LateStudentSerializer(serializers.Serializer):
+    arrival_id = serializers.IntegerField()
     student_id = serializers.IntegerField()
     full_name = serializers.CharField()
     grade_name = serializers.CharField()

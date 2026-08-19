@@ -382,6 +382,7 @@ class DailyAnalyticsView(SchoolScopedAPIView):
             school=request.school,
             attendance_date=target_date,
             status_filter=status_filter,
+            grade_id=_int_or_none(request.query_params.get("grade")),
             page=_int_or_none(request.query_params.get("page")) or 1,
             page_size=_int_or_none(request.query_params.get("page_size")) or 25,
         )

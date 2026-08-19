@@ -251,6 +251,7 @@ def get_daily_report(
     school,
     attendance_date: date_cls,
     status_filter: str | None = None,
+    grade_id: int | None = None,
     page: int = 1,
     page_size: int = 25,
 ) -> dict:
@@ -262,6 +263,8 @@ def get_daily_report(
     rows = DailyAttendanceSummary.objects.filter(
         school=school, attendance_date=attendance_date
     )
+    if grade_id:
+        rows = rows.filter(section__grade_id=grade_id)
     aggregates = rows.aggregate(
         total_rows=Count("id"),
         complete=Count("id", filter=Q(completeness_status=DailyCompleteness.COMPLETE)),
@@ -275,12 +278,10 @@ def get_daily_report(
         late_occurrences=Sum("late_periods"),
         late_minutes=Sum("total_late_minutes"),
     )
-    total_students = (
-        enrollments_on_date(school=school, on_date=attendance_date)
-        .values("student_id")
-        .distinct()
-        .count()
-    )
+    enrollments = enrollments_on_date(school=school, on_date=attendance_date)
+    if grade_id:
+        enrollments = enrollments.filter(section__grade_id=grade_id)
+    total_students = enrollments.values("student_id").distinct().count()
     # «غير مكتمل» يشمل من لا صف ملخص له أصلًا (فصله لم يعتمد أي حصة)
     incomplete_students = total_students - aggregates["complete"]
 

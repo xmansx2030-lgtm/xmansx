@@ -693,7 +693,12 @@ class BridgeHeartbeatView(BridgeAPIView):
                 device.test_requested_at = None
                 update_fields += ["test_result", "test_requested_at"]
             device.save(update_fields=update_fields)
-        return Response(_bridge_device_configs(bridge))
+        return Response(
+            _bridge_device_configs(
+                bridge,
+                include_commands=not bool(serializer.validated_data.get("devices")),
+            )
+        )
 
 
 class BridgeDevicesView(BridgeAPIView):
@@ -811,7 +816,7 @@ class BridgeRosterCommandResultView(BridgeAPIView):
         return Response(_roster_job_payload(job))
 
 
-def _bridge_device_configs(bridge) -> list[dict]:
+def _bridge_device_configs(bridge, *, include_commands: bool = True) -> list[dict]:
     configs = []
     for device in AttendanceDevice.objects.filter(school=bridge.school, is_active=True):
         secret = ""
@@ -819,14 +824,18 @@ def _bridge_device_configs(bridge) -> list[dict]:
             secret = _fernet().decrypt(device.connection_secret_encrypted.encode()).decode()
         read_job = DeviceRosterSyncJob.objects.filter(
             device=device,
-            status__in=[DeviceRosterSyncStatus.ANALYZING, DeviceRosterSyncStatus.RUNNING],
+            status__in=[
+                DeviceRosterSyncStatus.ANALYZING,
+                DeviceRosterSyncStatus.APPROVED,
+                DeviceRosterSyncStatus.RUNNING,
+            ],
         ).order_by("id").first()
         commands = []
         command_job = DeviceRosterSyncJob.objects.filter(
             device=device,
             status=DeviceRosterSyncStatus.RUNNING,
         ).order_by("id").first()
-        if command_job:
+        if command_job and include_commands:
             pending_items = command_job.items.filter(
                 action__in=[
                     DeviceRosterSyncAction.CREATE,

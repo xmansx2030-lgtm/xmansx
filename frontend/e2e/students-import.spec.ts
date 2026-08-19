@@ -123,13 +123,14 @@ test("tenant roles: manager in A is teacher in B — no students access in B", a
   page,
 }) => {
   await loginManagerToAndalus(page);
-  await expect(page.getByRole("link", { name: "الطلاب" })).toBeVisible();
+  // exact: رابط «أجهزة الطلاب» (م8.6) يطابق جزئيًا «الطلاب» بدون exact
+  await expect(page.getByRole("link", { name: "الطلاب", exact: true })).toBeVisible();
 
   // التبديل إلى مدارس الرواد (معلم فقط)
   await page.getByRole("button", { name: /ثانوية الأندلس/ }).click();
   await page.getByRole("button", { name: /مدارس الرواد/ }).click();
   await expect(page.getByTestId("active-school-name")).toHaveText("مدارس الرواد");
-  await expect(page.getByRole("link", { name: "الطلاب" })).not.toBeVisible();
+  await expect(page.getByRole("link", { name: "الطلاب", exact: true })).not.toBeVisible();
 
   // محاولة API مباشرة: قائمة الطلاب والاستيراد كلاهما 403
   const statuses = await page.evaluate(async () => {

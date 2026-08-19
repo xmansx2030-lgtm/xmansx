@@ -120,6 +120,7 @@ def get_late_list(
             continue
         rows.append(
             {
+                "arrival_id": arrival.id,
                 "student_id": arrival.student_id,
                 "full_name": name,
                 "grade_name": info.get("grade_name", "—"),

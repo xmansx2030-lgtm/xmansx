@@ -5,9 +5,9 @@
 العودة **مرة واحدة بالضبط** (dedupe محلي + خادمي).
 """
 
-import logging
 import hashlib
 import json
+import logging
 
 from bridge_core.adapters.base import DeviceCapability, build_connector
 from bridge_core.client import BridgeAuthError, RetryableError, SaaSClient
@@ -31,10 +31,18 @@ def roster_hash(users: list[dict]) -> str:
 
 
 class BridgeEngine:
-    def __init__(self, *, client: SaaSClient, queue: DurableQueue, batch_size: int = 200):
+    def __init__(
+        self,
+        *,
+        client: SaaSClient,
+        queue: DurableQueue,
+        batch_size: int = 200,
+        simulator_users_file: str = "",
+    ):
         self.client = client
         self.queue = queue
         self.batch_size = batch_size
+        self.simulator_users_file = simulator_users_file
 
     def poll_devices(self, device_configs: list[dict]) -> int:
         """يقرأ أحداث كل جهاز عبر Adapter المناسب ويضيفها للطابور المحلي."""
@@ -98,6 +106,8 @@ class BridgeEngine:
         roster_reads = 0
         roster_commands = 0
         for config in configs:
+            if self.simulator_users_file and config.get("vendor", "").upper() == "SIMULATOR":
+                config.setdefault("users_file", self.simulator_users_file)
             report = {"device_id": config["id"], "reachable": True}
             if config.get("test_requested"):
                 try:
@@ -134,9 +144,13 @@ class BridgeEngine:
                         roster_commands += 1
                         continue
                     if action == "CREATE":
-                        result = connector.create_user(command["external_user_id"], command["display_name"])
+                        result = connector.create_user(
+                            command["external_user_id"], command["display_name"]
+                        )
                     elif action == "UPDATE":
-                        result = connector.update_user(command["external_user_id"], command["display_name"])
+                        result = connector.update_user(
+                            command["external_user_id"], command["display_name"]
+                        )
                     elif action == "DELETE":
                         result = connector.delete_user(command["external_user_id"])
                     else:
@@ -150,7 +164,24 @@ class BridgeEngine:
                     })
                     roster_commands += 1
                 except Exception as exc:
-                    logger.warning("roster command failed for item %s: %s", command.get("item_id"), exc)
+                    logger.warning(
+                        "roster command failed for item %s: %s", command.get("item_id"), exc
+                    )
+                    try:
+                        self.client.send_roster_command_result({
+                            "job_id": command["job_id"],
+                            "item_id": command["item_id"],
+                            "command_id": command["command_id"],
+                            "result": "FAILED_RETRYABLE",
+                            "error_code": "DEVICE_COMMAND_EXECUTION_FAILED",
+                        })
+                        roster_commands += 1
+                    except Exception as result_error:
+                        logger.warning(
+                            "roster command failure result failed for item %s: %s",
+                            command.get("item_id"),
+                            result_error,
+                        )
         added = self.poll_devices(configs)
         flushed = self.flush()
         if reports:

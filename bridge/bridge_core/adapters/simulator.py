@@ -58,7 +58,10 @@ class SimulatorConnector:
         users = self.read_users()
         if any(user.get("external_user_id") == external_user_id for user in users):
             return {"result": "SUCCEEDED", "already_exists": True}
-        users.append({"external_user_id": external_user_id, "display_name": display_name, "status": "ACTIVE"})
+        users.append(
+            {"external_user_id": external_user_id, "display_name": display_name,
+             "status": "ACTIVE"}
+        )
         self._write_users(users)
         return {"result": "SUCCEEDED"}
 

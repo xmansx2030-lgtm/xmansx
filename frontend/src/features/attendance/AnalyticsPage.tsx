@@ -135,6 +135,7 @@ export function AnalyticsPage() {
           date={date}
           activeSchoolId={activeSchoolId}
           data={dailyQuery.data}
+          grades={grades}
         />
       )}
     </div>
@@ -414,17 +415,20 @@ function DailyTab({
   date,
   activeSchoolId,
   data,
+  grades,
 }: {
   date: string;
   activeSchoolId: number;
   data: import("@/features/attendance/api").DailyAnalyticsResponse;
+  grades: [number, string][];
 }) {
   const [status, setStatus] = useState("");
+  const [gradeId, setGradeId] = useState<number | "">("");
   const listQuery = useQuery({
     queryKey: schoolScopedKey(
-      activeSchoolId, "attendance", "analytics", "daily-list", date, status,
+      activeSchoolId, "attendance", "analytics", "daily-list", date, status, gradeId,
     ),
-    queryFn: ({ signal }) => getDailyAnalytics({ date, status }, signal),
+    queryFn: ({ signal }) => getDailyAnalytics({ date, status, grade: gradeId }, signal),
     enabled: status !== "",
   });
 
@@ -474,6 +478,18 @@ function DailyTab({
                 {f.label}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="ms-4 text-sm text-slate-600">
+          الصف{" "}
+          <select
+            value={gradeId}
+            onChange={(e) => setGradeId(e.target.value === "" ? "" : Number(e.target.value))}
+            className="rounded-lg border border-slate-300 px-2 py-1.5"
+            data-testid="daily-grade-filter"
+          >
+            <option value="">الكل</option>
+            {grades.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </select>
         </label>
         {listQuery.isFetching && (

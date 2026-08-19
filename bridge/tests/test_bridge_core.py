@@ -90,7 +90,8 @@ def test_queue_no_biometric_fields_needed(tmp_path):
 def test_client_retries_on_5xx_with_backoff_then_succeeds():
     sleeps: list[float] = []
     client = make_client(
-        [RetryableError("HTTP 500"), RetryableError("timeout"), {"results": [{"result": "accepted"}]}],
+        [RetryableError("HTTP 500"), RetryableError("timeout"),
+         {"results": [{"result": "accepted"}]}],
         sleeps,
     )
     results = client.send_events([make_event(1)])
