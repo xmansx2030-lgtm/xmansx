@@ -55,6 +55,12 @@ def test_profile_summary_aggregates_phase8_daily_summaries(make_school):
         "absent_periods": 10,
         "period_late_occurrences": 3,
         "period_late_minutes": 43,
+        # م10 — صفوف هذا الاختبار كتبت مباشرة بلا تصنيف (لا أعذار): أصفار
+        "excused_absent_periods": 0,
+        "unexcused_absent_periods": 0,
+        "excused_full_absence_days": 0,
+        "unexcused_full_absence_days": 0,
+        "mixed_full_absence_days": 0,
     }
 
 

@@ -2,10 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { getExcuses } from "@/features/excuses/api";
+import { ExcuseCreateCard } from "@/features/excuses/ExcuseCreateCard";
+import { ExcuseDetailCard } from "@/features/excuses/ExcuseDetailCard";
+import { StatusBadge } from "@/features/excuses/ExcusesPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
 import {
   getAttendanceChanges,
   getAttendanceDayDetail,
@@ -37,7 +43,15 @@ const STATUS_LABELS: Record<string, string> = {
   ARCHIVED: "مؤرشف",
 };
 
-type Tab = "summary" | "days" | "absences" | "lates" | "morning" | "changes";
+type Tab =
+  | "summary"
+  | "days"
+  | "absences"
+  | "lates"
+  | "morning"
+  | "excuses"
+  | "warnings"
+  | "changes";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -68,9 +82,14 @@ export function StudentAttendanceProfilePage() {
   const [tab, setTab] = useState<Tab>("summary");
   const [page, setPage] = useState(1);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedExcuse, setSelectedExcuse] = useState<number | null>(null);
+  const [quickExcuse, setQuickExcuse] = useState<{ date?: string; period?: number } | null>(
+    null,
+  );
   const canSeeChanges = me.data?.roles.some(
     (role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL",
   ) ?? false;
+  const canManageExcuses = canSeeChanges;
   const range = { fromDate, toDate };
 
   const profile = useQuery({
@@ -108,6 +127,11 @@ export function StudentAttendanceProfilePage() {
     queryFn: ({ signal }) => getMorningAttendance(id, range, signal),
     enabled: tab === "morning" && schoolId > 0,
   });
+  const excuses = useQuery({
+    queryKey: schoolScopedKey(schoolId, "student-excuses", id, page),
+    queryFn: ({ signal }) => getExcuses({ student: id, page }, signal),
+    enabled: tab === "excuses" && schoolId > 0,
+  });
 
   const setPreset = (preset: string) => {
     const end = new Date();
@@ -137,6 +161,8 @@ export function StudentAttendanceProfilePage() {
     ["absences", "غياب الحصص"],
     ["lates", "تأخر الحصص"],
     ["morning", "الحضور الصباحي"],
+    ["excuses", "الأعذار"],
+    ["warnings", "الإنذارات"],
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -179,6 +205,29 @@ export function StudentAttendanceProfilePage() {
         <Metric label="تأخر عن الحصص" value={`${attendance.period_late_occurrences} مرة`} />
         <Metric label="إجمالي التأخر" value={formatMinutes(attendance.period_late_minutes)} />
       </div>
+
+      {/* م10 — التصنيف الإداري: إضافة فوق الإجماليات لا بديل عنها (بند 69) */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="excuse-metrics">
+        <Metric
+          label="غياب كامل بعذر"
+          value={`${attendance.excused_full_absence_days} يوم`}
+        />
+        <Metric
+          label="غياب كامل بدون عذر"
+          value={`${attendance.unexcused_full_absence_days} يوم`}
+        />
+        <Metric label="حصص غياب بعذر" value={`${attendance.excused_absent_periods} حصة`} />
+        <Metric
+          label="حصص غياب بدون عذر"
+          value={`${attendance.unexcused_absent_periods} حصة`}
+        />
+      </div>
+      {attendance.mixed_full_absence_days > 0 && (
+        <div role="status" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          يوجد {attendance.mixed_full_absence_days} يوم غياب كامل مختلط (بعضه بعذر وبعضه بدون
+          عذر).
+        </div>
+      )}
       {attendance.undetermined_days > 0 && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           يوجد {attendance.undetermined_days} يومًا لم تكتمل فيها بيانات التحضير.
@@ -201,11 +250,114 @@ export function StudentAttendanceProfilePage() {
       </div>
 
       {tab === "summary" && <p className="text-sm text-slate-500">الفترة: {formatDate(fromDate)} إلى {formatDate(toDate)}</p>}
-      {tab === "days" && <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={selectedDay} onSelect={setSelectedDay} detail={dayDetail.data} />}
+      {tab === "days" && <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={selectedDay} onSelect={setSelectedDay} detail={dayDetail.data} canManageExcuses={canManageExcuses} onQuickExcuse={(date, period) => { setQuickExcuse({ date, period }); setTab("excuses"); }} />}
       {tab === "absences" && <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />}
       {tab === "lates" && <PeriodTab rows={lates.data?.results ?? []} count={lates.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حالات تأخر عن الحصص في الفترة." showLate />}
       {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
+      {tab === "warnings" && <StudentWarningsTab studentId={id} />}
+      {tab === "excuses" && (
+        <div className="space-y-4">
+          {canManageExcuses && !quickExcuse && (
+            <Button onClick={() => setQuickExcuse({})} data-testid="profile-add-excuse">
+              إضافة عذر
+            </Button>
+          )}
+          {quickExcuse && canManageExcuses && (
+            <ExcuseCreateCard
+              fixedStudent={{ id, name: student.full_name }}
+              fixedDate={quickExcuse.date}
+              fixedPeriod={quickExcuse.period}
+              onCreated={(excuseId) => {
+                setQuickExcuse(null);
+                setSelectedExcuse(excuseId);
+                excuses.refetch();
+              }}
+              onCancel={() => setQuickExcuse(null)}
+            />
+          )}
+          <ExcusesTab
+            rows={excuses.data?.results ?? []}
+            onSelect={(excuseId) =>
+              setSelectedExcuse(selectedExcuse === excuseId ? null : excuseId)
+            }
+          />
+          {selectedExcuse !== null && (
+            <ExcuseDetailCard
+              excuseId={selectedExcuse}
+              canManage={canManageExcuses}
+              onChanged={() => {
+                excuses.refetch();
+                profile.refetch();
+              }}
+              onClose={() => setSelectedExcuse(null)}
+            />
+          )}
+        </div>
+      )}
       {tab === "changes" && <ChangesTab rows={changes.data?.results ?? []} count={changes.data?.count ?? 0} page={page} onPage={setPage} />}
+    </div>
+  );
+}
+
+function ExcusesTab({
+  rows,
+  onSelect,
+}: {
+  rows: Awaited<ReturnType<typeof getExcuses>>["results"];
+  onSelect: (excuseId: number) => void;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-slate-500">
+            <th className="p-3 text-start">التاريخ/الفترة</th>
+            <th className="p-3 text-start">نوع العذر</th>
+            <th className="p-3 text-start">الحالة</th>
+            <th className="p-3 text-start">الحصص المغطاة</th>
+            <th className="p-3 text-start">المسجل</th>
+            <th className="p-3 text-start">المعتمد</th>
+            <th className="p-3 text-start">المرفقات</th>
+            <th className="p-3 text-start"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="border-b" data-testid={`profile-excuse-${row.id}`}>
+              <td className="p-3">
+                {row.date_from
+                  ? row.date_from === row.date_to
+                    ? formatDate(row.date_from)
+                    : `${formatDate(row.date_from)} — ${formatDate(row.date_to!)}`
+                  : "—"}
+              </td>
+              <td className="p-3">{row.reason_type_label}</td>
+              <td className="p-3">
+                <StatusBadge status={row.status} label={row.status_label} />
+              </td>
+              <td className="p-3">{row.active_coverage_count} حصة</td>
+              <td className="p-3">{row.recorded_by_name ?? "—"}</td>
+              <td className="p-3">{row.approved_by_name ?? "—"}</td>
+              <td className="p-3">{row.attachments_count}</td>
+              <td className="p-3">
+                <button
+                  type="button"
+                  className="text-blue-700 underline"
+                  onClick={() => onSelect(row.id)}
+                  data-testid={`open-profile-excuse-${row.id}`}
+                >
+                  التفاصيل
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length === 0 && (
+        <p className="p-6 text-sm text-slate-500" data-testid="no-student-excuses">
+          لا توجد أعذار مسجلة لهذا الطالب.
+        </p>
+      )}
     </div>
   );
 }
@@ -218,7 +370,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{label}</p><strong className="mt-2 block text-xl text-slate-900">{value}</strong></div>;
 }
 
-function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail }: {
+function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, canManageExcuses, onQuickExcuse }: {
   days: Awaited<ReturnType<typeof getAttendanceDays>>["results"];
   count: number;
   page: number;
@@ -226,8 +378,87 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail }: {
   selectedDay: string | null;
   onSelect: (date: string) => void;
   detail?: Awaited<ReturnType<typeof getAttendanceDayDetail>>;
+  canManageExcuses: boolean;
+  onQuickExcuse: (date: string, period?: number) => void;
 }) {
-  return <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><div className="divide-y rounded-xl border border-slate-200 bg-white">{days.map((day) => <button key={day.date} type="button" onClick={() => onSelect(day.date)} className={`flex w-full items-center justify-between p-4 text-start ${selectedDay === day.date ? "bg-blue-50" : "hover:bg-slate-50"}`}><span><strong>{formatDate(day.date)}</strong><span className="mt-1 block text-sm text-slate-600">{DAY_LABELS[day.absence_status]}</span></span><span className="text-sm text-slate-500">{day.absent_periods} غياب • {day.late_periods} تأخر</span></button>)}{days.length === 0 && <p className="p-6 text-sm text-slate-500">لا توجد بيانات أيام في الفترة.</p>}<Pager count={count} page={page} onPage={onPage} /></div>{detail && <div className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="mb-3 font-bold">تفاصيل {formatDate(detail.date)}</h2><div className="divide-y">{detail.periods.map((period) => <div key={period.sequence} className="flex items-center justify-between py-3 text-sm"><span>الحصة {period.sequence} - {period.name}</span><span>{MARK_LABELS[period.status]}{period.late_minutes ? ` (${period.late_minutes} دقيقة)` : ""}</span></div>)}</div></div>}</div>;
+  return (
+    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="divide-y rounded-xl border border-slate-200 bg-white">
+        {days.map((day) => (
+          <button
+            key={day.date}
+            type="button"
+            data-testid={`day-row-${day.date}`}
+            onClick={() => onSelect(day.date)}
+            className={`flex w-full items-center justify-between p-4 text-start ${selectedDay === day.date ? "bg-blue-50" : "hover:bg-slate-50"}`}
+          >
+            <span>
+              <strong>{formatDate(day.date)}</strong>
+              <span className="mt-1 block text-sm text-slate-600">
+                {DAY_LABELS[day.absence_status]}
+              </span>
+            </span>
+            <span className="text-sm text-slate-500">
+              {day.absent_periods} غياب
+              {day.excused_absent_periods > 0 && ` (${day.excused_absent_periods} بعذر)`}
+              {" • "}
+              {day.late_periods} تأخر
+            </span>
+          </button>
+        ))}
+        {days.length === 0 && (
+          <p className="p-6 text-sm text-slate-500">لا توجد بيانات أيام في الفترة.</p>
+        )}
+        <Pager count={count} page={page} onPage={onPage} />
+      </div>
+      {detail && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-bold">تفاصيل {formatDate(detail.date)}</h2>
+            {canManageExcuses && detail.absent_periods > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => onQuickExcuse(detail.date)}
+                data-testid="day-add-excuse"
+              >
+                إضافة عذر لهذا اليوم
+              </Button>
+            )}
+          </div>
+          <div className="divide-y">
+            {detail.periods.map((period) => (
+              <div
+                key={period.sequence}
+                className="flex items-center justify-between py-3 text-sm"
+              >
+                <span>
+                  الحصة {period.sequence} - {period.name}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span>
+                    {MARK_LABELS[period.status]}
+                    {period.late_minutes ? ` (${period.late_minutes} دقيقة)` : ""}
+                    {period.excused === true && " — بعذر"}
+                    {period.excused === false && " — بدون عذر"}
+                  </span>
+                  {canManageExcuses && period.excused === false && (
+                    <button
+                      type="button"
+                      className="text-blue-700 underline"
+                      onClick={() => onQuickExcuse(detail.date, period.sequence)}
+                      data-testid={`period-add-excuse-${period.sequence}`}
+                    >
+                      إضافة عذر
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PeriodTab({ rows, count, page, onPage, empty, showLate = false }: { rows: Awaited<ReturnType<typeof getAttendancePeriodAbsences>>["results"]; count: number; page: number; onPage: (page: number) => void; empty: string; showLate?: boolean }) {

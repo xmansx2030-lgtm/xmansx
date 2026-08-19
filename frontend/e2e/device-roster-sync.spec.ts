@@ -44,6 +44,28 @@ async function post(context: APIRequestContext, path: string, data: unknown) {
   });
 }
 
+async function patch(context: APIRequestContext, path: string, data: unknown) {
+  return context.patch(path, {
+    data,
+    headers: { "X-CSRFToken": await csrf(context) },
+  });
+}
+
+const DEVICE_NAME = "Simulator Roster E2E";
+
+/** الأجهزة لا تُحذف (تحمل تاريخًا)، فبقايا التشغيلات السابقة تبقى نشطة وتُعاد في كل
+ *  نبضة جسر مع هويات طلابها — تعطيلها يبقي زمن الاختبار ثابتًا بدل أن ينمو. */
+async function deactivateLeftoverDevices(context: APIRequestContext) {
+  const response = await context.get("/api/v1/devices/");
+  const payload = (await response.json()) as { id: number; name: string; is_active: boolean }[];
+  const devices = Array.isArray(payload) ? payload : [];
+  for (const device of devices) {
+    if (device.name.startsWith(DEVICE_NAME) && device.is_active) {
+      await patch(context, `/api/v1/devices/${device.id}/`, { is_active: false });
+    }
+  }
+}
+
 async function runBridge(configPath: string) {
   const root = resolve(import.meta.dirname, "..", "..");
   const python = resolve(root, "backend", ".venv", "Scripts", "python.exe");
@@ -55,20 +77,27 @@ async function runBridge(configPath: string) {
 }
 
 test("manager creates a missing Simulator roster user and verifies MATCHED", async ({ playwright }) => {
+  // مزامنة السجل تنفذ أمرًا حقيقيًا لكل طالب في المدرسة عبر عمليات جسر متتابعة،
+  // فزمنها يتناسب مع حجم السجل ويتجاوز مهلة الاختبار الافتراضية.
+  test.setTimeout(240_000);
   const context = await login(playwright.request);
   const temp = mkdtempSync(resolve(tmpdir(), "xmansx-roster-e2e-"));
   const usersFile = resolve(temp, "users.json");
   const queueFile = resolve(temp, "queue.sqlite3");
   writeFileSync(usersFile, "[]", "utf8");
 
+  let deviceId = 0;
+
   try {
+    await deactivateLeftoverDevices(context);
     const deviceResponse = await post(context, "/api/v1/devices/", {
-      name: "Simulator Roster E2E",
+      name: DEVICE_NAME,
       vendor: "SIMULATOR",
       model: "E2E",
     });
     expect(deviceResponse.status()).toBe(201);
     const device = (await deviceResponse.json()) as { id: number };
+    deviceId = device.id;
 
     const bridgeResponse = await post(context, "/api/v1/device-bridges/", {
       name: "Simulator Roster Bridge E2E",
@@ -191,6 +220,9 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     const staleState = (await context.get(`/api/v1/device-roster-syncs/${staleJob.id}/`)).json() as Promise<{ status: string }>;
     expect((await staleState).status).toBe("STALE");
   } finally {
+    if (deviceId) {
+      await patch(context, `/api/v1/devices/${deviceId}/`, { is_active: false });
+    }
     await context.dispose();
     rmSync(temp, { recursive: true, force: true });
   }

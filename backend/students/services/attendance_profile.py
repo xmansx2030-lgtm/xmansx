@@ -98,13 +98,30 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
         student=student,
         attendance_date__range=(from_date, to_date),
     )
+    full = Q(absence_status=DailyAbsenceStatus.FULL)
     totals = rows.aggregate(
-        full_absence_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.FULL)),
+        full_absence_days=Count("id", filter=full),
         partial_absence_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)),
         undetermined_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)),
         absent_periods=Sum("absent_periods"),
         late_occurrences=Sum("late_periods"),
         late_minutes=Sum("total_late_minutes"),
+        # م10 — الإجمالي يبقى كما هو (بند 69)؛ التصنيف بعذر/بدون عذر إضافة فوقه.
+        # ‏alias مختلف عن اسم الحقل: تسميته بنفس الاسم تجعل الفلاتر التالية تشير
+        # إلى الـaggregate لا إلى العمود (FieldError).
+        excused_periods_total=Sum("excused_absent_periods"),
+        unexcused_periods_total=Sum("unexcused_absent_periods"),
+        # ‏>0 يضمن أن اليوم مصنف فعلًا: صف بعدادات صفرية لا يحسب في الاثنين معًا
+        excused_full_days=Count(
+            "id", filter=full & Q(unexcused_absent_periods=0) & Q(excused_absent_periods__gt=0)
+        ),
+        unexcused_full_days=Count(
+            "id", filter=full & Q(excused_absent_periods=0) & Q(unexcused_absent_periods__gt=0)
+        ),
+        mixed_full_days=Count(
+            "id",
+            filter=full & Q(excused_absent_periods__gt=0) & Q(unexcused_absent_periods__gt=0),
+        ),
     )
     return {
         "full_absence_days": totals["full_absence_days"] or 0,
@@ -113,6 +130,11 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
         "absent_periods": totals["absent_periods"] or 0,
         "period_late_occurrences": totals["late_occurrences"] or 0,
         "period_late_minutes": totals["late_minutes"] or 0,
+        "excused_absent_periods": totals["excused_periods_total"] or 0,
+        "unexcused_absent_periods": totals["unexcused_periods_total"] or 0,
+        "excused_full_absence_days": totals["excused_full_days"] or 0,
+        "unexcused_full_absence_days": totals["unexcused_full_days"] or 0,
+        "mixed_full_absence_days": totals["mixed_full_days"] or 0,
     }
 
 
@@ -161,6 +183,12 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             status=AttendanceSessionStatus.SUBMITTED,
         ).prefetch_related("marks")
     } if section_id else {}
+    # م10 — الجلسات المغطاة بعذر نشط: التصنيف الإداري دون تغيير الحالة الخام
+    from excuses.selectors import excused_session_ids
+
+    excused_ids = excused_session_ids(
+        school=school, student=student, attendance_date=attendance_date
+    )
     periods = []
     for period in expected:
         session = sessions.get(period["sequence"])
@@ -169,12 +197,18 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             if session
             else None
         )
+        payload = _mark_payload(mark, submitted=session is not None)
+        payload["excused"] = (
+            session.id in excused_ids
+            if mark is not None and mark.status == AttendanceMarkStatus.ABSENT
+            else None
+        )
         periods.append({
             "sequence": period["sequence"],
             "name": period["name"],
             "start_time": period.get("start_time"),
             "end_time": period.get("end_time"),
-            **_mark_payload(mark, submitted=session is not None),
+            **payload,
         })
     return {
         "date": attendance_date.isoformat(),

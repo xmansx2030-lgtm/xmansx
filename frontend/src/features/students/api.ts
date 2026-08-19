@@ -23,6 +23,12 @@ export interface AttendanceProfile {
     absent_periods: number;
     period_late_occurrences: number;
     period_late_minutes: number;
+    // م10 — التصنيف الإداري (الإجماليات أعلاه تبقى كما هي)
+    excused_absent_periods: number;
+    unexcused_absent_periods: number;
+    excused_full_absence_days: number;
+    unexcused_full_absence_days: number;
+    mixed_full_absence_days: number;
   };
   morning_attendance: {
     status: "AVAILABLE" | "NOT_AVAILABLE";
@@ -48,6 +54,8 @@ export interface AttendanceDay {
   absence_status_label: string;
   section: { id: number; name: string; grade_name: string } | null;
   absent_periods: number;
+  excused_absent_periods: number;
+  unexcused_absent_periods: number;
   late_periods: number;
   total_late_minutes: number;
 }
@@ -69,6 +77,8 @@ export interface AttendanceDayDetail extends AttendanceDay {
     status_label: string;
     arrival_time: string | null;
     late_minutes: number | null;
+    /** م10 — للغياب فقط: true بعذر معتمد، false بدون عذر، null لغير الغياب. */
+    excused: boolean | null;
   }>;
 }
 

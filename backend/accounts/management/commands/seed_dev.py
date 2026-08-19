@@ -60,14 +60,20 @@ class Command(BaseCommand):
             school, _ = School.objects.get_or_create(slug=slug, defaults={"name": name})
             schools[slug] = school
             # عام دراسي نشط لكل مدرسة (يلزم للاستيراد) — idempotent
-            if not AcademicYear.objects.filter(
+            active_year = AcademicYear.objects.filter(
                 school=school, status=AcademicYearStatus.ACTIVE
-            ).exists():
+            ).first()
+            if active_year is None:
                 AcademicYear.objects.create(
                     school=school, name="2026/2027",
-                    start_date=date(2026, 8, 23), end_date=date(2027, 6, 25),
+                    start_date=date(2026, 8, 1), end_date=date(2027, 6, 25),
                     status=AcademicYearStatus.ACTIVE,
                 )
+            elif active_year.start_date > date.today():
+                # اتساق بيئة التطوير: عام «نشط» لم يبدأ بعد يجعل كل المقاييس
+                # المرتبطة بنطاق تواريخ العام (كالتأخر الصباحي) فارغة
+                active_year.start_date = date(2026, 8, 1)
+                active_year.save(update_fields=["start_date"])
             self._seed_all_day_schedule(school)
             self.stdout.write(f"school: {school.name} (id={school.id}, slug={slug})")
 

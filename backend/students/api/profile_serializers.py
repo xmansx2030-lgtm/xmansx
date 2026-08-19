@@ -8,6 +8,12 @@ class AttendanceProfileSummarySerializer(serializers.Serializer):
     absent_periods = serializers.IntegerField()
     period_late_occurrences = serializers.IntegerField()
     period_late_minutes = serializers.IntegerField()
+    # م10 — التصنيف الإداري: الإجماليات أعلاه تبقى كما هي (بند 69)
+    excused_absent_periods = serializers.IntegerField()
+    unexcused_absent_periods = serializers.IntegerField()
+    excused_full_absence_days = serializers.IntegerField()
+    unexcused_full_absence_days = serializers.IntegerField()
+    mixed_full_absence_days = serializers.IntegerField()
 
 
 class AttendanceProfileSerializer(serializers.Serializer):
@@ -34,6 +40,8 @@ class AttendanceDaySerializer(serializers.Serializer):
     absence_status_label = serializers.CharField()
     section = serializers.DictField(allow_null=True)
     absent_periods = serializers.IntegerField()
+    excused_absent_periods = serializers.IntegerField()
+    unexcused_absent_periods = serializers.IntegerField()
     late_periods = serializers.IntegerField()
     total_late_minutes = serializers.IntegerField()
 

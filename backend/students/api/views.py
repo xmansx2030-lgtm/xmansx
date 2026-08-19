@@ -379,6 +379,8 @@ class StudentAttendanceDaysView(SchoolScopedAPIView):
                     "grade_name": row.section.grade.name,
                 },
                 "absent_periods": row.absent_periods,
+                "excused_absent_periods": row.excused_absent_periods,
+                "unexcused_absent_periods": row.unexcused_absent_periods,
                 "late_periods": row.late_periods,
                 "total_late_minutes": row.total_late_minutes,
             }

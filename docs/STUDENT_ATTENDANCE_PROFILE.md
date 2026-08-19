@@ -1,5 +1,9 @@
 # Student Attendance Profile
 
+> تحديث المرحلة 11: أضيف تبويب **الإنذارات** — ملخص (إنذارات الغياب/التأخر) وقائمة
+> الإنذارات الصادرة، مع الفصل الصريح بين قيمة المقياس وقت الإصدار والقيمة الحالية
+> (التفصيل: [STUDENT_WARNINGS.md](STUDENT_WARNINGS.md)). المرشد يقرأ التبويب ولا يصدر.
+
 ## Scope
 
 Phase 9 is a read-heavy profile built only on the Phase 8 records: `Student`, `StudentEnrollment`, `Grade`, `Section`, `AttendanceDayContext`, `AttendanceSession`, `AttendanceMark`, `AttendanceChange`, and `DailyAttendanceSummary`. It adds no model and no migration.
@@ -59,6 +63,28 @@ The expected change boundary is the profile summary service plus the morning sec
 
 Summary queries use database aggregation. Detail lists are paginated and use `select_related`/`prefetch_related` to avoid per-row identity or actor queries. No profile-view audit noise is generated. Benchmarking and query-count verification require the project PostgreSQL/Docker services to be available.
 
+## Phase 10 Additions — Excuse Classification
+
+The profile keeps every Phase 9 total unchanged and layers the administrative
+classification on top of it. `attendance-profile/` gained
+`excused_absent_periods`, `unexcused_absent_periods`, `excused_full_absence_days`,
+`unexcused_full_absence_days`, and `mixed_full_absence_days`; `attendance-days/`
+rows gained `excused_absent_periods` / `unexcused_absent_periods`; and each period
+in `attendance-days/{date}/` gained `excused` (`true`/`false` for absences,
+`null` otherwise).
+
+The UI shows the excused/unexcused cards **next to** the totals, never instead of
+them: a student with 8 full-absence days is displayed as 8 total with a 3 excused
+/ 5 unexcused breakdown, so an approved excuse never makes the absence disappear.
+Mixed full-absence days get their own note and are counted in neither bucket.
+
+An "الأعذار" tab lists the student's excuses (period, type, status, covered
+periods, recorder, approver, attachment count) and opens the shared excuse detail
+card. Managers and vice-principals also get quick-create buttons on an absent day
+and on any unexcused period; counselors see the tab read-only and cannot open
+attachments. Full domain rules are in [ABSENCE_EXCUSES.md](ABSENCE_EXCUSES.md).
+
 ## Deferred Work
 
-Excuses, warnings, actions, referrals, documents, exports, notifications, WebSockets, and biometric/device models are outside Phase 9.
+Warnings, actions, referrals, documents, exports, notifications, WebSockets, and
+biometric/device models are outside Phase 9 (excuses landed in Phase 10).

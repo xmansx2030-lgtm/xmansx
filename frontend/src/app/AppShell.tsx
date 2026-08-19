@@ -8,6 +8,7 @@ import { roleLabels } from "@/utils/roles";
 const SETTINGS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STUDENTS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STAFF_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
+const EXCUSES_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
 /** الهيكل العام بعد اختيار المدرسة: المستخدم، المدرسة الحالية، الأدوار، التبديل، الخروج. */
 export function AppShell() {
@@ -63,6 +64,16 @@ export function AppShell() {
                   </NavLink>
                 </>
               )}
+            {me.isSuccess && me.data.roles.some((r) => EXCUSES_ROLES.includes(r)) && (
+              <NavLink
+                to="/excuses"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                الأعذار
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
               <NavLink
                 to="/attendance/qr"
@@ -75,14 +86,24 @@ export function AppShell() {
             )}
             {me.isSuccess &&
               me.data.roles.some((r) => ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(r)) && (
-                <NavLink
-                  to="/morning"
-                  className={({ isActive }) =>
-                    `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
-                  }
-                >
-                  الحضور الصباحي
-                </NavLink>
+                <>
+                  <NavLink
+                    to="/morning"
+                    className={({ isActive }) =>
+                      `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                    }
+                  >
+                    الحضور الصباحي
+                  </NavLink>
+                  <NavLink
+                    to="/warnings"
+                    className={({ isActive }) =>
+                      `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                    }
+                  >
+                    الإنذارات
+                  </NavLink>
+                </>
               )}
             {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
               <NavLink

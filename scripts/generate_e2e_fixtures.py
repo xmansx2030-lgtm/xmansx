@@ -159,8 +159,40 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-6.xlsx", analytics_rows)
 
+    # ---- ملف الأعذار (المرحلة 10) — صف/فصل مستقل: عدادات «بعذر» لا تختلط بغيره
+    def exc_nid(n: int) -> str:
+        return f"1{tag}5{n:02d}"  # بادئة 5 — البادئة 8 يستخدمها ملف المتابعة
+
+    excuses_grade = f"صف الأعذار {tag}"
+    excuses_section = f"E1-{tag}"
+    excuses_students = [f"سالم عذر {tag}", f"ناصر عذر {tag}"]
+    excuses_rows = [
+        [exc_nid(i + 1), name, excuses_grade, excuses_section, ""]
+        for i, name in enumerate(excuses_students)
+    ]
+    _write(FIXTURES_DIR / "noor-7.xlsx", excuses_rows)
+
+    # ---- ملف الإنذارات (المرحلة 11) — صف/فصل مستقل: عدادات الاستحقاق لا تختلط
+    def warn_nid(n: int) -> str:
+        return f"1{tag}6{n:02d}"  # بادئة 6 — لا تصادم مع بقية المولدات
+
+    warnings_grade = f"صف الإنذارات {tag}"
+    warnings_section = f"W1-{tag}"
+    warnings_students = [f"فيصل إنذار {tag}", f"بندر إنذار {tag}"]
+    warnings_rows = [
+        [warn_nid(i + 1), name, warnings_grade, warnings_section, ""]
+        for i, name in enumerate(warnings_students)
+    ]
+    _write(FIXTURES_DIR / "noor-8.xlsx", warnings_rows)
+
     meta = {
         "tag": tag,
+        "warnings_grade": warnings_grade,
+        "warnings_section": warnings_section,
+        "warnings_students": warnings_students,
+        "excuses_grade": excuses_grade,
+        "excuses_section": excuses_section,
+        "excuses_students": excuses_students,
         "analytics_grade": analytics_grade,
         "analytics_section_1": ana_section_1,
         "analytics_section_2": ana_section_2,

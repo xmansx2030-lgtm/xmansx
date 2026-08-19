@@ -244,11 +244,12 @@ erDiagram
 | school | FK | denormalized |
 | session | FK | |
 | student | FK **PROTECT** | **Unique (session, student)** — PROTECT يفشل الحذف النهائي بصوت عالٍ إن نسي التسجيل في PURGE_STEPS |
-| status | enum | ABSENT / LATE (لا EXCUSED — يأتي مع مرحلة الأعذار) |
+| status | enum | ABSENT / LATE — **ولا شيء غيرهما أبدًا**: م10 أثبتت أن EXCUSED تصنيف إداري منفصل لا حالة حضور |
 | arrival_time | time null | مطلوب عند LATE |
 | late_minutes | int null | محسوب خادميًا: arrival − بداية الحصة (من snapshot)؛ قيمة العميل ترفض |
 
-فهارس: `(school, student)`, `(school, status)`. حقل `excuse_status` يضاف في مرحلة الأعذار.
+فهارس: `(school, student)`, `(school, status)`. **لا حقل `excuse_status`** — ألغي عمدًا
+في م10: التصنيف يُشتق من `AbsenceExcuseCoverage` (مصدر حقيقة واحد).
 
 ### AttendanceDayContext — ✅ م8 (التفصيل: ATTENDANCE_ANALYTICS.md)
 `school`, `academic_year null`, `attendance_date`, `schedule_snapshot JSON`
@@ -277,55 +278,97 @@ erDiagram
 سجل علائقي append-only (قراءة فقط في الإدارة)، مسجل في PURGE_STEPS مع العلامات.
 
 > ‏DailyAttendanceSummary نفذت في م8 أعلاه بحساب متزامن (لا Celery) وحالة
-> `UNDETERMINED` بدل تحميل INCOMPLETE معنيين؛ ‏`excused_absent_periods` يضاف في
-> مرحلة الأعذار (أعمدة جديدة فقط — لا هدم).
+> `UNDETERMINED` بدل تحميل INCOMPLETE معنيين؛ وأضيف في م10 عمودا
+> `excused_absent_periods` و`unexcused_absent_periods` (أعمدة جديدة فقط — لا هدم)
+> بثابت `excused + unexcused = absent_periods`.
 
 ---
 
-## 8. excuses
+## 8. excuses — ✅ نفذ في المرحلة 10 (التفصيل: ABSENCE_EXCUSES.md)
 
-### Excuse
+> **تعديل مقصود عن التصميم الأولي:** لا يوجد `AttendanceMark.excuse_status` ولا أي
+> تحديث لعلامات الحضور عند الاعتماد. التصنيف الإداري يُشتق من `AbsenceExcuseCoverage`
+> النشطة — مصدر حقيقة واحد بدل عمودين متزامنين يمكن أن يتناقضا. النطاق المُعلن
+> (Target) فُصل عن التغطية الفعلية (Coverage) ليبقى العذر ثابتًا بينما تتبع التغطية
+> تصحيحات الحضور.
+
+### AbsenceExcuse
 | الحقل | النوع | ملاحظات |
 |---|---|---|
-| school / student | FK | |
-| kind | enum | FULL_DAY / MULTI_DAY / PERIODS |
-| start_date / end_date | date | |
-| reason | text | |
-| status | enum | PENDING / APPROVED / REJECTED |
-| decided_by / decided_at | | الوكيل |
+| school / student | FK | ‏student **PROTECT** (حارس Purge) |
+| status | enum | PENDING / APPROVED / REJECTED / **CANCELLED** (لا حذف نهائي لمعتمد) |
+| reason_type | enum | MEDICAL_REPORT / MEDICAL_APPOINTMENT / OFFICIAL / FAMILY / OTHER |
+| notes | varchar(500) | اختيارية — بلا تشخيصات صحية منظمة |
+| recorded_by_membership / recorded_at | | المسجل |
+| approved_by / rejected_by / cancelled_by + تواريخها | FK null | كل انتقال موثق |
+| rejection_reason / cancellation_reason | varchar(300) | إلزامي عند الرفض/الإلغاء |
 
-### ExcuseCoverage
-يفصّل ما يغطيه العذر: `excuse FK`, `date`, `period_number null` (null = يوم كامل). عند الاعتماد تُحدّث علامات الغياب المطابقة إلى `excuse_status=EXCUSED` (مع AttendanceMarkChange لكل علامة، داخل transaction، Idempotent).
+فهارس: `(school, student, status)`, `(school, status)`.
 
-### ExcuseAttachment
-`excuse FK`, `file ref` (Object Storage خاص), `original_filename`, `content_type`, `size`. تحقق: الامتداد + MIME + الحجم؛ Signed URLs فقط.
+### AbsenceExcuseTarget — النطاق المُعلن
+`school`, `excuse FK`, `attendance_date`, `period_sequence null` (null = يوم كامل).
+**Unique (excuse, attendance_date, period_sequence) مع `nulls_distinct=False`** —
+يمنع تكرار هدف اليوم الكامل. ممنوع الجمع بين يوم كامل وحصص لنفس التاريخ، وممنوع
+التواريخ المستقبلية في MVP.
+
+### AbsenceExcuseCoverage — التغطية الفعلية
+| الحقل | النوع | ملاحظات |
+|---|---|---|
+| school / excuse / student | FK | ‏student **PROTECT** |
+| attendance_session | FK | الربط بالجلسة لا بالعلامة: التعديل يحذف العلامات ويعيد إنشاءها |
+| attendance_date / period_sequence_snapshot | | للاستعلام دون joins |
+| status | enum | ACTIVE / VOIDED |
+| voided_at / void_reason | null | ATTENDANCE_CHANGED أو EXCUSE_CANCELLED |
+
+**Partial UNIQUE (attendance_session, student) WHERE status='ACTIVE'** — يضمن وحده:
+منع عذرين معتمدين لنفس الغياب، وIdempotency الاعتماد المزدوج، وسلامة التزامن.
+فهارس: `(student, attendance_date, status)`, `(school, attendance_date, status)`.
+
+### AbsenceExcuseAttachment
+`school`, `excuse FK`, `file` (مفتاح عشوائي `excuse_attachments/school_{id}/{uuid4}.ext`),
+`original_filename`, `mime_type` (مشتق من المحتوى), `size_bytes`, `checksum` (SHA-256),
+`uploaded_by_membership`. تحقق: الامتداد + المحتوى الفعلي (Pillow للصور، توقيع
+`%PDF-`/`%%EOF` للـPDF) + الحجم (10MB). التنزيل عبر endpoint مصرح فقط — لا رابط عام
+ولا `storage_key` مكشوف للواجهة.
 
 ---
 
 ## 9. warnings
 
+> ✅ نفذت في المرحلة 11 داخل تطبيق `student_warnings` (الاسم لتفادي تظليل وحدة
+> بايثون القياسية `warnings`). التفصيل: WARNING_RULES.md وSTUDENT_WARNINGS.md.
+
 ### WarningRule
 | الحقل | النوع | ملاحظات |
 |---|---|---|
 | school | FK | |
-| kind | enum | ABSENCE / LATE |
-| level | int 1–3 | **Unique (school, kind, level)** |
-| threshold | int | أيام غياب أو مرات تأخر |
-| threshold_unit | enum | DAYS / COUNT / MINUTES (MINUTES لدعم مجموع دقائق التأخر مستقبلًا) |
+| rule_type | enum | UNEXCUSED_FULL_DAY_ABSENCE / MORNING_LATE_OCCURRENCES (اسم التنفيذ لـkind) |
+| level | enum | LEVEL_1 / LEVEL_2 / LEVEL_3 — **Unique (school, rule_type, level)** |
+| threshold | smallint | أيام غياب أو مرات تأخر — **CHECK 1..200** |
+| is_enabled | bool | الإيقاف على مستوى النوع |
 
-Validation: `level1.threshold < level2.threshold < level3.threshold` لكل kind.
+Validation: `LEVEL_1 < LEVEL_2 < LEVEL_3` لكل نوع، والتحديث ذري لكل النوع.
+الوحدة مشتقة من النوع (أيام/مرات) — لا حقل `threshold_unit` منفصل.
 
 ### StudentWarning (Snapshot — ADR-010)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
-| school / student | FK | |
-| kind / level | | **Unique (school, student, kind, level, academic_year)** ← منع إصدار الإنذار مرتين |
-| absence_days_at_issue | int | Snapshot |
-| absence_periods_at_issue | int | Snapshot |
-| late_count_at_issue | int | Snapshot |
-| late_minutes_at_issue | int | Snapshot |
-| issued_by / issued_at | | |
-| document | FK→GeneratedDocument null | نسخة PDF المطبوعة |
+| school / student | FK | student **PROTECT** (حارس Purge) |
+| academic_year | FK PROTECT | **النطاق الأكاديمي** (قرار موثق: العام لا الفصل) |
+| semester | FK null | snapshot مرجعي فقط |
+| warning_type / level | enum | |
+| status | enum | ISSUED / VOIDED — **Unique جزئي (school, student, academic_year, warning_type, level) WHERE status='ISSUED'** ← منع الإصدار مرتين مع السماح بإعادة الإصدار بعد الإلغاء |
+| threshold_at_issue / metric_value_at_issue | smallint | حكم الإصدار مجمدًا |
+| student_name/grade_name/section_name/national_id_masked _snapshot | varchar | للمستند التاريخي (لا هوية plaintext) |
+| full_absence_days / unexcused_full_absence_days / excused_full_absence_days _at_issue | smallint | Snapshot |
+| absent_periods / unexcused_absent_periods _at_issue | smallint | Snapshot |
+| morning_late_occurrences / morning_late_minutes _at_issue | int | **عداد مستقل** |
+| period_late_occurrences / period_late_minutes _at_issue | int | **عداد مستقل** (لا يجمع مع الصباحي) |
+| issued_by_membership / issued_at / notes | | |
+| voided_by_membership / voided_at / void_reason | | لا حذف نهائي لسجل صادر |
+
+فهارس: `(school, student, warning_type, level)`, `(school, issued_at)`,
+`(school, academic_year, status)`. مستند م12 يبنى من الـSnapshot وحده.
 
 ---
 
@@ -431,7 +474,10 @@ Middleware المدرسة يمنع العمليات الكتابية عند EXPI
 
 ```text
 attendance_session:  UNIQUE(school, section, date, period)   + (school, date, period, status)
-attendance_mark:     UNIQUE(session, student)                + (school, student) + (school, status, excuse_status)
+attendance_mark:     UNIQUE(session, student)                + (school, student) + (school, status)
+excuse:              (school, student, status)               + (school, status)
+excuse_target:       UNIQUE(excuse, date, period NULLS NOT DISTINCT) + (school, date)
+excuse_coverage:     partial UNIQUE(session, student WHERE ACTIVE)   + (student, date, status) + (school, date, status)
 daily_summary:       UNIQUE(school, student, date)           + (school, date, day_status)
 student:             UNIQUE(school, national_id_lookup_hash) + (school, full_name) + (school, is_active)
 enrollment:          partial UNIQUE(student WHERE ACTIVE)    + (school, section, status)

@@ -18,7 +18,7 @@
 
 import json
 import sys
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -45,6 +45,7 @@ class Command(BaseCommand):
         from attendance.services.day_context import get_or_create_attendance_day_context
         from attendance.services.periods import school_now
         from attendance.services.sessions import _active_year, get_roster
+        from excuses.services.coverage import reconcile_excuse_coverage_for_date
         from memberships.models import SchoolMembership, SchoolRole
         from schools.services.settings import get_or_create_settings
         from students.models import Section
@@ -53,7 +54,12 @@ class Command(BaseCommand):
         school = School.objects.get(slug=plan["school"])
         year = _active_year(school)
         settings_obj = get_or_create_settings(school=school)
-        local_date = school_now(school).date()
+        # ‏date اختياري (م11): سيناريوهات الإنذارات تحتاج عدة أيام سابقة
+        local_date = (
+            date.fromisoformat(plan["date"])
+            if plan.get("date")
+            else school_now(school).date()
+        )
         context = get_or_create_attendance_day_context(
             school=school, attendance_date=local_date
         )
@@ -70,6 +76,7 @@ class Command(BaseCommand):
             raise CommandError("لا معلم في المدرسة — شغّل seed_dev أولًا.")
 
         output = {"date": local_date.isoformat(), "sections": {}}
+        seeded_sections = []
         for section_plan in plan["sections"]:
             section = Section.objects.filter(
                 school=school, code=section_plan["code"]
@@ -141,9 +148,15 @@ class Command(BaseCommand):
                 AttendanceMark.objects.bulk_create(marks)
                 section_out["sessions"][str(seq)] = session.id
 
+            seeded_sections.append(section)
+            output["sections"][section_plan["code"]] = section_out
+
+        # نفس ترتيب مسار الاعتماد الحقيقي (submit_session): مواءمة تغطيات الأعذار
+        # قبل إعادة حساب الملخصات — وإلا خالفت حالة البذر سلوك الإنتاج
+        reconcile_excuse_coverage_for_date(school=school, attendance_date=local_date)
+        for section in seeded_sections:
             recalculate_daily_attendance_for_section(
                 school=school, section=section, attendance_date=local_date
             )
-            output["sections"][section_plan["code"]] = section_out
 
         self.stdout.write(json.dumps(output, ensure_ascii=False))

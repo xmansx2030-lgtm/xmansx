@@ -277,6 +277,9 @@ def get_daily_report(
         late_students=Count("id", filter=Q(late_periods__gt=0)),
         late_occurrences=Sum("late_periods"),
         late_minutes=Sum("total_late_minutes"),
+        # م10 — التصنيف الإداري للغياب (alias مختلف عن اسم العمود لتفادي التظليل)
+        excused_periods_total=Sum("excused_absent_periods"),
+        unexcused_periods_total=Sum("unexcused_absent_periods"),
     )
     enrollments = enrollments_on_date(school=school, on_date=attendance_date)
     if grade_id:
@@ -300,6 +303,8 @@ def get_daily_report(
                 "grade_name": r.section.grade.name,
                 "section_name": r.section.name,
                 "absent_periods": r.absent_periods,
+                "excused_absent_periods": r.excused_absent_periods,
+                "unexcused_absent_periods": r.unexcused_absent_periods,
                 "late_periods": r.late_periods,
                 "total_late_minutes": r.total_late_minutes,
                 "submitted_periods": r.submitted_periods,
@@ -329,6 +334,8 @@ def get_daily_report(
             "late_students": aggregates["late_students"],
             "late_occurrences": aggregates["late_occurrences"] or 0,
             "late_minutes": aggregates["late_minutes"] or 0,
+            "excused_absent_periods": aggregates["excused_periods_total"] or 0,
+            "unexcused_absent_periods": aggregates["unexcused_periods_total"] or 0,
         },
         "students": students,
         "page": max(page, 1),

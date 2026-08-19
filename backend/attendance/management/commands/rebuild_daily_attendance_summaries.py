@@ -56,8 +56,16 @@ class Command(BaseCommand):
                     .values_list("section_id", flat=True)
                     .distinct()
                 )
+                from excuses.services.coverage import (
+                    reconcile_excuse_coverage_for_date,
+                )
                 from students.models import Section
 
+                # أداة الإصلاح يجب أن تصلح التغطية أيضًا: إعادة الحساب وحدها تعيد
+                # خبز تغطية قديمة في الملخصات بدل تصحيحها (نفس ترتيب مسار الاعتماد)
+                reconcile_excuse_coverage_for_date(
+                    school=school, attendance_date=target_date
+                )
                 for section in Section.objects.filter(id__in=list(section_ids)):
                     total_rows += recalculate_daily_attendance_for_section(
                         school=school, section=section, attendance_date=target_date

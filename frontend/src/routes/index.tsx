@@ -10,10 +10,12 @@ import { AttendanceSessionPage } from "@/features/attendance/AttendanceSessionPa
 import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
+import { ExcusesPage } from "@/features/excuses/ExcusesPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { DeviceRosterSyncPage } from "@/features/devices/DeviceRosterSyncPage";
 import { DevicesSettingsPage } from "@/features/devices/DevicesSettingsPage";
 import { MorningPage } from "@/features/devices/MorningPage";
+import { WarningsDashboardPage } from "@/features/warnings/WarningsDashboardPage";
 import { StudentAttendanceProfilePage } from "@/features/students/StudentAttendanceProfilePage";
 import { StaffImportWizard } from "@/features/staff/StaffImportWizard";
 import { StaffPage } from "@/features/staff/StaffPage";
@@ -46,6 +48,7 @@ export const routes = [
                   { path: "devices", element: <DevicesSettingsPage /> },
                   { path: "devices/roster-sync", element: <DeviceRosterSyncPage /> },
                   { path: "morning", element: <MorningPage /> },
+                  { path: "warnings", element: <WarningsDashboardPage /> },
                   { path: "students", element: <StudentsPage /> },
                   {
                     path: "students/:studentId/attendance",
@@ -59,6 +62,7 @@ export const routes = [
                   { path: "attendance/monitoring", element: <MonitoringPage /> },
                   { path: "attendance/analytics", element: <AnalyticsPage /> },
                   { path: "attendance/qr", element: <SectionQrPage /> },
+                  { path: "excuses", element: <ExcusesPage /> },
                   { path: "qr/:token", element: <QrScanPage /> },
                   { path: "*", element: <NotFoundPage /> },
                 ],

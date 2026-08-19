@@ -37,6 +37,10 @@ class AuditAction(models.TextChoices):
     ATTENDANCE_SUBMITTED = "ATTENDANCE_SUBMITTED", "اعتماد تحضير"
     ATTENDANCE_EDITED = "ATTENDANCE_EDITED", "تعديل تحضير"
     SECTION_QR_ROTATED = "SECTION_QR_ROTATED", "تجديد QR فصل"
+    # المرحلة 11 — الإنذارات (لا Audit لحساب الاستحقاق: ضجيج ممنوع)
+    WARNING_RULES_UPDATED = "WARNING_RULES_UPDATED", "تعديل قواعد الإنذارات"
+    STUDENT_WARNING_ISSUED = "STUDENT_WARNING_ISSUED", "إصدار إنذار طالب"
+    STUDENT_WARNING_VOIDED = "STUDENT_WARNING_VOIDED", "إلغاء إنذار طالب"
     # المرحلة 8.5 — أجهزة الحضور والصباحي (لا Audit لكل بصمة — DeviceEvent هو السجل)
     BRIDGE_CREATED = "BRIDGE_CREATED", "إنشاء جسر أجهزة"
     BRIDGE_CREDENTIAL_ROTATED = "BRIDGE_CREDENTIAL_ROTATED", "تدوير اعتماد جسر"
@@ -51,6 +55,14 @@ class AuditAction(models.TextChoices):
     STUDENT_PERMANENTLY_PURGED = "STUDENT_PERMANENTLY_PURGED", "حذف نهائي لطالب"
     STUDENT_BULK_PURGE_STARTED = "STUDENT_BULK_PURGE_STARTED", "بدء حذف جماعي"
     STUDENT_BULK_PURGE_COMPLETED = "STUDENT_BULK_PURGE_COMPLETED", "اكتمال حذف جماعي"
+    # المرحلة 10 — أعذار الغياب (لا PII صحية في metadata — أعداد ومعرفات فقط)
+    EXCUSE_CREATED = "EXCUSE_CREATED", "تسجيل عذر غياب"
+    EXCUSE_UPDATED = "EXCUSE_UPDATED", "تحديث عذر غياب"
+    EXCUSE_APPROVED = "EXCUSE_APPROVED", "اعتماد عذر غياب"
+    EXCUSE_REJECTED = "EXCUSE_REJECTED", "رفض عذر غياب"
+    EXCUSE_CANCELLED = "EXCUSE_CANCELLED", "إلغاء عذر غياب"
+    EXCUSE_ATTACHMENT_UPLOADED = "EXCUSE_ATTACHMENT_UPLOADED", "رفع مرفق عذر"
+    EXCUSE_ATTACHMENT_REMOVED = "EXCUSE_ATTACHMENT_REMOVED", "حذف مرفق عذر"
     # المرحلة 5 — الموظفون والدعوات
     STAFF_IMPORT_UPLOADED = "STAFF_IMPORT_UPLOADED", "رفع ملف موظفين"
     STAFF_IMPORT_VALIDATED = "STAFF_IMPORT_VALIDATED", "تحقق ملف موظفين"

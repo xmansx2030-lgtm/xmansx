@@ -45,8 +45,11 @@ backend/
 ├── students/        # Student, StudentEnrollment, استيراد نور
 ├── staff/           # استيراد المعلمين وربطهم بالعضويات
 ├── attendance/      # ✅ م6-8: Session/Mark/Change/QR + DayContext/DailySummary + selectors (monitoring/analytics)
-├── excuses/         # Excuse, ExcuseAttachment, تحويل UNEXCUSED→EXCUSED
-├── warnings/        # WarningRule, StudentWarning (snapshots)
+├── excuses/         # ✅ م10: AbsenceExcuse/Target/Coverage/Attachment — تصنيف إداري
+│                   #     (EXCUSED/UNEXCUSED) فوق سجل حضور خام لا يُمس + reconcile
+├── student_warnings/ # ✅ م11: WarningRule + StudentWarning (Snapshots) + eligibility
+│                   #     الاسم student_warnings لا warnings: حزمة عليا بهذا الاسم
+│                   #     تُظلّل وحدة بايثون القياسية التي يستوردها Django
 ├── actions/         # StudentAction (إجراءات الوكيل/الإدارة)
 ├── referrals/       # StudentReferral (الوكيل/المعلم → المرشد)
 ├── counseling/      # CounselorAction, FollowUpPlan, متابعة المعلم

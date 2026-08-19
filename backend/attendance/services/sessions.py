@@ -234,6 +234,13 @@ def submit_session(*, session_id: int, school, membership, marks: list[dict],
     if deferred_error is not None:
         raise deferred_error
 
+    # م10 — عذر Full-Day اعتُمد ويوم كان ناقصًا: التغطية تتوسع تلقائيًا (بند 56)
+    from excuses.services.coverage import reconcile_excuse_coverage_for_date
+
+    reconcile_excuse_coverage_for_date(
+        school=school, attendance_date=session.attendance_date
+    )
+
     # تحديث ملخصات اليوم متزامنًا (م8) — الوكيل لا ينتظر worker ليرى التحليلات
     from attendance.services.daily_summary import recalculate_daily_attendance_for_section
 
@@ -396,6 +403,16 @@ def edit_session(*, session_id: int, school, membership, roles: list[str],
                 metadata={"changes": len(changes)},
             )
     if changes:
+        # م10 — مواءمة تغطيات الأعذار قبل الملخصات: غياب زال → Void،
+        # غياب ظهر ضمن عذر معتمد → تغطية تلقائية (ترتيب الإجراءات لا يهم)
+        from excuses.services.coverage import reconcile_excuse_coverage_for_date
+
+        reconcile_excuse_coverage_for_date(
+            school=school,
+            attendance_date=session.attendance_date,
+            student_ids=[c.student_id for c in changes],
+        )
+
         # التعديل يعيد حساب ملخصات اليوم فورًا (م8) — بعد commit العلامات
         from attendance.services.daily_summary import (
             recalculate_daily_attendance_for_section,

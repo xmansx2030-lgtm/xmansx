@@ -73,6 +73,23 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
     )
     marks_by_student = {m["student_id"]: m for m in marks}
 
+    # م10 — الغياب المغطى بعذر نشط، مطابَقًا على مستوى (الطالب، الجلسة) لا بالعدد:
+    # تغطية بقيت لجلسة لم يعد الطالب غائبًا فيها يجب ألا تُنسب لغياب آخر.
+    from excuses.models import AbsenceExcuseCoverage, ExcuseCoverageStatus
+
+    absent_pairs = set(
+        AttendanceMark.objects.filter(
+            session_id__in=session_ids, status=AttendanceMarkStatus.ABSENT
+        ).values_list("student_id", "session_id")
+    )
+    excused_by_student: dict[int, int] = {}
+    for student_id, session_id in AbsenceExcuseCoverage.objects.filter(
+        attendance_session_id__in=session_ids,
+        status=ExcuseCoverageStatus.ACTIVE,
+    ).values_list("student_id", "attendance_session_id"):
+        if (student_id, session_id) in absent_pairs:
+            excused_by_student[student_id] = excused_by_student.get(student_id, 0) + 1
+
     # طلاب الفصل بتاريخ اليوم (تاريخيًا) + من له علامات بلا قيد ساري في فصل آخر
     enrolled_ids = set(
         enrollments_on_date(school=school, on_date=attendance_date, section=section)
@@ -98,6 +115,8 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
         completeness, absence = _classify(
             expected=expected, submitted=submitted, absent=absent
         )
+        # م10 — التصنيف الإداري مشتق من التغطية: excused + unexcused = absent
+        excused = min(excused_by_student.get(student_id, 0), absent)
         return {
             "academic_year_id": academic_year_id,
             "section": section,
@@ -107,6 +126,8 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
             "late_periods": late,
             "present_periods": max(submitted - absent - late, 0),
             "total_late_minutes": counters.get("minutes") or 0,
+            "excused_absent_periods": excused,
+            "unexcused_absent_periods": absent - excused,
             "completeness_status": completeness,
             "absence_status": absence,
             "calculated_at": now,
@@ -115,6 +136,7 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
     updated_fields = [
         "academic_year", "section", "expected_periods", "submitted_periods",
         "absent_periods", "late_periods", "present_periods", "total_late_minutes",
+        "excused_absent_periods", "unexcused_absent_periods",
         "completeness_status", "absence_status", "calculated_at", "updated_at",
     ]
 

@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     "staff",
     "attendance",
     "devices",
+    "excuses",
+    "student_warnings",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -152,6 +154,9 @@ STUDENT_IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024      # 10MB
 STUDENT_IMPORT_MAX_ROWS = 10_000
 STUDENT_IMPORT_MAX_ZIP_ENTRIES = 200
 STUDENT_IMPORT_MAX_UNCOMPRESSED_BYTES = 60 * 1024 * 1024  # حماية zip bomb
+
+# ---- مرفقات الأعذار (م10): PDF/JPG/PNG بتخزين خاص ----
+EXCUSE_ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024        # 10MB
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL

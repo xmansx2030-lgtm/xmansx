@@ -54,3 +54,4 @@ docker-compose.override.yml
 # ---- Uploaded / local data ----
 uploads/
 data/
+frontend/e2e/fixtures/excuses-run.xlsx

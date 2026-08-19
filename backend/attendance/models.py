@@ -193,6 +193,10 @@ class DailyAttendanceSummary(TimestampedModel):
     present_periods = models.PositiveSmallIntegerField()
     total_late_minutes = models.PositiveIntegerField(default=0)
 
+    # م10 — التصنيف الإداري للغياب: excused + unexcused = absent دائمًا (invariant)
+    excused_absent_periods = models.PositiveSmallIntegerField(default=0)
+    unexcused_absent_periods = models.PositiveSmallIntegerField(default=0)
+
     completeness_status = models.CharField(max_length=12, choices=DailyCompleteness.choices)
     absence_status = models.CharField(max_length=14, choices=DailyAbsenceStatus.choices)
     calculated_at = models.DateTimeField()

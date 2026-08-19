@@ -5,6 +5,7 @@ import { AttendanceSettingsTab } from "@/features/settings/tabs/AttendanceSettin
 import { BellSchedulesTab } from "@/features/settings/tabs/BellSchedulesTab";
 import { CalendarTab } from "@/features/settings/tabs/CalendarTab";
 import { SchoolInfoTab } from "@/features/settings/tabs/SchoolInfoTab";
+import { WarningRulesTab } from "@/features/settings/tabs/WarningRulesTab";
 import { WeekDaysTab } from "@/features/settings/tabs/WeekDaysTab";
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { key: "week-days", label: "أيام الدراسة والحصص" },
   { key: "bell-schedules", label: "أوقات الحصص" },
   { key: "attendance", label: "إعدادات التحضير" },
+  { key: "warnings", label: "الإنذارات" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -64,6 +66,7 @@ export function SettingsPage() {
       {tab === "week-days" && <WeekDaysTab canWrite={canWrite} />}
       {tab === "bell-schedules" && <BellSchedulesTab canWrite={canWrite} />}
       {tab === "attendance" && <AttendanceSettingsTab canWrite={canWrite} />}
+      {tab === "warnings" && <WarningRulesTab />}
     </div>
   );
 }
