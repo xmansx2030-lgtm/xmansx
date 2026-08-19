@@ -115,6 +115,8 @@ class AnalyticsStudentSerializer(serializers.Serializer):
     grade_name = serializers.CharField()
     section_name = serializers.CharField()
     period_statuses = PeriodStatusSerializer(many=True)
+    # مؤشر بصمة الدخول (م8.5) — للمراجعة، لا يغير نتيجة الغياب
+    morning_arrival = serializers.CharField(allow_null=True, required=False)
 
 
 class IncompleteSectionSerializer(serializers.Serializer):

@@ -13,6 +13,65 @@ export interface StudentRow {
   section: { id: number; name: string } | null;
 }
 
+export interface AttendanceProfile {
+  student: StudentRow;
+  period: { from: string; to: string };
+  attendance: {
+    full_absence_days: number;
+    partial_absence_days: number;
+    undetermined_days: number;
+    absent_periods: number;
+    period_late_occurrences: number;
+    period_late_minutes: number;
+  };
+  morning_attendance: { status: "NOT_AVAILABLE" };
+}
+
+export interface AttendanceDay {
+  date: string;
+  absence_status: "FULL" | "PARTIAL" | "NONE" | "UNDETERMINED";
+  absence_status_label: string;
+  section: { id: number; name: string; grade_name: string } | null;
+  absent_periods: number;
+  late_periods: number;
+  total_late_minutes: number;
+}
+
+export interface AttendancePeriod {
+  date: string;
+  sequence: number;
+  period: { sequence: number; name: string; start_time?: string; end_time?: string };
+  section: { name: string; grade_name: string };
+  arrival_time: string | null;
+  late_minutes: number | null;
+}
+
+export interface AttendanceDayDetail extends AttendanceDay {
+  periods: Array<{
+    sequence: number;
+    name: string;
+    status: "ABSENT" | "LATE" | "PRESENT" | "NOT_RECORDED";
+    status_label: string;
+    arrival_time: string | null;
+    late_minutes: number | null;
+  }>;
+}
+
+export interface AttendanceChange {
+  date: string;
+  sequence: number;
+  period: { sequence: number; name: string };
+  previous_status: string;
+  new_status: string;
+  previous_status_label: string;
+  new_status_label: string;
+  previous_late_minutes: number | null;
+  new_late_minutes: number | null;
+  reason: string | null;
+  actor: string | null;
+  changed_at: string;
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;
@@ -115,6 +174,61 @@ export function getStudents(
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<Paginated<StudentRow>>(`/students/${suffix}`, { signal });
 }
+
+function profileQuery(params: { fromDate: string; toDate: string }): string {
+  return `?from_date=${encodeURIComponent(params.fromDate)}&to_date=${encodeURIComponent(params.toDate)}`;
+}
+
+export const getAttendanceProfile = (
+  studentId: number,
+  params: { fromDate: string; toDate: string },
+  signal?: AbortSignal,
+) => apiRequest<AttendanceProfile>(
+  `/students/${studentId}/attendance-profile/${profileQuery(params)}`,
+  { signal },
+);
+
+export const getAttendanceDays = (
+  studentId: number,
+  params: { fromDate: string; toDate: string; page?: number },
+  signal?: AbortSignal,
+) => apiRequest<Paginated<AttendanceDay>>(
+  `/students/${studentId}/attendance-days/${profileQuery(params)}${params.page ? `&page=${params.page}` : ""}`,
+  { signal },
+);
+
+export const getAttendanceDayDetail = (
+  studentId: number,
+  date: string,
+  signal?: AbortSignal,
+) => apiRequest<AttendanceDayDetail>(`/students/${studentId}/attendance-days/${date}/`, { signal });
+
+export const getAttendancePeriodAbsences = (
+  studentId: number,
+  params: { fromDate: string; toDate: string; page?: number },
+  signal?: AbortSignal,
+) => apiRequest<Paginated<AttendancePeriod>>(
+  `/students/${studentId}/attendance-period-absences/${profileQuery(params)}${params.page ? `&page=${params.page}` : ""}`,
+  { signal },
+);
+
+export const getAttendancePeriodLates = (
+  studentId: number,
+  params: { fromDate: string; toDate: string; page?: number },
+  signal?: AbortSignal,
+) => apiRequest<Paginated<AttendancePeriod>>(
+  `/students/${studentId}/attendance-period-lates/${profileQuery(params)}${params.page ? `&page=${params.page}` : ""}`,
+  { signal },
+);
+
+export const getAttendanceChanges = (
+  studentId: number,
+  params: { fromDate: string; toDate: string; page?: number },
+  signal?: AbortSignal,
+) => apiRequest<Paginated<AttendanceChange>>(
+  `/students/${studentId}/attendance-changes/${profileQuery(params)}${params.page ? `&page=${params.page}` : ""}`,
+  { signal },
+);
 
 export const getGrades = (signal?: AbortSignal) =>
   apiRequest<GradeItem[]>("/grades/", { signal });

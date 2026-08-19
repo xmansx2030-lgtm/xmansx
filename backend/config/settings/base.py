@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "students",
     "staff",
     "attendance",
+    "devices",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -84,7 +85,9 @@ DATABASES = {
         "USER": env_str("POSTGRES_USER", "xmansx"),
         "PASSWORD": env_str("POSTGRES_PASSWORD", "xmansx-dev"),
         "HOST": env_str("POSTGRES_HOST", "localhost"),
-        "PORT": env_int("POSTGRES_PORT", 5432),
+        # Docker publishes PostgreSQL on host port 5433; compose overrides this
+        # to 5432 for containers talking to the postgres service directly.
+        "PORT": env_int("POSTGRES_PORT", 5433),
         "CONN_MAX_AGE": 60,
     }
 }

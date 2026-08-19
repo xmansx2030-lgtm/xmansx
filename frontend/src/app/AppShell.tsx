@@ -73,6 +73,16 @@ export function AppShell() {
                 رموز QR
               </NavLink>
             )}
+            {me.isSuccess && me.data.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") && (
+              <NavLink
+                to="/devices/roster-sync"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                أجهزة الطلاب
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((r) => SETTINGS_ROLES.includes(r)) && (
               <NavLink
                 to="/settings"

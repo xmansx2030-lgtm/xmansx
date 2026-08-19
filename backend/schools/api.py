@@ -31,6 +31,10 @@ class SchoolInfoPatchSerializer(serializers.Serializer):
     unprepared_period_alert_minutes = serializers.IntegerField(
         required=False, min_value=1, max_value=120
     )
+    school_day_start_time = serializers.TimeField(required=False)
+    morning_late_grace_minutes = serializers.IntegerField(
+        required=False, min_value=0, max_value=120
+    )
 
     def validate_timezone(self, value: str) -> str:
         try:
@@ -75,6 +79,10 @@ def serialize_settings(school, settings_obj, request) -> dict:
         "logo_url": logo_url,
         "attendance_edit_window_minutes": settings_obj.attendance_edit_window_minutes,
         "unprepared_period_alert_minutes": settings_obj.unprepared_period_alert_minutes,
+        "school_day_start_time": settings_obj.school_day_start_time.strftime("%H:%M")
+        if settings_obj.school_day_start_time
+        else None,
+        "morning_late_grace_minutes": settings_obj.morning_late_grace_minutes,
         "staff": _staff_by_role(school),
     }
 

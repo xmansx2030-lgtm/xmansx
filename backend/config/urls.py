@@ -38,6 +38,7 @@ urlpatterns = [
     path("api/v1/", include("students.urls")),
     path("api/v1/", include("staff.urls")),
     path("api/v1/", include("attendance.urls")),
+    path("api/v1/", include("devices.urls")),
     path("api/v1/schema/", SchemaView.as_view(), name="schema"),
     path("api/v1/docs/", DocsView.as_view(url_name="schema"), name="docs"),
 ]

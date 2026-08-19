@@ -11,6 +11,7 @@ import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import { DeviceRosterSyncPage } from "@/features/devices/DeviceRosterSyncPage";
 import { StaffImportWizard } from "@/features/staff/StaffImportWizard";
 import { StaffPage } from "@/features/staff/StaffPage";
 import { ImportWizard } from "@/features/students/ImportWizard";
@@ -39,6 +40,7 @@ export const routes = [
                 children: [
                   { index: true, element: <HomePage /> },
                   { path: "settings", element: <SettingsPage /> },
+                  { path: "devices/roster-sync", element: <DeviceRosterSyncPage /> },
                   { path: "students", element: <StudentsPage /> },
                   { path: "students/inactive", element: <InactiveStudentsPage /> },
                   { path: "students/import", element: <ImportWizard /> },

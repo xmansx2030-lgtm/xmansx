@@ -52,6 +52,24 @@ def _validate_sequences(sequences: list[int], context) -> list[int]:
     return normalized
 
 
+def _morning_arrivals(school, attendance_date, student_ids) -> dict[int, str]:
+    """أوقات دخول المدرسة (م8.5) بمنطقة المدرسة — None يعرض «لا توجد بصمة دخول»."""
+    from zoneinfo import ZoneInfo
+
+    from devices.models import SchoolArrival
+    from schools.services.settings import get_or_create_settings
+
+    if not student_ids:
+        return {}
+    tz = ZoneInfo(get_or_create_settings(school=school).timezone)
+    return {
+        a.student_id: a.first_arrival_at.astimezone(tz).strftime("%H:%M")
+        for a in SchoolArrival.objects.filter(
+            school=school, attendance_date=attendance_date, student_id__in=student_ids
+        )
+    }
+
+
 def _paginate(items: list, page: int, page_size: int) -> tuple[list, int]:
     page = max(page, 1)
     if page_size not in PAGE_SIZES:
@@ -179,6 +197,8 @@ def get_multi_period_report(
     names = dict(
         Student.objects.filter(id__in=matched_ids).values_list("id", "full_name")
     )
+    # مؤشر البصمة الصباحية (م8.5) — للمراجعة فقط: لا يغير الغياب ولا يعتمد عليه
+    arrivals = _morning_arrivals(school, attendance_date, matched_ids)
     students = []
     for student_id in matched_ids:
         section = section_by_student.get(student_id)
@@ -196,6 +216,7 @@ def get_multi_period_report(
                     {"sequence": seq, "status": statuses.get(seq, "PRESENT")}
                     for seq in sequences
                 ],
+                "morning_arrival": arrivals.get(student_id),
             }
         )
     students.sort(key=lambda s: s["_sort"])
