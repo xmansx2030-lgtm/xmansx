@@ -185,8 +185,25 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-8.xlsx", warnings_rows)
 
+    # ---- ملف الإحالات (المرحلة 13) — صف/فصل مستقل: حالات المتابعة لا تختلط
+    def ref_nid(n: int) -> str:
+        return f"1{tag}4{n:02d}"  # بادئة 4 — لا تصادم مع بقية المولدات
+
+    referrals_grade = f"صف الإحالات {tag}"
+    referrals_section = f"R1-{tag}"
+    referrals_students = [f"سالم إحالة {tag}", f"ناصر إحالة {tag}"]
+    referrals_rows = [
+        [ref_nid(i + 1), name, referrals_grade, referrals_section, ""]
+        for i, name in enumerate(referrals_students)
+    ]
+    # ‏noor-10: الرقم 9 محجوز لملف مستندات المرحلة 12 (تطوير متوازٍ)
+    _write(FIXTURES_DIR / "noor-10.xlsx", referrals_rows)
+
     meta = {
         "tag": tag,
+        "referrals_grade": referrals_grade,
+        "referrals_section": referrals_section,
+        "referrals_students": referrals_students,
         "warnings_grade": warnings_grade,
         "warnings_section": warnings_section,
         "warnings_students": warnings_students,

@@ -56,3 +56,4 @@ uploads/
 data/
 frontend/e2e/fixtures/excuses-run.xlsx
 e2e-*.log
+frontend/e2e/fixtures/referrals-run.xlsx

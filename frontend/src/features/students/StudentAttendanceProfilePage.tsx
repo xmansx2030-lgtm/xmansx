@@ -11,6 +11,7 @@ import { ExcuseCreateCard } from "@/features/excuses/ExcuseCreateCard";
 import { ExcuseDetailCard } from "@/features/excuses/ExcuseDetailCard";
 import { StatusBadge } from "@/features/excuses/ExcusesPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
 import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
 import {
   getAttendanceChanges,
@@ -52,6 +53,7 @@ type Tab =
   | "morning"
   | "excuses"
   | "warnings"
+  | "referrals"
   | "changes";
 
 const isoDate = localIsoDate;
@@ -162,6 +164,7 @@ export function StudentAttendanceProfilePage() {
     ["morning", "الحضور الصباحي"],
     ["excuses", "الأعذار"],
     ["warnings", "الإنذارات"],
+    ["referrals", "الإحالات"],
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -254,6 +257,9 @@ export function StudentAttendanceProfilePage() {
       {tab === "lates" && <PeriodTab rows={lates.data?.results ?? []} count={lates.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حالات تأخر عن الحصص في الفترة." showLate />}
       {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
       {tab === "warnings" && <StudentWarningsTab studentId={id} />}
+      {tab === "referrals" && (
+        <StudentReferralsTab studentId={id} studentName={student.full_name} />
+      )}
       {tab === "excuses" && (
         <div className="space-y-4">
           {canManageExcuses && !quickExcuse && (

@@ -1,0 +1,62 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+
+import { ErrorState } from "@/components/ErrorState";
+import { Spinner } from "@/components/Spinner";
+import { schoolScopedKey } from "@/features/auth/useMe";
+import { getMyReferrals } from "@/features/referrals/api";
+import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
+import { ReferralsTable } from "@/features/referrals/ReferralsPage";
+import { useActiveSchoolId } from "@/features/settings/hooks";
+
+/** «إحالاتي» — ما أنشأه المستخدم أو ساهم فيه فقط (بند 42).
+ *
+ *  هذه صفحة المعلم: لا يرى منها إحالات زملائه ولا صندوق وارد المرشد.
+ */
+export function MyReferralsPage() {
+  const schoolId = useActiveSchoolId();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const list = useQuery({
+    queryKey: schoolScopedKey(schoolId, "my-referrals"),
+    queryFn: ({ signal }) => getMyReferrals({}, signal),
+    enabled: schoolId > 0,
+  });
+
+  if (list.isError) return <ErrorState error={list.error} />;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold">إحالاتي</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          الإحالات التي أنشأتها أو أضفت إليها ملاحظة، وحالتها لدى المرشد.
+        </p>
+      </div>
+
+      {list.isPending ? (
+        <Spinner />
+      ) : (
+        <ReferralsTable
+          rows={list.data?.results ?? []}
+          onSelect={(id) => setSelected(selected === id ? null : id)}
+          emptyText="لم تنشئ أي إحالة بعد. يمكنك التحويل للمرشد من شاشة التحضير."
+          testId="my-referrals-rows"
+        />
+      )}
+
+      {selected !== null && (
+        <ReferralDetailCard
+          referralId={selected}
+          onChanged={() =>
+            queryClient.invalidateQueries({
+              queryKey: schoolScopedKey(schoolId, "my-referrals"),
+            })
+          }
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </div>
+  );
+}

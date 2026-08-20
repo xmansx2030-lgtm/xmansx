@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { expect, test, type APIRequest, type APIRequestContext } from "@playwright/test";
+import { BACKEND_URL, FRONTEND_URL } from "./compose";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 
@@ -14,7 +15,7 @@ async function csrf(context: APIRequestContext): Promise<string> {
 }
 
 async function login(requestFactory: APIRequest): Promise<APIRequestContext> {
-  const context = await requestFactory.newContext({ baseURL: "http://localhost:5173" });
+  const context = await requestFactory.newContext({ baseURL: FRONTEND_URL });
   await context.get("/api/v1/auth/csrf/");
   const cookies = await context.storageState();
   const csrfToken = cookies.cookies.find((cookie) => cookie.name === "csrftoken")?.value ?? "";
@@ -68,7 +69,9 @@ async function deactivateLeftoverDevices(context: APIRequestContext) {
 
 async function runBridge(configPath: string) {
   const root = resolve(import.meta.dirname, "..", "..");
-  const python = resolve(root, "backend", ".venv", "Scripts", "python.exe");
+  // ‏E2E_PYTHON: شجرة موازية بلا venv خاص بها تستعير مفسر الشجرة الرئيسية
+  const python =
+    process.env.E2E_PYTHON ?? resolve(root, "backend", ".venv", "Scripts", "python.exe");
   execFileSync(python, ["-m", "bridge_core", "run-once", "--config", configPath], {
     cwd: resolve(root, "bridge"),
     env: { ...process.env, PYTHONPATH: resolve(root, "bridge") },
@@ -122,7 +125,7 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     writeFileSync(
       configPath,
       JSON.stringify({
-        saas_url: "http://localhost:8000",
+        saas_url: BACKEND_URL,
         credential: bridge.credential,
         queue_path: queueFile,
         simulator_users_file: usersFile,

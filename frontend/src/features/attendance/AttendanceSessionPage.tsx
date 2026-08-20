@@ -14,6 +14,7 @@ import type {
 } from "@/features/attendance/api";
 import { editSession, startSession, submitSession } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
 
 /** حالة الطالب محليًا — «حاضر» هو الافتراضي ولا يرسل للخادم (استثناءات فقط). */
 type LocalStatus = "PRESENT" | MarkStatus;
@@ -78,6 +79,12 @@ export function AttendanceSessionPage() {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<unknown>(null);
   const [rosterNotice, setRosterNotice] = useState(false);
+  // م13 — تحويل طالب من قائمة الفصل إلى المرشد
+  const [referralTarget, setReferralTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [referralDone, setReferralDone] = useState<string | null>(null);
 
   // مزامنة أثناء العرض (نمط adjusting state during render) — مرة واحدة لكل جلسة
   const [loadedSessionId, setLoadedSessionId] = useState<number | null>(null);
@@ -231,6 +238,33 @@ export function AttendanceSessionPage() {
         </p>
       )}
 
+      {referralTarget && (
+        <ReferralCreateCard
+          // ‏key بالطالب: بدونه يعيد React استخدام النموذج نفسه عند اختيار طالب
+          // آخر فتذهب الملاحظة (أو حالة التكرار) إلى ملف الطالب السابق
+          key={referralTarget.id}
+          student={{ id: referralTarget.id, name: referralTarget.name }}
+          onCreated={() => {
+            setReferralTarget(null);
+            setReferralDone("تم إرسال الإحالة إلى المرشد.");
+          }}
+          onContributed={() => {
+            setReferralTarget(null);
+            setReferralDone("أضيفت ملاحظتك إلى ملف المتابعة المفتوح.");
+          }}
+          onCancel={() => setReferralTarget(null)}
+        />
+      )}
+      {referralDone && (
+        <p
+          role="status"
+          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
+          data-testid="referral-done"
+        >
+          {referralDone}
+        </p>
+      )}
+
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <ul className="divide-y divide-slate-100" data-testid="roster-list">
           {roster.map((student) => {
@@ -247,6 +281,20 @@ export function AttendanceSessionPage() {
                   <p className="text-xs text-slate-400" dir="ltr">
                     {student.national_id_masked}
                   </p>
+                  {/* م13: التحويل للمرشد من مكان ملاحظة المعلم للطالب فعليًا */}
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-blue-700 underline"
+                    onClick={() =>
+                      setReferralTarget({
+                        id: student.student_id,
+                        name: student.full_name,
+                      })
+                    }
+                    data-testid={`refer-student-${student.student_id}`}
+                  >
+                    تحويل للمرشد
+                  </button>
                 </div>
                 {marking ? (
                   <div className="flex items-center gap-1">

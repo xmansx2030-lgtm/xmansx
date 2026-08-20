@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "devices",
     "excuses",
     "student_warnings",
+    "referrals",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
