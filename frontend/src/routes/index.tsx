@@ -11,6 +11,9 @@ import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
 import { ExcusesPage } from "@/features/excuses/ExcusesPage";
+import { CaseDetailPage } from "@/features/counseling/CaseDetailPage";
+import { CounselorDashboardPage } from "@/features/counseling/CounselorDashboardPage";
+import { TeacherFollowUpPage } from "@/features/counseling/TeacherFollowUpPage";
 import { MyReferralsPage } from "@/features/referrals/MyReferralsPage";
 import { ReferralsPage } from "@/features/referrals/ReferralsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -67,6 +70,9 @@ export const routes = [
                   { path: "excuses", element: <ExcusesPage /> },
                   { path: "referrals", element: <ReferralsPage /> },
                   { path: "referrals/mine", element: <MyReferralsPage /> },
+                  { path: "counselor", element: <CounselorDashboardPage /> },
+                  { path: "counselor/cases/:caseId", element: <CaseDetailPage /> },
+                  { path: "teacher/follow-ups", element: <TeacherFollowUpPage /> },
                   { path: "qr/:token", element: <QrScanPage /> },
                   { path: "*", element: <NotFoundPage /> },
                 ],

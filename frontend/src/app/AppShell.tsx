@@ -10,6 +10,8 @@ const STUDENTS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STAFF_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 const EXCUSES_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const REFERRALS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
+// لوحة الإرشاد: المرشد يعمل عليها، والمدير/الوكيل يتابعان (م14)
+const COUNSELING_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
 /** الهيكل العام بعد اختيار المدرسة: المستخدم، المدرسة الحالية، الأدوار، التبديل، الخروج. */
 export function AppShell() {
@@ -83,6 +85,26 @@ export function AppShell() {
                 }
               >
                 الإحالات
+              </NavLink>
+            )}
+            {me.isSuccess && me.data.roles.some((r) => COUNSELING_ROLES.includes(r)) && (
+              <NavLink
+                to="/counselor"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                الإرشاد
+              </NavLink>
+            )}
+            {me.isSuccess && me.data.roles.includes("TEACHER") && (
+              <NavLink
+                to="/teacher/follow-ups"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                طلبات المتابعة
               </NavLink>
             )}
             {me.isSuccess && me.data.roles.includes("TEACHER") && (

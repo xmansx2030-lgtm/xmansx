@@ -11,6 +11,7 @@ import { ExcuseCreateCard } from "@/features/excuses/ExcuseCreateCard";
 import { ExcuseDetailCard } from "@/features/excuses/ExcuseDetailCard";
 import { StatusBadge } from "@/features/excuses/ExcusesPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { StudentCounselingTab } from "@/features/counseling/StudentCounselingTab";
 import { StudentActionsTab } from "@/features/documents/StudentActionsTab";
 import { StudentDocumentsTab } from "@/features/documents/StudentDocumentsTab";
 import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
@@ -58,6 +59,7 @@ type Tab =
   | "actions"
   | "documents"
   | "referrals"
+  | "counseling"
   | "changes";
 
 const isoDate = localIsoDate;
@@ -171,6 +173,7 @@ export function StudentAttendanceProfilePage() {
     ["actions", "الإجراءات"],
     ["documents", "المستندات"],
     ["referrals", "الإحالات"],
+    ["counseling", "الإرشاد والمتابعة"],
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -268,6 +271,7 @@ export function StudentAttendanceProfilePage() {
       {tab === "referrals" && (
         <StudentReferralsTab studentId={id} studentName={student.full_name} />
       )}
+      {tab === "counseling" && <StudentCounselingTab studentId={id} />}
       {tab === "excuses" && (
         <div className="space-y-4">
           {canManageExcuses && !quickExcuse && (

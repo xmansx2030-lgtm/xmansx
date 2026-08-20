@@ -48,6 +48,18 @@ class AuditAction(models.TextChoices):
     REFERRAL_ACKNOWLEDGED = "REFERRAL_ACKNOWLEDGED", "استلام إحالة"
     REFERRAL_CONTRIBUTION_ADDED = "REFERRAL_CONTRIBUTION_ADDED", "إضافة ملاحظة لإحالة"
     REFERRAL_CLOSED = "REFERRAL_CLOSED", "إغلاق إحالة"
+    # المرحلة 14 — الحالات الإرشادية (معرفات وأنواع فقط — لا نص الجلسات)
+    COUNSELOR_CASE_OPENED = "COUNSELOR_CASE_OPENED", "فتح حالة إرشادية"
+    COUNSELOR_CASE_STATUS_CHANGED = "COUNSELOR_CASE_STATUS_CHANGED", "تغيير حالة إرشادية"
+    COUNSELOR_CASE_CLOSED = "COUNSELOR_CASE_CLOSED", "إغلاق حالة إرشادية"
+    COUNSELOR_CASE_REOPENED = "COUNSELOR_CASE_REOPENED", "إعادة فتح حالة إرشادية"
+    COUNSELOR_CASE_REASSIGNED = "COUNSELOR_CASE_REASSIGNED", "تغيير مرشد الحالة"
+    COUNSELOR_SESSION_ADDED = "COUNSELOR_SESSION_ADDED", "تسجيل جلسة إرشادية"
+    COUNSELOR_SESSION_VOIDED = "COUNSELOR_SESSION_VOIDED", "إلغاء جلسة إرشادية"
+    FOLLOW_UP_PLAN_CREATED = "FOLLOW_UP_PLAN_CREATED", "إنشاء خطة متابعة"
+    FOLLOW_UP_PLAN_STATUS_CHANGED = "FOLLOW_UP_PLAN_STATUS_CHANGED", "تغيير حالة خطة متابعة"
+    TEACHER_FOLLOW_UP_REQUESTED = "TEACHER_FOLLOW_UP_REQUESTED", "طلب متابعة من معلم"
+    TEACHER_FOLLOW_UP_ANSWERED = "TEACHER_FOLLOW_UP_ANSWERED", "رد معلم على طلب متابعة"
     # المرحلة 8.5 — أجهزة الحضور والصباحي (لا Audit لكل بصمة — DeviceEvent هو السجل)
     BRIDGE_CREATED = "BRIDGE_CREATED", "إنشاء جسر أجهزة"
     BRIDGE_CREDENTIAL_ROTATED = "BRIDGE_CREDENTIAL_ROTATED", "تدوير اعتماد جسر"

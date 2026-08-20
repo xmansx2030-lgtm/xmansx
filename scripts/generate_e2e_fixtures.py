@@ -20,6 +20,7 @@ FIXTURES_DIR = Path(__file__).resolve().parent.parent / "frontend" / "e2e" / "fi
 #
 #   1{tag}NNN  → الأساس (م4: استيراد/بحث)      — أرقام 001..0xx فقط
 #   2{tag}NNN  → دورة الحياة والحذف (م4.1)
+#   1{tag}0NN  → الإرشاد وإدارة الحالات (م14)
 #   1{tag}1NN  → تكامل م12+م13 (سلسلة إنذار ← مستند ← إجراء ← إحالة)
 #   1{tag}2NN  → مزامنة أجهزة الطلاب (م8.6) — تخرّج طلابها هي لا طلاب غيرها
 #   1{tag}3NN  → المستندات (م12)
@@ -250,6 +251,19 @@ def main() -> None:
     # ‏noor-10: الرقم 9 محجوز لملف مستندات المرحلة 12 (تطوير متوازٍ)
     _write(FIXTURES_DIR / "noor-10.xlsx", referrals_rows)
 
+    # ---- ملف الإرشاد (م14) — صف/فصل مستقل: الحالة الإرشادية لا تختلط
+    def cou_nid(n: int) -> str:
+        return f"1{tag}0{n:02d}"  # بادئة 0 — الأساس يستخدم 001..0xx بثلاث خانات
+
+    counseling_grade = f"صف الإرشاد {tag}"
+    counseling_section = f"C1-{tag}"
+    counseling_students = [f"سلطان إرشاد {tag}", f"وليد إرشاد {tag}"]
+    counseling_rows = [
+        [cou_nid(i + 50), name, counseling_grade, counseling_section, ""]
+        for i, name in enumerate(counseling_students)
+    ]
+    _write(FIXTURES_DIR / "noor-13.xlsx", counseling_rows)
+
     # ---- ملف مزامنة الأجهزة (م8.6) — الاختبار يخرّج طالبًا ليولّد أمر حذف،
     # فيجب أن يكون **طالبه هو**: تخريج طالب مشترك يكسر specs أخرى على قاعدة نظيفة.
     def roster_nid(n: int) -> str:
@@ -279,6 +293,9 @@ def main() -> None:
 
     meta = {
         "tag": tag,
+        "counseling_grade": counseling_grade,
+        "counseling_section": counseling_section,
+        "counseling_students": counseling_students,
         "roster_grade": roster_grade,
         "roster_section": roster_section,
         "roster_students": roster_students,
