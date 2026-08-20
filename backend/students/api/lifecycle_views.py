@@ -101,11 +101,13 @@ class InactiveStudentsView(SchoolScopedAPIView):
                 .order_by("-id")
                 .first()
             )
-            missing_ids = (
-                [m["student_id"] for m in last_job.summary.get("missing_names", [])]
-                if last_job
-                else []
-            )
+            # ‏missing_ids قائمة كاملة؛ missing_names مقتطعة للعرض — الاعتماد عليها
+            # كان يُسقط طلابًا في المدارس التي يتجاوز فيها المفقودون حد الاقتطاع.
+            # (‏fallback لوظائف استيراد أقدم من هذا الحقل)
+            summary = last_job.summary if last_job else {}
+            missing_ids = summary.get("missing_ids") or [
+                m["student_id"] for m in summary.get("missing_names", [])
+            ]
             # المفقودون قد يكونون نشطين بعد (لم يصنفوا) — يعرضون للمراجعة
             queryset = base_queryset().filter(id__in=missing_ids)
         else:

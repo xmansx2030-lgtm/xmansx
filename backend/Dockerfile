@@ -8,6 +8,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
 
+# مكتبات نظام توليد PDF (WeasyPrint): تخطيط نصي عربي وتشكيل عبر Pango/HarfBuzz/FriBidi،
+# ورسم عبر Cairo. الخطوط من حزمة Noto (رخصة OFL) — لا ملفات خطوط داخل المستودع.
+FROM base AS runtime-libs
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 \
+        libpangoft2-1.0-0 \
+        libharfbuzz0b \
+        libfribidi0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # ---------- Dependencies ----------
 FROM base AS deps
 COPY pyproject.toml ./
@@ -15,14 +29,14 @@ COPY pyproject.toml ./
 RUN pip install --prefix=/install ".[test]" && rm -rf /app/build /app/*.egg-info
 
 # ---------- Development ----------
-FROM base AS dev
+FROM runtime-libs AS dev
 COPY --from=deps /install /usr/local
 COPY . .
 EXPOSE 8000
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # ---------- Production ----------
-FROM base AS prod
+FROM runtime-libs AS prod
 # لا نشغل الإنتاج كـ root
 RUN addgroup --system app && adduser --system --ingroup app app
 COPY --from=deps /install /usr/local

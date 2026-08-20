@@ -50,10 +50,12 @@ backend/
 ├── student_warnings/ # ✅ م11: WarningRule + StudentWarning (Snapshots) + eligibility
 │                   #     الاسم student_warnings لا warnings: حزمة عليا بهذا الاسم
 │                   #     تُظلّل وحدة بايثون القياسية التي يستوردها Django
-├── actions/         # StudentAction (إجراءات الوكيل/الإدارة)
+├── student_actions/ # ✅ م12: StudentAction — سجل ما فُعل (تواصل/مقابلة/تعهد/تسليم)
+│                   #     منفصل عن «ما استحقه» (م11) وعن «ما صدر وطُبع» (documents)
+├── documents/       # ✅ م12: GeneratedDocument + سجل قوالب مُصدَّر + WeasyPrint
+│                   #     (HTML+CSS → PDF عربي RTL) وتخزين خاص خارج MEDIA_ROOT
 ├── referrals/       # StudentReferral (الوكيل/المعلم → المرشد)
 ├── counseling/      # CounselorAction, FollowUpPlan, متابعة المعلم
-├── documents/       # GeneratedDocument, توليد PDF عربي RTL
 ├── notifications/   # إشعارات داخل النظام (وقنوات مستقبلية)
 ├── reports/         # تقارير مجمعة و KPIs
 ├── subscriptions/   # Plan, SchoolSubscription

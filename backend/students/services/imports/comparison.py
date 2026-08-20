@@ -136,5 +136,8 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     summary["missing_from_file"] = len(missing)
     summary["will_create_grades"] = [name for _, name in will_create_grades]
     summary["will_create_sections"] = [f"{g} / {n}" for g, n in will_create_sections]
+    # قائمة الأسماء تُقتطع للعرض، لكن **المعرفات كاملة**: فلتر «غير الموجودين في آخر
+    # ملف نور» يبنى عليها، فاقتطاعها كان يُخفي طلابًا فعليين في المدارس الكبيرة.
+    summary["missing_ids"] = [entry["student_id"] for entry in missing]
 
     return {"rows": normalized_rows, "summary": summary, "missing": missing[:500]}

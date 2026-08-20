@@ -1,0 +1,61 @@
+{% extends "documents/base.html" %}
+{% comment %}
+مستند الإنذار — كل رقم فيه من لقطة الإنذار وقت الإصدار (البند 29)، فإعادة الطباعة
+بعد تغير الغياب أو القواعد أو الفصل تعطي المستند نفسه حرفيًا.
+{% endcomment %}
+{% block content %}
+  <p class="body-text">
+    نفيدكم بأن الطالب/ة <strong>{{ data.student.name }}</strong>
+    {% if data.student.grade %}بالصف {{ data.student.grade }}{% endif %}
+    {% if data.student.section %}({{ data.student.section }}){% endif %}
+    قد بلغ الحد المقرر لـ<strong>{{ data.warning.level_label }}</strong>
+    في {{ data.warning.type_label }}، حيث بلغ عدد
+    {% if data.warning.unit == "يوم" %}أيام الغياب بدون عذر{% else %}مرات التأخر عن الدوام{% endif %}
+    <strong>{{ data.warning.metric_value_at_issue }}</strong> {{ data.warning.unit }}،
+    والحد المقرر لهذا الإنذار <strong>{{ data.warning.threshold_at_issue }}</strong> {{ data.warning.unit }}.
+  </p>
+
+  <table class="info-grid">
+    <tr>
+      <td class="label">نوع الإنذار</td><td>{{ data.warning.type_label }}</td>
+      <td class="label">درجة الإنذار</td><td>{{ data.warning.level_label }}</td>
+    </tr>
+    <tr>
+      <td class="label">القيمة عند الإصدار</td>
+      <td>{{ data.warning.metric_value_at_issue }} {{ data.warning.unit }}</td>
+      <td class="label">الحد المقرر</td>
+      <td>{{ data.warning.threshold_at_issue }} {{ data.warning.unit }}</td>
+    </tr>
+    <tr>
+      <td class="label">تاريخ الإصدار</td><td>{{ data.warning.issued_at }}</td>
+      <td class="label">العام الدراسي</td><td>{{ data.warning.academic_year }}</td>
+    </tr>
+  </table>
+
+  <table class="rows">
+    <thead>
+      <tr><th colspan="2">بيانات المواظبة عند إصدار الإنذار</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>أيام الغياب الكامل</td><td>{{ data.metrics_at_issue.full_absence_days }}</td></tr>
+      <tr><td>منها بدون عذر</td><td>{{ data.metrics_at_issue.unexcused_full_absence_days }}</td></tr>
+      <tr><td>منها بعذر</td><td>{{ data.metrics_at_issue.excused_full_absence_days }}</td></tr>
+      <tr><td>حصص الغياب</td><td>{{ data.metrics_at_issue.absent_periods }}</td></tr>
+      <tr><td>حصص الغياب بدون عذر</td><td>{{ data.metrics_at_issue.unexcused_absent_periods }}</td></tr>
+      <tr>
+        <td>التأخر عن الدوام الصباحي</td>
+        <td>{{ data.metrics_at_issue.morning_late_occurrences }} مرة ({{ data.metrics_at_issue.morning_late_duration }})</td>
+      </tr>
+      <tr>
+        <td>التأخر عن الحصص</td>
+        <td>{{ data.metrics_at_issue.period_late_occurrences }} مرة ({{ data.metrics_at_issue.period_late_duration }})</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if data.warning.notes %}<p class="note">ملاحظات: {{ data.warning.notes }}</p>{% endif %}
+  <p class="note">
+    نأمل من ولي الأمر متابعة انتظام ابنه/ابنته، والتواصل مع إدارة المدرسة.
+    هذا الإشعار صادر آليًا من سجل المواظبة بتاريخ {{ data.generated_at|slice:":10" }}.
+  </p>
+{% endblock %}

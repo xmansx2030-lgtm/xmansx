@@ -1,0 +1,58 @@
+{% extends "documents/base.html" %}
+{% comment %}
+كشف تفصيلي للغياب (البنود 32-36): اليوم المختلط يعرض تصنيفه بوضوح ولا يصنف كله
+خطأ، واليوم الناقص يعرض «بيانات التحضير غير مكتملة» ولا يعد غيابًا كاملًا.
+{% endcomment %}
+{% block content %}
+  <table class="info-grid">
+    <tr>
+      <td class="label">الفترة</td><td colspan="3">من {{ data.period.from }} إلى {{ data.period.to }}</td>
+    </tr>
+  </table>
+
+  <table class="rows">
+    <thead>
+      <tr>
+        <th>التاريخ</th><th>اليوم</th><th>نوع اليوم</th>
+        <th>حصص الغياب</th><th>بعذر</th><th>بدون عذر</th><th>التصنيف</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data.rows %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.weekday }}</td>
+        <td>{{ row.day_status_label }}</td>
+        <td>{{ row.absent_periods }}</td>
+        <td>{{ row.excused_absent_periods }}</td>
+        <td>{{ row.unexcused_absent_periods }}</td>
+        <td>{{ row.classification_label }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">لا توجد أيام غياب في هذه الفترة.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <span>أيام الغياب الكامل: {{ data.totals.full_absence_days }}</span>
+    <span>أيام الغياب الجزئي: {{ data.totals.partial_absence_days }}</span>
+    <span>أيام غير محسومة: {{ data.totals.undetermined_days }}</span>
+    <br>
+    <span>إجمالي حصص الغياب: {{ data.totals.absent_periods }}</span>
+    <span>بعذر: {{ data.totals.excused_absent_periods }}</span>
+    <span>بدون عذر: {{ data.totals.unexcused_absent_periods }}</span>
+  </div>
+
+  {% if data.truncated %}
+  <p class="note">عرض أول {{ data.rows|length }} سجل فقط — قسّم الفترة للحصول على البقية.</p>
+  {% endif %}
+{% endblock %}
+{% block signatures %}
+  <table class="signatures">
+    <tr>
+      <td><div class="line">وكيل المدرسة</div></td>
+      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+    </tr>
+  </table>
+{% endblock %}

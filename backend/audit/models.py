@@ -63,6 +63,14 @@ class AuditAction(models.TextChoices):
     EXCUSE_CANCELLED = "EXCUSE_CANCELLED", "إلغاء عذر غياب"
     EXCUSE_ATTACHMENT_UPLOADED = "EXCUSE_ATTACHMENT_UPLOADED", "رفع مرفق عذر"
     EXCUSE_ATTACHMENT_REMOVED = "EXCUSE_ATTACHMENT_REMOVED", "حذف مرفق عذر"
+    # المرحلة 12 — الإجراءات والمستندات (بلا محتوى PDF ولا snapshot كامل: البند 94)
+    STUDENT_ACTION_CREATED = "STUDENT_ACTION_CREATED", "تسجيل إجراء طلابي"
+    STUDENT_ACTION_CANCELLED = "STUDENT_ACTION_CANCELLED", "إلغاء إجراء طلابي"
+    DOCUMENT_GENERATION_REQUESTED = "DOCUMENT_GENERATION_REQUESTED", "طلب إنشاء مستند"
+    DOCUMENT_GENERATED = "DOCUMENT_GENERATED", "إنشاء مستند"
+    DOCUMENT_GENERATION_FAILED = "DOCUMENT_GENERATION_FAILED", "فشل إنشاء مستند"
+    DOCUMENT_VOIDED = "DOCUMENT_VOIDED", "إلغاء مستند"
+    DOCUMENT_DOWNLOADED = "DOCUMENT_DOWNLOADED", "تنزيل مستند"
     # المرحلة 5 — الموظفون والدعوات
     STAFF_IMPORT_UPLOADED = "STAFF_IMPORT_UPLOADED", "رفع ملف موظفين"
     STAFF_IMPORT_VALIDATED = "STAFF_IMPORT_VALIDATED", "تحقق ملف موظفين"

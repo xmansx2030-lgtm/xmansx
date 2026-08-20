@@ -1,0 +1,86 @@
+{% comment %}
+القالب الأساس لكل المستندات (م12): A4، RTL، ترويسة المدرسة، ترقيم الصفحات.
+التهريب التلقائي في Django مفعّل — أي ملاحظة يكتبها المستخدم تخرج كنص لا كوسم
+(البندان 54 و117). لا مورد خارجي إطلاقًا: الخط من النظام والتنسيق مضمّن.
+{% endcomment %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>{{ data.title }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 15mm 20mm 15mm;
+    @bottom-center {
+      content: "صفحة " counter(page) " من " counter(pages);
+      font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+      font-size: 9pt;
+      color: #555;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+    font-size: 11pt;
+    line-height: 1.7;
+    color: #111;
+    margin: 0;
+  }
+  .school-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6mm; }
+  .school-header .name { font-size: 15pt; font-weight: bold; }
+  .school-header .meta { font-size: 9.5pt; color: #444; }
+  h1 { font-size: 14pt; text-align: center; margin: 8mm 0 6mm; }
+  .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+  .info-grid td { border: 1px solid #999; padding: 2mm 3mm; font-size: 10.5pt; }
+  .info-grid td.label { background: #f2f2f2; width: 22%; font-weight: bold; }
+  table.rows { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  table.rows th, table.rows td { border: 1px solid #777; padding: 1.8mm; text-align: center; }
+  table.rows th { background: #ececec; }
+  /* تكرار رؤوس الأعمدة على كل صفحة وعدم قطع الصفوف (البندان 52-53) */
+  table.rows thead { display: table-header-group; }
+  table.rows tfoot { display: table-footer-group; }
+  table.rows tr { page-break-inside: avoid; }
+  .totals { margin-top: 5mm; font-size: 10.5pt; }
+  .totals span { display: inline-block; margin-left: 8mm; }
+  .note { font-size: 9.5pt; color: #444; margin-top: 4mm; }
+  .signatures { margin-top: 14mm; width: 100%; page-break-inside: avoid; }
+  .signatures td { width: 33%; text-align: center; padding-top: 12mm; font-size: 10.5pt; }
+  .signatures .line { border-top: 1px dotted #333; padding-top: 2mm; }
+  .body-text { text-align: justify; }
+</style>
+</head>
+<body>
+  <div class="school-header">
+    <div class="name">{{ data.school.name }}</div>
+    <div class="meta">
+      {% if data.school.city %}{{ data.school.city }}{% endif %}
+      {% if data.school.ministry_school_number %} · الرقم الوزاري: {{ data.school.ministry_school_number }}{% endif %}
+    </div>
+  </div>
+
+  <h1>{{ data.title }}</h1>
+
+  <table class="info-grid">
+    <tr>
+      <td class="label">اسم الطالب</td><td>{{ data.student.name }}</td>
+      <td class="label">الصف</td><td>{{ data.student.grade|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="label">الفصل</td><td>{{ data.student.section|default:"—" }}</td>
+      <td class="label">تاريخ الإصدار</td><td>{{ data.generated_at|slice:":10" }}</td>
+    </tr>
+  </table>
+
+  {% block content %}{% endblock %}
+
+  {% block signatures %}
+  <table class="signatures">
+    <tr>
+      <td><div class="line">توقيع الطالب</div></td>
+      <td><div class="line">توقيع ولي الأمر</div></td>
+      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+    </tr>
+  </table>
+  {% endblock %}
+</body>
+</html>

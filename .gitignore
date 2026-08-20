@@ -25,6 +25,8 @@ htmlcov/
 db.sqlite3
 backend/staticfiles/
 backend/mediafiles/
+# المستندات المولدة (م12): تخزين خاص محلي — لا تدخل المستودع أبدًا
+backend/privatefiles/
 backend/local_storage/
 celerybeat-schedule*
 

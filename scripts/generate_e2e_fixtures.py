@@ -185,8 +185,24 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-8.xlsx", warnings_rows)
 
+    # ---- ملف المستندات (المرحلة 12) — صف/فصل مستقل: لقطات المستندات لا تختلط
+    def doc_nid(n: int) -> str:
+        return f"1{tag}7{n:02d}"  # بادئة 7 — لا تصادم مع بقية المولدات
+
+    documents_grade = f"صف المستندات {tag}"
+    documents_section = f"D1-{tag}"
+    documents_students = [f"تركي مستند {tag}", f"ماجد مستند {tag}"]
+    documents_rows = [
+        [doc_nid(i + 1), name, documents_grade, documents_section, ""]
+        for i, name in enumerate(documents_students)
+    ]
+    _write(FIXTURES_DIR / "noor-9.xlsx", documents_rows)
+
     meta = {
         "tag": tag,
+        "documents_grade": documents_grade,
+        "documents_section": documents_section,
+        "documents_students": documents_students,
         "warnings_grade": warnings_grade,
         "warnings_section": warnings_section,
         "warnings_students": warnings_students,

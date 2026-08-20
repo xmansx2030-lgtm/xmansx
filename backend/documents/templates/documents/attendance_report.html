@@ -1,0 +1,82 @@
+{% extends "documents/base.html" %}
+{% comment %}
+تقرير مواظبة شامل (البندان 44-45): يجمع الغياب والتأخرين والإنذارات والإجراءات.
+**لا بيانات إرشاد ولا إحالات** — لم تنفذ بعد (م13).
+{% endcomment %}
+{% block content %}
+  <table class="info-grid">
+    <tr>
+      <td class="label">الفترة</td><td colspan="3">من {{ data.period.from }} إلى {{ data.period.to }}</td>
+    </tr>
+  </table>
+
+  <table class="rows">
+    <thead><tr><th colspan="2">ملخص المواظبة</th></tr></thead>
+    <tbody>
+      <tr><td>أيام الغياب الكامل</td><td>{{ data.summary.full_absence_days }}</td></tr>
+      <tr><td>منها بعذر</td><td>{{ data.summary.excused_full_absence_days }}</td></tr>
+      <tr><td>منها بدون عذر</td><td>{{ data.summary.unexcused_full_absence_days }}</td></tr>
+      <tr><td>أيام مختلطة (بعذر وبدون عذر)</td><td>{{ data.summary.mixed_full_absence_days }}</td></tr>
+      <tr><td>أيام الغياب الجزئي</td><td>{{ data.summary.partial_absence_days }}</td></tr>
+      <tr><td>أيام غير محسومة</td><td>{{ data.summary.undetermined_days }}</td></tr>
+      <tr><td>حصص الغياب</td><td>{{ data.summary.absent_periods }}</td></tr>
+      <tr><td>حصص الغياب بعذر</td><td>{{ data.summary.excused_absent_periods }}</td></tr>
+      <tr><td>حصص الغياب بدون عذر</td><td>{{ data.summary.unexcused_absent_periods }}</td></tr>
+      <tr>
+        <td>التأخر عن الدوام الصباحي</td>
+        <td>{{ data.summary.morning_late_occurrences }} مرة — {{ data.summary.morning_late_duration }}</td>
+      </tr>
+      <tr>
+        <td>التأخر عن الحصص</td>
+        <td>{{ data.summary.period_late_occurrences }} مرة — {{ data.summary.period_late_duration }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h1 style="font-size:12pt;margin-top:8mm">الإنذارات</h1>
+  <table class="rows">
+    <thead>
+      <tr><th>التاريخ</th><th>الدرجة</th><th>النوع</th><th>القيمة عند الإصدار</th><th>الحد</th><th>الحالة</th></tr>
+    </thead>
+    <tbody>
+      {% for warning in data.warnings %}
+      <tr>
+        <td>{{ warning.issued_at }}</td>
+        <td>{{ warning.level_label }}</td>
+        <td>{{ warning.type_label }}</td>
+        <td>{{ warning.metric_value_at_issue }}</td>
+        <td>{{ warning.threshold_at_issue }}</td>
+        <td>{{ warning.status_label }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">لا توجد إنذارات.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h1 style="font-size:12pt;margin-top:8mm">الإجراءات</h1>
+  <table class="rows">
+    <thead><tr><th>التاريخ</th><th>الإجراء</th><th>نفذه</th><th>الحالة</th><th>ملاحظة</th></tr></thead>
+    <tbody>
+      {% for action in data.actions %}
+      <tr>
+        <td>{{ action.performed_at }}</td>
+        <td>{{ action.type_label }}</td>
+        <td>{{ action.performed_by }}</td>
+        <td>{{ action.status_label }}</td>
+        <td>{{ action.notes }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">لا توجد إجراءات مسجلة.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+{% block signatures %}
+  <table class="signatures">
+    <tr>
+      <td><div class="line">وكيل المدرسة</div></td>
+      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+    </tr>
+  </table>
+{% endblock %}

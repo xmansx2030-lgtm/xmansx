@@ -30,6 +30,8 @@ INSTALLED_APPS = [
     "devices",
     "excuses",
     "student_warnings",
+    "student_actions",
+    "documents",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -158,6 +160,13 @@ STUDENT_IMPORT_MAX_UNCOMPRESSED_BYTES = 60 * 1024 * 1024  # حماية zip bomb
 # ---- مرفقات الأعذار (م10): PDF/JPG/PNG بتخزين خاص ----
 EXCUSE_ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024        # 10MB
 
+# ---- المستندات المولدة (م12): تخزين خاص **خارج** MEDIA_ROOT ----
+# ‏MEDIA_ROOT يخدم عبر HTTP في التطوير؛ المستندات الرسمية لا يجوز أن تكون
+# قابلة للتنزيل بلا مصادقة — التنزيل عبر endpoint مصرح فقط.
+GENERATED_DOCUMENTS_ROOT = env_str(
+    "GENERATED_DOCUMENTS_ROOT", str(BASE_DIR / "privatefiles" / "documents")
+)
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TASK_ALWAYS_EAGER = False
@@ -233,5 +242,9 @@ LOGGING = {
     "loggers": {
         "django.request": {"level": "WARNING"},  # نسجل الطلبات بأنفسنا في RequestLogMiddleware
         "xmansx.request": {"level": "INFO"},
+        # توليد PDF (م12): WeasyPrint/fontTools يسجلان كل خطوة تخطيط وكل glyph —
+        # ضجيج بمئات الأسطر لكل مستند يخفي سجلاتنا. الأخطاء وحدها تهم.
+        "weasyprint": {"level": "WARNING"},
+        "fontTools": {"level": "WARNING"},
     },
 }

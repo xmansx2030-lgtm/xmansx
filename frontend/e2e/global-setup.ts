@@ -19,4 +19,28 @@ export default function globalSetup() {
     `docker compose exec -T backend python manage.py seed_dev --password "${password}"`,
     { cwd: repoRoot, stdio: "inherit" },
   );
+
+  return warmFrontend();
+}
+
+/** تسخين خادم التطوير قبل أول اختبار.
+ *
+ * ‏Vite يعيد تجميع الاعتماديات عند أول طلب بعد تغيّر شجرة المصادر، وطلبات الوحدات
+ * أثناء ذلك قد ترجع 504 فتظهر صفحة فارغة للمتصفح. جلب الصفحة والوحدة الجذرية مرة
+ * قبل التشغيل يجعل ذلك يحدث خارج أي اختبار.
+ */
+async function warmFrontend() {
+  const base = process.env.E2E_BASE_URL ?? "http://localhost:5173";
+  for (const path of ["/", "/src/main.tsx"]) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        const response = await fetch(`${base}${path}`);
+        await response.text();
+        if (response.ok) break;
+      } catch {
+        // الخادم لم يجهز بعد
+      }
+      await new Promise((done) => setTimeout(done, 1000));
+    }
+  }
 }

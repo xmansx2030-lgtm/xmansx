@@ -4,6 +4,11 @@
 > الإنذارات الصادرة، مع الفصل الصريح بين قيمة المقياس وقت الإصدار والقيمة الحالية
 > (التفصيل: [STUDENT_WARNINGS.md](STUDENT_WARNINGS.md)). المرشد يقرأ التبويب ولا يصدر.
 
+> تحديث المرحلة 12: أضيف تبويبا **الإجراءات** و**المستندات** — تسجيل ما فُعل تجاه
+> الطالب، وإنشاء/إعادة طباعة مستنداته الرسمية من نسخها المخزنة
+> ([STUDENT_ACTIONS.md](STUDENT_ACTIONS.md) و[GENERATED_DOCUMENTS.md](GENERATED_DOCUMENTS.md)).
+> المرشد يقرأ التبويبين ولا ينشئ ولا ينزّل ملفات.
+
 ## Scope
 
 Phase 9 is a read-heavy profile built only on the Phase 8 records: `Student`, `StudentEnrollment`, `Grade`, `Section`, `AttendanceDayContext`, `AttendanceSession`, `AttendanceMark`, `AttendanceChange`, and `DailyAttendanceSummary`. It adds no model and no migration.

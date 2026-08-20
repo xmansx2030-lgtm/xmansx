@@ -16,6 +16,9 @@ dependencies = [
     "drf-spectacular>=0.28,<1",
     "cryptography>=43,<47",
     "gunicorn>=23,<24",
+    # توليد المستندات الرسمية: HTML+CSS → PDF مع تشكيل عربي وRTL عبر Pango/HarfBuzz
+    # (يحتاج مكتبات النظام المثبتة في Dockerfile — انظر docs/GENERATED_DOCUMENTS.md)
+    "weasyprint>=66,<70",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +28,8 @@ dev = [
 test = [
     "pytest>=8.3,<9",
     "pytest-django>=4.9,<5",
+    # فحص المستند الناتج فعليًا (صفحات/نص عربي) بلا OCR — اختبارات فقط
+    "pypdf>=5,<7",
 ]
 
 [build-system]

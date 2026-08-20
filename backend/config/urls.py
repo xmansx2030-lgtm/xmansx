@@ -41,6 +41,8 @@ urlpatterns = [
     path("api/v1/", include("devices.urls")),
     path("api/v1/", include("excuses.urls")),
     path("api/v1/", include("student_warnings.urls")),
+    path("api/v1/", include("student_actions.urls")),
+    path("api/v1/", include("documents.urls")),
     path("api/v1/schema/", SchemaView.as_view(), name="schema"),
     path("api/v1/docs/", DocsView.as_view(url_name="schema"), name="docs"),
 ]

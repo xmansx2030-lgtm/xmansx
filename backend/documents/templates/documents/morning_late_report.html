@@ -1,0 +1,52 @@
+{% extends "documents/base.html" %}
+{% comment %}
+كشف التأخر عن الدوام الصباحي (البنود 37-40): مصدره الوصول الصباحي وحده — لا يدخله
+تأخر الحصص إطلاقًا، ولا يجمع العدادان.
+{% endcomment %}
+{% block content %}
+  <table class="info-grid">
+    <tr>
+      <td class="label">الفترة</td><td colspan="3">من {{ data.period.from }} إلى {{ data.period.to }}</td>
+    </tr>
+  </table>
+
+  <table class="rows">
+    <thead>
+      <tr>
+        <th>التاريخ</th><th>اليوم</th><th>وقت الوصول</th>
+        <th>التأخر الخام</th><th>التأخر المحتسب</th><th>المصدر</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data.rows %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.weekday }}</td>
+        <td>{{ row.arrival_time }}</td>
+        <td>{{ row.raw_late_minutes }} د</td>
+        <td>{{ row.counted_late_minutes }} د</td>
+        <td>{{ row.source_label }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">لا يوجد تأخر صباحي في هذه الفترة.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <span>عدد مرات التأخر: {{ data.totals.occurrences }}</span>
+    <span>إجمالي الدقائق المحتسبة: {{ data.totals.counted_late_minutes }}</span>
+    <span>المدة: {{ data.totals.duration }}</span>
+  </div>
+  <p class="note">
+    هذا الكشف يخص التأخر عن بداية الدوام الصباحي فقط، ولا يشمل التأخر عن الحصص.
+  </p>
+{% endblock %}
+{% block signatures %}
+  <table class="signatures">
+    <tr>
+      <td><div class="line">وكيل المدرسة</div></td>
+      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+    </tr>
+  </table>
+{% endblock %}

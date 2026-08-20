@@ -189,6 +189,45 @@ def test_missing_last_import_filter(role_client):
     assert Student.objects.filter(school=school).count() == 2
 
 
+@pytest.mark.django_db
+def test_missing_last_import_filter_is_not_truncated(role_client):
+    """قائمة الأسماء تقتطع للعرض؛ الفلتر يعتمد المعرفات الكاملة.
+
+    الاعتماد على القائمة المقتطعة كان يخفي طلابًا فعليين في مدرسة يتجاوز فيها
+    المفقودون حد الاقتطاع (ظهر في مدرسة تطوير تجاوزت 500 طالب).
+    """
+    from students.models import ImportJobStatus, StudentImportJob
+
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    year = AcademicYear.objects.create(
+        school=school, name="سنة الاقتطاع", start_date=date(2026, 8, 23),
+        end_date=date(2027, 6, 25), status=AcademicYearStatus.ACTIVE,
+    )
+    student = Student.objects.create(
+        school=school,
+        full_name="طالب خارج حد الاقتطاع",
+        national_id_encrypted="x",
+        national_id_lookup_hash="h-truncation",
+        national_id_masked="******9999",
+        status=StudentStatus.ACTIVE,
+    )
+    StudentImportJob.objects.create(
+        school=school,
+        status=ImportJobStatus.COMPLETED,
+        original_filename="noor.xlsx",
+        uploaded_by=school.memberships.first().user,
+        academic_year=year,
+        summary={
+            # الأسماء مقتطعة ولا تحوي الطالب — المعرفات الكاملة تحويه
+            "missing_names": [{"student_id": student.id + 10_000, "name": "طالب آخر"}],
+            "missing_ids": [student.id],
+        },
+    )
+
+    body = client.get(f"{INACTIVE_URL}?missing_last_import=1").json()
+    assert [r["full_name"] for r in body["results"]] == ["طالب خارج حد الاقتطاع"]
+
+
 # ---------- الحذف الفردي ----------
 
 

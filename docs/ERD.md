@@ -374,8 +374,21 @@ Validation: `LEVEL_1 < LEVEL_2 < LEVEL_3` لكل نوع، والتحديث ذر�
 
 ## 10. actions
 
+> ✅ نفذت في المرحلة 12 داخل تطبيق `student_actions`. التفصيل: STUDENT_ACTIONS.md.
+
 ### StudentAction
-`school`, `student`, `type` enum (PARENT_CALL / PARENT_NOTIFY / PARENT_MEETING / PLEDGE / REFER_COUNSELOR / REFER_ADMIN / OTHER), `notes`, `related_warning FK null`, `related_referral FK null`, `created_by`, `created_at`, `document FK null`.
+| الحقل | النوع | ملاحظات |
+|---|---|---|
+| school / student | FK | student **PROTECT** (حارس Purge) |
+| warning | FK null **PROTECT** | اختياري — يجب أن يكون لنفس الطالب والمدرسة |
+| action_type | enum | PARENT_CONTACT / STUDENT_MEETING / PARENT_MEETING / COMMITMENT_TAKEN / WARNING_DELIVERED / ADMINISTRATIVE_NOTE / OTHER |
+| status | enum | COMPLETED / CANCELLED — **CHECK**: الملغى يلزمه `cancelled_at` |
+| performed_by_membership / performed_at | | لا تاريخ مستقبلي |
+| notes | varchar(500) | سياق مختصر، ليس مصدر الحقيقة للنوع |
+| cancelled_by_membership / cancelled_at / cancellation_reason | | لا حذف نهائي |
+
+فهارس: `(school, student, -performed_at)`, `(school, action_type)`, `(warning)`.
+الإحالة (`related_referral`) تضاف في م13 ولم تنفذ الآن.
 
 ---
 
@@ -425,14 +438,29 @@ Validation: `LEVEL_1 < LEVEL_2 < LEVEL_3` لكل نوع، والتحديث ذر�
 
 ## 13. documents
 
+> ✅ نفذت في المرحلة 12. التفصيل: GENERATED_DOCUMENTS.md وDOCUMENT_TEMPLATES.md.
+
 ### GeneratedDocument (ADR-010)
 | الحقل | النوع | ملاحظات |
 |---|---|---|
-| school / student | FK | |
-| type | enum | WARNING_1 / WARNING_2 / WARNING_3 / ATTENDANCE_PLEDGE / ABSENCE_SHEET / STUDENT_REPORT / ACTIONS_LOG |
-| file | ref | PDF عربي RTL في Object Storage خاص، Signed URL |
-| data_snapshot | json | البيانات وقت التوليد — لا يُعاد التوليد من الحاضر |
-| generated_by / generated_at | | |
+| school / student | FK | student **PROTECT** (حارس Purge) |
+| warning | FK null **PROTECT** | لمستندات الإنذار |
+| action | FK null SET_NULL | الإجراء المرتبط (تعهد) |
+| document_type | enum | WARNING_LEVEL_1/2/3 / ATTENDANCE_COMMITMENT / ABSENCE_DETAIL_REPORT / MORNING_LATE_DETAIL_REPORT / PERIOD_LATE_DETAIL_REPORT / STUDENT_ATTENDANCE_REPORT |
+| template_key / template_version | varchar | القالب المثبت وقت الإصدار (سجل مُصدَّر بإصدارات) |
+| snapshot_schema_version | smallint | قراءة المستندات القديمة بعد تطور بنية اللقطة |
+| status | enum | PENDING / READY / FAILED / VOIDED |
+| snapshot_data | json | كل ما يلزم لإعادة الرسم — لا هوية plaintext |
+| file | FileField | PDF في مخزن خاص **خارج MEDIA_ROOT** بلا رابط عام (`storage_key` = `file.name`) |
+| mime_type / size_bytes / checksum | | SHA-256 يثبت أن المعاد طباعته هو الأصل |
+| revision | smallint | إعادة الإصدار الصريحة |
+| error_code | varchar | رمز آمن عند الفشل (لا تفاصيل داخلية) |
+| generated_by_membership / generated_at | | |
+| voided_by_membership / voided_at / void_reason | | لا حذف نهائي |
+
+قيود: **Unique جزئي (warning, document_type, revision) WHERE status IN (PENDING, READY)**
+← نسخة أصلية واحدة لكل إنذار (النقر المزدوج ⇒ 409)؛ و**CHECK**: `READY` يلزمها ملف.
+فهارس: `(school, student, -generated_at)`, `(school, document_type)`, `(warning)`.
 
 ---
 

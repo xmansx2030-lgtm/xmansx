@@ -1,0 +1,42 @@
+{% extends "documents/base.html" %}
+{% comment %}
+تعهد الالتزام بالحضور (البند 26) — صياغة داخلية للمنصة، **ليس نموذجًا وزاريًا
+معتمدًا**. لا يضاف إليه جدول تواريخ تفصيلي (البند 27): التفصيل مستند مستقل يرفق.
+{% endcomment %}
+{% block content %}
+  <p class="body-text">
+    أتعهد أنا الطالب/ة <strong>{{ data.student.name }}</strong>
+    {% if data.student.grade %}بالصف {{ data.student.grade }}{% endif %}
+    {% if data.student.section %}({{ data.student.section }}){% endif %}
+    بالانتظام في الحضور والمواظبة على الدوام المدرسي، وعدم الغياب أو التأخر بغير عذر
+    مقبول، والالتزام بأنظمة المدرسة وتعليماتها. وقد بلغ عدد أيام غيابي بدون عذر
+    خلال الفترة من {{ data.period.from }} إلى {{ data.period.to }}
+    <strong>{{ data.metrics.unexcused_full_absence_days }}</strong> يومًا.
+  </p>
+
+  <table class="info-grid">
+    <tr>
+      <td class="label">الفترة</td>
+      <td>من {{ data.period.from }} إلى {{ data.period.to }}</td>
+      <td class="label">أيام الغياب الكامل</td>
+      <td>{{ data.metrics.full_absence_days }}</td>
+    </tr>
+    <tr>
+      <td class="label">غياب بدون عذر</td><td>{{ data.metrics.unexcused_full_absence_days }} يوم</td>
+      <td class="label">غياب بعذر</td><td>{{ data.metrics.excused_full_absence_days }} يوم</td>
+    </tr>
+    <tr>
+      <td class="label">حصص الغياب</td><td>{{ data.metrics.absent_periods }}</td>
+      <td class="label">منها بدون عذر</td><td>{{ data.metrics.unexcused_absent_periods }}</td>
+    </tr>
+  </table>
+
+  <p class="body-text">
+    وفي حال إخلالي بهذا التعهد فإنني أتحمل ما يترتب على ذلك من إجراءات نظامية
+    تتخذها إدارة المدرسة وفق اللوائح المعمول بها.
+  </p>
+  <p class="note">
+    مستند داخلي صادر من سجل المواظبة بتاريخ {{ data.generated_at|slice:":10" }} —
+    التفاصيل اليومية تصدر في كشف مستقل يرفق عند الحاجة.
+  </p>
+{% endblock %}
