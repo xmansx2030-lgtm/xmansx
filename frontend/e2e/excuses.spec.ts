@@ -81,7 +81,7 @@ async function api<T>(
 function seedSessions(sectionCode: string, periods: unknown[]): SeedOutput {
   const plan = { school: "school-a", sections: [{ code: sectionCode, periods }] };
   const stdout = execSync(
-    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions`,
+    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions --allow-production-like`,
     { input: JSON.stringify(plan), cwd: PROJECT_ROOT, encoding: "utf-8" },
   );
   return JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as SeedOutput;

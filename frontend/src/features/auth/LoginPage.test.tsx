@@ -113,4 +113,19 @@ describe("LoginPage", () => {
     expect(screen.getByText("ثانوية الأندلس")).toBeInTheDocument();
     expect(screen.getByText("مدارس الرواد")).toBeInTheDocument();
   });
+
+  it("platform admin goes directly to the platform console", async () => {
+    const platformAdmin = buildMe({ is_platform_admin: true });
+    mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/login/": { body: platformAdmin },
+      "/platform/dashboard/": { body: {} },
+    });
+    renderApp("/login");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("رقم الجوال"), "0550000016");
+    await user.type(screen.getByLabelText("كلمة المرور"), "secret");
+    await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+    expect(await screen.findByRole("heading", { name: "Platform Admin" })).toBeInTheDocument();
+  });
 });

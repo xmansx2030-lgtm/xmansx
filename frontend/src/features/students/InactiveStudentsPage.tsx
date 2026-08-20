@@ -342,10 +342,7 @@ export function InactiveStudentsPage() {
           aria-label="تأكيد الحذف النهائي"
         >
           {/* الملخص ينمو بنمو خطوات الحذف — بلا تمرير داخلي يخرج زر التأكيد من الشاشة */}
-          <div
-            className="w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
-            style={{ maxHeight: "calc(100vh - 2rem)" }}
-          >
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
             <h3 className="mb-2 text-lg font-bold text-red-700">حذف نهائي</h3>
             <p className="mb-3 text-sm text-slate-700">
               سيتم حذف بيانات {preview.summary.students} طالبًا نهائيًا.

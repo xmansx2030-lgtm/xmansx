@@ -21,8 +21,11 @@ export default function globalSetup() {
   // تلمس حزمة شجرة أخرى تعمل بالتوازي (تطوير مراحل متزامن)
   const project = process.env.E2E_COMPOSE_PROJECT;
   const compose = project ? `docker compose -p ${project}` : "docker compose";
+  const productionLike = process.env.E2E_PRODUCTION_LIKE === "1"
+    ? " --allow-production-like"
+    : "";
   execSync(
-    `${compose} exec -T backend python manage.py seed_dev --password "${password}"`,
+    `${compose} exec -T backend python manage.py seed_dev --password "${password}"${productionLike}`,
     { cwd: repoRoot, stdio: "inherit" },
   );
 

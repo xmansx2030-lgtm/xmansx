@@ -291,6 +291,19 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-11.xlsx", integration_rows)
 
+    # ---- ملف hardening/PWA (م17) — فصل مستقل لرحلة المعلم على الهاتف ----
+    def phase17_nid(n: int) -> str:
+        return f"2{tag}9{n:02d}"
+
+    phase17_grade = f"صف PWA {tag}"
+    phase17_section = f"P17-{tag}"
+    phase17_students = [f"طالب PWA {tag}-{n}" for n in range(1, 4)]
+    phase17_rows = [
+        [phase17_nid(i + 1), name, phase17_grade, phase17_section, ""]
+        for i, name in enumerate(phase17_students)
+    ]
+    _write(FIXTURES_DIR / "noor-17.xlsx", phase17_rows, family="phase17")
+
     meta = {
         "tag": tag,
         "counseling_grade": counseling_grade,
@@ -302,6 +315,9 @@ def main() -> None:
         "integration_grade": integration_grade,
         "integration_section": integration_section,
         "integration_students": integration_students,
+        "phase17_grade": phase17_grade,
+        "phase17_section": phase17_section,
+        "phase17_students": phase17_students,
         "documents_grade": documents_grade,
         "documents_section": documents_section,
         "documents_students": documents_students,

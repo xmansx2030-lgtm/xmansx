@@ -21,6 +21,14 @@ export const TREND_SERIES: Series[] = [
   { key: "undetermined", label: "بيانات غير مكتملة", color: "#94a3b8" },
 ];
 
+const SWATCH_CLASSES: Record<Series["key"], string> = {
+  unexcused_full_absence: "bg-red-600",
+  full_absence: "bg-amber-500",
+  partial_absence: "bg-sky-500",
+  morning_late: "bg-violet-600",
+  undetermined: "bg-slate-400",
+};
+
 function niceMax(value: number): number {
   if (value <= 5) return 5;
   const magnitude = 10 ** Math.floor(Math.log10(value));
@@ -160,8 +168,7 @@ export function TrendChart({ points, granularity }: TrendChartProps) {
               data-testid={`trend-toggle-${series.key}`}
             >
               <span
-                className="inline-block size-2.5 rounded-full"
-                style={{ backgroundColor: on ? series.color : "#cbd5e1" }}
+                className={`inline-block size-2.5 rounded-full ${on ? SWATCH_CLASSES[series.key] : "bg-slate-300"}`}
               />
               {series.label}
             </button>

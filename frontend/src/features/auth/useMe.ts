@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getMe, logout, switchActiveSchool } from "@/api/auth";
+import { purgeSensitiveBrowserCaches } from "@/app/cacheSafety";
 import type { Me } from "@/types/auth";
 
 export const ME_QUERY_KEY = ["me"] as const;
@@ -27,6 +28,7 @@ export function useSwitchSchool() {
     // نقطة أمنية: إزالة كل الاستعلامات غير me — لا يبقى أي أثر لبيانات المدرسة السابقة
     await queryClient.cancelQueries();
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+    await purgeSensitiveBrowserCaches();
     queryClient.setQueryData(ME_QUERY_KEY, me);
     return me;
   };
@@ -40,6 +42,7 @@ export function useLogout() {
       await logout();
     } finally {
       queryClient.clear(); // حتى لو فشل الطلب: لا بيانات محلية بعد الخروج
+      await purgeSensitiveBrowserCaches();
     }
   };
 }

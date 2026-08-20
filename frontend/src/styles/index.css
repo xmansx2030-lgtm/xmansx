@@ -13,3 +13,11 @@ body {
   font-family: var(--font-arabic);
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+:focus-visible {
+  outline-color: #2563eb;
+}
+
+.skip-link {
+  @apply fixed start-3 top-3 z-[100] -translate-y-24 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-transform focus:translate-y-0;
+}

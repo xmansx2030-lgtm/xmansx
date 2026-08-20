@@ -126,7 +126,7 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
     sections: [{ code: m.referrals_section, periods: [{ sequence: daySeqs[0] }] }],
   };
   const stdout = execSync(
-    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions`,
+    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions --allow-production-like`,
     { input: JSON.stringify(plan), cwd: PROJECT_ROOT, encoding: "utf-8" },
   );
   seeded = JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as SeedOutput;
@@ -274,7 +274,7 @@ test("snapshot stays fixed while current metrics improve", async ({ page }) => {
       },
     ],
   };
-  execSync(`${COMPOSE} exec -T backend python manage.py seed_attendance_sessions`, {
+  execSync(`${COMPOSE} exec -T backend python manage.py seed_attendance_sessions --allow-production-like`, {
     input: JSON.stringify(plan),
     cwd: PROJECT_ROOT,
     encoding: "utf-8",

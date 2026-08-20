@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/client";
+import { purgeSensitiveBrowserCaches } from "@/app/cacheSafety";
 import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { Spinner } from "@/components/Spinner";
@@ -12,6 +13,12 @@ import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
 import type { Me } from "@/types/auth";
 
 const MOBILE_RE = /^[+٠-٩\d][\d\s\-٠-٩]{8,15}$/;
+
+function authenticatedDestination(me: Me) {
+  if (me.must_change_password) return "/change-password";
+  if (me.is_platform_admin) return "/platform";
+  return me.active_school ? "/" : "/select-school";
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -24,22 +31,17 @@ export function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: () => login(mobile.trim(), password),
-    onSuccess: (data: Me) => {
+    onSuccess: async (data: Me) => {
+      queryClient.clear();
+      await purgeSensitiveBrowserCaches();
       queryClient.setQueryData(ME_QUERY_KEY, data);
-      if (data.must_change_password) {
-        navigate("/change-password", { replace: true });
-      } else {
-        navigate(data.active_school ? "/" : "/select-school", { replace: true });
-      }
+      navigate(authenticatedDestination(data), { replace: true });
     },
   });
 
   // مسجل دخول بالفعل؟ لا معنى لصفحة الدخول
   if (me.isSuccess) {
-    if (me.data.must_change_password) {
-      return <Navigate to="/change-password" replace />;
-    }
-    return <Navigate to={me.data.active_school ? "/" : "/select-school"} replace />;
+    return <Navigate to={authenticatedDestination(me.data)} replace />;
   }
 
   function handleSubmit(event: FormEvent) {
