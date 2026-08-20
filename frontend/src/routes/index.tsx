@@ -10,6 +10,7 @@ import { AttendanceSessionPage } from "@/features/attendance/AttendanceSessionPa
 import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
+import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { ExcusesPage } from "@/features/excuses/ExcusesPage";
 import { CaseDetailPage } from "@/features/counseling/CaseDetailPage";
 import { CounselorDashboardPage } from "@/features/counseling/CounselorDashboardPage";
@@ -49,6 +50,7 @@ export const routes = [
                 element: <AppShell />,
                 children: [
                   { index: true, element: <HomePage /> },
+                  { path: "dashboard", element: <DashboardPage /> },
                   { path: "settings", element: <SettingsPage /> },
                   { path: "devices", element: <DevicesSettingsPage /> },
                   { path: "devices/roster-sync", element: <DeviceRosterSyncPage /> },
