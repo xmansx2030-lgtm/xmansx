@@ -165,9 +165,12 @@ Polling عبر TanStack Query (`refetchInterval` 30–60 ثانية للوحة �
 
 ## 12. PWA (ADR-007)
 
-Manifest + Icons + Service Worker (Workbox): App Shell caching، صفحة Offline لطيفة، تدفق تحديث الإصدار. **بدون** Offline Attendance — النظام Online-First مع تعامل رشيق مع الانقطاع المؤقت (إعادة محاولة، حفظ حالة النموذج محليًا في الذاكرة فقط).
+Manifest عربي RTL + icons فعلية + Workbox generateSW. يخزن Service Worker ملفات
+build ذات hash فقط، ويعامل `/api/**` كـ`NetworkOnly`. **لا Offline Attendance** ولا
+background sync للعمليات الحساسة. update prompt بقرار المستخدم، وحدود login/logout/
+school switch تمسح TanStack Query وأي cache حساس قديم. التفاصيل في [PWA.md](PWA.md).
 
-## 13. طوبولوجيا التشغيل (Docker Compose — تطوير)
+## 13. طوبولوجيا التشغيل
 
 ```text
 backend (Django/gunicorn) ── postgres
@@ -177,7 +180,10 @@ backend (Django/gunicorn) ── postgres
         └── frontend (Vite dev / build → static)
 ```
 
-الإنتاج: نفس الصورة مع Reverse Proxy (HTTPS + HSTS + CSP)، وObject Storage متوافق S3 للمرفقات والمستندات، وGitHub Actions للـ CI، وSentry-ready logging.
+الإنتاج المحلي المماثل يستخدم `docker-compose.production.yml`: gunicorn + nginx
+production build + PostgreSQL + Redis + worker + beat، مع volumes خاصة مشتركة
+للملفات. nginx يطبق SPA fallback وCSP ورؤوس cache منفصلة للـHTML/SW/assets/API.
+إعداد النشر الفعلي يضيف TLS أمام nginx؛ انظر [PRODUCTION_HARDENING.md](PRODUCTION_HARDENING.md).
 
 ## 14. فهرس ADRs
 
@@ -204,6 +210,10 @@ backend (Django/gunicorn) ── postgres
 - [ENTITLEMENTS.md](ENTITLEMENTS.md) — حدود وميزات الباقات.
 - [PLATFORM_ADMIN.md](PLATFORM_ADMIN.md) — لوحة إدارة المنصة وحدودها.
 - [SUBSCRIPTION_ACCESS_POLICY.md](SUBSCRIPTION_ACCESS_POLICY.md) — سياسة الوصول حسب حالة الاشتراك.
+- [PRODUCTION_HARDENING.md](PRODUCTION_HARDENING.md) — إعدادات وأسرار وHTTPS وجلسات الإنتاج.
+- [PWA.md](PWA.md) — manifest وService Worker وسياسة cache والتحديث.
+- [FRONTEND_SECURITY.md](FRONTEND_SECURITY.md) — CSP وحدود الجلسة والمستأجر في الواجهة.
+- [UX_ACCESSIBILITY.md](UX_ACCESSIBILITY.md) — responsive وRTL وخط accessibility الأساسي.
 - [AUTHENTICATION.md](AUTHENTICATION.md) — المصادقة كما نفذت (المرحلة 2).
 - [MULTI_TENANCY.md](MULTI_TENANCY.md) — تعدد المستأجرين كما نفذ + الثوابت الأمنية (المرحلة 2).
 - [PHASE_PLAN.md](PHASE_PLAN.md) — خطة المراحل 0–20 ومعايير الخروج.

@@ -1,6 +1,6 @@
 # النموذج الأمني
 
-> مرجع الأمان الملزم لكل المراحل. المرحلة 18 (Hardening) تراجع الالتزام ببنوده بندًا بندًا.
+> مرجع الأمان الملزم لكل المراحل. المرحلة 17 راجعت hardening والتزمت ببنوده بندًا بندًا.
 
 ## 1. نموذج التهديد المختصر
 
@@ -161,3 +161,18 @@
 
 مدير المنصة (`is_platform_admin`) يستخدم `/api/v1/platform/*` لإدارة المدارس
 والاشتراكات والباقات فقط، ولا يحصل تلقائيًا على تصفح بيانات الطلاب أو المرشدين.
+
+## 14. تقوية الإنتاج وPWA (المرحلة 17)
+
+- production settings تفشل سريعًا عند غياب الأسرار أو hosts/origins الصريحة،
+  وتفرض cookies آمنة وسياسة جلسة متجددة مدتها 12 ساعة.
+- nginx يفرض CSP بلا `unsafe-inline`/`unsafe-eval`، وDjango يرسل no-store لكل API
+  مع Permissions Policy وCOOP/CORP.
+- QR scanning هو استخدام الكاميرا الوحيد المسموح (`camera=(self)`)، بينما
+  microphone/geolocation/payment/usb ممنوعة.
+- Service Worker يخزن static hashes فقط. API والمرفقات والمستندات NetworkOnly،
+  وتزال caches الحساسة عند login/logout/school switch.
+- HSTS مفعل 30 يومًا مع subdomains. preload مؤجل عمدًا حتى اعتماد النطاقات؛ لا
+  يرفع إلى قائمة المتصفحات ضمن مرحلة بناء محلية.
+- التفاصيل التشغيلية في [PRODUCTION_HARDENING.md](PRODUCTION_HARDENING.md) و
+  [FRONTEND_SECURITY.md](FRONTEND_SECURITY.md) و[PWA.md](PWA.md).
