@@ -43,6 +43,8 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
+      # حزمة موازية على منفذ آخر تحتاج إضافة أصلها للثقة (CORS/CSRF)
+      DEV_EXTRA_ORIGINS: ${DEV_EXTRA_ORIGINS:-}
       # تطوير/E2E فقط — الإنتاج يبقى على الحدود الصارمة الافتراضية
       LOGIN_RATE_LIMIT_IP_MAX: "500"
     volumes:

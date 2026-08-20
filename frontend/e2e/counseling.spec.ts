@@ -47,6 +47,8 @@ interface SeedOutput {
 
 let studentIds: Record<string, number> = {};
 let seededDays: string[] = [];
+// طالب المحاولة الحالية: إعادة المحاولة تبدأ بطالب نظيف بدل الاصطدام بإحالة سابقة
+let caseStudent = "";
 let referralId = 0;
 let caseId = 0;
 let requestId = 0;
@@ -113,9 +115,12 @@ async function logout(page: Page) {
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 
-test("teacher referral becomes a counselor case visible on the dashboard", async ({ page }) => {
+test("teacher referral becomes a counselor case visible on the dashboard", async ({ page }, testInfo) => {
   const m = meta();
-  const [student] = m.counseling_students;
+  const student = m.counseling_students[
+    Math.min(testInfo.retry, m.counseling_students.length - 1)
+  ];
+  caseStudent = student;
 
   // المدير يستورد فصل الإرشاد
   await login(page, "0550000002", "ثانوية الأندلس");
@@ -311,9 +316,7 @@ test("teacher follow-up: request, response, and other teacher privacy", async ({
 test("opening snapshot stays frozen while current metrics drop after an excuse", async ({
   page,
 }) => {
-  const m = meta();
-  const [student] = m.counseling_students;
-  const studentId = studentIds[student];
+  const studentId = studentIds[caseStudent];
 
   await login(page, "0550000003", "ثانوية الأندلس"); // الوكيل يعتمد العذر
   const excuse = await api<{ id: number }>(page, "/excuses/", {
@@ -350,6 +353,12 @@ test("case closes with a reason and reopens with a full timeline", async ({ page
   await login(page, "0550000005", "ثانوية الأندلس");
   await page.goto(`/counselor/cases/${caseId}`);
   await expect(page.getByTestId("case-detail")).toBeVisible({ timeout: 20_000 });
+
+  // الانتقالات تتبع ALLOWED_STATUS_FLOW: لا قفز من «مفتوحة» إلى «تم التحسن»
+  await page.getByTestId("status-FOLLOW_UP_ACTIVE").click();
+  await expect(page.getByTestId("case-status")).toHaveText("متابعة جارية", {
+    timeout: 20_000,
+  });
 
   await page.getByTestId("status-RESOLVED").click();
   await expect(page.getByTestId("case-status")).toHaveText("تم التحسن", { timeout: 20_000 });

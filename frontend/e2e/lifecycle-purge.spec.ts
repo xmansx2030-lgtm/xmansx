@@ -55,7 +55,11 @@ async function purgeShown(page: Page, quickButton: RegExp) {
   const match = /حذف بيانات (\d+) طالبًا/.exec(text);
   expect(match).toBeTruthy();
   await page.getByTestId("purge-confirm-input").fill(`حذف ${match![1]} طالبًا`);
-  await page.getByRole("button", { name: "حذف نهائي" }).click();
+  const confirmButton = page.getByRole("button", { name: "حذف نهائي" });
+  // الحوار ينمو بنمو خطوات الحذف — يجب أن يبقى زر التأكيد قابلًا للوصول داخل الشاشة
+  await confirmButton.scrollIntoViewIfNeeded();
+  await expect(confirmButton).toBeInViewport();
+  await confirmButton.click();
   await expect(page.getByTestId("purge-progress")).toContainText("اكتمل الحذف النهائي", {
     timeout: 30_000,
   });

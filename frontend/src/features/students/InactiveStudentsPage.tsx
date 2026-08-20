@@ -336,12 +336,16 @@ export function InactiveStudentsPage() {
       {/* حوار تأكيد الحذف النهائي */}
       {preview && (
         <div
-          className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="تأكيد الحذف النهائي"
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+          {/* الملخص ينمو بنمو خطوات الحذف — بلا تمرير داخلي يخرج زر التأكيد من الشاشة */}
+          <div
+            className="w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+            style={{ maxHeight: "calc(100vh - 2rem)" }}
+          >
             <h3 className="mb-2 text-lg font-bold text-red-700">حذف نهائي</h3>
             <p className="mb-3 text-sm text-slate-700">
               سيتم حذف بيانات {preview.summary.students} طالبًا نهائيًا.
