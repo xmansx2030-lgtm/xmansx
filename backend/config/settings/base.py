@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "student_warnings",
     "student_actions",
     "documents",
+    "referrals",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",

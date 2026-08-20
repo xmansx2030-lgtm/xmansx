@@ -18,6 +18,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
+import { COMPOSE } from "./compose";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -83,7 +84,7 @@ function seedAbsenceDay(
     ],
   };
   const stdout = execSync(
-    "docker compose exec -T backend python manage.py seed_attendance_sessions",
+    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions`,
     { input: JSON.stringify(plan), cwd: PROJECT_ROOT, encoding: "utf-8" },
   );
   return JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as SeedOutput;

@@ -5,6 +5,7 @@
  */
 
 import { expect, test, type APIRequest, type APIRequestContext } from "@playwright/test";
+import { FRONTEND_URL } from "./compose";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 
@@ -12,7 +13,7 @@ async function apiLogin(
   requestFactory: APIRequest,
   mobile: string,
 ): Promise<APIRequestContext> {
-  const ctx = await requestFactory.newContext({ baseURL: "http://localhost:5173" });
+  const ctx = await requestFactory.newContext({ baseURL: FRONTEND_URL });
   await ctx.get("/api/v1/auth/csrf/");
   const token =
     (await ctx.storageState()).cookies.find((c) => c.name === "csrftoken")?.value ?? "";

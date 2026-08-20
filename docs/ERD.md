@@ -394,24 +394,43 @@ Validation: `LEVEL_1 < LEVEL_2 < LEVEL_3` لكل نوع، والتحديث ذر�
 
 ## 11. referrals
 
+> ✅ نفذت في المرحلة 13. التفصيل: STUDENT_REFERRALS.md. الأسماء أدناه هي أسماء
+> التنفيذ الفعلية (تختلف عن مسودة التخطيط الأولى).
+
 ### StudentReferral
 | الحقل | النوع | ملاحظات |
 |---|---|---|
-| school / student | FK | |
-| created_by | FK→SchoolMembership | |
-| assigned_counselor | FK→SchoolMembership null | |
-| source | enum | VICE_PRINCIPAL / TEACHER |
-| category | enum | ATTENDANCE (غياب متكرر/تأخر/عدم استجابة/تجاوز حد) / ACADEMIC (ضعف/تراجع/عدم إنجاز) / ENGAGEMENT (نوم/عدم مشاركة/تشتت) / BEHAVIOR / OTHER — القيم التفصيلية في `reason` |
-| reason | enum مفصل | القائمة الكاملة من المتطلبات |
-| notes | text | |
-| status | enum | NEW / UNDER_REVIEW / FOLLOW_UP / WAITING_PARENT / RESOLVED / CLOSED |
-| created_at / closed_at | | |
+| school / student | FK | student **PROTECT** (حارس Purge) |
+| source_type | enum | TEACHER / VICE_PRINCIPAL / SCHOOL_MANAGER — **snapshot** لدور المُحيل وقتها |
+| category | enum | ATTENDANCE / ACADEMIC / CLASSROOM_BEHAVIOR / SOCIAL / OTHER — فئات المعلم لا تشمل المواظبة |
+| reason_code | enum | مقيد بالفئة (`REASONS_BY_CATEGORY`)، وبعضه يلزمه وصف |
+| description | text(1000) | وصف ما لوحظ لا تشخيصه |
+| created_by_membership | FK PROTECT | |
+| assigned_counselor_membership | FK null SET_NULL | |
+| source_warning | FK null SET_NULL → StudentWarning | ربط اختياري بإنذار م11 |
+| status | enum | NEW / ACKNOWLEDGED / CLOSED / CANCELLED (بلا حالات وهمية — م14 تضيف خطط المتابعة) |
+| priority | enum | |
+| snapshot_data | json | لقطة وقت الإحالة (تموضع + مؤشرات المواظبة للفئة المعنية) — لا يعاد حسابها |
+| accepted_at / closed_at / closed_by_membership | | |
 
-فهارس: `(school, status)`, `(school, student, status)`, `(school, assigned_counselor, status)`.
-**كشف التكرار:** قبل الإنشاء، إن وُجد Referral مفتوح (ليس RESOLVED/CLOSED) لنفس (student, category) → تنبيه + خيار إضافة ReferralNote بدل حالة جديدة.
+**كشف التكرار:** حالة مفتوحة لنفس (طالب، فئة) تمنع إنشاء ثانية (409 مع
+`existing_referral_id` و`recommended_action=ADD_CONTRIBUTION`)؛ التجاوز قرار إداري.
 
-### ReferralNote
-`referral FK`, `author FK→SchoolMembership`, `text`, `created_at`.
+### StudentReferralContribution
+`school`, `referral FK CASCADE`, `created_by_membership PROTECT`, `observation_type` enum
+(‏CLASSROOM_OBSERVATION / ACADEMIC_OBSERVATION / ATTENDANCE_OBSERVATION /
+COUNSELOR_INTAKE_NOTE / OTHER_OBSERVATION), `notes`. المعلم يضيف عبر (طالب، فئة) لا
+بمعرف إحالة — منعًا لاستكشاف الحالات بالمعرفات.
+
+### StudentReferralEvent
+`school`, `referral FK CASCADE`, `event_type` enum (CREATED / ASSIGNED / REASSIGNED /
+ACKNOWLEDGED / CONTRIBUTION_ADDED / CLOSED / CANCELLED), `actor_membership SET_NULL`,
+`metadata json` — الخط الزمني للحالة.
+
+### تكامل م12
+إحالة **إدارية** (وكيل/مدير) تنشئ `StudentAction(REFERRED_TO_COUNSELOR)` داخل نفس
+المعاملة وتحمل نفس `source_warning`؛ إحالة المعلم لا تنشئ إجراءً إداريًا. مصدر
+الحقيقة يبقى `StudentReferral`.
 
 ---
 

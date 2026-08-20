@@ -13,14 +13,52 @@ from openpyxl import Workbook
 HEADERS = ["رقم الهوية", "اسم الطالب", "الصف", "الفصل", "جوال ولي الأمر"]
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "frontend" / "e2e" / "fixtures"
 
+# ---- سجل بادئات الهوية (إلزامي) ----------------------------------------------
+# رقم الهوية هو **مفتاح تطابق الطالب** في الاستيراد: بادئتان متطابقتان تعنيان أن
+# ملف مرحلة ينقل طلاب مرحلة أخرى إلى صفه بدل إنشاء طلاب جدد. لذلك لكل مولد بادئة
+# محجوزة، و`_assert_unique_ids` يفشل البناء عند أي تصادم.
+#
+#   1{tag}NNN  → الأساس (م4: استيراد/بحث)      — أرقام 001..0xx فقط
+#   2{tag}NNN  → دورة الحياة والحذف (م4.1)
+#   1{tag}1NN  → تكامل م12+م13 (سلسلة إنذار ← مستند ← إجراء ← إحالة)
+#   1{tag}2NN  → مزامنة أجهزة الطلاب (م8.6) — تخرّج طلابها هي لا طلاب غيرها
+#   1{tag}3NN  → المستندات (م12)
+#   1{tag}4NN  → الإحالات (م13)
+#   1{tag}5NN  → الأعذار (م10)
+#   1{tag}6NN  → الإنذارات (م11)
+#   1{tag}7NN  → التحليلات (م8)
+#   1{tag}8NN  → متابعة التحضير (م7)
+#   1{tag}9NN  → الحضور وQR (م6)
+# ملفات نفس العائلة تصف **نفس مجموعة الطلاب** عمدًا (استيراد أولي ثم محدَّث)، فتشارك
+# الهويات مقصود؛ التصادم الممنوع هو بين عائلتين مختلفتين.
+_IDS_BY_FAMILY: dict[str, dict[str, str]] = {}
 
-def _write(path: Path, rows: list[list]) -> None:
+
+def _write(path: Path, rows: list[list], *, family: str | None = None) -> None:
+    bucket = _IDS_BY_FAMILY.setdefault(family or path.stem, {})
+    for row in rows:
+        bucket[str(row[0])] = path.name
     workbook = Workbook()
     sheet = workbook.active
     sheet.append(HEADERS)
     for row in rows:
         sheet.append(row)
     workbook.save(path)
+
+
+def _assert_unique_ids() -> None:
+    """هوية واحدة في عائلتين = مرحلة تسرق طلاب مرحلة أخرى عند الاستيراد."""
+    owner: dict[str, tuple[str, str]] = {}
+    clashes: list[str] = []
+    for family, ids in _IDS_BY_FAMILY.items():
+        for value, filename in sorted(ids.items()):
+            previous = owner.get(value)
+            if previous and previous[0] != family:
+                clashes.append(f"{value}: {previous[1]} ({previous[0]}) و{filename} ({family})")
+            else:
+                owner[value] = (family, filename)
+    if clashes:
+        raise SystemExit("تصادم هويات في fixtures: " + " | ".join(clashes))
 
 
 def main() -> None:
@@ -43,7 +81,7 @@ def main() -> None:
         [nid(7), name(7), "الثاني الثانوي", "1", ""],
         [nid(8), name(8), "الثاني الثانوي", "1", ""],
     ]
-    _write(FIXTURES_DIR / "noor-1.xlsx", base_rows)
+    _write(FIXTURES_DIR / "noor-1.xlsx", base_rows, family="base")
 
     # التحديث: 01 ينتقل للفصل 2، 09 جديد، 08 مفقود من الملف، البقية بلا تغيير
     update_rows = [
@@ -51,7 +89,7 @@ def main() -> None:
         *base_rows[1:7],
         [nid(9), name(9), "الثاني الثانوي", "1", ""],
     ]
-    _write(FIXTURES_DIR / "noor-2.xlsx", update_rows)
+    _write(FIXTURES_DIR / "noor-2.xlsx", update_rows, family="base")
 
     # ---- ملفات المعلمين (المرحلة 5) — جوالات فريدة لكل تشغيل ----
     staff_headers = ["اسم المعلم", "رقم الجوال", "الرقم الوظيفي"]
@@ -103,9 +141,9 @@ def main() -> None:
         [lc_nid(2), lc_name(2), "الثالث الثانوي", "1", ""],
         [lc_nid(3), lc_name(3), "الثالث الثانوي", "2", ""],
     ]
-    _write(FIXTURES_DIR / "noor-3.xlsx", lifecycle_rows)
-    # الملف التالي بلا الطالب 3 → «غير موجود في آخر ملف»
-    _write(FIXTURES_DIR / "noor-3b.xlsx", lifecycle_rows[:2])
+    _write(FIXTURES_DIR / "noor-3.xlsx", lifecycle_rows, family="lifecycle")
+    # الملف التالي بلا الطالب 3 → «غير موجود في آخر ملف» (نفس هويات noor-3 عمدًا)
+    _write(FIXTURES_DIR / "noor-3b.xlsx", lifecycle_rows[:2], family="lifecycle")
 
     # ---- ملف الحضور (المرحلة 6) — فصلان مستقلان "8" و"9" لاختبارات التحضير ----
     def att_nid(n: int) -> str:
@@ -187,7 +225,7 @@ def main() -> None:
 
     # ---- ملف المستندات (المرحلة 12) — صف/فصل مستقل: لقطات المستندات لا تختلط
     def doc_nid(n: int) -> str:
-        return f"1{tag}7{n:02d}"  # بادئة 7 — لا تصادم مع بقية المولدات
+        return f"1{tag}3{n:02d}"  # بادئة 3 — انظر سجل البادئات أعلى الملف
 
     documents_grade = f"صف المستندات {tag}"
     documents_section = f"D1-{tag}"
@@ -198,11 +236,61 @@ def main() -> None:
     ]
     _write(FIXTURES_DIR / "noor-9.xlsx", documents_rows)
 
+    # ---- ملف الإحالات (المرحلة 13) — صف/فصل مستقل: حالات المتابعة لا تختلط
+    def ref_nid(n: int) -> str:
+        return f"1{tag}4{n:02d}"  # بادئة 4 — لا تصادم مع بقية المولدات
+
+    referrals_grade = f"صف الإحالات {tag}"
+    referrals_section = f"R1-{tag}"
+    referrals_students = [f"سالم إحالة {tag}", f"ناصر إحالة {tag}"]
+    referrals_rows = [
+        [ref_nid(i + 1), name, referrals_grade, referrals_section, ""]
+        for i, name in enumerate(referrals_students)
+    ]
+    # ‏noor-10: الرقم 9 محجوز لملف مستندات المرحلة 12 (تطوير متوازٍ)
+    _write(FIXTURES_DIR / "noor-10.xlsx", referrals_rows)
+
+    # ---- ملف مزامنة الأجهزة (م8.6) — الاختبار يخرّج طالبًا ليولّد أمر حذف،
+    # فيجب أن يكون **طالبه هو**: تخريج طالب مشترك يكسر specs أخرى على قاعدة نظيفة.
+    def roster_nid(n: int) -> str:
+        return f"1{tag}2{n:02d}"  # بادئة 2 — انظر سجل البادئات أعلى الملف
+
+    roster_grade = f"صف الأجهزة {tag}"
+    roster_section = f"S1-{tag}"
+    roster_students = [f"راكان جهاز {tag}", f"مشعل جهاز {tag}"]
+    roster_rows = [
+        [roster_nid(i + 1), name, roster_grade, roster_section, ""]
+        for i, name in enumerate(roster_students)
+    ]
+    _write(FIXTURES_DIR / "noor-12.xlsx", roster_rows)
+
+    # ---- ملف التكامل (م12+م13) — صف/فصل مستقل: السلسلة الكاملة بلا تداخل
+    def int_nid(n: int) -> str:
+        return f"1{tag}1{n:02d}"  # بادئة 1 — انظر سجل البادئات أعلى الملف
+
+    integration_grade = f"صف التكامل {tag}"
+    integration_section = f"I1-{tag}"
+    integration_students = [f"عبدالله تكامل {tag}", f"يزيد تكامل {tag}"]
+    integration_rows = [
+        [int_nid(i + 1), name, integration_grade, integration_section, ""]
+        for i, name in enumerate(integration_students)
+    ]
+    _write(FIXTURES_DIR / "noor-11.xlsx", integration_rows)
+
     meta = {
         "tag": tag,
+        "roster_grade": roster_grade,
+        "roster_section": roster_section,
+        "roster_students": roster_students,
+        "integration_grade": integration_grade,
+        "integration_section": integration_section,
+        "integration_students": integration_students,
         "documents_grade": documents_grade,
         "documents_section": documents_section,
         "documents_students": documents_students,
+        "referrals_grade": referrals_grade,
+        "referrals_section": referrals_section,
+        "referrals_students": referrals_students,
         "warnings_grade": warnings_grade,
         "warnings_section": warnings_section,
         "warnings_students": warnings_students,
@@ -233,6 +321,7 @@ def main() -> None:
         "teacher2_name": teacher_name(2),
         "teacher3_name": teacher_name(3),
     }
+    _assert_unique_ids()
     (FIXTURES_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
     print(f"fixtures generated (tag={tag})")
 

@@ -13,6 +13,7 @@ import { StatusBadge } from "@/features/excuses/ExcusesPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
 import { StudentActionsTab } from "@/features/documents/StudentActionsTab";
 import { StudentDocumentsTab } from "@/features/documents/StudentDocumentsTab";
+import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
 import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
 import {
   getAttendanceChanges,
@@ -56,6 +57,7 @@ type Tab =
   | "warnings"
   | "actions"
   | "documents"
+  | "referrals"
   | "changes";
 
 const isoDate = localIsoDate;
@@ -168,6 +170,7 @@ export function StudentAttendanceProfilePage() {
     ["warnings", "الإنذارات"],
     ["actions", "الإجراءات"],
     ["documents", "المستندات"],
+    ["referrals", "الإحالات"],
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -262,6 +265,9 @@ export function StudentAttendanceProfilePage() {
       {tab === "warnings" && <StudentWarningsTab studentId={id} />}
       {tab === "actions" && <StudentActionsTab studentId={id} />}
       {tab === "documents" && <StudentDocumentsTab studentId={id} />}
+      {tab === "referrals" && (
+        <StudentReferralsTab studentId={id} studentName={student.full_name} />
+      )}
       {tab === "excuses" && (
         <div className="space-y-4">
           {canManageExcuses && !quickExcuse && (

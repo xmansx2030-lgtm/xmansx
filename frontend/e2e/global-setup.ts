@@ -11,12 +11,18 @@ export default function globalSetup() {
   const repoRoot = resolve(here, "..", "..");
   const script = resolve(repoRoot, "scripts", "generate_e2e_fixtures.py");
   const venvPython = resolve(repoRoot, "backend", ".venv", "Scripts", "python.exe");
-  const python = existsSync(venvPython) ? venvPython : "python";
+  // ‏E2E_PYTHON: worktree موازٍ بلا venv خاص به يستعير مفسر الشجرة الرئيسية
+  const python =
+    process.env.E2E_PYTHON ?? (existsSync(venvPython) ? venvPython : "python");
   execFileSync(python, [script], { stdio: "inherit" });
 
   const password = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
+  // ‏E2E_COMPOSE_PROJECT: يوجه البذر إلى حزمة Docker الخاصة بهذه الشجرة حتى لا
+  // تلمس حزمة شجرة أخرى تعمل بالتوازي (تطوير مراحل متزامن)
+  const project = process.env.E2E_COMPOSE_PROJECT;
+  const compose = project ? `docker compose -p ${project}` : "docker compose";
   execSync(
-    `docker compose exec -T backend python manage.py seed_dev --password "${password}"`,
+    `${compose} exec -T backend python manage.py seed_dev --password "${password}"`,
     { cwd: repoRoot, stdio: "inherit" },
   );
 

@@ -54,7 +54,9 @@ backend/
 │                   #     منفصل عن «ما استحقه» (م11) وعن «ما صدر وطُبع» (documents)
 ├── documents/       # ✅ م12: GeneratedDocument + سجل قوالب مُصدَّر + WeasyPrint
 │                   #     (HTML+CSS → PDF عربي RTL) وتخزين خاص خارج MEDIA_ROOT
-├── referrals/       # StudentReferral (الوكيل/المعلم → المرشد)
+├── referrals/       # ✅ م13: StudentReferral + Contribution + Event — طلب متابعة
+│                   #     (لا تشخيص ولا إنذار)، ولقطة وقت الإحالة مجمدة. الإحالة
+│                   #     الإدارية تترك أثرًا في student_actions داخل نفس المعاملة
 ├── counseling/      # CounselorAction, FollowUpPlan, متابعة المعلم
 ├── notifications/   # إشعارات داخل النظام (وقنوات مستقبلية)
 ├── reports/         # تقارير مجمعة و KPIs

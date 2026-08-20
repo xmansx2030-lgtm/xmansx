@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { expect, test, type APIRequest, type APIRequestContext } from "@playwright/test";
+import { BACKEND_URL, FRONTEND_URL } from "./compose";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 
@@ -14,7 +15,7 @@ async function csrf(context: APIRequestContext): Promise<string> {
 }
 
 async function login(requestFactory: APIRequest): Promise<APIRequestContext> {
-  const context = await requestFactory.newContext({ baseURL: "http://localhost:5173" });
+  const context = await requestFactory.newContext({ baseURL: FRONTEND_URL });
   await context.get("/api/v1/auth/csrf/");
   const cookies = await context.storageState();
   const csrfToken = cookies.cookies.find((cookie) => cookie.name === "csrftoken")?.value ?? "";
@@ -52,6 +53,52 @@ async function patch(context: APIRequestContext, path: string, data: unknown) {
 }
 
 const DEVICE_NAME = "Simulator Roster E2E";
+const FIXTURES = resolve(import.meta.dirname, "fixtures");
+
+function meta(): { roster_students: string[] } {
+  return JSON.parse(readFileSync(resolve(FIXTURES, "meta.json"), "utf-8")) as {
+    roster_students: string[];
+  };
+}
+
+/** يستورد ملف نور الخاص بهذا الاختبار عبر واجهة الاستيراد (نفس مسار المستخدم). */
+async function importRosterFixture(context: APIRequestContext) {
+  const upload = await context.post("/api/v1/student-imports/", {
+    multipart: {
+      file: {
+        name: "noor-12.xlsx",
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        buffer: readFileSync(resolve(FIXTURES, "noor-12.xlsx")),
+      },
+    },
+    headers: { "X-CSRFToken": await csrf(context) },
+  });
+  expect(upload.status()).toBe(201);
+  const job = (await upload.json()) as { id: number };
+  const processed = await post(context, `/api/v1/student-imports/${job.id}/process/`, {});
+  expect([200, 202]).toContain(processed.status());
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const state = (await (
+      await context.get(`/api/v1/student-imports/${job.id}/`)
+    ).json()) as { status: string };
+    if (state.status === "READY_FOR_REVIEW") break;
+    await new Promise((done) => setTimeout(done, 500));
+  }
+  const committed = await post(context, `/api/v1/student-imports/${job.id}/commit/`, {});
+  expect([200, 201]).toContain(committed.status());
+}
+
+async function findStudents(context: APIRequestContext, names: string[]) {
+  const found: { id: number; full_name: string }[] = [];
+  for (const name of names) {
+    const response = await context.get(
+      `/api/v1/students/search/?search=${encodeURIComponent(name)}`,
+    );
+    const body = (await response.json()) as { results: { id: number; full_name: string }[] };
+    if (body.results.length === 1) found.push(body.results[0]);
+  }
+  return found;
+}
 
 /** الأجهزة لا تُحذف (تحمل تاريخًا)، فبقايا التشغيلات السابقة تبقى نشطة وتُعاد في كل
  *  نبضة جسر مع هويات طلابها — تعطيلها يبقي زمن الاختبار ثابتًا بدل أن ينمو. */
@@ -68,7 +115,9 @@ async function deactivateLeftoverDevices(context: APIRequestContext) {
 
 async function runBridge(configPath: string) {
   const root = resolve(import.meta.dirname, "..", "..");
-  const python = resolve(root, "backend", ".venv", "Scripts", "python.exe");
+  // ‏E2E_PYTHON: شجرة موازية بلا venv خاص بها تستعير مفسر الشجرة الرئيسية
+  const python =
+    process.env.E2E_PYTHON ?? resolve(root, "backend", ".venv", "Scripts", "python.exe");
   execFileSync(python, ["-m", "bridge_core", "run-once", "--config", configPath], {
     cwd: resolve(root, "bridge"),
     env: { ...process.env, PYTHONPATH: resolve(root, "bridge") },
@@ -105,12 +154,12 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     expect(bridgeResponse.status()).toBe(201);
     const bridge = (await bridgeResponse.json()) as { credential: string };
 
-    const studentsResponse = await context.get("/api/v1/students/?status=ACTIVE&page_size=25");
-    expect(studentsResponse.status()).toBe(200);
-    const students = (await studentsResponse.json()) as {
-      results: { id: number; full_name: string }[];
-    };
-    expect(students.results.length).toBeGreaterThan(0);
+    // طلاب هذا الاختبار وحده: التخريج أدناه يولّد أمر حذف، وتخريج طالب مشترك
+    // يكسر specs أخرى (ظهر على قاعدة نظيفة حين خُرّج طالب التحليلات).
+    await importRosterFixture(context);
+    const ownNames = meta().roster_students;
+    const owned = await findStudents(context, ownNames);
+    expect(owned).toHaveLength(2);
 
     const analyzeResponse = await post(context, `/api/v1/devices/${device.id}/roster-sync/analyze/`, {
       device_id: device.id,
@@ -122,7 +171,7 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     writeFileSync(
       configPath,
       JSON.stringify({
-        saas_url: "http://localhost:8000",
+        saas_url: BACKEND_URL,
         credential: bridge.credential,
         queue_path: queueFile,
         simulator_users_file: usersFile,
@@ -144,7 +193,9 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
       safe_after_snapshot: { display_name: string };
     }[];
     expect(createItems.length).toBeGreaterThan(0);
-    const managedStudent = createItems[0];
+    const ownedIds = new Set(owned.map((student) => student.id));
+    const managedStudent = createItems.find((item) => ownedIds.has(item.student_id));
+    expect(managedStudent).toBeTruthy();
 
     const approveResponse = await post(context, `/api/v1/device-roster-syncs/${initialJob.id}/approve/`, {});
     expect(approveResponse.status()).toBe(200);
@@ -169,7 +220,7 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
 
     const graduateResponse = await post(
       context,
-      `/api/v1/students/${managedStudent.student_id}/status/`,
+      `/api/v1/students/${managedStudent!.student_id}/status/`,
       { status: "GRADUATED", exit_date: "2026-08-19", exit_reason: "E2E verification" },
     );
     expect(graduateResponse.status()).toBe(200);
@@ -197,8 +248,8 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
       display_name: string;
       status: string;
     }[];
-    expect(afterDeleteUsers.some((user) => user.external_user_id === managedStudent.external_user_id)).toBe(false);
-    expect((await context.get(`/api/v1/students/${managedStudent.student_id}/attendance-profile/`)).status()).toBe(200);
+    expect(afterDeleteUsers.some((user) => user.external_user_id === managedStudent!.external_user_id)).toBe(false);
+    expect((await context.get(`/api/v1/students/${managedStudent!.student_id}/attendance-profile/`)).status()).toBe(200);
 
     afterDeleteUsers.push({ external_user_id: "manual-unknown", display_name: "مستخدم يدوي", status: "ACTIVE" });
     writeFileSync(usersFile, JSON.stringify(afterDeleteUsers), "utf8");
@@ -212,7 +263,7 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     const staleAnalyze = await post(context, `/api/v1/devices/${device.id}/roster-sync/analyze/`, { device_id: device.id });
     const staleJob = (await staleAnalyze.json()) as { id: number };
     await runBridge(configPath);
-    const staleStudent = students.results.find((student) => student.id !== managedStudent.student_id);
+    const staleStudent = owned.find((student) => student.id !== managedStudent!.student_id);
     expect(staleStudent).toBeTruthy();
     expect((await post(context, `/api/v1/students/${staleStudent!.id}/status/`, { status: "GRADUATED" })).status()).toBe(200);
     const staleApprove = await post(context, `/api/v1/device-roster-syncs/${staleJob.id}/approve/`, {});

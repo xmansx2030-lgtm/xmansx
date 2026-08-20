@@ -41,6 +41,13 @@ class AuditAction(models.TextChoices):
     WARNING_RULES_UPDATED = "WARNING_RULES_UPDATED", "تعديل قواعد الإنذارات"
     STUDENT_WARNING_ISSUED = "STUDENT_WARNING_ISSUED", "إصدار إنذار طالب"
     STUDENT_WARNING_VOIDED = "STUDENT_WARNING_VOIDED", "إلغاء إنذار طالب"
+    # المرحلة 13 — إحالات الطلاب (معرفات وأعداد فقط — النص يبقى في الإحالة نفسها)
+    REFERRAL_CREATED = "REFERRAL_CREATED", "إنشاء إحالة طالب"
+    REFERRAL_ASSIGNED = "REFERRAL_ASSIGNED", "تعيين مرشد لإحالة"
+    REFERRAL_REASSIGNED = "REFERRAL_REASSIGNED", "تغيير مرشد إحالة"
+    REFERRAL_ACKNOWLEDGED = "REFERRAL_ACKNOWLEDGED", "استلام إحالة"
+    REFERRAL_CONTRIBUTION_ADDED = "REFERRAL_CONTRIBUTION_ADDED", "إضافة ملاحظة لإحالة"
+    REFERRAL_CLOSED = "REFERRAL_CLOSED", "إغلاق إحالة"
     # المرحلة 8.5 — أجهزة الحضور والصباحي (لا Audit لكل بصمة — DeviceEvent هو السجل)
     BRIDGE_CREATED = "BRIDGE_CREATED", "إنشاء جسر أجهزة"
     BRIDGE_CREDENTIAL_ROTATED = "BRIDGE_CREDENTIAL_ROTATED", "تدوير اعتماد جسر"

@@ -15,6 +15,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
+import { COMPOSE } from "./compose";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -80,7 +81,7 @@ async function api<T>(
 function seedSessions(sectionCode: string, periods: unknown[]): SeedOutput {
   const plan = { school: "school-a", sections: [{ code: sectionCode, periods }] };
   const stdout = execSync(
-    "docker compose exec -T backend python manage.py seed_attendance_sessions",
+    `${COMPOSE} exec -T backend python manage.py seed_attendance_sessions`,
     { input: JSON.stringify(plan), cwd: PROJECT_ROOT, encoding: "utf-8" },
   );
   return JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as SeedOutput;
@@ -322,7 +323,7 @@ test("incomplete day then late submission expands coverage automatically", async
   );
   // الجلسة الأخيرة يجب ألا تكون معتمدة — نحذفها إن بذرت في اختبار سابق
   execSync(
-    "docker compose exec -T backend python manage.py shell -c " +
+    `${COMPOSE} exec -T backend python manage.py shell -c ` +
       `"from attendance.models import AttendanceSession as S; from attendance.services.daily_summary import recalculate_daily_attendance_for_section as R; ` +
       `qs=S.objects.filter(section__code='${m.excuses_section}', attendance_date='${seededPartial.date}', period_sequence=${missing}); ` +
       `s=qs.first(); qs.delete(); ` +

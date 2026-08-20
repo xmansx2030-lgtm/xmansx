@@ -11,6 +11,8 @@ import { MonitoringPage } from "@/features/attendance/MonitoringPage";
 import { QrScanPage } from "@/features/attendance/QrScanPage";
 import { SectionQrPage } from "@/features/attendance/SectionQrPage";
 import { ExcusesPage } from "@/features/excuses/ExcusesPage";
+import { MyReferralsPage } from "@/features/referrals/MyReferralsPage";
+import { ReferralsPage } from "@/features/referrals/ReferralsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { DeviceRosterSyncPage } from "@/features/devices/DeviceRosterSyncPage";
 import { DevicesSettingsPage } from "@/features/devices/DevicesSettingsPage";
@@ -63,6 +65,8 @@ export const routes = [
                   { path: "attendance/analytics", element: <AnalyticsPage /> },
                   { path: "attendance/qr", element: <SectionQrPage /> },
                   { path: "excuses", element: <ExcusesPage /> },
+                  { path: "referrals", element: <ReferralsPage /> },
+                  { path: "referrals/mine", element: <MyReferralsPage /> },
                   { path: "qr/:token", element: <QrScanPage /> },
                   { path: "*", element: <NotFoundPage /> },
                 ],

@@ -23,6 +23,10 @@ class StudentActionType(models.TextChoices):
     PARENT_MEETING = "PARENT_MEETING", "مقابلة ولي الأمر"
     COMMITMENT_TAKEN = "COMMITMENT_TAKEN", "أخذ تعهد"
     WARNING_DELIVERED = "WARNING_DELIVERED", "تسليم إنذار"
+    # دمج م12+م13: لا نوع مكافئ في القائمة أعلاه (فحص صريح قبل الإضافة). يسجل
+    # للمدير/الوكيل عند إنشاء الإحالة فقط — إحالة المعلم سجلها هي نفسها، ولا إجراء
+    # إداري ينسب إليه. مصدر الحقيقة يبقى StudentReferral والإجراء أثر إداري.
+    REFERRED_TO_COUNSELOR = "REFERRED_TO_COUNSELOR", "إحالة إلى المرشد الطلابي"
     ADMINISTRATIVE_NOTE = "ADMINISTRATIVE_NOTE", "ملاحظة إدارية"
     OTHER = "OTHER", "إجراء آخر"
 
