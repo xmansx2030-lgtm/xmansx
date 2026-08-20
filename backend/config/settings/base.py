@@ -52,6 +52,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "common.middleware.ResponseSecurityMiddleware",
     "common.middleware.RequestIDMiddleware",
     "common.middleware.RequestLogMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -210,6 +211,7 @@ X_FRAME_OPTIONS = "DENY"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
 # ---- CSP (django-csp v4) ----
 CONTENT_SECURITY_POLICY = {

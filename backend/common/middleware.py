@@ -55,6 +55,33 @@ class RequestLogMiddleware:
                 "path": request.path,
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
+                "school_id": getattr(getattr(request, "school", None), "id", None),
             },
         )
+        return response
+
+
+class ResponseSecurityMiddleware:
+    """Headers shared by Django and private file responses.
+
+    API responses are never browser-cached. The PWA only caches fingerprinted frontend
+    assets, but this response policy is a second independent guard against accidental
+    persistence of tenant data.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        response = self.get_response(request)
+        response.setdefault(
+            "Permissions-Policy",
+            "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
+        )
+        response.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+
+        if request.path.startswith("/api/"):
+            response["Cache-Control"] = "private, no-store, max-age=0"
+            response["Pragma"] = "no-cache"
+            response["Expires"] = "0"
         return response

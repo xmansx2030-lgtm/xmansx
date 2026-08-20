@@ -20,5 +20,6 @@ RUN npm run build
 # ---------- Production (static via nginx, /api proxied to backend) ----------
 FROM nginx:1.27-alpine AS prod
 COPY infra-nginx.conf /etc/nginx/conf.d/default.conf
+COPY infra-security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

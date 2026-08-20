@@ -49,10 +49,22 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--password", required=True, help="كلمة مرور كل حسابات الـ seed")
+        parser.add_argument(
+            "--allow-production-like",
+            action="store_true",
+            help="السماح فقط بحزمة E2E محلية تستخدم production settings",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
-        if not settings.DEBUG:
+        allowed_local_hosts = {"localhost", "127.0.0.1", "backend", "testserver"}
+        production_like_e2e = (
+            options["allow_production_like"]
+            and not settings.SECURE_SSL_REDIRECT
+            and bool(settings.ALLOWED_HOSTS)
+            and set(settings.ALLOWED_HOSTS).issubset(allowed_local_hosts)
+        )
+        if not settings.DEBUG and not production_like_e2e:
             raise CommandError("seed_dev يعمل في بيئة التطوير فقط (DEBUG=True).")
 
         from datetime import date

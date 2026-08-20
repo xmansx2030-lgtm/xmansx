@@ -1,4 +1,4 @@
-"""بذر جلسات حضور معتمدة لحصص محددة — بيئة التطوير/E2E فقط (يرفض عند DEBUG=False).
+"""بذر جلسات حضور معتمدة لحصص محددة — بيئة التطوير/E2E المحلية فقط.
 
 لا يمكن عبر الواجهة فتح جلسة إلا للحصة الحالية، بينما تحتاج اختبارات E2E بيانات
 حصص متعددة في نفس اليوم — هذا الأمر يبنيها عبر نفس النماذج والخدمات (snapshot +
@@ -30,8 +30,22 @@ from schools.models import School
 class Command(BaseCommand):
     help = "بذر جلسات حضور لعدة حصص (DEBUG فقط — للتطوير وE2E)"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--allow-production-like",
+            action="store_true",
+            help="السماح فقط لحزمة E2E محلية تستخدم production settings",
+        )
+
     def handle(self, *args, **options):
-        if not settings.DEBUG:
+        allowed_local_hosts = {"localhost", "127.0.0.1", "backend", "testserver"}
+        production_like_e2e = (
+            options["allow_production_like"]
+            and not settings.SECURE_SSL_REDIRECT
+            and bool(settings.ALLOWED_HOSTS)
+            and set(settings.ALLOWED_HOSTS).issubset(allowed_local_hosts)
+        )
+        if not settings.DEBUG and not production_like_e2e:
             raise CommandError("seed_attendance_sessions يعمل في التطوير فقط.")
 
         from attendance.models import (
