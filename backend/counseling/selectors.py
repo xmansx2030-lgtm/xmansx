@@ -238,7 +238,9 @@ def student_counseling_summary(*, school, student, roles) -> dict:
                 "opened_at": case.opened_at.date().isoformat(),
                 "closed_at": case.closed_at.date().isoformat() if case.closed_at else None,
                 "counselor_name": (
-                    profile.display_name if profile else (counselor.user.display_name if counselor else None)
+                    profile.display_name
+                    if profile
+                    else (counselor.user.display_name if counselor else None)
                 ),
                 "last_activity_at": case.last_activity_at.date().isoformat(),
                 "improvement_status": case.improvement_status or None,

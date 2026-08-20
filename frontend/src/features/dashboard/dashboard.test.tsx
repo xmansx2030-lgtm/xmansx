@@ -115,11 +115,11 @@ const OVERVIEW = {
     unassigned_now: 1,
   },
   counseling: {
-    available: false,
-    reason: "COUNSELING_MODULE_NOT_INSTALLED",
-    open_cases: null,
-    waiting_teacher_responses: null,
-    overdue_activities: null,
+    available: true,
+    reason: null,
+    open_cases: 7,
+    waiting_teacher_responses: 2,
+    overdue_activities: 1,
   },
 };
 
@@ -305,8 +305,32 @@ describe("لوحة إدارة المدرسة", () => {
     expect(card).toHaveTextContent("لا إصدار تلقائي");
   });
 
-  it("تعلن غياب وحدة الإرشاد بدل رقم بديل", async () => {
+  it("تعرض أعداد الحالات الإرشادية بعد دمج م14 وبلا أي نص إرشادي", async () => {
     mockDashboard();
+    renderApp("/dashboard");
+
+    const card = await screen.findByTestId("card-counseling");
+    expect(within(card).getByTestId("counseling-open")).toHaveTextContent("7");
+    // الإحالة ≠ الحالة: العددان مستقلان في اللوحة
+    const referrals = await screen.findByTestId("card-referrals");
+    expect(within(referrals).getByTestId("referrals-open")).toHaveTextContent("3");
+  });
+
+  it("تعلن غياب وحدة الإرشاد بدل رقم بديل", async () => {
+    mockDashboard({
+      "/dashboard/overview/": {
+        body: {
+          ...OVERVIEW,
+          counseling: {
+            available: false,
+            reason: "COUNSELING_MODULE_NOT_INSTALLED",
+            open_cases: null,
+            waiting_teacher_responses: null,
+            overdue_activities: null,
+          },
+        },
+      },
+    });
     renderApp("/dashboard");
     expect(await screen.findByTestId("counseling-unavailable")).toHaveTextContent(
       "غير مفعّلة",
@@ -329,7 +353,10 @@ describe("لوحة إدارة المدرسة", () => {
 
     const section = await screen.findByTestId("attention-section");
     expect(section).toHaveTextContent("ليست تصنيفًا للطلاب");
-    expect(screen.getByTestId("attention-count-attendance_overdue")).toHaveTextContent("1");
+    // ترويسة القسم تظهر قبل وصول البيانات — ننتظر العدّاد نفسه
+    expect(await screen.findByTestId("attention-count-attendance_overdue")).toHaveTextContent(
+      "1",
+    );
     const row = screen.getByTestId("attention-item-ATTENDANCE_OVERDUE-3");
     expect(within(row).getByRole("link")).toHaveAttribute("href", "/attendance/monitoring");
   });

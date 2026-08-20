@@ -6,8 +6,6 @@
 مشتقة بالكامل من الاستعلامات القائمة: لا جدول ولا Read Model مخزّن (بند 54).
 """
 
-from django.db.models import Count, Q
-
 from attendance.selectors.monitoring import (
     NOT_STARTED,
     OVERDUE,

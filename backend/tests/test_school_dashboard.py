@@ -385,14 +385,78 @@ def test_action_and_referral_metrics(env):
 
 
 @pytest.mark.django_db
-def test_counseling_seam_reports_unavailable(env):
-    """تطبيق المرحلة 14 غير مثبت — رقم كاذب ممنوع، والفاصل يعلن ذلك."""
+def test_counseling_seam_reports_aggregates_only(env):
+    """م14 مدمجة: الفاصل يعيد أعدادًا حقيقية — ولا نص إرشادي في اللوحة."""
     metrics = followup_selectors.counseling_metrics(
         school=env["school"], date_range=Range(DAY, DAY)
     )
-    assert metrics["available"] is False
-    assert metrics["reason"] == "COUNSELING_MODULE_NOT_INSTALLED"
-    assert metrics["open_cases"] is None
+    assert metrics["available"] is True
+    assert metrics["open_cases"] == 0
+    assert metrics["waiting_teacher_responses"] == 0
+    assert metrics["overdue_activities"] == 0
+    # أعداد فقط — لا مفاتيح نصية حساسة
+    for forbidden in ("notes", "summary", "description", "question"):
+        assert forbidden not in metrics
+
+
+@pytest.mark.django_db
+def test_case_and_teacher_request_move_dashboard_counters(env, make_user, make_membership):
+    """تكامل م14←م15: فتح حالة يرفع العداد، والرد يخفض «بانتظار رد معلم»."""
+    from counseling.services.cases import open_counselor_case
+    from counseling.services.teacher_requests import (
+        request_teacher_follow_up,
+        respond_to_request,
+    )
+    from referrals.models import ReferralCategory, ReferralReason
+    from referrals.services.referrals import acknowledge_referral, create_referral
+
+    school = env["school"]
+    counselor = make_membership(make_user("0551500009"), school, ["COUNSELOR"])
+    student = env["students"][0]
+    today = date.today()
+    today_range = Range(today, today)
+
+    before = followup_selectors.counseling_metrics(school=school, date_range=today_range)
+    assert before["open_cases"] == 0
+
+    referral = create_referral(
+        school=school, membership=env["vice"], roles=["VICE_PRINCIPAL"], student=student,
+        category=ReferralCategory.ATTENDANCE,
+        reason_code=ReferralReason.REPEATED_ABSENCE,
+        description="غياب متكرر يحتاج متابعة إرشادية مستمرة.",
+        assigned_counselor_id=counselor.id,
+    )
+    acknowledge_referral(
+        referral_id=referral.id, school=school, membership=counselor, roles=["COUNSELOR"]
+    )
+    case = open_counselor_case(
+        school=school, membership=counselor, roles=["COUNSELOR"], referral_id=referral.id
+    )
+
+    after_open = followup_selectors.counseling_metrics(school=school, date_range=today_range)
+    assert after_open["open_cases"] == before["open_cases"] + 1
+    assert after_open["waiting_teacher_responses"] == 0
+    # الإحالة والحالة عددان مستقلان لا يُدمجان
+    referrals = followup_selectors.referral_metrics(school=school, date_range=today_range)
+    assert referrals["created_in_range"]["total"] == 1
+
+    follow_up = request_teacher_follow_up(
+        case=case, membership=counselor, roles=["COUNSELOR"],
+        teacher_membership_id=env["teacher"].id,
+        request_type="CLASSROOM_BEHAVIOR",
+        question="كيف كان تفاعله هذا الأسبوع؟",
+    )
+    waiting = followup_selectors.counseling_metrics(school=school, date_range=today_range)
+    assert waiting["waiting_teacher_responses"] == 1
+
+    respond_to_request(
+        school=school, membership=env["teacher"], request_id=follow_up.id,
+        observation="تحسن حضوره وتفاعله في الحصص.",
+        improvement_status="IMPROVED",
+    )
+    answered = followup_selectors.counseling_metrics(school=school, date_range=today_range)
+    assert answered["waiting_teacher_responses"] == 0
+    assert answered["open_cases"] == after_open["open_cases"]
 
 
 # ---------- طابور «يحتاج متابعة» ----------

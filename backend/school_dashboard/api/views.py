@@ -124,7 +124,9 @@ class DashboardTodayView(_DashboardView):
     def get(self, request):
         school = request.school
         key = dashboard_cache.build_key(
-            school_id=school.id, section="today", parts={"roles": sorted(request.school_roles or [])}
+            school_id=school.id,
+            section="today",
+            parts={"roles": sorted(request.school_roles or [])},
         )
         return Response(
             dashboard_cache.cached(

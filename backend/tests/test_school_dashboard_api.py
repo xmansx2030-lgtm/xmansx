@@ -123,8 +123,9 @@ def test_overview_shape_and_numbers(api_env):
     assert body["attendance"]["unexcused_full_absence_days"] == 1
     assert body["attendance"]["unit"] == "STUDENT_DAYS"
     assert body["attendance"]["undetermined_days"] == 0
-    # الإرشاد غير متاح في هذا الأساس — يُعلن ولا يُختلق
-    assert body["counseling"]["available"] is False
+    # الإرشاد مدمج (م14) — أعداد حقيقية لا قيمة مختلقة
+    assert body["counseling"]["available"] is True
+    assert body["counseling"]["open_cases"] == 0
     # لا نصوص حساسة في اللوحة التنفيذية (بند 45/87)
     serialized = str(body)
     for forbidden in ("description", "notes", "national_id", "guardian"):
