@@ -71,12 +71,20 @@ from counseling.services.snapshots import current_case_metrics
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
 from referrals.models import ReferralCategory, ReferralReason
+from subscriptions.entitlements import require_feature
+from subscriptions.models import EntitlementKey
 
 CASE_READ_ROLES = VIEW_ROLES
 CASE_WRITE_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.COUNSELOR)
 TEACHER_ROLES = (SchoolRole.TEACHER,)
 
 CASE_NOT_FOUND = ApiError("CASE_NOT_FOUND", "ملف المتابعة غير موجود.", status_code=404)
+
+
+class CounselingAPIView(SchoolScopedAPIView):
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        require_feature(request.school, EntitlementKey.COUNSELING)
 
 
 def _name(membership) -> str | None:
@@ -231,7 +239,7 @@ def _get_case(request, case_id: int) -> CounselorCase:
     return case
 
 
-class CounselorDashboardView(SchoolScopedAPIView):
+class CounselorDashboardView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -246,7 +254,7 @@ class CounselorDashboardView(SchoolScopedAPIView):
         )
 
 
-class CaseListView(SchoolScopedAPIView):
+class CaseListView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -274,7 +282,7 @@ class CaseListView(SchoolScopedAPIView):
         )
 
 
-class ReferralOpenCaseView(SchoolScopedAPIView):
+class ReferralOpenCaseView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -293,7 +301,7 @@ class ReferralOpenCaseView(SchoolScopedAPIView):
         return Response(case_row(_get_case(request, case.id)), status=201)
 
 
-class CaseDetailView(SchoolScopedAPIView):
+class CaseDetailView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -331,7 +339,7 @@ class CaseDetailView(SchoolScopedAPIView):
         )
 
 
-class CaseStatusView(SchoolScopedAPIView):
+class CaseStatusView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -350,7 +358,7 @@ class CaseStatusView(SchoolScopedAPIView):
         return Response(case_row(case))
 
 
-class CaseCloseView(SchoolScopedAPIView):
+class CaseCloseView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -372,7 +380,7 @@ class CaseCloseView(SchoolScopedAPIView):
         return Response(case_row(_get_case(request, closed.id)))
 
 
-class CaseReopenView(SchoolScopedAPIView):
+class CaseReopenView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -391,7 +399,7 @@ class CaseReopenView(SchoolScopedAPIView):
         return Response(case_row(_get_case(request, reopened.id)))
 
 
-class CaseReassignView(SchoolScopedAPIView):
+class CaseReassignView(CounselingAPIView):
     read_roles = (SchoolRole.SCHOOL_MANAGER,)
     write_roles = (SchoolRole.SCHOOL_MANAGER,)
 
@@ -410,7 +418,7 @@ class CaseReassignView(SchoolScopedAPIView):
         return Response(case_row(_get_case(request, case.id)))
 
 
-class CaseSessionsView(SchoolScopedAPIView):
+class CaseSessionsView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -439,7 +447,7 @@ class CaseSessionsView(SchoolScopedAPIView):
         return Response(session_row(session), status=201)
 
 
-class SessionVoidView(SchoolScopedAPIView):
+class SessionVoidView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -466,7 +474,7 @@ class SessionVoidView(SchoolScopedAPIView):
         return Response(session_row(voided))
 
 
-class CasePlansView(SchoolScopedAPIView):
+class CasePlansView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -509,7 +517,7 @@ def _get_plan(request, plan_id: int) -> CounselorFollowUpPlan:
     return plan
 
 
-class PlanStatusView(SchoolScopedAPIView):
+class PlanStatusView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -528,7 +536,7 @@ class PlanStatusView(SchoolScopedAPIView):
         return Response(plan_row(_get_plan(request, plan.id)))
 
 
-class PlanGoalsView(SchoolScopedAPIView):
+class PlanGoalsView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -552,7 +560,7 @@ class PlanGoalsView(SchoolScopedAPIView):
         return Response(goal_row(goal), status=201)
 
 
-class GoalStatusView(SchoolScopedAPIView):
+class GoalStatusView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -578,7 +586,7 @@ class GoalStatusView(SchoolScopedAPIView):
         return Response(goal_row(updated))
 
 
-class PlanActivitiesView(SchoolScopedAPIView):
+class PlanActivitiesView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -600,7 +608,7 @@ class PlanActivitiesView(SchoolScopedAPIView):
         return Response(activity_row(activity), status=201)
 
 
-class ActivityCompleteView(SchoolScopedAPIView):
+class ActivityCompleteView(CounselingAPIView):
     read_roles = CASE_WRITE_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -623,7 +631,7 @@ class ActivityCompleteView(SchoolScopedAPIView):
         return Response(activity_row(completed))
 
 
-class CaseTeacherRequestsView(SchoolScopedAPIView):
+class CaseTeacherRequestsView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -651,7 +659,7 @@ class CaseTeacherRequestsView(SchoolScopedAPIView):
         return Response(teacher_request_row(follow_up), status=201)
 
 
-class CaseTimelineView(SchoolScopedAPIView):
+class CaseTimelineView(CounselingAPIView):
     read_roles = CASE_READ_ROLES
     write_roles = CASE_WRITE_ROLES
 
@@ -661,7 +669,7 @@ class CaseTimelineView(SchoolScopedAPIView):
         return Response([event_row(event) for event in case_timeline(case)])
 
 
-class CaseTeachersView(SchoolScopedAPIView):
+class CaseTeachersView(CounselingAPIView):
     """معلمو المدرسة النشطون — لاختيار المرسل إليه (بلا بيانات اتصال)."""
 
     read_roles = CASE_WRITE_ROLES
@@ -685,7 +693,7 @@ class CaseTeachersView(SchoolScopedAPIView):
         )
 
 
-class TeacherFollowUpListView(SchoolScopedAPIView):
+class TeacherFollowUpListView(CounselingAPIView):
     """صندوق المعلم — طلباته هو فقط، بلا أي محتوى إرشادي (البندان 69-71)."""
 
     read_roles = TEACHER_ROLES
@@ -705,7 +713,7 @@ class TeacherFollowUpListView(SchoolScopedAPIView):
         return Response(rows)
 
 
-class TeacherFollowUpRespondView(SchoolScopedAPIView):
+class TeacherFollowUpRespondView(CounselingAPIView):
     read_roles = TEACHER_ROLES
     write_roles = TEACHER_ROLES
 
@@ -731,7 +739,7 @@ class TeacherFollowUpRespondView(SchoolScopedAPIView):
         return Response(row, status=201)
 
 
-class StudentCounselingView(SchoolScopedAPIView):
+class StudentCounselingView(CounselingAPIView):
     """ملخص «الإرشاد والمتابعة» في ملف الطالب — المعلم محجوب (البند 85)."""
 
     read_roles = CASE_READ_ROLES

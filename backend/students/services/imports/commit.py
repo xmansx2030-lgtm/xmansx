@@ -109,7 +109,13 @@ def _commit_locked(
                 if k not in ("national_id_encrypted", "national_id_hash", "errors", "row_number")
             }
             row.save(update_fields=["status", "data"])
-        job.summary = {**job.summary, **result["summary"], "missing_names": result["missing"]}
+        from subscriptions.usage import student_capacity_preview
+
+        refreshed_summary = result["summary"]
+        refreshed_summary["student_capacity"] = student_capacity_preview(
+            job.school, adding=refreshed_summary["new"]
+        )
+        job.summary = {**job.summary, **refreshed_summary, "missing_names": result["missing"]}
         job.save(update_fields=["summary", "updated_at"])
         return job, ApiError(
             "IMPORT_PREVIEW_STALE",
@@ -121,6 +127,26 @@ def _commit_locked(
     job.save(update_fields=["status", "updated_at"])
 
     apply_rows = [r for r in result["rows"] if r["status"] in _APPLY_STATUSES]
+
+    # حد الباقة يُفحص عند الاعتماد لا عند المعاينة — المعاينة تُظهر التجاوز (بند 64)
+    new_students = sum(1 for r in apply_rows if r["status"] == ImportRowStatus.NEW)
+    if new_students:
+        from subscriptions.entitlements import require_capacity
+        from subscriptions.models import EntitlementKey
+        from subscriptions.usage import count_active_students
+
+        try:
+            require_capacity(
+                job.school,
+                EntitlementKey.MAX_STUDENTS,
+                current=count_active_students(job.school),
+                adding=new_students,
+            )
+        except ApiError as exc:
+            job.status = ImportJobStatus.READY_FOR_REVIEW
+            job.error_code = exc.code
+            job.save(update_fields=["status", "error_code", "updated_at"])
+            return job, exc
 
     # 1) الصفوف والفصول المطلوبة (get_or_create — تنشأ عند الاعتماد فقط)
     grades: dict[str, Grade] = {}

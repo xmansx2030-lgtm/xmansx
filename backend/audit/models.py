@@ -105,6 +105,20 @@ class AuditAction(models.TextChoices):
     STAFF_SUSPENDED = "STAFF_SUSPENDED", "إيقاف موظف"
     STAFF_REACTIVATED = "STAFF_REACTIVATED", "إعادة تفعيل موظف"
     INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
+    # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
+    PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"
+    PLAN_CREATED = "PLAN_CREATED", "إنشاء باقة"
+    PLAN_UPDATED = "PLAN_UPDATED", "تعديل باقة"
+    PLAN_DISABLED = "PLAN_DISABLED", "تعطيل باقة"
+    SUBSCRIPTION_ACTIVATED = "SUBSCRIPTION_ACTIVATED", "تفعيل اشتراك"
+    TRIAL_STARTED = "TRIAL_STARTED", "بدء فترة تجريبية"
+    TRIAL_EXTENDED = "TRIAL_EXTENDED", "تمديد فترة تجريبية"
+    SUBSCRIPTION_PLAN_CHANGED = "SUBSCRIPTION_PLAN_CHANGED", "تغيير باقة اشتراك"
+    SUBSCRIPTION_EXTENDED = "SUBSCRIPTION_EXTENDED", "تمديد اشتراك"
+    SUBSCRIPTION_SUSPENDED = "SUBSCRIPTION_SUSPENDED", "إيقاف اشتراك"
+    SUBSCRIPTION_REACTIVATED = "SUBSCRIPTION_REACTIVATED", "إعادة تفعيل اشتراك"
+    SUBSCRIPTION_CANCELLED = "SUBSCRIPTION_CANCELLED", "إلغاء اشتراك"
+    ENTITLEMENT_OVERRIDE_CHANGED = "ENTITLEMENT_OVERRIDE_CHANGED", "تعديل تجاوز استحقاق"
 
 
 class AuditLog(models.Model):

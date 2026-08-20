@@ -352,6 +352,13 @@ function PreviewStep({
         </p>
       )}
 
+      {summary.student_capacity?.over_limit && (
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+          يتجاوز الاستيراد حد الباقة: {summary.student_capacity.projected} / {summary.student_capacity.limit} طالبًا.
+          يمكنك مراجعة المعاينة، لكن الاعتماد يتطلب ترقية الباقة.
+        </p>
+      )}
+
       <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="فئات المعاينة">
         {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
           <button

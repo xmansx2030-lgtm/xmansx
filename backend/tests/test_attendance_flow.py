@@ -157,7 +157,16 @@ def test_arrival_before_start_rejected(teacher_env):
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
     start_str = session["period"]["start_time"]
     hour, minute = map(int, start_str.split(":"))
-    early = time(hour - 1 if hour > 0 else 0, minute)
+    if hour == 0 and minute == 0:
+        session_row = AttendanceSession.objects.get(id=session["id"])
+        session_row.bell_period_snapshot = {
+            **session_row.bell_period_snapshot,
+            "start_time": "00:01",
+        }
+        session_row.save(update_fields=["bell_period_snapshot", "updated_at"])
+        minute = 1
+    early_minutes = hour * 60 + minute - 1
+    early = time(early_minutes // 60, early_minutes % 60)
     response = _submit(
         teacher_env["client"], session["id"],
         [{"student_id": students[0].id, "status": "LATE",

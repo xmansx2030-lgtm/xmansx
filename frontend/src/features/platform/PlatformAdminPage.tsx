@@ -1,0 +1,367 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
+
+import { ApiError } from "@/api/client";
+import { Button } from "@/components/Button";
+import { Spinner } from "@/components/Spinner";
+import {
+  createPlan,
+  createPlatformSchool,
+  disablePlan,
+  getPlans,
+  getPlatformOverview,
+  getPlatformSchools,
+  getPlanChangePreview,
+  getSchoolDetail,
+  getSubscriptionEvents,
+  getSubscriptionHistory,
+  runSubscriptionAction,
+  updatePlan,
+  type Plan,
+  type PlanInput,
+  type SchoolRow,
+  type Usage,
+} from "@/features/platform/api";
+
+const LIMIT_KEYS = ["MAX_STUDENTS", "MAX_STAFF", "MAX_DEVICES", "MAX_STORAGE_GB"] as const;
+const LIMIT_FORM_KEYS = {
+  MAX_STUDENTS: "max_students",
+  MAX_STAFF: "max_staff",
+  MAX_DEVICES: "max_devices",
+  MAX_STORAGE_GB: "max_storage_gb",
+} as const;
+const FEATURE_KEYS = [
+  "ATTENDANCE",
+  "BIOMETRIC_DEVICES",
+  "ROSTER_SYNC",
+  "EXCUSES",
+  "WARNINGS",
+  "DOCUMENTS",
+  "REFERRALS",
+  "COUNSELING",
+  "EXECUTIVE_DASHBOARD",
+] as const;
+
+function statusClass(status: string | null | undefined) {
+  if (status === "ACTIVE" || status === "TRIAL") return "bg-emerald-50 text-emerald-700";
+  if (status === "GRACE_PERIOD") return "bg-amber-50 text-amber-700";
+  if (status === "SUSPENDED" || status === "CANCELLED") return "bg-red-50 text-red-700";
+  return "bg-slate-100 text-slate-700";
+}
+
+function ErrorLine({ error }: { error: unknown }) {
+  if (!error) return null;
+  const message = error instanceof ApiError ? error.message : "تعذر تنفيذ الطلب.";
+  return <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{message}</p>;
+}
+
+function UsageGrid({ usage }: { usage: Usage }) {
+  const rows = [
+    ["الطلاب", usage.students],
+    ["الموظفون", usage.staff],
+    ["الأجهزة", usage.devices],
+    ["التخزين", { ...usage.storage, used: usage.storage.used_gb, limit: usage.storage.limit_gb }],
+  ] as const;
+  return (
+    <div className="grid gap-3 md:grid-cols-4">
+      {rows.map(([label, row]) => (
+        <div key={label} className="rounded-lg border border-slate-200 bg-white p-3">
+          <p className="text-xs text-slate-500">{label}</p>
+          <p className="mt-1 text-lg font-bold text-slate-900">
+            {row.used} / {row.limit ?? "بلا حد"}
+          </p>
+          {row.over_limit && <p className="mt-1 text-xs font-semibold text-red-700">تجاوز الحد</p>}
+          {!row.over_limit && row.near_limit && <p className="mt-1 text-xs font-semibold text-amber-700">قريب من الحد</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlanForm({ plans }: { plans: Plan[] }) {
+  const queryClient = useQueryClient();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const editing = plans.find((plan) => plan.id === editingId);
+  const [form, setForm] = useState({
+    code: "",
+    name_ar: "",
+    price_amount: "0",
+    trial_days_default: 30,
+    max_students: 1000,
+    max_staff: 100,
+    max_devices: 5,
+    max_storage_gb: 10,
+  });
+  const [features, setFeatures] = useState<Record<string, boolean>>(
+    Object.fromEntries(FEATURE_KEYS.map((key) => [key, true])),
+  );
+
+  const save = useMutation({
+    mutationFn: (body: PlanInput) =>
+      editingId ? updatePlan(editingId, body) : createPlan(body),
+    onSuccess: async () => {
+      setEditingId(null);
+      setForm({ ...form, code: "", name_ar: "" });
+      await queryClient.invalidateQueries({ queryKey: ["platform", "plans"] });
+    },
+  });
+
+  function load(plan: Plan) {
+    setEditingId(plan.id);
+    setForm({
+      code: plan.code,
+      name_ar: plan.name_ar,
+      price_amount: plan.price_amount,
+      trial_days_default: plan.trial_days_default,
+      max_students: Number(plan.entitlements.MAX_STUDENTS ?? 1000),
+      max_staff: Number(plan.entitlements.MAX_STAFF ?? 100),
+      max_devices: Number(plan.entitlements.MAX_DEVICES ?? 5),
+      max_storage_gb: Number(plan.entitlements.MAX_STORAGE_GB ?? 10),
+    });
+    setFeatures(
+      Object.fromEntries(FEATURE_KEYS.map((key) => [key, Boolean(plan.entitlements[key] ?? true)])),
+    );
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const entitlements: Record<string, number | boolean> = {
+      MAX_STUDENTS: form.max_students,
+      MAX_STAFF: form.max_staff,
+      MAX_DEVICES: form.max_devices,
+      MAX_STORAGE_GB: form.max_storage_gb,
+      ...features,
+    };
+    save.mutate({
+      ...(editing ? {} : { code: form.code }),
+      name_ar: form.name_ar,
+      price_amount: form.price_amount,
+      currency: "SAR",
+      billing_period: "ANNUAL",
+      trial_days_default: form.trial_days_default,
+      entitlements,
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+      <form onSubmit={submit} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-4">
+        <input className="rounded border border-slate-300 px-3 py-2" placeholder="رمز الباقة" value={form.code} disabled={Boolean(editing)} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+        <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
+        <input className="rounded border border-slate-300 px-3 py-2" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} />
+        <input className="rounded border border-slate-300 px-3 py-2" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} />
+        {LIMIT_KEYS.map((key) => (
+          <label key={key} className="text-sm text-slate-600">
+            {key}
+            <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" type="number" value={form[LIMIT_FORM_KEYS[key]]} onChange={(e) => setForm({ ...form, [LIMIT_FORM_KEYS[key]]: Number(e.target.value) })} />
+          </label>
+        ))}
+        <div className="md:col-span-4 grid gap-2 md:grid-cols-3">
+          {FEATURE_KEYS.map((key) => (
+            <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={features[key]} onChange={(e) => setFeatures({ ...features, [key]: e.target.checked })} />
+              {key}
+            </label>
+          ))}
+        </div>
+        <div className="flex gap-2 md:col-span-4">
+          <Button type="submit" disabled={save.isPending}>{editing ? "حفظ التعديل" : "إنشاء باقة"}</Button>
+          {editing && <Button variant="secondary" onClick={() => setEditingId(null)}>إلغاء</Button>}
+        </div>
+        <div className="md:col-span-4"><ErrorLine error={save.error} /></div>
+      </form>
+      <div className="grid gap-3 md:grid-cols-2">
+        {plans.map((plan) => (
+          <article key={plan.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900">{plan.name_ar}</h3>
+                <p className="text-sm text-slate-500">{plan.code} · {plan.price_amount} {plan.currency}</p>
+              </div>
+              <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button variant="secondary" onClick={() => load(plan)}>تعديل</Button>
+              <Button variant="danger" disabled={!plan.is_active} onClick={() => void disablePlan(plan.id).then(() => queryClient.invalidateQueries({ queryKey: ["platform", "plans"] }))}>تعطيل</Button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SchoolsPanel({ plans }: { plans: Plan[] }) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [expiresSoon, setExpiresSoon] = useState(false);
+  const [overLimit, setOverLimit] = useState(false);
+  const [selected, setSelected] = useState<SchoolRow | null>(null);
+  const filters = { search, status: statusFilter, plan: planFilter, expires_soon: expiresSoon, over_limit: overLimit };
+  const schools = useQuery({ queryKey: ["platform", "schools", filters], queryFn: ({ signal }) => getPlatformSchools(filters, signal) });
+  const detail = useQuery({ queryKey: ["platform", "school", selected?.id], queryFn: ({ signal }) => getSchoolDetail(selected!.id, signal), enabled: Boolean(selected) });
+  const history = useQuery({ queryKey: ["platform", "subscription", selected?.id], queryFn: ({ signal }) => getSubscriptionHistory(selected!.id, signal), enabled: Boolean(selected) });
+  const events = useQuery({ queryKey: ["platform", "events", selected?.id], queryFn: ({ signal }) => getSubscriptionEvents(selected!.id, signal), enabled: Boolean(selected) });
+  const [createForm, setCreateForm] = useState({ school_name: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" as "TRIAL" | "ACTIVE" });
+  const [actionPlanId, setActionPlanId] = useState("");
+  const [actionDays, setActionDays] = useState(30);
+  const preview = useQuery({
+    queryKey: ["platform", "plan-preview", selected?.id, actionPlanId],
+    queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
+    enabled: Boolean(selected && actionPlanId),
+  });
+  const [lastPassword, setLastPassword] = useState<string | null>(null);
+  const createSchool = useMutation({
+    mutationFn: () => createPlatformSchool({ ...createForm, plan_id: createForm.plan_id ? Number(createForm.plan_id) : undefined }),
+    onSuccess: async (row) => {
+      setLastPassword(row.temporary_password);
+      await queryClient.invalidateQueries({ queryKey: ["platform", "schools"] });
+    },
+  });
+  const action = useMutation({
+    mutationFn: ({ name, body }: { name: string; body: Record<string, unknown> }) => runSubscriptionAction(selected!.id, name, body),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["platform", "school", selected?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["platform", "subscription", selected?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["platform", "events", selected?.id] }),
+      ]);
+    },
+  });
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدرسة" value={createForm.school_name} onChange={(e) => setCreateForm({ ...createForm, school_name: e.target.value })} />
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدير" value={createForm.manager_name} onChange={(e) => setCreateForm({ ...createForm, manager_name: e.target.value })} />
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder="جوال المدير" value={createForm.manager_mobile} onChange={(e) => setCreateForm({ ...createForm, manager_mobile: e.target.value })} />
+          <select className="rounded border border-slate-300 px-3 py-2" value={createForm.plan_id} onChange={(e) => setCreateForm({ ...createForm, plan_id: e.target.value })}>
+            <option value="">بدون باقة</option>
+            {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
+          </select>
+          <Button type="submit" disabled={createSchool.isPending}>إنشاء</Button>
+          <div className="md:col-span-5"><ErrorLine error={createSchool.error} />{lastPassword && <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">كلمة المرور المؤقتة: <b>{lastPassword}</b></p>}</div>
+        </form>
+        <div className="grid gap-2 md:grid-cols-5">
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select aria-label="حالة الاشتراك" className="rounded border border-slate-300 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">كل الحالات</option>
+            {(["TRIAL", "ACTIVE", "GRACE_PERIOD", "EXPIRED", "SUSPENDED", "CANCELLED"] as const).map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+          <select aria-label="الباقة" className="rounded border border-slate-300 px-3 py-2" value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
+            <option value="">كل الباقات</option>
+            {plans.map((plan) => <option key={plan.id} value={plan.code}>{plan.name_ar}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={expiresSoon} onChange={(e) => setExpiresSoon(e.target.checked)} />تنتهي قريبًا</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overLimit} onChange={(e) => setOverLimit(e.target.checked)} />فوق الحد</label>
+        </div>
+        {schools.isPending ? <Spinner label="جارٍ تحميل المدارس..." /> : (
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            {(schools.data?.results ?? []).map((school) => (
+              <button key={school.id} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-start last:border-b-0 hover:bg-slate-50" onClick={() => setSelected(school)}>
+                <span><b>{school.name}</b><span className="block text-xs text-slate-500">{school.plan_name ?? "بدون باقة"} · {school.manager?.name ?? "بلا مدير"}</span></span>
+                <span className={`rounded px-2 py-1 text-xs ${statusClass(school.subscription_status)}`}>{school.subscription_status ?? "NO_SUBSCRIPTION"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <aside className="space-y-3">
+        {!selected && <div className="rounded-lg border border-slate-200 bg-white p-4 text-slate-600">اختر مدرسة لعرض الاشتراك والاستخدام.</div>}
+        {detail.data && (
+          <>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <h3 className="font-bold text-slate-900">{detail.data.name}</h3>
+              <p className="text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {detail.data.subscription.status ?? "NO_SUBSCRIPTION"}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <select aria-label="الباقة الجديدة" className="rounded border border-slate-300 px-2 py-2 text-sm" value={actionPlanId} onChange={(e) => setActionPlanId(e.target.value)}>
+                  <option value="">اختر باقة</option>
+                  {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
+                </select>
+                <input aria-label="المدة" className="rounded border border-slate-300 px-2 py-2 text-sm" type="number" value={actionDays} onChange={(e) => setActionDays(Number(e.target.value))} />
+              </div>
+              {preview.data && (
+                <div className="mt-3 border-y border-slate-100 py-2 text-xs text-slate-600">
+                  <p className="font-semibold">معاينة {preview.data.plan.name}</p>
+                  {Object.entries(preview.data.impact).map(([key, value]) => (
+                    <p key={key} className={value.over_limit ? "font-semibold text-red-700" : ""}>{key}: {"used_gb" in value ? value.used_gb : value.used} / {"new_limit_gb" in value ? value.new_limit_gb ?? "بلا حد" : value.new_limit ?? "بلا حد"}{value.over_limit ? " · OVER LIMIT" : ""}</p>
+                  ))}
+                  <p>لن تُحذف أي بيانات.</p>
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {([
+                  ["start-trial", "بدء تجربة"],
+                  ["activate", "تفعيل"],
+                  ["change-plan", "تغيير الباقة"],
+                  ["extend", "تمديد"],
+                  ["suspend", "إيقاف"],
+                  ["reactivate", "إعادة تفعيل"],
+                  ["cancel", "إلغاء"],
+                ] as [string, string][]).map(([name, label]) => (
+                  <Button key={name} variant={name === "suspend" || name === "cancel" ? "danger" : "secondary"} className="px-3 py-1.5" onClick={() => {
+                    action.mutate({ name, body: { plan_id: Number(actionPlanId), days: actionDays, trial_days: actionDays, months: 12, reason: "Platform Admin action" } });
+                  }}>{label}</Button>
+                ))}
+              </div>
+              <ErrorLine error={action.error} />
+            </div>
+            <UsageGrid usage={detail.data.usage} />
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <h4 className="mb-2 font-bold">السجل</h4>
+              {(history.data?.history ?? []).slice(0, 4).map((row) => <p key={row.id} className="text-sm text-slate-600">{row.plan_name} · {row.status}</p>)}
+              {(events.data ?? []).slice(0, 5).map((event) => <p key={event.id} className="mt-1 text-xs text-slate-500">{event.event_type} · {new Date(event.created_at).toLocaleDateString("ar-SA")}</p>)}
+            </div>
+          </>
+        )}
+      </aside>
+    </section>
+  );
+}
+
+export function PlatformAdminPage() {
+  const [tab, setTab] = useState<"dashboard" | "schools" | "plans">("dashboard");
+  const overview = useQuery({ queryKey: ["platform", "overview"], queryFn: ({ signal }) => getPlatformOverview(signal) });
+  const plans = useQuery({ queryKey: ["platform", "plans"], queryFn: ({ signal }) => getPlans(signal) });
+  const activePlans = useMemo(() => plans.data ?? [], [plans.data]);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Platform Admin</h1>
+          <p className="text-sm text-slate-500">إدارة المدارس والباقات والاشتراكات دون تصفح بيانات الطلاب.</p>
+        </div>
+        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+          {(["dashboard", "schools", "plans"] as const).map((item) => (
+            <button key={item} className={`rounded-md px-3 py-2 text-sm ${tab === item ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`} onClick={() => setTab(item)}>
+              {item === "dashboard" ? "Dashboard" : item === "schools" ? "Schools" : "Plans"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === "dashboard" && (
+        overview.isPending ? <Spinner label="جارٍ تحميل لوحة المنصة..." /> : (
+          <section className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">المدارس</p><p className="text-3xl font-bold">{overview.data?.schools_total ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">النشطة</p><p className="text-3xl font-bold">{overview.data?.subscriptions.active ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">التجريبية</p><p className="text-3xl font-bold">{overview.data?.subscriptions.trial ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">مهلة السماح</p><p className="text-3xl font-bold">{overview.data?.subscriptions.grace ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">المنتهية</p><p className="text-3xl font-bold">{overview.data?.subscriptions.expired ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الموقوفة</p><p className="text-3xl font-bold">{overview.data?.subscriptions.suspended ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">القريبة من الانتهاء</p><p className="text-3xl font-bold">{overview.data?.expiring_soon.length ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الطلاب النشطون</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_students ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الموظفون</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_staff ?? 0}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الأجهزة</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_devices ?? 0}</p></div>
+          </section>
+        )
+      )}
+      {tab === "schools" && <SchoolsPanel plans={activePlans} />}
+      {tab === "plans" && (plans.isPending ? <Spinner label="جارٍ تحميل الباقات..." /> : <PlanForm plans={activePlans} />)}
+    </div>
+  );
+}

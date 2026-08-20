@@ -6,8 +6,10 @@
 
 from rest_framework.views import APIView
 
+from common.errors import ApiError
 from memberships.models import SchoolRole
 from memberships.permissions import school_role_required
+from subscriptions.access import FULL, get_school_access_mode, subscription_state
 
 SETTINGS_READ_ROLES = (
     SchoolRole.SCHOOL_MANAGER,
@@ -29,3 +31,22 @@ class SchoolScopedAPIView(APIView):
         else:
             roles = self.write_roles
         return [school_role_required(*roles)()]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return
+        mode = get_school_access_mode(request.school)
+        if mode != FULL:
+            state = subscription_state(request.school)
+            codes = {
+                "EXPIRED": "SUBSCRIPTION_EXPIRED",
+                "SUSPENDED": "SCHOOL_SUSPENDED",
+                "CANCELLED": "SUBSCRIPTION_CANCELLED",
+            }
+            raise ApiError(
+                codes.get(state["status"], "SUBSCRIPTION_WRITE_BLOCKED"),
+                "اشتراك المدرسة لا يسمح بتنفيذ عمليات جديدة حالياً.",
+                status_code=403,
+                details={"access_mode": mode, "subscription_status": state["status"]},
+            )

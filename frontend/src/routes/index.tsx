@@ -3,7 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/app/AppShell";
 import { ChangeInitialPasswordPage } from "@/features/auth/ChangeInitialPasswordPage";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { RequireActiveSchool, RequireAuth } from "@/features/auth/guards";
+import { RequireActiveSchool, RequireAuth, RequirePlatformAdmin } from "@/features/auth/guards";
 import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
 import { AnalyticsPage } from "@/features/attendance/AnalyticsPage";
 import { AttendanceSessionPage } from "@/features/attendance/AttendanceSessionPage";
@@ -31,6 +31,8 @@ import { StudentsPage } from "@/features/students/StudentsPage";
 import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { RouteErrorPage } from "@/routes/RouteErrorPage";
+import { PlatformAdminPage } from "@/features/platform/PlatformAdminPage";
+import { SchoolSubscriptionPage } from "@/features/platform/SchoolSubscriptionPage";
 
 export const routes = [
   {
@@ -43,6 +45,10 @@ export const routes = [
         children: [
           { path: "/select-school", element: <SelectSchoolPage /> },
           {
+            element: <RequirePlatformAdmin />,
+            children: [{ path: "/platform", element: <PlatformAdminPage /> }],
+          },
+          {
             element: <RequireActiveSchool />,
             children: [
               {
@@ -54,6 +60,7 @@ export const routes = [
                   { path: "settings", element: <SettingsPage /> },
                   { path: "devices", element: <DevicesSettingsPage /> },
                   { path: "devices/roster-sync", element: <DeviceRosterSyncPage /> },
+                  { path: "subscription", element: <SchoolSubscriptionPage /> },
                   { path: "morning", element: <MorningPage /> },
                   { path: "warnings", element: <WarningsDashboardPage /> },
                   { path: "students", element: <StudentsPage /> },

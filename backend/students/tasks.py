@@ -67,6 +67,11 @@ def process_import_job(job_id: int) -> str:
             )
 
             summary = result["summary"]
+            from subscriptions.usage import student_capacity_preview
+
+            summary["student_capacity"] = student_capacity_preview(
+                job.school, adding=summary["new"]
+            )
             job.total_rows = len(result["rows"])
             job.valid_rows = job.total_rows - summary["errors"] - summary["duplicates"]
             job.invalid_rows = summary["errors"]

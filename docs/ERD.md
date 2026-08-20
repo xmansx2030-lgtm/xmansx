@@ -493,12 +493,32 @@ ACKNOWLEDGED / CONTRIBUTION_ADDED / CLOSED / CANCELLED), `actor_membership SET_N
 
 ## 15. subscriptions
 
-### Plan (بلا school_id)
-`name`, `max_students int null`, `max_staff int null`, `price_monthly decimal`, `is_active`, `features json`.
+### SaaSPlan (بلا school_id)
+`code unique`, `name_ar`, `name_en`, `description`, `is_active`, `is_public`,
+`billing_period`, `price_amount`, `currency`, `trial_days_default`.
+
+### PlanEntitlement
+`plan FK`, `key`, `numeric_value null`, `is_enabled`. قيد فريد `(plan, key)`.
 
 ### SchoolSubscription
-`school FK`, `plan FK`, `status` enum (TRIAL / ACTIVE / PAST_DUE / EXPIRED / SUSPENDED), `trial_ends_at`, `current_period_start/end`, `notes`. فهرس `(status)`, `(school)`. لا بوابة دفع في MVP.
-Middleware المدرسة يمنع العمليات الكتابية عند EXPIRED/SUSPENDED (قراءة فقط + رسالة واضحة).
+`school FK`, `plan FK`, `status` enum (TRIAL / ACTIVE / GRACE_PERIOD / EXPIRED /
+SUSPENDED / CANCELLED), `starts_at`, `ends_at`, `trial_started_at`, `trial_ends_at`,
+`grace_ends_at`, `cancelled_at`, `cancel_reason`, `suspended_at`,
+`suspension_reason`, `created_by`, `updated_by`.
+
+قيود: عقد حي واحد لكل مدرسة للحالات `TRIAL/ACTIVE/GRACE_PERIOD`، و`ends_at > starts_at`.
+فهارس: `(status, ends_at)`, `(school, status)`.
+
+### SubscriptionEntitlement
+لقطة استحقاقات العقد: `subscription FK`, `key`, `numeric_value`, `is_enabled`,
+`is_override`. قيد فريد `(subscription, key)`.
+
+### SubscriptionEvent
+`school FK`, `subscription FK`, `event_type`, `actor`, `reason`, `metadata`, `created_at`.
+فهرس `(school, created_at)`. لا بيانات حساسة.
+
+`SchoolScopedAPIView` يمنع العمليات الكتابية عند EXPIRED/SUSPENDED/CANCELLED حسب
+سياسة الوصول، ولا يحذف أي بيانات.
 
 ---
 

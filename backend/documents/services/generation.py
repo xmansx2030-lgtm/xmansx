@@ -31,6 +31,7 @@ from documents.pdf import MIME_PDF, PdfEngineUnavailable, render_pdf
 from documents.services import snapshots as snapshot_service
 from documents.templates_registry import template_for, template_of
 from student_warnings.models import StudentWarning, WarningStatus
+from subscriptions.entitlements import require_storage_capacity
 
 DOCUMENT_NOT_FOUND = ApiError("DOCUMENT_NOT_FOUND", "المستند غير موجود.", status_code=404)
 
@@ -202,6 +203,17 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
             request=request,
         )
 
+    try:
+        require_storage_capacity(document.school, adding_bytes=len(pdf_bytes))
+    except ApiError as exc:
+        _mark_failed(
+            document=document,
+            membership=membership,
+            error_code=exc.code,
+            detail="school storage entitlement exceeded",
+            request=request,
+        )
+        raise
     document.file.save(f"{document.id}.pdf", ContentFile(pdf_bytes), save=False)
     document.mime_type = MIME_PDF
     document.size_bytes = len(pdf_bytes)

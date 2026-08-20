@@ -52,3 +52,15 @@ export function RequireActiveSchool() {
   }
   return <Outlet />;
 }
+
+/** إدارة المنصة صلاحية عالمية؛ لا تحتاج مدرسة نشطة ولا عضوية مدرسية. */
+export function RequirePlatformAdmin() {
+  const me = useMe();
+
+  if (me.isPending) return <FullPageSpinner />;
+  if (me.isError) return <Navigate to="/login" replace />;
+  if (!me.data.is_platform_admin) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}

@@ -22,6 +22,7 @@ from excuses.models import (
 )
 from excuses.services.coverage import _raise_not_pending
 from excuses.validators import validate_excuse_attachment
+from subscriptions.entitlements import require_storage_capacity
 
 MAX_TARGETS_PER_EXCUSE = 60
 MAX_ATTACHMENTS_PER_EXCUSE = 5
@@ -192,6 +193,7 @@ def add_attachment(
             "VALIDATION_ERROR", "لا يمكن إضافة مرفق لعذر مرفوض أو ملغى.", status_code=409
         )
     mime_type = validate_excuse_attachment(uploaded_file)
+    require_storage_capacity(school, adding_bytes=uploaded_file.size)
 
     digest = hashlib.sha256()
     for chunk in uploaded_file.chunks():

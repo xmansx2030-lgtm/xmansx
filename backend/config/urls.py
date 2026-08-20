@@ -46,6 +46,7 @@ urlpatterns = [
     path("api/v1/", include("referrals.urls")),
     path("api/v1/", include("counseling.urls")),
     path("api/v1/", include("school_dashboard.urls")),
+    path("api/v1/", include("subscriptions.urls")),
     path("api/v1/schema/", SchemaView.as_view(), name="schema"),
     path("api/v1/docs/", DocsView.as_view(url_name="schema"), name="docs"),
 ]

@@ -170,6 +170,16 @@ export function AppShell() {
                 أجهزة الحضور
               </NavLink>
             )}
+            {me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER") && (
+              <NavLink
+                to="/subscription"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                الاشتراك
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") && (
               <NavLink
                 to="/devices/roster-sync"

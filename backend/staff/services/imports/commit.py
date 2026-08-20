@@ -102,6 +102,26 @@ def _commit_locked(*, job_id: int, actor, request=None):
 
     credentials: list[dict] = []
     counts = {"created": 0, "invited": 0, "roles_added": 0, "profiles_updated": 0}
+    added_memberships = sum(
+        1 for row in result["rows"] if row["status"] in {"NEW", "EXISTING_USER_INVITE"}
+    )
+    if added_memberships:
+        from subscriptions.entitlements import require_capacity
+        from subscriptions.models import EntitlementKey
+        from subscriptions.usage import count_active_staff
+
+        try:
+            require_capacity(
+                job.school,
+                EntitlementKey.MAX_STAFF,
+                current=count_active_staff(job.school),
+                adding=added_memberships,
+            )
+        except ApiError as exc:
+            job.status = StaffImportStatus.READY_FOR_REVIEW
+            job.error_code = exc.code
+            job.save(update_fields=["status", "error_code", "updated_at"])
+            return job, [], exc
 
     for row in result["rows"]:
         if row["status"] not in _APPLY:

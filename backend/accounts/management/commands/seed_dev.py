@@ -41,6 +41,8 @@ SCHOOLS = [
     ("ثانوية المستقبل", "school-c"),
 ]
 
+PLATFORM_ADMIN_MOBILE = "0550000016"
+
 
 class Command(BaseCommand):
     help = "إنشاء بيانات تطوير: 3 مدارس و4 مستخدمين بأدوار متعددة (DEBUG فقط)"
@@ -95,6 +97,34 @@ class Command(BaseCommand):
                         membership=membership, role=SchoolRole(role)
                     )
             self.stdout.write(f"user: {user.display_name} ({user.mobile}) id={user.id}")
+
+        platform_admin = User.objects.filter(
+            mobile__endswith=PLATFORM_ADMIN_MOBILE[1:]
+        ).first()
+        if platform_admin is None:
+            platform_admin = User.objects.create_superuser(
+                mobile=PLATFORM_ADMIN_MOBILE,
+                password=password,
+                first_name="مشرف",
+                last_name="المنصة",
+            )
+        else:
+            platform_admin.is_staff = True
+            platform_admin.is_superuser = True
+            platform_admin.must_change_password = False
+            platform_admin.set_password(password)
+            platform_admin.save(
+                update_fields=[
+                    "is_staff",
+                    "is_superuser",
+                    "must_change_password",
+                    "password",
+                    "updated_at",
+                ]
+            )
+        self.stdout.write(
+            f"platform admin: {platform_admin.display_name} ({platform_admin.mobile})"
+        )
 
         self.stdout.write(self.style.SUCCESS("Seed completed."))
 

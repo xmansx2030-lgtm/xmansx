@@ -36,6 +36,7 @@ frontend/dist/
 frontend/dev-dist/
 *.tsbuildinfo
 .eslintcache
+frontend/vite-*.log
 
 # ---- Testing artifacts ----
 frontend/coverage/

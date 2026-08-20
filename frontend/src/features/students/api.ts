@@ -158,6 +158,13 @@ export interface ImportJob {
     will_create_sections?: string[];
     created?: number;
     enrollment_changes?: number;
+    student_capacity?: {
+      used: number;
+      adding: number;
+      projected: number;
+      limit: number | null;
+      over_limit: boolean;
+    };
   };
   error_code: string;
 }

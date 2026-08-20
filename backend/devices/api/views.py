@@ -71,6 +71,9 @@ from devices.services.ingest import ingest_batch, reprocess_unmatched
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
 from students.models import Student, StudentImportJob
+from subscriptions.entitlements import require_capacity
+from subscriptions.models import EntitlementKey
+from subscriptions.usage import count_active_devices
 
 MANAGER_ONLY = (SchoolRole.SCHOOL_MANAGER,)
 MORNING_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
@@ -209,6 +212,12 @@ class DevicesView(SchoolScopedAPIView):
     def post(self, request: Request) -> Response:
         serializer = DeviceCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # الأجهزة القائمة فوق الحد لا تُحذف — الإضافة وحدها تُمنع (بند 70)
+        require_capacity(
+            request.school,
+            EntitlementKey.MAX_DEVICES,
+            current=count_active_devices(request.school),
+        )
         device = AttendanceDevice(school=request.school)
         _apply_device_fields(device, serializer.validated_data)
         device.save()
@@ -231,6 +240,15 @@ class DeviceDetailView(SchoolScopedAPIView):
         serializer = DeviceUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         was_active = device.is_active
+        will_activate = (
+            not was_active and bool(serializer.validated_data.get("is_active", False))
+        )
+        if will_activate:
+            require_capacity(
+                request.school,
+                EntitlementKey.MAX_DEVICES,
+                current=count_active_devices(request.school),
+            )
         _apply_device_fields(device, serializer.validated_data)
         device.save()
         action = (

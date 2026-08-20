@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "referrals",
     "counseling",
     "school_dashboard",
+    "subscriptions",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",

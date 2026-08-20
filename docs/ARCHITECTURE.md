@@ -199,6 +199,11 @@ backend (Django/gunicorn) ── postgres
 - [ERD.md](ERD.md) — الكيانات والعلاقات والقيود والفهارس.
 - [PERMISSIONS.md](PERMISSIONS.md) — مصفوفة الصلاحيات.
 - [SECURITY.md](SECURITY.md) — النموذج الأمني.
+- [SAAS_PLANS.md](SAAS_PLANS.md) — باقات SaaS والتسعير الوصفي.
+- [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) — دورة حياة الاشتراك.
+- [ENTITLEMENTS.md](ENTITLEMENTS.md) — حدود وميزات الباقات.
+- [PLATFORM_ADMIN.md](PLATFORM_ADMIN.md) — لوحة إدارة المنصة وحدودها.
+- [SUBSCRIPTION_ACCESS_POLICY.md](SUBSCRIPTION_ACCESS_POLICY.md) — سياسة الوصول حسب حالة الاشتراك.
 - [AUTHENTICATION.md](AUTHENTICATION.md) — المصادقة كما نفذت (المرحلة 2).
 - [MULTI_TENANCY.md](MULTI_TENANCY.md) — تعدد المستأجرين كما نفذ + الثوابت الأمنية (المرحلة 2).
 - [PHASE_PLAN.md](PHASE_PLAN.md) — خطة المراحل 0–20 ومعايير الخروج.

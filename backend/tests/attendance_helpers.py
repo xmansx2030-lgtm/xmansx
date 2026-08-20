@@ -62,10 +62,12 @@ def setup_attendance_env(school, *, students_count: int = 5, period_started_minu
     students = make_students(school, section, year, students_count)
 
     local_now = school_now(school)
-    start = (local_now - timedelta(minutes=period_started_minutes_ago)).time().replace(
-        second=0, microsecond=0
-    )
-    end = (local_now + timedelta(minutes=45)).time().replace(second=0, microsecond=0)
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = local_now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    # BellPeriod is a same-day time range. Clamp fixtures at midnight so a test
+    # run around 00:00/24:00 cannot create an invalid cross-day period.
+    start = max(local_now - timedelta(minutes=period_started_minutes_ago), day_start).time()
+    end = min(local_now + timedelta(minutes=45), day_end).time()
 
     schedule = BellSchedule.objects.create(school=school, name="جدول الاختبار")
     period = BellPeriod.objects.create(
