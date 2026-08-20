@@ -5,6 +5,8 @@ import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
 import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
 
+// اللوحة التنفيذية للمدير والوكيل فقط (م15) — المرشد له لوحته والمعلم لا لوحة له
+const DASHBOARD_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 const SETTINGS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STUDENTS_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const STAFF_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
@@ -24,6 +26,16 @@ export function AppShell() {
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold text-slate-800">منصة المواظبة</h1>
             <SchoolSwitcher />
+            {me.isSuccess && me.data.roles.some((r) => DASHBOARD_ROLES.includes(r)) && (
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  `text-sm font-medium ${isActive ? "text-blue-700" : "text-slate-500 hover:text-slate-800"}`
+                }
+              >
+                لوحة الإدارة
+              </NavLink>
+            )}
             {me.isSuccess && me.data.roles.some((r) => STUDENTS_ROLES.includes(r)) && (
               <NavLink
                 to="/students"

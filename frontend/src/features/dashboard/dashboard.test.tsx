@@ -1,0 +1,452 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { queryClient } from "@/app/queryClient";
+import { buildMe, membership, mockApi } from "@/test/mockApi";
+import { renderApp } from "@/test/renderApp";
+
+function roleMe(roles: string[]) {
+  return buildMe({
+    active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+    roles: roles as never,
+    memberships: [membership(1, 10, "ثانوية الأندلس", roles as never)],
+  });
+}
+
+const OVERVIEW = {
+  context: {
+    academic_year: { id: 1, name: "1447/1448" },
+    semester: { id: 2, name: "الفصل الأول" },
+    timezone: "Asia/Riyadh",
+    today: "2026-08-19",
+    range: { from_date: "2026-08-13", to_date: "2026-08-19", days: 7, preset: "LAST_7_DAYS" },
+    previous_range: {
+      from_date: "2026-08-06",
+      to_date: "2026-08-12",
+      days: 7,
+      preset: "LAST_7_DAYS",
+    },
+    scope: { grade_id: null, section_id: null },
+  },
+  today_operations: {
+    school_time: "09:15",
+    date: "2026-08-19",
+    period: { sequence: 3, name: "الحصة الثالثة", start_time: "09:00", end_time: "09:45" },
+    alert: null,
+    summary: { total: 12, submitted: 9, in_progress: 1, not_started: 2, overdue_total: 2 },
+    submission_completion_pct: 75,
+    has_active_period: true,
+  },
+  attendance: {
+    unit: "STUDENT_DAYS",
+    student_days: 400,
+    distinct_students: 80,
+    full_absence_days: 30,
+    partial_absence_days: 12,
+    no_absence_days: 340,
+    undetermined_days: 18,
+    unexcused_full_absence_days: 21,
+    excused_full_absence_days: 8,
+    mixed_full_absence_days: 1,
+    absent_periods: 260,
+    unexcused_absent_periods: 200,
+    excused_absent_periods: 60,
+    period_late_occurrences: 14,
+    period_late_minutes: 90,
+    morning_late_occurrences: 25,
+    morning_late_minutes: 180,
+    morning_arrivals: 350,
+    completeness: {
+      complete_student_days: 382,
+      incomplete_student_days: 18,
+      incomplete_pct: 4.5,
+      is_significant: false,
+    },
+  },
+  comparison: {
+    unexcused_full_absence_days: {
+      current: 21,
+      previous: 14,
+      delta: 7,
+      change_pct: 50,
+      is_new: false,
+    },
+    full_absence_days: { current: 30, previous: 30, delta: 0, change_pct: 0, is_new: false },
+    partial_absence_days: {
+      current: 12,
+      previous: 0,
+      delta: 12,
+      change_pct: null,
+      is_new: true,
+    },
+    morning_late_occurrences: {
+      current: 25,
+      previous: 40,
+      delta: -15,
+      change_pct: -37.5,
+      is_new: false,
+    },
+    absent_periods: { current: 260, previous: 250, delta: 10, change_pct: 4, is_new: false },
+  },
+  warnings: {
+    academic_year: { id: 1, name: "1447/1448" },
+    due_is_point_in_time: true,
+    due_students_by_type: {
+      UNEXCUSED_FULL_DAY_ABSENCE: 4,
+      MORNING_LATE_OCCURRENCES: 2,
+    },
+    issued_students_by_type: { UNEXCUSED_FULL_DAY_ABSENCE: 3, MORNING_LATE_OCCURRENCES: 1 },
+    issued_in_range: {
+      total: 5,
+      level_1: 3,
+      level_2: 2,
+      level_3: 0,
+      by_type: { UNEXCUSED_FULL_DAY_ABSENCE: 4, MORNING_LATE_OCCURRENCES: 1 },
+    },
+  },
+  actions: { total: 9, by_type: { GUARDIAN_CALL: 6, GUARDIAN_SUMMON: 3 } },
+  documents: { ready: 6, pending: 1, failed: 0, by_type: { WARNING_NOTICE: 6 } },
+  referrals: {
+    created_in_range: { total: 4, new: 2, acknowledged: 1, closed: 1, cancelled: 0 },
+    by_category: { ATTENDANCE: 3, ACADEMIC: 1 },
+    by_source: { TEACHER: 3, VICE_PRINCIPAL: 1 },
+    open_now: 3,
+    unassigned_now: 1,
+  },
+  counseling: {
+    available: false,
+    reason: "COUNSELING_MODULE_NOT_INSTALLED",
+    open_cases: null,
+    waiting_teacher_responses: null,
+    overdue_activities: null,
+  },
+};
+
+const TREND = {
+  unit: "STUDENT_DAYS",
+  granularity: "DAY",
+  context: { range: OVERVIEW.context.range, scope: OVERVIEW.context.scope },
+  points: [
+    {
+      date: "2026-08-17",
+      full_absence: 10,
+      partial_absence: 4,
+      unexcused_full_absence: 7,
+      undetermined: 6,
+      morning_late: 9,
+    },
+    {
+      date: "2026-08-18",
+      full_absence: 12,
+      partial_absence: 5,
+      unexcused_full_absence: 8,
+      undetermined: 6,
+      morning_late: 8,
+    },
+    {
+      date: "2026-08-19",
+      full_absence: 8,
+      partial_absence: 3,
+      unexcused_full_absence: 6,
+      undetermined: 6,
+      morning_late: 8,
+    },
+  ],
+};
+
+const SECTIONS = {
+  unit: "STUDENT_DAYS",
+  context: { range: OVERVIEW.context.range, scope: OVERVIEW.context.scope },
+  sections: [
+    {
+      section_id: 3,
+      section_name: "2",
+      grade_name: "الأول الثانوي",
+      students: 28,
+      student_days: 140,
+      full_absence_days: 18,
+      partial_absence_days: 7,
+      unexcused_full_absence_days: 13,
+      period_late_occurrences: 6,
+      morning_late_occurrences: 11,
+    },
+  ],
+};
+
+const ATTENTION = {
+  total: 2,
+  item_cap_per_kind: 10,
+  counts: {
+    attendance_overdue: 1,
+    warning_due: 1,
+    excuse_pending: 0,
+    referral_unassigned: 0,
+    counseling: 0,
+  },
+  items: [
+    {
+      kind: "ATTENDANCE_OVERDUE",
+      entity_type: "SECTION",
+      entity_id: 3,
+      reason_code: "SECTION_NOT_SUBMITTED",
+      display_text: "الأول الثانوي / 2 — متأخر 14 دقيقة",
+      priority: "HIGH",
+      target_url: "/attendance/monitoring",
+      occurred_at: null,
+    },
+    {
+      kind: "WARNING_DUE",
+      entity_type: "STUDENT",
+      entity_id: 5,
+      reason_code: "WARNING_THRESHOLD_REACHED",
+      display_text: "محمد أحمد — بلغ عتبة LEVEL_1 (5)",
+      priority: "HIGH",
+      target_url: "/warnings",
+      occurred_at: null,
+    },
+  ],
+};
+
+function mockDashboard(overrides: Record<string, unknown> = {}) {
+  return mockApi({
+    "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
+    "/attendance/sections/": {
+      body: [
+        { id: 3, name: "2", grade_id: 1, grade_name: "الأول الثانوي", students_count: 28 },
+        { id: 4, name: "1", grade_id: 2, grade_name: "الثاني الثانوي", students_count: 25 },
+      ],
+    },
+    "/dashboard/overview/": { body: OVERVIEW },
+    "/dashboard/attendance-trend/": { body: TREND },
+    "/dashboard/sections/": { body: SECTIONS },
+    "/dashboard/attention/": { body: ATTENTION },
+    ...overrides,
+  });
+}
+
+describe("لوحة إدارة المدرسة", () => {
+  beforeEach(() => {
+    queryClient.clear();
+  });
+
+  it("تعرض المؤشرات بوحدتها والمقارنة كما حسبها الخادم", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    expect(await screen.findByTestId("kpi-unexcused-full")).toHaveTextContent("21");
+    expect(screen.getByTestId("kpi-excused-full")).toHaveTextContent("8");
+    expect(screen.getByTestId("kpi-undetermined")).toHaveTextContent("18");
+    expect(screen.getByTestId("unit-note")).toHaveTextContent("أيام-طالب");
+
+    // المؤشران الصباحي والحصصي منفصلان — رقمان مختلفان لا مجموع واحد
+    expect(screen.getByTestId("kpi-morning-late")).toHaveTextContent("25");
+    expect(screen.getByTestId("kpi-period-late")).toHaveTextContent("14");
+
+    expect(
+      within(screen.getByTestId("kpi-unexcused-full")).getByTestId("comparison-pct"),
+    ).toHaveTextContent("50%");
+  });
+
+  it("أساس صفري يظهر «جديد» لا نسبة لا نهائية", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const partial = await screen.findByTestId("kpi-partial");
+    expect(within(partial).getByTestId("comparison-new")).toHaveTextContent("جديد");
+    expect(within(partial).queryByTestId("comparison-pct")).toBeNull();
+  });
+
+  it("تعلن الفترة المقارَن بها صراحةً بطولها", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const range = await screen.findByTestId("dashboard-range");
+    expect(range).toHaveTextContent("2026-08-13");
+    expect(range).toHaveTextContent("2026-08-06");
+    expect(range).toHaveTextContent("7 يومًا");
+  });
+
+  it("تحذر من نقص البيانات حين يكون النقص جوهريًا", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+    await screen.findByTestId("kpi-unexcused-full");
+    expect(screen.queryByTestId("completeness-warning")).toBeNull();
+
+    queryClient.clear();
+    mockDashboard({
+      "/dashboard/overview/": {
+        body: {
+          ...OVERVIEW,
+          attendance: {
+            ...OVERVIEW.attendance,
+            completeness: {
+              complete_student_days: 200,
+              incomplete_student_days: 200,
+              incomplete_pct: 50,
+              is_significant: true,
+            },
+          },
+        },
+      },
+    });
+    renderApp("/dashboard");
+    expect(await screen.findByTestId("completeness-warning")).toHaveTextContent("50%");
+  });
+
+  it("تفصل «المستحق» عن «الصادر» ولا تجمعهما", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const card = await screen.findByTestId("card-warnings");
+    expect(within(card).getByTestId("warnings-issued")).toHaveTextContent("5");
+    expect(within(card).getByTestId("warnings-due")).toHaveTextContent("6");
+    expect(card).toHaveTextContent("لحظية");
+    expect(card).toHaveTextContent("لا إصدار تلقائي");
+  });
+
+  it("تعلن غياب وحدة الإرشاد بدل رقم بديل", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+    expect(await screen.findByTestId("counseling-unavailable")).toHaveTextContent(
+      "غير مفعّلة",
+    );
+  });
+
+  it("تعرض الإحالات كأعداد بلا أي نص وصف", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const card = await screen.findByTestId("card-referrals");
+    expect(within(card).getByTestId("referrals-created")).toHaveTextContent("4");
+    expect(within(card).getByTestId("referrals-open")).toHaveTextContent("3");
+    expect(card).toHaveTextContent("لا تُعرض في لوحة الإدارة");
+  });
+
+  it("تعرض طابور المتابعة بروابط الانتقال وبلا حكم على الطالب", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const section = await screen.findByTestId("attention-section");
+    expect(section).toHaveTextContent("ليست تصنيفًا للطلاب");
+    expect(screen.getByTestId("attention-count-attendance_overdue")).toHaveTextContent("1");
+    const row = screen.getByTestId("attention-item-ATTENDANCE_OVERDUE-3");
+    expect(within(row).getByRole("link")).toHaveAttribute("href", "/attendance/monitoring");
+  });
+
+  it("ترسم الاتجاه بنقطة لكل يوم مع جدول مكافئ", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const chart = await screen.findByTestId("trend-chart");
+    expect(chart).toHaveAttribute("data-points", "3");
+    expect(chart).toHaveAttribute("data-granularity", "DAY");
+    const table = screen.getByTestId("trend-table");
+    expect(within(table).getByText("2026-08-18")).toBeInTheDocument();
+  });
+
+  it("تخفي سلسلة عند إطفائها من المفتاح", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+    await screen.findByTestId("trend-chart");
+
+    expect(screen.getByTestId("trend-series-morning_late")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("trend-toggle-morning_late"));
+    expect(screen.queryByTestId("trend-series-morning_late")).toBeNull();
+  });
+
+  it("تنبّه إلى التجميع الأسبوعي في الفترات الطويلة", async () => {
+    mockDashboard({
+      "/dashboard/attendance-trend/": { body: { ...TREND, granularity: "WEEK" } },
+    });
+    renderApp("/dashboard");
+    expect(await screen.findByTestId("trend-aggregated")).toHaveTextContent("أسبوعيًا");
+  });
+
+  it("تمرر فلاتر الفترة والفصل إلى الخادم ولا تحسبها محليًا", async () => {
+    const { calls } = mockDashboard();
+    renderApp("/dashboard");
+    await screen.findByTestId("kpi-unexcused-full");
+
+    await userEvent.selectOptions(screen.getByTestId("dashboard-preset"), "THIS_MONTH");
+    await userEvent.selectOptions(screen.getByTestId("dashboard-section"), "3");
+
+    const overviewCalls = calls.filter((c) => c.url.includes("/dashboard/overview/"));
+    const last = overviewCalls[overviewCalls.length - 1]?.url ?? "";
+    expect(last).toContain("preset=THIS_MONTH");
+    expect(last).toContain("section=3");
+  });
+
+  it("اختيار صف يصفّر الفصل حتى لا يُرسل فصل من صف آخر", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+    await screen.findByTestId("kpi-unexcused-full");
+
+    await userEvent.selectOptions(screen.getByTestId("dashboard-section"), "3");
+    expect(screen.getByTestId("dashboard-section")).toHaveValue("3");
+
+    await userEvent.selectOptions(screen.getByTestId("dashboard-grade"), "2");
+    expect(screen.getByTestId("dashboard-section")).toHaveValue("");
+    // وقائمة الفصول تنحصر في الصف المختار
+    expect(within(screen.getByTestId("dashboard-section")).queryByText(/الأول الثانوي/)).toBeNull();
+  });
+
+  it("تعرض جدول الفصول بترتيب وصفي مع تنويه عدم عدالة المقارنة المباشرة", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const table = await screen.findByTestId("sections-table");
+    expect(within(table).getByTestId("section-row-3")).toHaveTextContent("13");
+    expect(screen.getByText(/لا يقيس أداء معلم/)).toBeInTheDocument();
+  });
+
+  it("تُظهر خطأ الخادم بدل أرقام فارغة", async () => {
+    mockDashboard({
+      "/dashboard/overview/": {
+        status: 400,
+        body: {
+          code: "DASHBOARD_INVALID_DATE_RANGE",
+          message: "تاريخ البداية بعد تاريخ النهاية.",
+          details: {},
+        },
+      },
+    });
+    renderApp("/dashboard");
+    expect(await screen.findByText("تاريخ البداية بعد تاريخ النهاية.")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-kpis")).toBeNull();
+  });
+
+  it("لا حصة جارية: حالة مفهومة لا خطأ", async () => {
+    mockDashboard({
+      "/dashboard/overview/": {
+        body: {
+          ...OVERVIEW,
+          today_operations: {
+            ...OVERVIEW.today_operations,
+            period: null,
+            summary: null,
+            submission_completion_pct: null,
+            has_active_period: false,
+          },
+        },
+      },
+    });
+    renderApp("/dashboard");
+    expect(await screen.findByTestId("no-active-period")).toHaveTextContent("لا توجد حصة جارية");
+  });
+
+  it("رابط اللوحة يظهر للمدير ويختفي عن المعلم والمرشد", async () => {
+    mockDashboard();
+    renderApp("/");
+    expect(await screen.findByRole("link", { name: "لوحة الإدارة" })).toBeInTheDocument();
+
+    for (const role of ["TEACHER", "COUNSELOR"]) {
+      queryClient.clear();
+      mockDashboard({ "/auth/me/": { body: roleMe([role]) } });
+      const view = renderApp("/");
+      await screen.findByTestId("active-school-name");
+      expect(within(view.container).queryByRole("link", { name: "لوحة الإدارة" })).toBeNull();
+      view.unmount();
+    }
+  });
+});

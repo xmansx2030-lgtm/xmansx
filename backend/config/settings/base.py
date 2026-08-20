@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "student_actions",
     "documents",
     "referrals",
+    "school_dashboard",
     "audit",
     "django.contrib.admin",
     "django.contrib.auth",
