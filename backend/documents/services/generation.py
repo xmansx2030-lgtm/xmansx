@@ -11,9 +11,11 @@
 """
 
 import hashlib
+from functools import wraps
 
+from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.template.loader import render_to_string
 from django.utils import timezone as dj_timezone
 
@@ -31,9 +33,44 @@ from documents.pdf import MIME_PDF, PdfEngineUnavailable, render_pdf
 from documents.services import snapshots as snapshot_service
 from documents.templates_registry import template_for, template_of
 from student_warnings.models import StudentWarning, WarningStatus
-from subscriptions.entitlements import require_storage_capacity
+from subscriptions.entitlements import lock_school_capacity, require_storage_capacity
 
 DOCUMENT_NOT_FOUND = ApiError("DOCUMENT_NOT_FOUND", "المستند غير موجود.", status_code=404)
+PDF_RENDER_LOCK_NAMESPACE = 1_901_202_600
+
+
+def _with_render_slot(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        if connection.vendor != "postgresql":
+            return func(*args, **kwargs)
+
+        slot = None
+        with connection.cursor() as cursor:
+            for candidate in range(settings.PDF_RENDER_CONCURRENCY):
+                cursor.execute(
+                    "SELECT pg_try_advisory_lock(%s)",
+                    [PDF_RENDER_LOCK_NAMESPACE + candidate],
+                )
+                if cursor.fetchone()[0]:
+                    slot = candidate
+                    break
+        if slot is None:
+            raise ApiError(
+                "PDF_GENERATION_BUSY",
+                "خدمة إنشاء المستندات مشغولة حالياً، حاول مرة أخرى بعد قليل.",
+                status_code=429,
+            )
+        try:
+            return func(*args, **kwargs)
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_unlock(%s)",
+                    [PDF_RENDER_LOCK_NAMESPACE + slot],
+                )
+
+    return wrapped
 
 
 def _render(*, template, snapshot: dict) -> bytes:
@@ -103,6 +140,7 @@ def resolve_warning(*, school, student, warning_id) -> StudentWarning:
     return warning
 
 
+@_with_render_slot
 def generate_document(
     *,
     school,
@@ -204,7 +242,22 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
         )
 
     try:
-        require_storage_capacity(document.school, adding_bytes=len(pdf_bytes))
+        with transaction.atomic():
+            lock_school_capacity(document.school)
+            require_storage_capacity(document.school, adding_bytes=len(pdf_bytes))
+            document.file.save(f"{document.id}.pdf", ContentFile(pdf_bytes), save=False)
+            document.mime_type = MIME_PDF
+            document.size_bytes = len(pdf_bytes)
+            document.checksum = hashlib.sha256(pdf_bytes).hexdigest()
+            document.status = DocumentStatus.READY
+            document.error_code = ""
+            document.generated_at = dj_timezone.now()
+            document.save(
+                update_fields=[
+                    "file", "mime_type", "size_bytes", "checksum",
+                    "status", "error_code", "generated_at", "updated_at",
+                ]
+            )
     except ApiError as exc:
         _mark_failed(
             document=document,
@@ -214,19 +267,6 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
             request=request,
         )
         raise
-    document.file.save(f"{document.id}.pdf", ContentFile(pdf_bytes), save=False)
-    document.mime_type = MIME_PDF
-    document.size_bytes = len(pdf_bytes)
-    document.checksum = hashlib.sha256(pdf_bytes).hexdigest()
-    document.status = DocumentStatus.READY
-    document.error_code = ""
-    document.generated_at = dj_timezone.now()
-    document.save(
-        update_fields=[
-            "file", "mime_type", "size_bytes", "checksum",
-            "status", "error_code", "generated_at", "updated_at",
-        ]
-    )
     record_event(
         AuditAction.DOCUMENT_GENERATED,
         request=request,
@@ -263,6 +303,7 @@ def _mark_failed(*, document, membership, error_code: str, detail: str, request=
     return document
 
 
+@_with_render_slot
 def retry_document(*, school, membership, document, request=None) -> GeneratedDocument:
     """إعادة توليد من اللقطة المخزنة — لا قراءة لأي بيانات حالية (البند 67)."""
     if document.school_id != school.id:

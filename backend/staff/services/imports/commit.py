@@ -106,11 +106,12 @@ def _commit_locked(*, job_id: int, actor, request=None):
         1 for row in result["rows"] if row["status"] in {"NEW", "EXISTING_USER_INVITE"}
     )
     if added_memberships:
-        from subscriptions.entitlements import require_capacity
+        from subscriptions.entitlements import lock_school_capacity, require_capacity
         from subscriptions.models import EntitlementKey
         from subscriptions.usage import count_active_staff
 
         try:
+            lock_school_capacity(job.school)
             require_capacity(
                 job.school,
                 EntitlementKey.MAX_STAFF,

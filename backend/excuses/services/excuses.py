@@ -22,7 +22,7 @@ from excuses.models import (
 )
 from excuses.services.coverage import _raise_not_pending
 from excuses.validators import validate_excuse_attachment
-from subscriptions.entitlements import require_storage_capacity
+from subscriptions.entitlements import lock_school_capacity, require_storage_capacity
 
 MAX_TARGETS_PER_EXCUSE = 60
 MAX_ATTACHMENTS_PER_EXCUSE = 5
@@ -193,14 +193,14 @@ def add_attachment(
             "VALIDATION_ERROR", "لا يمكن إضافة مرفق لعذر مرفوض أو ملغى.", status_code=409
         )
     mime_type = validate_excuse_attachment(uploaded_file)
-    require_storage_capacity(school, adding_bytes=uploaded_file.size)
-
     digest = hashlib.sha256()
     for chunk in uploaded_file.chunks():
         digest.update(chunk)
     uploaded_file.seek(0)
 
     with transaction.atomic():
+        lock_school_capacity(school)
+        require_storage_capacity(school, adding_bytes=uploaded_file.size)
         # قفل العذر: رفعان متزامنان كانا يقرآن العدد نفسه فيتجاوزان الحد معًا
         locked = AbsenceExcuse.objects.select_for_update().get(id=excuse.id)
         if locked.attachments.count() >= MAX_ATTACHMENTS_PER_EXCUSE:

@@ -3,6 +3,7 @@
 واجهات الجسر بمصادقة رمز مستقلة (لا جلسة/CSRF) — هوية المدرسة من الرمز حصرًا.
 """
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from drf_spectacular.utils import extend_schema
@@ -212,15 +213,19 @@ class DevicesView(SchoolScopedAPIView):
     def post(self, request: Request) -> Response:
         serializer = DeviceCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # الأجهزة القائمة فوق الحد لا تُحذف — الإضافة وحدها تُمنع (بند 70)
-        require_capacity(
-            request.school,
-            EntitlementKey.MAX_DEVICES,
-            current=count_active_devices(request.school),
-        )
-        device = AttendanceDevice(school=request.school)
-        _apply_device_fields(device, serializer.validated_data)
-        device.save()
+        # قفل tenant قصير يجعل count + insert قرارًا ذريًا تحت الطلبات المتزامنة.
+        from subscriptions.entitlements import lock_school_capacity
+
+        with transaction.atomic():
+            lock_school_capacity(request.school)
+            require_capacity(
+                request.school,
+                EntitlementKey.MAX_DEVICES,
+                current=count_active_devices(request.school),
+            )
+            device = AttendanceDevice(school=request.school)
+            _apply_device_fields(device, serializer.validated_data)
+            device.save()
         record_event(
             AuditAction.DEVICE_CREATED,
             request=request, actor=request.user, school=request.school,
@@ -243,14 +248,18 @@ class DeviceDetailView(SchoolScopedAPIView):
         will_activate = (
             not was_active and bool(serializer.validated_data.get("is_active", False))
         )
-        if will_activate:
-            require_capacity(
-                request.school,
-                EntitlementKey.MAX_DEVICES,
-                current=count_active_devices(request.school),
-            )
-        _apply_device_fields(device, serializer.validated_data)
-        device.save()
+        from subscriptions.entitlements import lock_school_capacity
+
+        with transaction.atomic():
+            if will_activate:
+                lock_school_capacity(request.school)
+                require_capacity(
+                    request.school,
+                    EntitlementKey.MAX_DEVICES,
+                    current=count_active_devices(request.school),
+                )
+            _apply_device_fields(device, serializer.validated_data)
+            device.save()
         action = (
             AuditAction.DEVICE_DISABLED
             if was_active and not device.is_active

@@ -10,43 +10,56 @@
 <style>
   @page {
     size: A4;
-    margin: 18mm 15mm 20mm 15mm;
+    margin: 17mm 15mm 20mm 15mm;
     @bottom-center {
       content: "صفحة " counter(page) " من " counter(pages);
       font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
       font-size: 9pt;
-      color: #555;
+      color: #667572;
     }
   }
   * { box-sizing: border-box; }
+  :root { --ink: #102420; --muted: #586966; --line: #ccd8d5; --brand: #0f766e; --brand-dark: #134e4a; --tint: #eef8f5; --gold: #b7791f; }
   body {
     font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
     font-size: 11pt;
     line-height: 1.7;
-    color: #111;
+    color: var(--ink);
     margin: 0;
   }
-  .school-header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6mm; }
-  .school-header .name { font-size: 15pt; font-weight: bold; }
-  .school-header .meta { font-size: 9.5pt; color: #444; }
-  h1 { font-size: 14pt; text-align: center; margin: 8mm 0 6mm; }
-  .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
-  .info-grid td { border: 1px solid #999; padding: 2mm 3mm; font-size: 10.5pt; }
-  .info-grid td.label { background: #f2f2f2; width: 22%; font-weight: bold; }
+  .school-header {
+    position: relative;
+    text-align: right;
+    border-bottom: 1px solid var(--line);
+    border-top: 3px solid var(--brand);
+    padding: 5mm 4mm 4mm;
+    background: linear-gradient(to left, var(--tint), #fff 62%);
+  }
+  .school-header::after { content: ""; position: absolute; left: 4mm; top: 5mm; width: 9mm; height: 9mm; border: 2px solid var(--brand); border-radius: 50%; }
+  .school-header .name { font-size: 16pt; font-weight: bold; color: var(--brand-dark); }
+  .school-header .meta { margin-top: 1mm; font-size: 9.5pt; color: var(--muted); }
+  h1 { font-size: 15pt; text-align: center; color: var(--brand-dark); margin: 7mm 0 6mm; padding-bottom: 2.5mm; border-bottom: 1px solid var(--line); }
+  .info-grid { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 6mm; border: 1px solid var(--line); border-radius: 2mm; overflow: hidden; }
+  .info-grid td { border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 2.3mm 3mm; font-size: 10.5pt; }
+  .info-grid tr:last-child td { border-bottom: 0; }
+  .info-grid td:last-child { border-left: 0; }
+  .info-grid td.label { background: var(--tint); color: var(--brand-dark); width: 22%; font-weight: bold; }
   table.rows { width: 100%; border-collapse: collapse; font-size: 10pt; }
-  table.rows th, table.rows td { border: 1px solid #777; padding: 1.8mm; text-align: center; }
-  table.rows th { background: #ececec; }
+  table.rows th, table.rows td { border: 1px solid var(--line); padding: 2mm; text-align: center; }
+  table.rows th { background: var(--brand-dark); color: #fff; font-weight: bold; }
+  table.rows tbody tr:nth-child(even) { background: #f7faf9; }
   /* تكرار رؤوس الأعمدة على كل صفحة وعدم قطع الصفوف (البندان 52-53) */
   table.rows thead { display: table-header-group; }
   table.rows tfoot { display: table-footer-group; }
   table.rows tr { page-break-inside: avoid; }
-  .totals { margin-top: 5mm; font-size: 10.5pt; }
+  .totals { margin-top: 5mm; padding: 3mm; border-right: 3px solid var(--brand); background: var(--tint); font-size: 10.5pt; }
   .totals span { display: inline-block; margin-left: 8mm; }
-  .note { font-size: 9.5pt; color: #444; margin-top: 4mm; }
+  .note { font-size: 9.5pt; color: var(--muted); margin-top: 4mm; padding: 2.5mm 3mm; border-right: 2px solid var(--gold); background: #fffbeb; }
   .signatures { margin-top: 14mm; width: 100%; page-break-inside: avoid; }
-  .signatures td { width: 33%; text-align: center; padding-top: 12mm; font-size: 10.5pt; }
-  .signatures .line { border-top: 1px dotted #333; padding-top: 2mm; }
-  .body-text { text-align: justify; }
+  .signatures td { width: 33%; text-align: center; padding: 12mm 3mm 0; font-size: 10.5pt; color: var(--muted); }
+  .signatures .line { border-top: 1px dashed #80908d; padding-top: 2.5mm; }
+  .body-text { text-align: justify; line-height: 1.95; }
+  strong { color: var(--brand-dark); }
 </style>
 </head>
 <body>

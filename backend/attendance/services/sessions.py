@@ -87,6 +87,20 @@ def start_session(
             status_code=409,
         )
 
+    # Reopening an existing session is the common polling/navigation path. Avoid using a
+    # failed INSERT as control flow; the unique constraint remains the concurrency authority.
+    existing = AttendanceSession.objects.select_related(
+        "submitted_by_membership__user"
+    ).filter(
+        school=school,
+        section=section,
+        attendance_date=local_date,
+        period_sequence=period.sequence,
+    ).first()
+    if existing is not None:
+        roster = get_roster(school=school, section=section, academic_year=year)
+        return existing, roster, True
+
     # سياق اليوم يتجمد عند أول نشاط حضور (م8) — مرجع expected_periods التاريخي
     from attendance.services.day_context import get_or_create_attendance_day_context
 

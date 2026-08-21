@@ -131,11 +131,12 @@ def _commit_locked(
     # حد الباقة يُفحص عند الاعتماد لا عند المعاينة — المعاينة تُظهر التجاوز (بند 64)
     new_students = sum(1 for r in apply_rows if r["status"] == ImportRowStatus.NEW)
     if new_students:
-        from subscriptions.entitlements import require_capacity
+        from subscriptions.entitlements import lock_school_capacity, require_capacity
         from subscriptions.models import EntitlementKey
         from subscriptions.usage import count_active_students
 
         try:
+            lock_school_capacity(job.school)
             require_capacity(
                 job.school,
                 EntitlementKey.MAX_STUDENTS,

@@ -9,11 +9,12 @@
 import hashlib
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 
 from common.errors import ApiError
 
 RATE_LIMITED_MESSAGE = "عدد المحاولات تجاوز الحد المسموح، حاول بعد قليل."
+cache = caches["security"]
 
 
 def _mobile_key(mobile: str) -> str:

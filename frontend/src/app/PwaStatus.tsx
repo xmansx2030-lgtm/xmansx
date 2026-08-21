@@ -26,7 +26,7 @@ export function PwaStatus() {
       {!online && (
         <div
           role="status"
-          className="pointer-events-auto flex w-full max-w-lg items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 shadow-lg"
+          className="flex w-full max-w-lg items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 shadow-lg"
         >
           <WifiOff aria-hidden size={18} className="shrink-0" />
           <span>تعذر الاتصال. لن تُعتمد أي عملية حتى يعود الاتصال.</span>
@@ -36,13 +36,13 @@ export function PwaStatus() {
       {needRefresh && (
         <div
           role="status"
-          className="pointer-events-auto flex w-full max-w-lg flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-lg"
+          className="flex w-full max-w-lg flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-lg"
         >
           <RefreshCw aria-hidden size={18} className="shrink-0 text-blue-700" />
           <span className="min-w-0 flex-1">يتوفر تحديث جديد للمنصة.</span>
           <button
             type="button"
-            className="font-bold text-blue-700 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="pointer-events-auto font-bold text-blue-700 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-offset-2"
             onClick={() => void updateServiceWorker(true)}
           >
             تحديث الآن
@@ -51,7 +51,7 @@ export function PwaStatus() {
             type="button"
             aria-label="تأجيل التحديث"
             title="تأجيل التحديث"
-            className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="pointer-events-auto grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2"
             onClick={() => setNeedRefresh(false)}
           >
             <X aria-hidden size={18} />
@@ -62,14 +62,14 @@ export function PwaStatus() {
       {offlineReady && !needRefresh && (
         <div
           role="status"
-          className="pointer-events-auto flex w-full max-w-lg items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 shadow-lg"
+          className="flex w-full max-w-lg items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 shadow-lg"
         >
           <span className="min-w-0 flex-1">أصبحت واجهة المنصة جاهزة عند انقطاع الاتصال.</span>
           <button
             type="button"
             aria-label="إغلاق التنبيه"
             title="إغلاق التنبيه"
-            className="grid size-9 place-items-center rounded-lg hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="pointer-events-auto grid size-9 place-items-center rounded-lg hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2"
             onClick={() => setOfflineReady(false)}
           >
             <X aria-hidden size={18} />

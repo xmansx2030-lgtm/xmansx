@@ -153,3 +153,15 @@ def require_storage_capacity(school, *, adding_bytes: int) -> None:
             "requested_bytes": adding_bytes,
         },
     )
+
+
+def lock_school_capacity(school) -> None:
+    """Serialize strict capacity checks for one tenant inside the caller's transaction."""
+    from django.db import connection
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("lock_school_capacity requires an active transaction")
+
+    from schools.models import School
+
+    School.objects.select_for_update().only("id").get(id=school.id)

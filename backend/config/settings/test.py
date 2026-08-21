@@ -17,7 +17,12 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
         "KEY_PREFIX": "xmansx-test",
-    }
+    },
+    "security": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
+        "KEY_PREFIX": "xmansx-security-test",
+    },
 }
 
 # مهام Celery تنفذ متزامنة داخل الاختبارات

@@ -144,16 +144,24 @@ SENTRY_TRACES_SAMPLE_RATE = env_float("SENTRY_TRACES_SAMPLE_RATE", 0.0)
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "BACKEND": "common.cache.ResilientRedisCache",
         "LOCATION": REDIS_URL,
         "KEY_PREFIX": "xmansx",
-    }
+    },
+    "security": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "KEY_PREFIX": "xmansx-security",
+    },
 }
 
 # ---- Login rate limiting: (الحد الأقصى، النافذة بالثواني) ----
 # قابلة للضبط بالبيئة: التطوير/E2E يرفعها — الإنتاج يبقى على الافتراضي الصارم
 LOGIN_RATE_LIMIT_IP = (env_int("LOGIN_RATE_LIMIT_IP_MAX", 20), 300)
 LOGIN_RATE_LIMIT_MOBILE = (env_int("LOGIN_RATE_LIMIT_MOBILE_MAX", 5), 300)
+
+# Keep synchronous PDF rendering from occupying every web worker under bursts.
+PDF_RENDER_CONCURRENCY = env_int("PDF_RENDER_CONCURRENCY", 4)
 
 # ---- تشفير المعرفات الحساسة (ADR-009) ----
 # مفاتيح تطوير فقط — production.py يفرضها من البيئة ويفشل بدونها
