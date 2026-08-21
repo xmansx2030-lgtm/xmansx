@@ -45,6 +45,8 @@ frontend/coverage/
 playwright-report/
 test-results/
 blob-report/
+phase19-results/
+phase19-data.json
 
 # ---- IDEs / OS ----
 .idea/

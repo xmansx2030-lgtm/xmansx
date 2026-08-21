@@ -94,6 +94,7 @@ class Command(BaseCommand):
 
             for size in options["sizes"]:
                 subset_ids = [s.id for s in students[:size]]
+                connection.queries_log.clear()
 
                 def timed(label, fn, count=size):
                     durations = []

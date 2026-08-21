@@ -122,6 +122,7 @@ class Command(BaseCommand):
                     built_students += count
                     section_index += 1
 
+                connection.queries_log.clear()
                 self._measure(
                     school, day, size, sections,
                     get_multi_period_report, get_daily_report,

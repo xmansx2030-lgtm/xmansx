@@ -72,6 +72,7 @@ class Command(BaseCommand):
                     for i, row in enumerate(desired) if i % 2 == 0
                 ]
 
+                connection.queries_log.clear()
                 durations = []
                 for _ in range(RUNS):
                     with CaptureQueriesContext(connection) as ctx:

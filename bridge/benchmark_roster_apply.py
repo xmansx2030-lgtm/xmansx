@@ -1,4 +1,4 @@
-"""قياس تنفيذ أوامر القائمة على موصل المحاكاة (جانب الجسر) — 100/500/1000 أمر.
+"""قياس تنفيذ أوامر القائمة على موصل المحاكاة — 100/500/1000 أمر.
 
 التشغيل: ‏python benchmark_roster_apply.py (من مجلد bridge، بأي Python 3.12+).
 """
@@ -39,7 +39,8 @@ def run(sizes=(100, 500, 1000)) -> None:
             print(
                 f"commands={size:5d} | create={create_ms:8.1f}ms | "
                 f"update={update_ms:8.1f}ms | delete={delete_ms:8.1f}ms | "
-                f"median-op={statistics.median(durations) / size:6.3f}ms/cmd"
+                f"median-op={statistics.median(durations) / size:6.3f}ms/cmd",
+                flush=True,
             )
 
 

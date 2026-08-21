@@ -87,13 +87,21 @@ class Command(BaseCommand):
 
 def _cleanup(school: School, user: User) -> None:
     from academics.models import AcademicYear, BellSchedule, SchoolWeekDay
-    from attendance.models import AttendanceChange, AttendanceMark, AttendanceSession
+    from attendance.models import (
+        AttendanceChange,
+        AttendanceDayContext,
+        AttendanceMark,
+        AttendanceSession,
+        DailyAttendanceSummary,
+    )
     from audit.models import AuditLog
     from students.models import Grade, Section, Student, StudentEnrollment
 
     AttendanceChange.objects.filter(school=school).delete()
     AttendanceMark.objects.filter(school=school).delete()
     AttendanceSession.objects.filter(school=school).delete()
+    DailyAttendanceSummary.objects.filter(school=school).delete()
+    AttendanceDayContext.objects.filter(school=school).delete()
     StudentEnrollment.objects.filter(school=school).delete()
     Student.objects.filter(school=school).delete()
     SchoolWeekDay.objects.filter(school=school).delete()

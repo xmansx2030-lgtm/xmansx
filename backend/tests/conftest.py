@@ -11,9 +11,10 @@ PASSWORD = "Str0ng-Pass-2026"
 def _isolated_cache():
     """عدادات rate limit تعيش في Redis (db الاختبارات) — تنظف قبل كل اختبار
     حتى لا تتراكم محاولات الدخول من نفس IP عبر الاختبارات."""
-    from django.core.cache import cache
+    from django.core.cache import cache, caches
 
     cache.clear()
+    caches["security"].clear()
     yield
 
 

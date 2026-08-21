@@ -43,7 +43,7 @@ class Command(BaseCommand):
             get_student_late_history,
         )
         from devices.services.bridge import create_bridge
-        from devices.services.ingest import ingest_batch
+        from devices.services.ingest import MAX_BATCH_SIZE, ingest_batch
         from students.models import Grade, Section
         from tests.attendance_helpers import make_students
 
@@ -104,14 +104,28 @@ class Command(BaseCommand):
             for size in options["batches"]:
                 events = make_events(offset, size)
                 t0 = time_module.perf_counter()
-                results = ingest_batch(bridge=bridge, events=events)
+                results = []
+                for chunk_start in range(0, size, MAX_BATCH_SIZE):
+                    results.extend(
+                        ingest_batch(
+                            bridge=bridge,
+                            events=events[chunk_start : chunk_start + MAX_BATCH_SIZE],
+                        )
+                    )
                 ingest_ms = (time_module.perf_counter() - t0) * 1000
                 accepted = sum(1 for r in results if r["result"] == "accepted")
                 if accepted != size:
                     raise CommandError(f"قبول ناقص: {accepted} != {size}")
                 # نفس الدفعة ثانية — كلها duplicates (قياس dedupe)
                 t0 = time_module.perf_counter()
-                dupes = ingest_batch(bridge=bridge, events=events)
+                dupes = []
+                for chunk_start in range(0, size, MAX_BATCH_SIZE):
+                    dupes.extend(
+                        ingest_batch(
+                            bridge=bridge,
+                            events=events[chunk_start : chunk_start + MAX_BATCH_SIZE],
+                        )
+                    )
                 dedupe_ms = (time_module.perf_counter() - t0) * 1000
                 if not all(r["result"] == "duplicate" for r in dupes):
                     raise CommandError("dedupe لم يعمل")

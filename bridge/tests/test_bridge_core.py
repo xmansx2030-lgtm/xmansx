@@ -141,6 +141,45 @@ def test_offline_then_online_delivers_exactly_once(tmp_path):
     assert online.flush() == {"sent": 0, "duplicate": 0, "invalid": 0, "unmatched": 0, "retry": 0}
 
 
+def test_ack_loss_replay_is_acknowledged_as_duplicate(tmp_path):
+    queue = DurableQueue(tmp_path / "q.sqlite3")
+    queue.enqueue(make_event(1))
+
+    # The server may commit before the response is lost. The local row must remain replayable.
+    offline = BridgeEngine(
+        client=make_client([RetryableError("response lost after commit")] * 10, []),
+        queue=queue,
+    )
+    assert offline.flush()["retry"] == 1
+    assert queue.counts() == {"FAILED_RETRYABLE": 1}
+
+    replay = BridgeEngine(
+        client=make_client([{"results": [{"result": "duplicate"}]}]),
+        queue=queue,
+    )
+    assert replay.flush()["duplicate"] == 1
+    assert queue.counts() == {"ACKNOWLEDGED": 1}
+
+
+def test_large_queue_survives_restart_and_drains_in_batches(tmp_path):
+    path = tmp_path / "large.sqlite3"
+    queue = DurableQueue(path)
+    for n in range(5000):
+        assert queue.enqueue(make_event(n)) is True
+    queue.close()
+
+    reopened = DurableQueue(path)
+    batch_size = 500
+    client = make_client(
+        [{"results": [{"result": "accepted"}] * batch_size} for _ in range(10)]
+    )
+    result = BridgeEngine(client=client, queue=reopened, batch_size=batch_size).flush()
+
+    assert result["sent"] == 5000
+    assert len(client.transport.calls) == 10
+    assert reopened.counts() == {"ACKNOWLEDGED": 5000}
+
+
 def test_flush_batches_by_size(tmp_path):
     queue = DurableQueue(tmp_path / "q.sqlite3")
     for n in range(5):
