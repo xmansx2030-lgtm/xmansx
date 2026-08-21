@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "executed_at": "2026-08-21",
+  "compose_project": "xmansx-phase18-final",
+  "backup": {
+    "format": "postgresql-custom",
+    "size_bytes": 380742,
+    "duration_ms": 6001,
+    "sha256": "3ddf2024cc3c544f0391f4ce6877e56e2fa49b1cd68843601ee49f104cf8bc78"
+  },
+  "restore": {
+    "target": "new-isolated-database",
+    "duration_ms": 17349,
+    "verification_duration_ms": 15948,
+    "measured_end_to_end_seconds": 88.2,
+    "application_started": true,
+    "manager_login_status": 200
+  },
+  "private_objects": {
+    "count": 2,
+    "size_bytes": 80,
+    "missing": 0,
+    "checksum_mismatch": 0,
+    "errors": 0
+  },
+  "api_smoke": {
+    "student": 200,
+    "attendance": 200,
+    "excuse": 200,
+    "warning": 200,
+    "document": 200,
+    "referral": 200,
+    "counselor_case": 200,
+    "subscription": 200,
+    "generated_document_checksum_match": true
+  },
+  "entity_counts": {
+    "students": 1,
+    "enrollments": 1,
+    "attendance": 1,
+    "excuses": 1,
+    "warnings": 1,
+    "documents": 1,
+    "referrals": 1,
+    "counselor_cases": 1,
+    "devices": 1
+  },
+  "preserved": {
+    "morning_arrival": true,
+    "subscription_entitlement_snapshots": 13,
+    "subscription_events": true,
+    "generated_document_sha256": "7109775991fd7545075db20e8c5dbc7cfe93a0f8f2721d2c87a0334ac410ff62"
+  },
+  "failure_guards": {
+    "corrupt_backup_rejected_before_restore": true,
+    "current_database_restore_refused": true,
+    "non_empty_target_restore_refused": true,
+    "remote_upload_failure_not_reported_as_success": true
+  }
+}

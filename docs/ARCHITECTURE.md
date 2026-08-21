@@ -31,6 +31,18 @@
 | Testing | pytest + pytest-django, Vitest + React Testing Library, Playwright |
 | Infra | Docker, Docker Compose, HTTPS, S3-compatible Storage, GitHub Actions, Sentry-ready logging |
 
+## Operational Reliability (Phase 18)
+
+The `operations` Django app owns safe health aggregation, low-cardinality process metrics,
+Celery heartbeat/failure visibility, `BackupRun` metadata, PostgreSQL backup/restore safeguards,
+retention, private-object integrity, and restore verification. It does not own school business
+workflows. PostgreSQL remains durable truth; Redis is disposable coordination/cache state, and
+private object storage is independently protected and checksum-verified.
+
+Production recovery uses a separate failure domain for encrypted backups. Application-local
+volumes are staging/drill locations only. See `OBSERVABILITY.md`, `BACKUP_POLICY.md`, and
+`DISASTER_RECOVERY.md`.
+
 ## 3. Modular Monolith — بنية الـ Backend
 
 مشروع Django واحد، قاعدة بيانات واحدة، تطبيقات (Apps) معزولة بحدود واضحة:

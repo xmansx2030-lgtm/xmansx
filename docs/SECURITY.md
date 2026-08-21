@@ -113,6 +113,20 @@
 
 - كل الأسرار في متغيرات بيئة؛ `.env.example` بلا قيم حقيقية؛ لا أسرار في Git أبدًا.
 - مفاتيح منفصلة: `SECRET_KEY`, `FIELD_ENCRYPTION_KEYS`, `NATIONAL_ID_HMAC_KEY`, بيانات DB/Redis/S3.
+
+## 11. Backup and Operational Security
+
+- Database backups and private-object copies are highly sensitive PII repositories. Buckets are
+  private, encrypted at rest, signed-access only, least-privilege, and outside the database host
+  failure domain. Backup names and manifests contain no school, student, credential, or secret.
+- `pg_dump`/`pg_restore` use fixed subprocess argument lists with `shell=False`; passwords are passed
+  through child-process environment only. Restore verifies checksum, rejects the active database,
+  requires an empty explicit target, and has confirmation/environment guards.
+- Sentry is optional and privacy-first: no request body, cookies, authorization, user context,
+  national IDs, private notes, or attachment contents. Operational APIs require Platform Admin and
+  expose aggregates rather than customer data or infrastructure secrets.
+- `.env` and secret-manager material are never included in application backup automation. Their
+  recovery lifecycle is independently controlled by infrastructure operations.
 - CI يتضمن فحص أسرار (gitleaks أو مكافئ) وفحص التبعيات (`pip-audit`, `npm audit`).
 
 ## 12. الحذف النهائي للبيانات (المرحلة 4.1)
