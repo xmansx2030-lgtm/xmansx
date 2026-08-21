@@ -16,9 +16,7 @@ class _DynamicServePermissionsMixin:
         declared = settings.SPECTACULAR_SETTINGS.get(
             "SERVE_PERMISSIONS", ["rest_framework.permissions.IsAdminUser"]
         )
-        return [
-            (import_string(p) if isinstance(p, str) else p)() for p in declared
-        ]
+        return [(import_string(p) if isinstance(p, str) else p)() for p in declared]
 
 
 class SchemaView(_DynamicServePermissionsMixin, SpectacularAPIView):
@@ -27,6 +25,7 @@ class SchemaView(_DynamicServePermissionsMixin, SpectacularAPIView):
 
 class DocsView(_DynamicServePermissionsMixin, SpectacularSwaggerView):
     pass
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -47,6 +46,7 @@ urlpatterns = [
     path("api/v1/", include("counseling.urls")),
     path("api/v1/", include("school_dashboard.urls")),
     path("api/v1/", include("subscriptions.urls")),
+    path("api/v1/platform/", include("operations.urls")),
     path("api/v1/schema/", SchemaView.as_view(), name="schema"),
     path("api/v1/docs/", DocsView.as_view(url_name="schema"), name="docs"),
 ]

@@ -8,6 +8,7 @@ import uuid
 from django.http import HttpRequest, HttpResponse
 
 from common.logging import request_id_var
+from operations.metrics import registry
 
 logger = logging.getLogger("xmansx.request")
 
@@ -48,11 +49,18 @@ class RequestLogMiddleware:
         start = time.perf_counter()
         response = self.get_response(request)
         duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        route = getattr(getattr(request, "resolver_match", None), "route", None) or "unmatched"
+        registry.observe_http(
+            method=request.method,
+            route=route,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
         logger.info(
             "request",
             extra={
                 "method": request.method,
-                "path": request.path,
+                "route": route,
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
                 "school_id": getattr(getattr(request, "school", None), "id", None),

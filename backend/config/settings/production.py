@@ -34,6 +34,9 @@ DATABASES = {
 REDIS_URL = env_str("REDIS_URL")
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
+SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "production")
+BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "production")
+BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", True)
 
 # مفاتيح تشفير المعرفات — إلزامية في الإنتاج (ADR-009)
 FIELD_ENCRYPTION_KEYS = env_list("FIELD_ENCRYPTION_KEYS")
@@ -58,6 +61,7 @@ def _reject_insecure_production_values() -> None:
             Fernet(key.encode("ascii"))
     except (ValueError, TypeError) as exc:
         raise ImproperlyConfigured("FIELD_ENCRYPTION_KEYS contains an invalid Fernet key") from exc
+
 
 # ---- HTTPS / HSTS ----
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)

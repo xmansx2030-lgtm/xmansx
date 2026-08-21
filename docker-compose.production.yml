@@ -1,5 +1,23 @@
 # Production-like local verification overlay. Secrets are required from the invoking shell.
 services:
+  backup-init:
+    build:
+      context: ./backend
+      target: prod
+    user: root
+    command:
+      [
+        "sh",
+        "-c",
+        "chown -R app:app /app/mediafiles /app/privatefiles /app/backups /app/backup-repository",
+      ]
+    volumes:
+      - mediafiles:/app/mediafiles
+      - privatefiles:/app/privatefiles
+      - backup_staging:/app/backups
+      - backup_repository:/app/backup-repository
+    restart: "no"
+
   postgres:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xmansx_phase17}
@@ -23,11 +41,21 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
+      DATABASE_BACKUP_ROOT: /app/backups
+      BACKUP_STORAGE_LOCATION: /app/backup-repository
+      BACKUP_ENVIRONMENT: ${BACKUP_ENVIRONMENT:-phase18-verification}
+      BACKUP_REMOTE_ENABLED: ${BACKUP_REMOTE_ENABLED:-false}
+      BACKUP_REQUIRE_REMOTE: ${BACKUP_REQUIRE_REMOTE:-false}
       FIELD_ENCRYPTION_KEYS: ${FIELD_ENCRYPTION_KEYS:?FIELD_ENCRYPTION_KEYS is required}
       NATIONAL_ID_HMAC_KEY: ${NATIONAL_ID_HMAC_KEY:?NATIONAL_ID_HMAC_KEY is required}
     volumes: !override
       - mediafiles:/app/mediafiles
       - privatefiles:/app/privatefiles
+      - backup_staging:/app/backups
+      - backup_repository:/app/backup-repository
+    depends_on:
+      backup-init:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -37,6 +65,11 @@ services:
     volumes: !override
       - mediafiles:/app/mediafiles
       - privatefiles:/app/privatefiles
+      - backup_staging:/app/backups
+      - backup_repository:/app/backup-repository
+    depends_on:
+      backup-init:
+        condition: service_completed_successfully
 
   beat:
     build:
@@ -56,3 +89,5 @@ services:
 volumes:
   mediafiles:
   privatefiles:
+  backup_staging:
+  backup_repository:

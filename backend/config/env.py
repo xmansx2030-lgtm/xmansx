@@ -41,6 +41,18 @@ def env_int(name: str, default: int | object = _UNSET) -> int:
         raise ImproperlyConfigured(f"Environment variable {name} must be an integer") from exc
 
 
+def env_float(name: str, default: float | object = _UNSET) -> float:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        if default is _UNSET:
+            raise ImproperlyConfigured(f"Missing required environment variable: {name}")
+        return default  # type: ignore[return-value]
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"Environment variable {name} must be a number") from exc
+
+
 def env_list(name: str, default: list[str] | object = _UNSET) -> list[str]:
     value = os.environ.get(name)
     if value is None or value == "":

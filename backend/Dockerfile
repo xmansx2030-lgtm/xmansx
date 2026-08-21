@@ -13,6 +13,7 @@ WORKDIR /app
 FROM base AS runtime-libs
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
         libpango-1.0-0 \
         libpangoft2-1.0-0 \
         libharfbuzz0b \
@@ -20,6 +21,10 @@ RUN apt-get update \
         libcairo2 \
         libgdk-pixbuf-2.0-0 \
         fonts-noto-core \
+        postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- Dependencies ----------

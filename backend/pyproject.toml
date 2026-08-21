@@ -16,6 +16,8 @@ dependencies = [
     "drf-spectacular>=0.28,<1",
     "cryptography>=43,<47",
     "gunicorn>=23,<24",
+    "sentry-sdk>=2.35,<3",
+    "django-storages[s3]>=1.14,<2",
     # توليد المستندات الرسمية: HTML+CSS → PDF مع تشكيل عربي وRTL عبر Pango/HarfBuzz
     # (يحتاج مكتبات النظام المثبتة في Dockerfile — انظر docs/GENERATED_DOCUMENTS.md)
     "weasyprint>=66,<70",

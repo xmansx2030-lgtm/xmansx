@@ -6,7 +6,7 @@ production.py يعيد فرض المتغيرات الحساسة كمتغيرات
 
 from pathlib import Path
 
-from config.env import env_int, env_list, env_str
+from config.env import env_bool, env_float, env_int, env_list, env_str
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "school_dashboard",
     "subscriptions",
     "audit",
+    "operations",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -132,6 +133,14 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 # ---- Redis / Celery (foundation فقط — لا مهام أعمال بعد) ----
 REDIS_URL = env_str("REDIS_URL", "redis://localhost:6379/0")
 READINESS_CHECK_TIMEOUT_SECONDS = 2
+OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS = env_int("OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS", 5 * 60)
+BRIDGE_STALE_AFTER_SECONDS = env_int("BRIDGE_STALE_AFTER_SECONDS", 2 * 60)
+BRIDGE_OFFLINE_AFTER_SECONDS = env_int("BRIDGE_OFFLINE_AFTER_SECONDS", 5 * 60)
+
+SENTRY_DSN = env_str("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "local")
+SENTRY_RELEASE = env_str("SENTRY_RELEASE", "")
+SENTRY_TRACES_SAMPLE_RATE = env_float("SENTRY_TRACES_SAMPLE_RATE", 0.0)
 
 CACHES = {
     "default": {
@@ -152,18 +161,16 @@ FIELD_ENCRYPTION_KEYS = env_list(
     "FIELD_ENCRYPTION_KEYS",
     ["g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo="],  # dev-only Fernet key
 )
-NATIONAL_ID_HMAC_KEY = env_str(
-    "NATIONAL_ID_HMAC_KEY", "dev-only-hmac-key-not-for-production"
-)
+NATIONAL_ID_HMAC_KEY = env_str("NATIONAL_ID_HMAC_KEY", "dev-only-hmac-key-not-for-production")
 
 # ---- حدود استيراد الطلاب ----
-STUDENT_IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024      # 10MB
+STUDENT_IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024  # 10MB
 STUDENT_IMPORT_MAX_ROWS = 10_000
 STUDENT_IMPORT_MAX_ZIP_ENTRIES = 200
 STUDENT_IMPORT_MAX_UNCOMPRESSED_BYTES = 60 * 1024 * 1024  # حماية zip bomb
 
 # ---- مرفقات الأعذار (م10): PDF/JPG/PNG بتخزين خاص ----
-EXCUSE_ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024        # 10MB
+EXCUSE_ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024  # 10MB
 
 # ---- المستندات المولدة (م12): تخزين خاص **خارج** MEDIA_ROOT ----
 # ‏MEDIA_ROOT يخدم عبر HTTP في التطوير؛ المستندات الرسمية لا يجوز أن تكون
@@ -172,11 +179,59 @@ GENERATED_DOCUMENTS_ROOT = env_str(
     "GENERATED_DOCUMENTS_ROOT", str(BASE_DIR / "privatefiles" / "documents")
 )
 
+# Local roots are drill/staging areas. Production retention must use a separate failure domain.
+DATABASE_BACKUP_ROOT = env_str("DATABASE_BACKUP_ROOT", str(BASE_DIR / "local_storage" / "backups"))
+BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "local")
+BACKUP_REMOTE_ENABLED = env_bool("BACKUP_REMOTE_ENABLED", False)
+BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", False)
+BACKUP_COMMAND_TIMEOUT_SECONDS = env_int("BACKUP_COMMAND_TIMEOUT_SECONDS", 60 * 60)
+RESTORE_COMMAND_TIMEOUT_SECONDS = env_int("RESTORE_COMMAND_TIMEOUT_SECONDS", 60 * 60)
+BACKUP_MAX_AGE_SECONDS = env_int("BACKUP_MAX_AGE_SECONDS", 26 * 60 * 60)
+PG_DUMP_BINARY = env_str("PG_DUMP_BINARY", "pg_dump")
+PG_RESTORE_BINARY = env_str("PG_RESTORE_BINARY", "pg_restore")
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "backups": {
+        "BACKEND": env_str("BACKUP_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage"),
+        "OPTIONS": {
+            "location": env_str(
+                "BACKUP_STORAGE_LOCATION", str(BASE_DIR / "local_storage" / "repository")
+            )
+        },
+    },
+}
+
+# django-storages S3/R2 safety defaults. Credentials remain standard SDK environment secrets.
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = True
+AWS_S3_FILE_OVERWRITE = False
+AWS_S3_OBJECT_PARAMETERS = {
+    "ServerSideEncryption": env_str("BACKUP_S3_SERVER_SIDE_ENCRYPTION", "AES256")
+}
+AWS_STORAGE_BUCKET_NAME = env_str("AWS_STORAGE_BUCKET_NAME", "")
+AWS_S3_ENDPOINT_URL = env_str("AWS_S3_ENDPOINT_URL", "")
+AWS_S3_REGION_NAME = env_str("AWS_S3_REGION_NAME", "auto")
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "system-operational-heartbeat": {
+        "task": "operations.system_heartbeat",
+        "schedule": env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
+        "options": {"expires": 110},
+    },
+}
+if env_bool("BACKUP_SCHEDULE_ENABLED", False):
+    CELERY_BEAT_SCHEDULE["scheduled-database-backup"] = {
+        "task": "operations.scheduled_database_backup",
+        "schedule": env_int("BACKUP_SCHEDULE_INTERVAL_SECONDS", 24 * 60 * 60),
+        "options": {"expires": 60 * 60},
+    }
 
 # ---- DRF ----
 REST_FRAMEWORK = {

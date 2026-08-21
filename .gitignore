@@ -28,6 +28,8 @@ backend/mediafiles/
 # المستندات المولدة (م12): تخزين خاص محلي — لا تدخل المستودع أبدًا
 backend/privatefiles/
 backend/local_storage/
+backups/
+restore-drills/
 celerybeat-schedule*
 
 # ---- Node / React / Vite ----

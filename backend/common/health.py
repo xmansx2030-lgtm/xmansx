@@ -33,7 +33,7 @@ def _check_database() -> bool:
             cursor.fetchone()
         return True
     except Exception:
-        logger.exception("readiness: database check failed")
+        logger.error("readiness_database_failed")
         return False
 
 
@@ -50,7 +50,7 @@ def _check_redis() -> bool:
         finally:
             client.close()
     except Exception:
-        logger.exception("readiness: redis check failed")
+        logger.error("readiness_redis_failed")
         return False
 
 
