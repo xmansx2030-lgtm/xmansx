@@ -38,6 +38,7 @@ class PeriodSerializer(serializers.Serializer):
     name = serializers.CharField()
     start_time = serializers.CharField()
     end_time = serializers.CharField()
+    timezone = serializers.CharField()
 
 
 class CurrentPeriodResponseSerializer(serializers.Serializer):
@@ -258,6 +259,7 @@ def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edi
             "name": snapshot["name"],
             "start_time": snapshot["start_time"],
             "end_time": snapshot["end_time"],
+            "timezone": snapshot["timezone"],
         },
         "submitted_by": submitter,
         "submitted_at": session.submitted_at.isoformat() if session.submitted_at else None,

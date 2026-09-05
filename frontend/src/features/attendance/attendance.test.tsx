@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
+import { currentTimeInZone } from "@/features/attendance/AttendanceSessionPage";
 import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
@@ -43,7 +44,13 @@ function sessionBody(overrides: Record<string, unknown> = {}) {
     status: "IN_PROGRESS",
     attendance_date: "2026-08-19",
     section: { id: 3, name: "1", grade_name: "الأول الثانوي", students_count: 3 },
-    period: { sequence: 2, name: "الثانية", start_time: "08:05", end_time: "08:50" },
+    period: {
+      sequence: 2,
+      name: "الثانية",
+      start_time: "08:05",
+      end_time: "08:50",
+      timezone: "Asia/Riyadh",
+    },
     submitted_by: null,
     submitted_at: null,
     can_edit: true,
@@ -61,6 +68,12 @@ describe("attendance", () => {
   beforeEach(() => {
     queryClient.clear();
     document.cookie = "csrftoken=test-token";
+  });
+
+  it("uses the school timezone for the default late-arrival time", () => {
+    const utcNow = new Date("2026-09-05T16:51:00Z");
+    expect(currentTimeInZone("Asia/Riyadh", utcNow)).toBe("19:51");
+    expect(currentTimeInZone("Asia/Dubai", utcNow)).toBe("20:51");
   });
 
   it("teacher home shows current period and sections", async () => {

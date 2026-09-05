@@ -128,7 +128,7 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "mediafiles"
+MEDIA_ROOT = Path(env_str("MEDIA_ROOT", str(BASE_DIR / "mediafiles")))
 
 # ---- Redis / Celery (foundation فقط — لا مهام أعمال بعد) ----
 REDIS_URL = env_str("REDIS_URL", "redis://localhost:6379/0")

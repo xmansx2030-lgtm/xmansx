@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+
+services:
+  - type: pserv
+    name: xmansx-core
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 1c-2g
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: python render_start.py
+    preDeployCommand: python manage.py migrate --noinput
+    initialDeployHook: >-
+      python manage.py bootstrap_platform_admin &&
+      python manage.py create_database_backup --local-only
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 90
+    disk:
+      name: xmansx-storage
+      mountPath: /app/storage
+      sizeGB: 5
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: PORT
+        value: "8000"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: xmansx-web.onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://xmansx-web.onrender.com
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DJANGO_HSTS_SECONDS
+        value: "2592000"
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: xmansx-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: xmansx-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: xmansx-postgres
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: xmansx-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: xmansx-postgres
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-cache
+          property: connectionString
+      - key: FIELD_ENCRYPTION_KEYS
+        generateValue: true
+      - key: NATIONAL_ID_HMAC_KEY
+        generateValue: true
+      - key: INITIAL_ADMIN_MOBILE
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: INITIAL_ADMIN_NAME
+        value: مشرف المنصة
+      - key: MEDIA_ROOT
+        value: /app/storage/media
+      - key: GENERATED_DOCUMENTS_ROOT
+        value: /app/storage/documents
+      - key: DATABASE_BACKUP_ROOT
+        value: /app/storage/backup-staging
+      - key: BACKUP_STORAGE_LOCATION
+        value: /app/storage/backup-repository
+      - key: CELERY_BEAT_SCHEDULE_PATH
+        value: /app/storage/celerybeat-schedule
+      - key: BACKUP_ENVIRONMENT
+        value: render-production
+      - key: BACKUP_REMOTE_ENABLED
+        value: "false"
+      - key: BACKUP_REQUIRE_REMOTE
+        value: "false"
+      - key: BACKUP_SCHEDULE_ENABLED
+        value: "true"
+      - key: BACKUP_SCHEDULE_INTERVAL_SECONDS
+        value: "86400"
+      - key: BACKUP_MAX_AGE_SECONDS
+        value: "93600"
+      - key: R2_ENABLED
+        value: "false"
+      - key: GUNICORN_WORKERS
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "2"
+      - key: GUNICORN_TIMEOUT
+        value: "60"
+      - key: CELERY_WORKER_CONCURRENCY
+        value: "1"
+      - key: PDF_RENDER_CONCURRENCY
+        value: "1"
+      - key: OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS
+        value: "120"
+      - key: OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS
+        value: "300"
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+  - type: web
+    name: xmansx-web
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 0.5c-512mb
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/v1/readiness/
+    envVars:
+      - key: BACKEND_HOSTPORT
+        fromService:
+          type: pserv
+          name: xmansx-core
+          property: hostport
+
+  - type: keyvalue
+    name: xmansx-cache
+    region: frankfurt
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+databases:
+  - name: xmansx-postgres
+    region: frankfurt
+    plan: 0.5c-1g
+    postgresMajorVersion: "18"
+    databaseName: xmansx
+    user: xmansx
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
+    ipAllowList: []

@@ -198,6 +198,7 @@ def get_current_section_attendance_statuses(*, school, now: datetime | None = No
                 "name": period.name,
                 "start_time": period.start_time.strftime("%H:%M"),
                 "end_time": period.end_time.strftime("%H:%M"),
+                "timezone": settings_obj.timezone,
             },
             "alert": {
                 "minutes": settings_obj.unprepared_period_alert_minutes,

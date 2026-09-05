@@ -30,9 +30,13 @@ const STATUS_LABELS: Record<LocalStatus, string> = {
   LATE: "متأخر",
 };
 
-function nowTime(): string {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+export function currentTimeInZone(timezone: string, now = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
 }
 
 function marksFromSession(session: AttendanceSessionData): Record<number, LocalMark> {
@@ -40,7 +44,7 @@ function marksFromSession(session: AttendanceSessionData): Record<number, LocalM
   for (const mark of session.marks) {
     map[mark.student_id] = {
       status: mark.status,
-      arrival_time: mark.arrival_time ?? nowTime(),
+      arrival_time: mark.arrival_time ?? currentTimeInZone(session.period.timezone),
     };
   }
   return map;
@@ -130,7 +134,8 @@ export function AttendanceSessionPage() {
       ...prev,
       [studentId]: {
         status,
-        arrival_time: prev[studentId]?.arrival_time ?? nowTime(),
+        arrival_time:
+          prev[studentId]?.arrival_time ?? currentTimeInZone(session.period.timezone),
       },
     }));
   };
@@ -320,7 +325,7 @@ export function AttendanceSessionPage() {
                     {status === "LATE" && (
                       <input
                         type="time"
-                        value={mark?.arrival_time ?? nowTime()}
+                        value={mark?.arrival_time ?? currentTimeInZone(session.period.timezone)}
                         onChange={(e) => setArrival(student.student_id, e.target.value)}
                         aria-label={`وقت وصول ${student.full_name}`}
                         className="ms-1 rounded-lg border border-slate-300 px-2 py-1 text-sm"

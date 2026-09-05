@@ -73,7 +73,13 @@ function monitoringBody(overrides: Partial<MonitoringResponse> = {}): Monitoring
   return {
     school_time: "2026-08-19T09:01:00+03:00",
     date: "2026-08-19",
-    period: { sequence: 3, name: "الحصة الثالثة", start_time: "08:30", end_time: "09:15" },
+    period: {
+      sequence: 3,
+      name: "الحصة الثالثة",
+      start_time: "08:30",
+      end_time: "09:15",
+      timezone: "Asia/Riyadh",
+    },
     alert: { minutes: 25, alert_at: "08:55" },
     summary: {
       total: 3,

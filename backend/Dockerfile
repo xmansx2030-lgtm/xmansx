@@ -48,8 +48,10 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY --from=deps /install /usr/local
 # ننسخ الكود فقط — لا .env ولا git history ولا artifacts (انظر .dockerignore)
 COPY --chown=app:app . .
-RUN mkdir -p /app/mediafiles /app/privatefiles/documents /app/staticfiles /tmp/.cache/fontconfig \
-    && chown -R app:app /app/mediafiles /app/privatefiles /app/staticfiles /tmp/.cache
+RUN mkdir -p /app/mediafiles /app/privatefiles/documents /app/staticfiles /app/storage \
+        /tmp/.cache/fontconfig \
+    && chown -R app:app /app/mediafiles /app/privatefiles /app/staticfiles /app/storage \
+        /tmp/.cache
 USER app
 EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", "--config", "config/gunicorn.conf.py"]

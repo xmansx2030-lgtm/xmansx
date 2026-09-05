@@ -1,6 +1,6 @@
 import os
 
-bind = "0.0.0.0:8000"
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 workers = int(os.environ.get("GUNICORN_WORKERS", "3"))
 threads = int(os.environ.get("GUNICORN_THREADS", "1"))
 worker_class = "gthread" if threads > 1 else "sync"

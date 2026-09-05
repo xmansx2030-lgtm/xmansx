@@ -47,7 +47,8 @@ _DEV_FERNET_KEY = "g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo="
 
 
 def _reject_insecure_production_values() -> None:
-    if len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5 or SECRET_KEY.startswith("django-insecure"):
+    # A base64-encoded 256-bit platform-generated secret is 44 characters.
+    if len(SECRET_KEY) < 43 or len(set(SECRET_KEY)) < 5 or SECRET_KEY.startswith("django-insecure"):
         raise ImproperlyConfigured("DJANGO_SECRET_KEY does not meet production requirements")
     if not ALLOWED_HOSTS or any(host == "*" for host in ALLOWED_HOSTS):
         raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be explicit and cannot contain '*'")

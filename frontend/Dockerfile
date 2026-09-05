@@ -19,7 +19,9 @@ RUN npm run build
 
 # ---------- Production (static via nginx, /api proxied to backend) ----------
 FROM nginx:1.27-alpine AS prod
-COPY infra-nginx.conf /etc/nginx/conf.d/default.conf
+ENV PORT=80 \
+    BACKEND_HOSTPORT=backend:8000
+COPY infra-nginx.conf /etc/nginx/templates/default.conf.template
 COPY infra-security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

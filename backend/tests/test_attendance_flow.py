@@ -52,6 +52,7 @@ def test_start_creates_in_progress_with_snapshot(teacher_env):
     body = response.json()
     assert body["status"] == "IN_PROGRESS"
     assert body["period"]["sequence"] == 3
+    assert body["period"]["timezone"] == "Asia/Riyadh"
     assert len(body["roster"]) == 5
     session = AttendanceSession.objects.get(id=body["id"])
     snapshot = session.bell_period_snapshot

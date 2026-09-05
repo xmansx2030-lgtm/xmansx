@@ -75,11 +75,13 @@ class CurrentPeriodView(SchoolScopedAPIView):
         period, local_date = get_current_attendance_period(request.school)
         payload = None
         if period is not None:
+            settings_obj = get_or_create_settings(school=request.school)
             payload = {
                 "sequence": period.sequence,
                 "name": period.name,
                 "start_time": period.start_time.strftime("%H:%M"),
                 "end_time": period.end_time.strftime("%H:%M"),
+                "timezone": settings_obj.timezone,
             }
         return Response({"period": payload, "date": local_date.isoformat()})
 
