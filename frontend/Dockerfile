@@ -21,6 +21,7 @@ RUN npm run build
 FROM nginx:1.27-alpine AS prod
 ENV PORT=80 \
     BACKEND_HOSTPORT=backend:8000 \
+    PUBLIC_SCHEME=http \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY infra-nginx.conf /etc/nginx/templates/default.conf.template
 COPY infra-security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf

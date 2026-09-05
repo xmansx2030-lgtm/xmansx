@@ -131,6 +131,8 @@ services:
           type: pserv
           name: xmansx-core
           property: hostport
+      - key: PUBLIC_SCHEME
+        value: https
 
 databases:
   - name: xmansx-postgres
