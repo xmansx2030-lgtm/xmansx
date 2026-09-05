@@ -71,6 +71,7 @@ const ROW = {
   created_by_name: "أحمد المعلم",
   assigned_counselor_id: null,
   assigned_counselor_name: null,
+  counseling_case_id: null,
 };
 
 const DETAIL = {
@@ -318,6 +319,24 @@ describe("referrals (Phase 13)", () => {
           call.url.includes("/referrals/7/acknowledge/") && call.init?.method === "POST",
       ),
     ).toBe(true);
+  });
+
+  it("lets the counselor open the follow-up case from an acknowledged referral", async () => {
+    const acknowledged = { ...DETAIL, status: "ACKNOWLEDGED", status_label: "تم الاستلام" };
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/referrals/kpis/": { body: KPIS },
+      "/referrals/options/": { body: TEACHER_OPTIONS },
+      "/referrals/7/": { body: acknowledged },
+      "/referrals/7/open-case/": { status: 201, body: { id: 12 } },
+      "/referrals/": { body: { ...LIST, results: [{ ...ROW, status: "ACKNOWLEDGED" }] } },
+      "/counselor/cases/12/": { body: { id: 12 } },
+    });
+    renderApp("/referrals");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("open-referral-7"));
+    await user.click(await screen.findByTestId("create-counseling-case"));
+    expect(calls.some((call) => call.url.includes("/referrals/7/open-case/") && call.init?.method === "POST")).toBe(true);
   });
 
   it("assigns a counselor as vice principal", async () => {

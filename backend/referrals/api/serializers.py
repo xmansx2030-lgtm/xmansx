@@ -87,6 +87,7 @@ def serialize_student_brief(student) -> dict:
 
 
 def serialize_referral_row(referral: StudentReferral) -> dict:
+    counseling_case = next(iter(referral.cases.all()), None)
     return {
         "id": referral.id,
         "student": serialize_student_brief(referral.student),
@@ -103,9 +104,8 @@ def serialize_referral_row(referral: StudentReferral) -> dict:
         "created_at": referral.created_at.isoformat(),
         "created_by_name": membership_name(referral.created_by_membership),
         "assigned_counselor_id": referral.assigned_counselor_membership_id,
-        "assigned_counselor_name": membership_name(
-            referral.assigned_counselor_membership
-        ),
+        "assigned_counselor_name": membership_name(referral.assigned_counselor_membership),
+        "counseling_case_id": counseling_case.id if counseling_case else None,
     }
 
 
@@ -140,9 +140,7 @@ def serialize_referral_detail(
     """
     role_set = set(roles or [])
     manage = bool(role_set & {"SCHOOL_MANAGER", "VICE_PRINCIPAL"})
-    is_creator = membership is not None and (
-        referral.created_by_membership_id == membership.id
-    )
+    is_creator = membership is not None and (referral.created_by_membership_id == membership.id)
     return {
         **serialize_referral_row(referral),
         "can_cancel": (
@@ -166,9 +164,7 @@ def serialize_referral_detail(
         "closed_at": referral.closed_at.isoformat() if referral.closed_at else None,
         "closed_by_name": membership_name(referral.closed_by_membership),
         "closure_reason": referral.closure_reason,
-        "contributions": [
-            serialize_contribution(c) for c in referral.contributions.all()
-        ],
+        "contributions": [serialize_contribution(c) for c in referral.contributions.all()],
         "events": [serialize_event(e) for e in referral.events.all()],
     }
 

@@ -5,6 +5,7 @@ TEACHER لا يملك قائمة طلاب عامة في هذه المرحلة (�
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from drf_spectacular.utils import extend_schema
@@ -45,9 +46,7 @@ from students.tasks import process_import_job
 
 
 def _active_year(school) -> AcademicYear | None:
-    return AcademicYear.objects.filter(
-        school=school, status=AcademicYearStatus.ACTIVE
-    ).first()
+    return AcademicYear.objects.filter(school=school, status=AcademicYearStatus.ACTIVE).first()
 
 
 def _serialize_student(student) -> dict:
@@ -63,9 +62,7 @@ def _serialize_student(student) -> dict:
             {"id": enrollment.grade.id, "name": enrollment.grade.name} if enrollment else None
         ),
         "section": (
-            {"id": enrollment.section.id, "name": enrollment.section.name}
-            if enrollment
-            else None
+            {"id": enrollment.section.id, "name": enrollment.section.name} if enrollment else None
         ),
     }
 
@@ -145,9 +142,7 @@ class StudentListView(SchoolScopedAPIView):
             actor=request.user,
             request=request,
         )
-        created = students_queryset(
-            school=request.school, academic_year=year
-        ).get(id=student.id)
+        created = students_queryset(school=request.school, academic_year=year).get(id=student.id)
         return Response(_serialize_student(created), status=http_status.HTTP_201_CREATED)
 
 
@@ -180,21 +175,102 @@ class GradeListView(SchoolScopedAPIView):
             [{"id": g.id, "name": g.name, "code": g.code, "sequence": g.sequence} for g in grades]
         )
 
+    def post(self, request: Request) -> Response:
+        serializer = serializers.Serializer(data=request.data)
+        serializer.fields["name"] = serializers.CharField(max_length=100, trim_whitespace=True)
+        serializer.fields["code"] = serializers.CharField(max_length=50, trim_whitespace=True)
+        serializer.fields["sequence"] = serializers.IntegerField(
+            min_value=0, max_value=32767, default=0
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if Grade.objects.filter(school=request.school, code__iexact=data["code"]).exists():
+            raise ApiError("GRADE_CODE_ALREADY_EXISTS", "رمز الصف مستخدم مسبقًا.", status_code=409)
+        try:
+            grade = Grade.objects.create(school=request.school, **data)
+        except IntegrityError as exc:
+            raise ApiError(
+                "GRADE_CODE_ALREADY_EXISTS", "رمز الصف مستخدم مسبقًا.", status_code=409
+            ) from exc
+        record_event(
+            AuditAction.GRADE_CREATED,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="Grade",
+            target_id=grade.id,
+            metadata={"sequence": grade.sequence},
+        )
+        return Response(
+            {"id": grade.id, "name": grade.name, "code": grade.code, "sequence": grade.sequence},
+            status=http_status.HTTP_201_CREATED,
+        )
+
 
 class SectionListView(SchoolScopedAPIView):
     def get(self, request: Request) -> Response:
-        sections = Section.objects.filter(
-            school=request.school, is_active=True
-        ).select_related("grade")
+        sections = Section.objects.filter(school=request.school, is_active=True).select_related(
+            "grade"
+        )
         grade_id = request.query_params.get("grade")
         if grade_id:
             sections = sections.filter(grade_id=grade_id)
         return Response(
             [
-                {"id": s.id, "name": s.name, "code": s.code,
-                 "grade": {"id": s.grade.id, "name": s.grade.name}}
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "code": s.code,
+                    "grade": {"id": s.grade.id, "name": s.grade.name},
+                }
                 for s in sections
             ]
+        )
+
+    def post(self, request: Request) -> Response:
+        serializer = serializers.Serializer(data=request.data)
+        serializer.fields["grade_id"] = serializers.IntegerField(min_value=1)
+        serializer.fields["name"] = serializers.CharField(max_length=50, trim_whitespace=True)
+        serializer.fields["code"] = serializers.CharField(max_length=50, trim_whitespace=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        grade = get_object_or_404(Grade, school=request.school, id=data["grade_id"], is_active=True)
+        if Section.objects.filter(
+            school=request.school, grade=grade, code__iexact=data["code"]
+        ).exists():
+            raise ApiError(
+                "SECTION_CODE_ALREADY_EXISTS", "رمز الفصل مستخدم مسبقًا داخل الصف.", status_code=409
+            )
+        try:
+            section = Section.objects.create(
+                school=request.school,
+                grade=grade,
+                name=data["name"],
+                code=data["code"],
+            )
+        except IntegrityError as exc:
+            raise ApiError(
+                "SECTION_CODE_ALREADY_EXISTS",
+                "رمز الفصل مستخدم مسبقًا داخل الصف.",
+                status_code=409,
+            ) from exc
+        record_event(
+            AuditAction.SECTION_CREATED,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="Section",
+            target_id=section.id,
+            metadata={"grade_id": grade.id},
+        )
+        return Response(
+            {
+                "id": section.id,
+                "name": section.name,
+                "code": section.code,
+                "grade": {"id": grade.id, "name": grade.name},
+            },
+            status=http_status.HTTP_201_CREATED,
         )
 
 
@@ -271,8 +347,11 @@ class ImportUploadView(SchoolScopedAPIView):
         )
         record_event(
             AuditAction.STUDENT_IMPORT_UPLOADED,
-            request=request, actor=request.user, school=request.school,
-            target_type="StudentImportJob", target_id=job.id,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="StudentImportJob",
+            target_id=job.id,
             metadata={
                 "filename": job.original_filename,
                 "import_format": analysis["import_format"],
@@ -300,8 +379,11 @@ class ImportProcessView(SchoolScopedAPIView):
 
     def post(self, request: Request, job_id: int) -> Response:
         job = get_object_or_404(StudentImportJob, id=job_id, school=request.school)
-        if job.status not in (ImportJobStatus.UPLOADED, ImportJobStatus.READY_FOR_REVIEW,
-                              ImportJobStatus.FAILED):
+        if job.status not in (
+            ImportJobStatus.UPLOADED,
+            ImportJobStatus.READY_FOR_REVIEW,
+            ImportJobStatus.FAILED,
+        ):
             raise ApiError("IMPORT_ALREADY_RUNNING", "الاستيراد قيد التنفيذ حالياً.", 409)
 
         mapping = request.data.get("mapping") or job.summary.get("suggested_mapping") or {}
@@ -410,9 +492,7 @@ def _profile_dates(request: Request):
                 "ATTENDANCE_PROFILE_RANGE_TOO_LARGE",
                 "الفترة المطلوبة أكبر من عام دراسي واحد.",
             ) from None
-        raise ApiError(
-            "INVALID_ATTENDANCE_DATE_RANGE", "الفترة المطلوبة غير صحيحة."
-        ) from None
+        raise ApiError("INVALID_ATTENDANCE_DATE_RANGE", "الفترة المطلوبة غير صحيحة.") from None
     return from_date, to_date
 
 
@@ -433,16 +513,18 @@ class StudentAttendanceProfileView(SchoolScopedAPIView):
     def get(self, request: Request, student_id: int) -> Response:
         student = _profile_student(request, student_id)
         from_date, to_date = _profile_dates(request)
-        return Response({
-            "student": attendance_profile_service.serialize_student_header(student),
-            "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
-            "attendance": attendance_profile_service.get_profile_summary(
-                school=request.school, student=student, from_date=from_date, to_date=to_date
-            ),
-            "morning_attendance": morning_profile_service.get_morning_profile_summary(
-                school=request.school, student=student, from_date=from_date, to_date=to_date
-            ),
-        })
+        return Response(
+            {
+                "student": attendance_profile_service.serialize_student_header(student),
+                "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
+                "attendance": attendance_profile_service.get_profile_summary(
+                    school=request.school, student=student, from_date=from_date, to_date=to_date
+                ),
+                "morning_attendance": morning_profile_service.get_morning_profile_summary(
+                    school=request.school, student=student, from_date=from_date, to_date=to_date
+                ),
+            }
+        )
 
 
 class StudentAttendanceDaysView(SchoolScopedAPIView):
@@ -458,26 +540,28 @@ class StudentAttendanceDaysView(SchoolScopedAPIView):
         )
         paginator = DefaultPagination()
         page = paginator.paginate_queryset(queryset, request)
-        return paginator.get_paginated_response([
-            {
-                "date": row.attendance_date,
-                "absence_status": row.absence_status,
-                "absence_status_label": attendance_profile_service.ABSENCE_LABELS[
-                    row.absence_status
-                ],
-                "section": {
-                    "id": row.section_id,
-                    "name": row.section.name,
-                    "grade_name": row.section.grade.name,
-                },
-                "absent_periods": row.absent_periods,
-                "excused_absent_periods": row.excused_absent_periods,
-                "unexcused_absent_periods": row.unexcused_absent_periods,
-                "late_periods": row.late_periods,
-                "total_late_minutes": row.total_late_minutes,
-            }
-            for row in page
-        ])
+        return paginator.get_paginated_response(
+            [
+                {
+                    "date": row.attendance_date,
+                    "absence_status": row.absence_status,
+                    "absence_status_label": attendance_profile_service.ABSENCE_LABELS[
+                        row.absence_status
+                    ],
+                    "section": {
+                        "id": row.section_id,
+                        "name": row.section.name,
+                        "grade_name": row.section.grade.name,
+                    },
+                    "absent_periods": row.absent_periods,
+                    "excused_absent_periods": row.excused_absent_periods,
+                    "unexcused_absent_periods": row.unexcused_absent_periods,
+                    "late_periods": row.late_periods,
+                    "total_late_minutes": row.total_late_minutes,
+                }
+                for row in page
+            ]
+        )
 
 
 class StudentMorningAttendanceView(SchoolScopedAPIView):
@@ -491,9 +575,11 @@ class StudentMorningAttendanceView(SchoolScopedAPIView):
         arrivals = morning_profile_service.get_morning_profile_history(
             school=request.school, student=student, from_date=from_date, to_date=to_date
         )
-        return Response(morning_profile_service.serialize_morning_history(
-            school=request.school, arrivals=arrivals
-        ))
+        return Response(
+            morning_profile_service.serialize_morning_history(
+                school=request.school, arrivals=arrivals
+            )
+        )
 
 
 class StudentAttendanceDayDetailView(SchoolScopedAPIView):
@@ -551,20 +637,24 @@ class _StudentAttendanceMarksView(SchoolScopedAPIView):
             ),
             request,
         )
-        return paginator.get_paginated_response([
-            {
-                "date": mark.session.attendance_date,
-                "sequence": mark.session.period_sequence,
-                "period": mark.session.bell_period_snapshot,
-                "section": {
-                    "name": mark.session.section.name,
-                    "grade_name": mark.session.section.grade.name,
-                },
-                "arrival_time": mark.arrival_time.strftime("%H:%M") if mark.arrival_time else None,
-                "late_minutes": mark.late_minutes,
-            }
-            for mark in page
-        ])
+        return paginator.get_paginated_response(
+            [
+                {
+                    "date": mark.session.attendance_date,
+                    "sequence": mark.session.period_sequence,
+                    "period": mark.session.bell_period_snapshot,
+                    "section": {
+                        "name": mark.session.section.name,
+                        "grade_name": mark.session.section.grade.name,
+                    },
+                    "arrival_time": mark.arrival_time.strftime("%H:%M")
+                    if mark.arrival_time
+                    else None,
+                    "late_minutes": mark.late_minutes,
+                }
+                for mark in page
+            ]
+        )
 
 
 class StudentAttendanceAbsencesView(_StudentAttendanceMarksView):
@@ -594,28 +684,30 @@ class StudentAttendanceChangesView(SchoolScopedAPIView):
             ),
             request,
         )
-        return paginator.get_paginated_response([
-            {
-                "date": change.session.attendance_date,
-                "sequence": change.session.period_sequence,
-                "period": change.session.bell_period_snapshot,
-                "previous_status": change.previous_status,
-                "new_status": change.new_status,
-                "previous_status_label": attendance_profile_service.MARK_LABELS.get(
-                    change.previous_status, change.previous_status
-                ),
-                "new_status_label": attendance_profile_service.MARK_LABELS.get(
-                    change.new_status, change.new_status
-                ),
-                "previous_late_minutes": change.previous_late_minutes,
-                "new_late_minutes": change.new_late_minutes,
-                "reason": change.reason or None,
-                "actor": (
-                    change.actor_membership.staff_profile.display_name
-                    if getattr(change.actor_membership, "staff_profile", None)
-                    else change.actor_membership.user.display_name
-                ),
-                "changed_at": change.changed_at,
-            }
-            for change in page
-        ])
+        return paginator.get_paginated_response(
+            [
+                {
+                    "date": change.session.attendance_date,
+                    "sequence": change.session.period_sequence,
+                    "period": change.session.bell_period_snapshot,
+                    "previous_status": change.previous_status,
+                    "new_status": change.new_status,
+                    "previous_status_label": attendance_profile_service.MARK_LABELS.get(
+                        change.previous_status, change.previous_status
+                    ),
+                    "new_status_label": attendance_profile_service.MARK_LABELS.get(
+                        change.new_status, change.new_status
+                    ),
+                    "previous_late_minutes": change.previous_late_minutes,
+                    "new_late_minutes": change.new_late_minutes,
+                    "reason": change.reason or None,
+                    "actor": (
+                        change.actor_membership.staff_profile.display_name
+                        if getattr(change.actor_membership, "staff_profile", None)
+                        else change.actor_membership.user.display_name
+                    ),
+                    "changed_at": change.changed_at,
+                }
+                for change in page
+            ]
+        )

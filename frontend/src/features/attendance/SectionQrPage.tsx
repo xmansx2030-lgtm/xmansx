@@ -28,6 +28,10 @@ import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { STAGE_LABELS } from "@/features/settings/api";
 import { useSettingsQuery } from "@/features/settings/hooks";
 
+export function sectionDisplayName(name: string): string {
+  return /^\s*فصل\s+/u.test(name) ? name.trim() : `الفصل ${name.trim()}`;
+}
+
 /** صفحة المدير: توليد/عرض/طباعة/تجديد رمز QR لكل فصل.
  *  الرمز مبهم ولا يمنح صلاحية — التجديد يبطل الملصقات القديمة فورًا. */
 export function SectionQrPage() {
@@ -277,7 +281,7 @@ function SectionChoice({ section, selected, onSelect }: { section: AttendanceSec
     >
       <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-lg font-black ${selected ? "bg-teal-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>{section.name}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-black text-slate-900">الفصل {section.name}</span>
+        <span className="block truncate font-black text-slate-900">{sectionDisplayName(section.name)}</span>
         <span className="mt-1 block truncate text-xs text-slate-500">{section.grade_name}</span>
         <span className="mt-1 flex items-center gap-1 text-[11px] font-bold text-slate-400"><UsersRound aria-hidden size={12} /> {section.students_count} طالبًا</span>
       </span>
@@ -321,7 +325,7 @@ function QrPrintSheet({
 
       <div className="relative py-7 text-center">
         <p className="text-sm font-black text-teal-700">{section.grade_name}</p>
-        <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl" data-testid="qr-section-title">الفصل {section.name}</h1>
+        <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl" data-testid="qr-section-title">{sectionDisplayName(section.name)}</h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">امسح الرمز من داخل المنصة لفتح قائمة طلاب هذا الفصل والبدء في التحضير مباشرة.</p>
 
         <div className="mx-auto mt-6 w-fit rounded-[2rem] border-2 border-slate-900 bg-white p-3 shadow-sm ring-8 ring-slate-100">

@@ -29,9 +29,11 @@ def _make_student(school, nid: str, name: str, number: str | None = None) -> Stu
 
 def _enroll(school, student, code="1"):
     year, _ = AcademicYear.objects.get_or_create(
-        school=school, name="ع",
+        school=school,
+        name="ع",
         defaults={
-            "start_date": date(2026, 8, 23), "end_date": date(2027, 6, 25),
+            "start_date": date(2026, 8, 23),
+            "end_date": date(2027, 6, 25),
             "status": AcademicYearStatus.ACTIVE,
         },
     )
@@ -42,8 +44,12 @@ def _enroll(school, student, code="1"):
         school=school, grade=grade, code=code, defaults={"name": code}
     )
     return StudentEnrollment.objects.create(
-        school=school, student=student, academic_year=year,
-        grade=grade, section=section, enrolled_at=date(2026, 8, 23),
+        school=school,
+        student=student,
+        academic_year=year,
+        grade=grade,
+        section=section,
+        enrolled_at=date(2026, 8, 23),
     )
 
 
@@ -85,8 +91,10 @@ def test_cross_school_enrollment_blocked(make_school):
     enrollment = _enroll(a, _make_student(a, "2098765432", "طالب أ"))
     with pytest.raises(ApiError) as excinfo:
         validate_enrollment_integrity(
-            school=a, student=student,
-            grade=enrollment.grade, section=enrollment.section,
+            school=a,
+            student=student,
+            grade=enrollment.grade,
+            section=enrollment.section,
             academic_year=enrollment.academic_year,
         )
     assert excinfo.value.code == "INVALID_ENROLLMENT"
@@ -220,14 +228,57 @@ def test_roles_matrix_for_students(role_client, make_school):
 
 
 @pytest.mark.django_db
+def test_manager_creates_grade_and_section_from_settings(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    grade_response = manager.post(
+        "/api/v1/grades/",
+        {"name": "الثالث المتوسط", "code": "MID-3", "sequence": 3},
+        content_type="application/json",
+    )
+    assert grade_response.status_code == 201
+    section_response = manager.post(
+        "/api/v1/sections/",
+        {"grade_id": grade_response.json()["id"], "name": "أ", "code": "A"},
+        content_type="application/json",
+    )
+    assert section_response.status_code == 201
+    assert section_response.json()["grade"]["name"] == "الثالث المتوسط"
+    assert Grade.objects.filter(school=school, code="MID-3").exists()
+    assert Section.objects.filter(school=school, code="A").exists()
+
+
+@pytest.mark.django_db
+def test_only_manager_can_create_structure_and_codes_are_unique(role_client):
+    school = role_client(["SCHOOL_MANAGER"])[1]
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    payload = {"name": "الأول المتوسط", "code": "MID-1", "sequence": 1}
+    assert (
+        manager.post("/api/v1/grades/", payload, content_type="application/json").status_code == 201
+    )
+    duplicate = manager.post("/api/v1/grades/", payload, content_type="application/json")
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "GRADE_CODE_ALREADY_EXISTS"
+    assert (
+        vice.post(
+            "/api/v1/grades/", {**payload, "code": "MID-2"}, content_type="application/json"
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.django_db
 def test_tenant_isolation_students_and_imports(role_client):
     from datetime import date as d
 
     manager_a, school_a, _ = role_client(["SCHOOL_MANAGER"])
     manager_b, school_b, _ = role_client(["SCHOOL_MANAGER"])
     AcademicYear.objects.create(
-        school=school_b, name="ع", start_date=d(2026, 8, 23),
-        end_date=d(2027, 6, 25), status=AcademicYearStatus.ACTIVE,
+        school=school_b,
+        name="ع",
+        start_date=d(2026, 8, 23),
+        end_date=d(2027, 6, 25),
+        status=AcademicYearStatus.ACTIVE,
     )
     foreign_student = _make_student(school_b, "1012345678", "طالب ب")
     _enroll(school_b, foreign_student)

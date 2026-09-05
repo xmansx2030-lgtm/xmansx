@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Eye,
+  LayoutGrid,
   School,
   Settings2,
   ShieldCheck,
@@ -17,12 +18,14 @@ import { AttendanceSettingsTab } from "@/features/settings/tabs/AttendanceSettin
 import { BellSchedulesTab } from "@/features/settings/tabs/BellSchedulesTab";
 import { CalendarTab } from "@/features/settings/tabs/CalendarTab";
 import { SchoolInfoTab } from "@/features/settings/tabs/SchoolInfoTab";
+import { StructureTab } from "@/features/settings/tabs/StructureTab";
 import { WarningRulesTab } from "@/features/settings/tabs/WarningRulesTab";
 import { WeekDaysTab } from "@/features/settings/tabs/WeekDaysTab";
 
 const TABS = [
   { key: "info", label: "بيانات المدرسة", shortDescription: "الهوية والشعار والبيانات الرسمية", icon: School },
   { key: "calendar", label: "العام الدراسي", shortDescription: "الأعوام والفصول الدراسية", icon: CalendarRange },
+  { key: "structure", label: "الصفوف والفصول", shortDescription: "الهيكل الدراسي وخيارات تسجيل الطلاب", icon: LayoutGrid },
   { key: "week-days", label: "أيام الدراسة", shortDescription: "أيام العمل والجدول المطبق", icon: CalendarDays },
   { key: "bell-schedules", label: "أوقات الحصص", shortDescription: "الجداول والحصص اليومية", icon: Clock3 },
   { key: "attendance", label: "إعدادات التحضير", shortDescription: "التنبيهات ومهلة التعديل", icon: CheckCircle2 },
@@ -143,6 +146,7 @@ export function SettingsPage() {
 
           {tab === "info" && <SchoolInfoTab canWrite={canWrite} />}
           {tab === "calendar" && <CalendarTab canWrite={canWrite} />}
+          {tab === "structure" && <StructureTab canWrite={canWrite} />}
           {tab === "week-days" && <WeekDaysTab canWrite={canWrite} />}
           {tab === "bell-schedules" && <BellSchedulesTab canWrite={canWrite} />}
           {tab === "attendance" && <AttendanceSettingsTab canWrite={canWrite} />}

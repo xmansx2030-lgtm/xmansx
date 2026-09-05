@@ -52,6 +52,7 @@ export interface ReferralRow {
   created_by_name: string | null;
   assigned_counselor_id: number | null;
   assigned_counselor_name: string | null;
+  counseling_case_id: number | null;
 }
 
 export interface ReferralContribution {

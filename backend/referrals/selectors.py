@@ -29,7 +29,11 @@ def base_queryset(school):
     return (
         StudentReferral.objects.filter(school=school)
         .select_related(*_LIST_RELATIONS)
-        .prefetch_related("student__enrollments__grade", "student__enrollments__section")
+        .prefetch_related(
+            "student__enrollments__grade",
+            "student__enrollments__section",
+            "cases",
+        )
     )
 
 
@@ -39,9 +43,7 @@ def _participation_filter(membership) -> Q:
     الجمع مهم: مرشد يحمل دور معلم أيضًا يبقى يرى إحالته التي أنشأها حتى بعد
     تعيينها لزميل (وإلا ظهرت في «إحالاتي» وفتحها يعطي 404).
     """
-    return Q(created_by_membership=membership) | Q(
-        contributions__created_by_membership=membership
-    )
+    return Q(created_by_membership=membership) | Q(contributions__created_by_membership=membership)
 
 
 def visible_referrals(*, school, membership, roles):
@@ -97,9 +99,7 @@ def apply_filters(queryset, params):
         # تجاهل قيمة غير معروفة كان يعيد «الكل» بينما العميل يظنه فلترة
         from common.errors import ApiError
 
-        raise ApiError(
-            "VALIDATION_ERROR", "قيمة الحالة غير صحيحة.", details={"field": "status"}
-        )
+        raise ApiError("VALIDATION_ERROR", "قيمة الحالة غير صحيحة.", details={"field": "status"})
     if params.get("category"):
         queryset = queryset.filter(category=params["category"])
     if params.get("reason_code"):
@@ -113,9 +113,7 @@ def apply_filters(queryset, params):
         if value == "UNASSIGNED":
             queryset = queryset.filter(assigned_counselor_membership__isnull=True)
         else:
-            queryset = queryset.filter(
-                assigned_counselor_membership_id=_int_or_zero(value)
-            )
+            queryset = queryset.filter(assigned_counselor_membership_id=_int_or_zero(value))
     if params.get("grade"):
         queryset = queryset.filter(
             student__enrollments__status="ACTIVE",
@@ -137,8 +135,7 @@ def referral_kpis(*, school, membership, roles) -> dict:
         acknowledged_count=Count("id", filter=Q(status=ReferralStatus.ACKNOWLEDGED)),
         unassigned_count=Count(
             "id",
-            filter=Q(assigned_counselor_membership__isnull=True)
-            & Q(status__in=OPEN_STATUSES),
+            filter=Q(assigned_counselor_membership__isnull=True) & Q(status__in=OPEN_STATUSES),
         ),
     )
     return {

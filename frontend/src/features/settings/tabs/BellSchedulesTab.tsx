@@ -33,6 +33,12 @@ export function validatePeriods(periods: EditablePeriod[]): string | null {
     if (p.end_time <= p.start_time) {
       return `وقت نهاية «${p.name}» يجب أن يكون بعد بدايتها.`;
     }
+    const [startHour, startMinute] = p.start_time.split(":").map(Number) as [number, number];
+    const [endHour, endMinute] = p.end_time.split(":").map(Number) as [number, number];
+    const duration = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+    if (duration > 180) {
+      return `مدة «${p.name}» غير معتادة (${duration} دقيقة). تحقق من وقتي البداية والنهاية.`;
+    }
   }
   const ordered = [...periods].sort((a, b) => a.start_time.localeCompare(b.start_time));
   for (let i = 1; i < ordered.length; i++) {

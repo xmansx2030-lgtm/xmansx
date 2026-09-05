@@ -11,6 +11,11 @@ import { RouteErrorPage } from "@/routes/RouteErrorPage";
 export const routes = [
   {
     errorElement: <RouteErrorPage />,
+    hydrateFallbackElement: (
+      <div className="grid min-h-screen place-items-center bg-slate-50 text-sm font-bold text-slate-600">
+        جارٍ تحميل المنصة...
+      </div>
+    ),
     children: [
       { path: "/login", element: <LoginPage /> },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },

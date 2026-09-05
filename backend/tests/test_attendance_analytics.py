@@ -34,19 +34,30 @@ PERIOD_COUNT = 7
 def env(make_school, make_user, make_membership):
     school = make_school()
     year = AcademicYear.objects.create(
-        school=school, name="2026/2027", start_date=DAY,
-        end_date=datetime(2027, 6, 25).date(), status=AcademicYearStatus.ACTIVE,
+        school=school,
+        name="2026/2027",
+        start_date=DAY,
+        end_date=datetime(2027, 6, 25).date(),
+        status=AcademicYearStatus.ACTIVE,
     )
     schedule = BellSchedule.objects.create(school=school, name="سبع حصص")
     for i in range(PERIOD_COUNT):
         BellPeriod.objects.create(
-            school=school, bell_schedule=schedule, sequence=i + 1,
+            school=school,
+            bell_schedule=schedule,
+            sequence=i + 1,
             name=f"الحصة {i + 1}",
-            start_time=time(7 + i, 0), end_time=time(7 + i, 45),
+            start_time=time(7 + i, 0),
+            end_time=time(7 + i, 45),
         )
     BellPeriod.objects.create(  # فسحة — ليست حصة تحضير: خارج expected
-        school=school, bell_schedule=schedule, sequence=90, name="الفسحة",
-        start_time=time(9, 45), end_time=time(10, 0), is_attendance_period=False,
+        school=school,
+        bell_schedule=schedule,
+        sequence=90,
+        name="الفسحة",
+        start_time=time(9, 45),
+        end_time=time(10, 0),
+        is_attendance_period=False,
     )
     SchoolWeekDay.objects.create(
         school=school, weekday=Weekday.SUNDAY, is_school_day=True, bell_schedule=schedule
@@ -64,24 +75,38 @@ def env(make_school, make_user, make_membership):
     teacher = make_user("0550000800")
     membership = make_membership(teacher, school, ["TEACHER"])
     return {
-        "school": school, "year": year, "schedule": schedule,
-        "grade": grade, "grade2": grade2,
-        "a": section_a, "b": section_b, "c": section_c,
-        "sa": students_a, "sb": students_b, "sc": students_c,
+        "school": school,
+        "year": year,
+        "schedule": schedule,
+        "grade": grade,
+        "grade2": grade2,
+        "a": section_a,
+        "b": section_b,
+        "c": section_c,
+        "sa": students_a,
+        "sb": students_b,
+        "sc": students_c,
         "membership": membership,
     }
 
 
 def make_session(env, section, seq, *, status="SUBMITTED"):
     return AttendanceSession.objects.create(
-        school=env["school"], academic_year=env["year"], section=section,
-        attendance_date=DAY, period_sequence=seq,
+        school=env["school"],
+        academic_year=env["year"],
+        section=section,
+        attendance_date=DAY,
+        period_sequence=seq,
         bell_period_snapshot={
-            "sequence": seq, "name": f"الحصة {seq}",
-            "start_time": f"{6 + seq:02d}:00", "end_time": f"{6 + seq:02d}:45",
-            "attendance_date": DAY.isoformat(), "timezone": "Asia/Riyadh",
+            "sequence": seq,
+            "name": f"الحصة {seq}",
+            "start_time": f"{6 + seq:02d}:00",
+            "end_time": f"{6 + seq:02d}:45",
+            "attendance_date": DAY.isoformat(),
+            "timezone": "Asia/Riyadh",
         },
-        status=status, roster_fingerprint="fp",
+        status=status,
+        roster_fingerprint="fp",
         unprepared_alert_minutes_snapshot=25,
         started_by_membership=env["membership"],
         submitted_by_membership=env["membership"] if status == "SUBMITTED" else None,
@@ -93,7 +118,10 @@ def make_session(env, section, seq, *, status="SUBMITTED"):
 
 def mark(env, session, student, status, minutes=None):
     return AttendanceMark.objects.create(
-        school=env["school"], session=session, student=student, status=status,
+        school=env["school"],
+        session=session,
+        student=student,
+        status=status,
         late_minutes=minutes,
         arrival_time=time(8, 30) if status == "LATE" else None,
     )
@@ -101,8 +129,11 @@ def mark(env, session, student, status, minutes=None):
 
 def multi(env, sequences, match="ALL_ABSENT", **kwargs):
     return get_multi_period_report(
-        school=env["school"], attendance_date=DAY,
-        sequences=sequences, match=match, **kwargs,
+        school=env["school"],
+        attendance_date=DAY,
+        sequences=sequences,
+        match=match,
+        **kwargs,
     )
 
 
@@ -124,9 +155,7 @@ def test_period_absentees_and_incomplete_sections(env):
 
     report = multi(env, [1])
     assert report["summary"]["matching_students"] == 2  # المتأخر ليس غائبًا
-    assert sorted(names(report)) == sorted(
-        [env["sa"][0].full_name, env["sb"][0].full_name]
-    )
+    assert sorted(names(report)) == sorted([env["sa"][0].full_name, env["sb"][0].full_name])
     assert report["summary"]["complete_sections"] == 2
     assert report["summary"]["incomplete_sections"] == 1
     incomplete = report["incomplete_sections"][0]
@@ -190,9 +219,7 @@ def test_incomplete_section_excludes_students_entirely(multi_env):
     assert env["sb"][0].full_name not in names(report)
     ids = [s["section_id"] for s in report["incomplete_sections"]]
     assert env["b"].id in ids
-    missing = next(
-        s for s in report["incomplete_sections"] if s["section_id"] == env["b"].id
-    )
+    missing = next(s for s in report["incomplete_sections"] if s["section_id"] == env["b"].id)
     assert missing["missing_sequences"] == [2]
 
 
@@ -202,9 +229,7 @@ def test_any_absent_matching(multi_env):
     report = multi(env, [1, 2], match="ANY_ABSENT")
     # الكل غائب في الأولى على الأقل — لكن فقط طلاب الفصول المكتملة
     assert sorted(names(report)) == sorted(s.full_name for s in env["sa"])
-    saad_row = next(
-        s for s in report["students"] if s["student_id"] == env["sa"][2].id
-    )
+    saad_row = next(s for s in report["students"] if s["student_id"] == env["sa"][2].id)
     assert {"sequence": 2, "status": "LATE"} in saad_row["period_statuses"]
 
 
@@ -273,10 +298,7 @@ def test_daily_full_partial_none_late(env):
     recalculate_daily_attendance_for_section(
         school=env["school"], section=env["a"], attendance_date=DAY
     )
-    rows = {
-        r.student_id: r
-        for r in DailyAttendanceSummary.objects.filter(school=env["school"])
-    }
+    rows = {r.student_id: r for r in DailyAttendanceSummary.objects.filter(school=env["school"])}
     full = rows[mohammed.id]
     assert full.absence_status == "FULL" and full.absent_periods == 7
     partial = rows[khaled.id]
@@ -354,6 +376,29 @@ def test_schedule_change_does_not_rewrite_history(env):
 
 
 @pytest.mark.django_db
+def test_start_session_refreshes_read_only_stale_day_context(env, monkeypatch):
+    """زيارة التحليلات قبل ضبط يوم الدراسة لا تثبت لقطة فارغة إلى الأبد."""
+    from attendance.services.sessions import start_session
+
+    context = AttendanceDayContext.objects.create(
+        school=env["school"],
+        academic_year=env["year"],
+        attendance_date=DAY,
+        schedule_snapshot={"schedule_name": None, "is_school_day": False, "periods": []},
+        timezone_snapshot="Asia/Riyadh",
+    )
+    period = env["schedule"].periods.filter(is_attendance_period=True).first()
+    monkeypatch.setattr(
+        "attendance.services.sessions.get_current_attendance_period",
+        lambda _school: (period, DAY),
+    )
+    start_session(school=env["school"], membership=env["membership"], section=env["a"])
+    context.refresh_from_db()
+    assert context.schedule_snapshot["is_school_day"] is True
+    assert len(context.attendance_periods) == PERIOD_COUNT
+
+
+@pytest.mark.django_db
 def test_period_sequence_snapshot_immutable(make_school, make_user, make_membership):
     """تغيير BellPeriod.sequence بعد الجلسة لا يمس period_sequence المخزن (121، 14-15)."""
     from attendance.services.sessions import start_session
@@ -383,7 +428,9 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
     target = env2["students"][0]
     session, _, _ = start_session(school=school, membership=membership, section=env2["section"])
     submit_session(
-        session_id=session.id, school=school, membership=membership,
+        session_id=session.id,
+        school=school,
+        membership=membership,
         marks=[{"student_id": target.id, "status": "ABSENT"}],
     )
     row = DailyAttendanceSummary.objects.get(student=target)
@@ -396,7 +443,10 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
 
     arrival = (env2["local_now"] + timedelta(minutes=5)).time().replace(microsecond=0)
     edit_session(
-        session_id=session.id, school=school, membership=membership, roles=["TEACHER"],
+        session_id=session.id,
+        school=school,
+        membership=membership,
+        roles=["TEACHER"],
         marks=[{"student_id": target.id, "status": "LATE", "arrival_time": arrival}],
         reason="وصل متأخرًا",
     )
@@ -406,8 +456,12 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
 
     # ‏LATE → PRESENT
     edit_session(
-        session_id=session.id, school=school, membership=membership, roles=["TEACHER"],
-        marks=[], reason="تصحيح",
+        session_id=session.id,
+        school=school,
+        membership=membership,
+        roles=["TEACHER"],
+        marks=[],
+        reason="تصحيح",
     )
     row.refresh_from_db()
     assert (row.absent_periods, row.late_periods, row.total_late_minutes) == (0, 0, 0)
@@ -420,7 +474,6 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
 @pytest.mark.django_db
 def test_enrollment_history_bounds(env):
     from datetime import date as date_cls
-
 
     late_joiner = make_students(env["school"], env["a"], env["year"], 1, prefix="20900")[0]
     enrollment = late_joiner.enrollments.get()
@@ -453,8 +506,11 @@ def test_transfer_keeps_historical_section(env):
     old.ended_at = date_cls(2026, 8, 25)
     old.save(update_fields=["status", "ended_at"])
     mohammed.enrollments.create(
-        school=env["school"], academic_year=env["year"], grade=env["grade"],
-        section=env["b"], enrolled_at=date_cls(2026, 8, 25),
+        school=env["school"],
+        academic_year=env["year"],
+        grade=env["grade"],
+        section=env["b"],
+        enrolled_at=date_cls(2026, 8, 25),
     )
 
     # إعادة بناء يوم 23 بعد النقل — الفصل التاريخي يبقى a
@@ -481,8 +537,11 @@ def test_transfer_keeps_historical_section(env):
 def test_analytics_roles(role_client, roles, expected):
     client, school, _ = role_client(roles)
     AcademicYear.objects.create(
-        school=school, name="ع", start_date=DAY,
-        end_date=datetime(2027, 6, 25).date(), status=AcademicYearStatus.ACTIVE,
+        school=school,
+        name="ع",
+        start_date=DAY,
+        end_date=datetime(2027, 6, 25).date(),
+        status=AcademicYearStatus.ACTIVE,
     )
     # المدرسة بلا جدول لذلك اليوم: المصرح له يصل 200 (daily) أو 400 حصة غير معروفة
     # (period/multi — تجاوز التفويض ثم فشل التحقق)؛ الممنوع يرفض 403 قبل كل شيء
@@ -529,8 +588,11 @@ def test_foreign_school_sees_nothing(env, role_client):
     mark(env, s1, env["sa"][0], "ABSENT")
     foreign_client, foreign_school, _ = role_client(["SCHOOL_MANAGER"])
     AcademicYear.objects.create(
-        school=foreign_school, name="ع", start_date=DAY,
-        end_date=datetime(2027, 6, 25).date(), status=AcademicYearStatus.ACTIVE,
+        school=foreign_school,
+        name="ع",
+        start_date=DAY,
+        end_date=datetime(2027, 6, 25).date(),
+        status=AcademicYearStatus.ACTIVE,
     )
     response = foreign_client.post(
         "/api/v1/attendance/analytics/multi-period/",
@@ -582,10 +644,7 @@ def test_unregistered_summary_purge_fails_loudly(env, monkeypatch):
     mohammed.status = "WITHDRAWN"
     mohammed.save(update_fields=["status"])
 
-    stripped = [
-        step for step in purge_service.PURGE_STEPS
-        if step[0] != "ملخصات الحضور اليومية"
-    ]
+    stripped = [step for step in purge_service.PURGE_STEPS if step[0] != "ملخصات الحضور اليومية"]
     monkeypatch.setattr(purge_service, "PURGE_STEPS", stripped)
     with pytest.raises(ProtectedError):
         purge_service.purge_student(student=mohammed)

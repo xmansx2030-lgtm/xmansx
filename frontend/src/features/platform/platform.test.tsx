@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -51,7 +51,7 @@ describe("platform and subscription UI", () => {
 
     renderApp("/platform");
 
-    expect(await screen.findByRole("heading", { name: "Platform Admin" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "إدارة المنصة" })).toBeInTheDocument();
     expect(await screen.findByText("12")).toBeInTheDocument();
     expect(screen.getByText("900")).toBeInTheDocument();
   });
@@ -70,7 +70,7 @@ describe("platform and subscription UI", () => {
     renderApp("/platform");
 
     expect(await screen.findByTestId("active-school-name")).toHaveTextContent(SCHOOL.name);
-    expect(screen.queryByRole("heading", { name: "Platform Admin" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "إدارة المنصة" })).not.toBeInTheDocument();
   });
 
   it("shows expired subscription state and over-limit usage to school managers", async () => {
@@ -198,12 +198,12 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "Schools" }));
+    await user.click(await screen.findByRole("button", { name: "المدارس" }));
     const schoolButton = await screen.findByRole("button", { name: new RegExp(SCHOOL.name) });
     expect(schoolButton).toHaveTextContent("مدير النور");
     await user.click(schoolButton);
     await user.selectOptions(await screen.findByLabelText("الباقة الجديدة"), "1");
-    expect(await screen.findAllByText(/OVER LIMIT/)).toHaveLength(2);
+    expect(within(await screen.findByTestId("plan-change-preview")).getAllByText(/تجاوز الحد/)).toHaveLength(2);
     expect(screen.getByText("لن تُحذف أي بيانات.")).toBeInTheDocument();
     expect(screen.queryByText("بيانات ولي الأمر")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "إيقاف" }));
@@ -224,7 +224,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "Plans" }));
+    await user.click(await screen.findByRole("button", { name: "الباقات" }));
     await user.click(await screen.findByRole("button", { name: "تعديل" }));
     const name = screen.getByPlaceholderText("اسم الباقة");
     await user.clear(name);

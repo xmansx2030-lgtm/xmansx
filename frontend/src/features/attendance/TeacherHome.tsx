@@ -60,8 +60,9 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
         meta={period ? <><Clock3 aria-hidden size={14} /> {period.name} · <span dir="ltr">{period.start_time} – {period.end_time}</span></> : "تظهر الحصة الحالية تلقائيًا حسب جدول المدرسة"}
         actions={
           <Button
+            variant="secondary"
             onClick={() => setScanning((value) => !value)}
-            className="border border-white/15 bg-white text-slate-950 shadow-lg hover:bg-slate-50"
+            className="border-white/15 !bg-white !text-slate-950 shadow-lg hover:!bg-slate-50"
           >
             <ScanLine aria-hidden size={18} /> {scanning ? "إغلاق الماسح" : "مسح رمز الفصل"}
           </Button>

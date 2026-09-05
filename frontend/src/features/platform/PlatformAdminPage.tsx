@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
+import { useLogout } from "@/features/auth/useMe";
 import {
   createPlan,
   createPlatformSchool,
@@ -42,6 +44,34 @@ const FEATURE_KEYS = [
   "COUNSELING",
   "EXECUTIVE_DASHBOARD",
 ] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  NO_SUBSCRIPTION: "بدون اشتراك",
+  TRIAL: "تجريبي",
+  ACTIVE: "نشط",
+  GRACE_PERIOD: "مهلة سماح",
+  EXPIRED: "منتهي",
+  SUSPENDED: "موقوف",
+  CANCELLED: "ملغي",
+};
+const ENTITLEMENT_LABELS: Record<string, string> = {
+  MAX_STUDENTS: "الحد الأقصى للطلاب",
+  MAX_STAFF: "الحد الأقصى للموظفين",
+  MAX_DEVICES: "الحد الأقصى للأجهزة",
+  MAX_STORAGE_GB: "التخزين (GB)",
+  ATTENDANCE: "التحضير",
+  BIOMETRIC_DEVICES: "أجهزة البصمة",
+  ROSTER_SYNC: "مزامنة القوائم",
+  EXCUSES: "الأعذار",
+  WARNINGS: "الإنذارات",
+  DOCUMENTS: "المستندات",
+  REFERRALS: "الإحالات",
+  COUNSELING: "الإرشاد الطلابي",
+  EXECUTIVE_DASHBOARD: "لوحة المؤشرات التنفيذية",
+};
+
+const statusLabel = (status: string | null | undefined) =>
+  STATUS_LABELS[status ?? "NO_SUBSCRIPTION"] ?? status ?? STATUS_LABELS.NO_SUBSCRIPTION;
 
 function statusClass(status: string | null | undefined) {
   if (status === "ACTIVE" || status === "TRIAL") return "bg-emerald-50 text-emerald-700";
@@ -153,7 +183,7 @@ function PlanForm({ plans }: { plans: Plan[] }) {
         <input className="rounded border border-slate-300 px-3 py-2" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} />
         {LIMIT_KEYS.map((key) => (
           <label key={key} className="text-sm text-slate-600">
-            {key}
+            {ENTITLEMENT_LABELS[key]}
             <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" type="number" value={form[LIMIT_FORM_KEYS[key]]} onChange={(e) => setForm({ ...form, [LIMIT_FORM_KEYS[key]]: Number(e.target.value) })} />
           </label>
         ))}
@@ -161,7 +191,7 @@ function PlanForm({ plans }: { plans: Plan[] }) {
           {FEATURE_KEYS.map((key) => (
             <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={features[key]} onChange={(e) => setFeatures({ ...features, [key]: e.target.checked })} />
-              {key}
+              {ENTITLEMENT_LABELS[key]}
             </label>
           ))}
         </div>
@@ -225,6 +255,8 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
     mutationFn: ({ name, body }: { name: string; body: Record<string, unknown> }) => runSubscriptionAction(selected!.id, name, body),
     onSuccess: async () => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["platform", "schools"] }),
+        queryClient.invalidateQueries({ queryKey: ["platform", "overview"] }),
         queryClient.invalidateQueries({ queryKey: ["platform", "school", selected?.id] }),
         queryClient.invalidateQueries({ queryKey: ["platform", "subscription", selected?.id] }),
         queryClient.invalidateQueries({ queryKey: ["platform", "events", selected?.id] }),
@@ -250,7 +282,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
           <input className="rounded border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select aria-label="حالة الاشتراك" className="rounded border border-slate-300 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">كل الحالات</option>
-            {(["TRIAL", "ACTIVE", "GRACE_PERIOD", "EXPIRED", "SUSPENDED", "CANCELLED"] as const).map((value) => <option key={value} value={value}>{value}</option>)}
+            {(["TRIAL", "ACTIVE", "GRACE_PERIOD", "EXPIRED", "SUSPENDED", "CANCELLED"] as const).map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
           </select>
           <select aria-label="الباقة" className="rounded border border-slate-300 px-3 py-2" value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
             <option value="">كل الباقات</option>
@@ -264,7 +296,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
             {(schools.data?.results ?? []).map((school) => (
               <button key={school.id} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-start last:border-b-0 hover:bg-slate-50" onClick={() => setSelected(school)}>
                 <span><b>{school.name}</b><span className="block text-xs text-slate-500">{school.plan_name ?? "بدون باقة"} · {school.manager?.name ?? "بلا مدير"}</span></span>
-                <span className={`rounded px-2 py-1 text-xs ${statusClass(school.subscription_status)}`}>{school.subscription_status ?? "NO_SUBSCRIPTION"}</span>
+                <span className={`rounded px-2 py-1 text-xs ${statusClass(school.subscription_status)}`}>{statusLabel(school.subscription_status)}</span>
               </button>
             ))}
           </div>
@@ -276,7 +308,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
           <>
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h3 className="font-bold text-slate-900">{detail.data.name}</h3>
-              <p className="text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {detail.data.subscription.status ?? "NO_SUBSCRIPTION"}</p>
+              <p className="text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {statusLabel(detail.data.subscription.status)}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <select aria-label="الباقة الجديدة" className="rounded border border-slate-300 px-2 py-2 text-sm" value={actionPlanId} onChange={(e) => setActionPlanId(e.target.value)}>
                   <option value="">اختر باقة</option>
@@ -285,10 +317,10 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                 <input aria-label="المدة" className="rounded border border-slate-300 px-2 py-2 text-sm" type="number" value={actionDays} onChange={(e) => setActionDays(Number(e.target.value))} />
               </div>
               {preview.data && (
-                <div className="mt-3 border-y border-slate-100 py-2 text-xs text-slate-600">
+                <div className="mt-3 border-y border-slate-100 py-2 text-xs text-slate-600" data-testid="plan-change-preview">
                   <p className="font-semibold">معاينة {preview.data.plan.name}</p>
                   {Object.entries(preview.data.impact).map(([key, value]) => (
-                    <p key={key} className={value.over_limit ? "font-semibold text-red-700" : ""}>{key}: {"used_gb" in value ? value.used_gb : value.used} / {"new_limit_gb" in value ? value.new_limit_gb ?? "بلا حد" : value.new_limit ?? "بلا حد"}{value.over_limit ? " · OVER LIMIT" : ""}</p>
+                    <p key={key} className={value.over_limit ? "font-semibold text-red-700" : ""}>{ENTITLEMENT_LABELS[key] ?? key}: {"used_gb" in value ? value.used_gb : value.used} / {"new_limit_gb" in value ? value.new_limit_gb ?? "بلا حد" : value.new_limit ?? "بلا حد"}{value.over_limit ? " · تجاوز الحد" : ""}</p>
                   ))}
                   <p>لن تُحذف أي بيانات.</p>
                 </div>
@@ -304,7 +336,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                   ["cancel", "إلغاء"],
                 ] as [string, string][]).map(([name, label]) => (
                   <Button key={name} variant={name === "suspend" || name === "cancel" ? "danger" : "secondary"} className="px-3 py-1.5" onClick={() => {
-                    action.mutate({ name, body: { plan_id: Number(actionPlanId), days: actionDays, trial_days: actionDays, months: 12, reason: "Platform Admin action" } });
+                    action.mutate({ name, body: { plan_id: Number(actionPlanId), days: actionDays, trial_days: actionDays, months: 12, reason: "إجراء من إدارة المنصة" } });
                   }}>{label}</Button>
                 ))}
               </div>
@@ -313,7 +345,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
             <UsageGrid usage={detail.data.usage} />
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h4 className="mb-2 font-bold">السجل</h4>
-              {(history.data?.history ?? []).slice(0, 4).map((row) => <p key={row.id} className="text-sm text-slate-600">{row.plan_name} · {row.status}</p>)}
+              {(history.data?.history ?? []).slice(0, 4).map((row) => <p key={row.id} className="text-sm text-slate-600">{row.plan_name} · {statusLabel(row.status)}</p>)}
               {(events.data ?? []).slice(0, 5).map((event) => <p key={event.id} className="mt-1 text-xs text-slate-500">{event.event_type} · {new Date(event.created_at).toLocaleDateString("ar-SA")}</p>)}
             </div>
           </>
@@ -328,20 +360,23 @@ export function PlatformAdminPage() {
   const overview = useQuery({ queryKey: ["platform", "overview"], queryFn: ({ signal }) => getPlatformOverview(signal) });
   const plans = useQuery({ queryKey: ["platform", "plans"], queryFn: ({ signal }) => getPlans(signal) });
   const activePlans = useMemo(() => plans.data ?? [], [plans.data]);
+  const logout = useLogout();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Platform Admin</h1>
+          <h1 className="text-2xl font-bold text-slate-900">إدارة المنصة</h1>
           <p className="text-sm text-slate-500">إدارة المدارس والباقات والاشتراكات دون تصفح بيانات الطلاب.</p>
         </div>
-        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-1">
           {(["dashboard", "schools", "plans"] as const).map((item) => (
             <button key={item} className={`rounded-md px-3 py-2 text-sm ${tab === item ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`} onClick={() => setTab(item)}>
-              {item === "dashboard" ? "Dashboard" : item === "schools" ? "Schools" : "Plans"}
+              {item === "dashboard" ? "لوحة المؤشرات" : item === "schools" ? "المدارس" : "الباقات"}
             </button>
           ))}
+          <button className="rounded-md px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => void logout().then(() => navigate("/login", { replace: true }))}>تسجيل الخروج</button>
         </div>
       </div>
       {tab === "dashboard" && (

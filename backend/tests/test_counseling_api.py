@@ -22,12 +22,8 @@ def build_school(make_school, make_user, make_membership, *, prefix, mobile_base
     school = make_school()
     env = build_env(
         school=school,
-        teacher_membership=make_membership(
-            make_user(f"{mobile_base}1"), school, ["TEACHER"]
-        ),
-        vice_membership=make_membership(
-            make_user(f"{mobile_base}2"), school, ["VICE_PRINCIPAL"]
-        ),
+        teacher_membership=make_membership(make_user(f"{mobile_base}1"), school, ["TEACHER"]),
+        vice_membership=make_membership(make_user(f"{mobile_base}2"), school, ["VICE_PRINCIPAL"]),
         prefix=prefix,
     )
     return env
@@ -79,9 +75,7 @@ def make_case(env, *, student=None, counselor=None) -> int:
     )
     assert created.status_code == 201, created.content
     referral_id = created.json()["id"]
-    client = (
-        env["counselor_client"] if counselor is env["counselor"] else env["counselor2_client"]
-    )
+    client = env["counselor_client"] if counselor is env["counselor"] else env["counselor2_client"]
     assert json_post(client, f"{REFERRALS}{referral_id}/acknowledge/").status_code == 200
     opened = json_post(client, f"{REFERRALS}{referral_id}/open-case/")
     assert opened.status_code == 201, opened.content
@@ -93,6 +87,10 @@ def make_case(env, *, student=None, counselor=None) -> int:
 
 def test_case_visibility_by_role(env):
     case_id = make_case(env)
+
+    referral_id = CounselorCase.objects.get(id=case_id).primary_referral_id
+    referral_detail = env["counselor_client"].get(f"{REFERRALS}{referral_id}/")
+    assert referral_detail.json()["counseling_case_id"] == case_id
 
     # المرشد صاحب الحالة والمدير والوكيل يرونها
     assert env["counselor_client"].get(f"{CASES}{case_id}/").status_code == 200
@@ -112,23 +110,32 @@ def test_vice_principal_reads_but_does_not_write(env):
     case_id = make_case(env)
     assert env["vice_client"].get(f"{CASES}{case_id}/").status_code == 200
     assert env["vice_client"].get(f"{CASES}{case_id}/sessions/").status_code == 200
-    assert json_post(
-        env["vice_client"],
-        f"{CASES}{case_id}/sessions/",
-        {"session_type": "STUDENT_MEETING", "summary": "محاولة"},
-    ).status_code == 403
-    assert json_post(
-        env["vice_client"], f"{CASES}{case_id}/status/", {"status": "UNDER_ASSESSMENT"}
-    ).status_code == 403
+    assert (
+        json_post(
+            env["vice_client"],
+            f"{CASES}{case_id}/sessions/",
+            {"session_type": "STUDENT_MEETING", "summary": "محاولة"},
+        ).status_code
+        == 403
+    )
+    assert (
+        json_post(
+            env["vice_client"], f"{CASES}{case_id}/status/", {"status": "UNDER_ASSESSMENT"}
+        ).status_code
+        == 403
+    )
 
 
 def test_other_counselor_cannot_write_into_the_case(env):
     case_id = make_case(env)
-    assert json_post(
-        env["counselor2_client"],
-        f"{CASES}{case_id}/sessions/",
-        {"session_type": "STUDENT_MEETING", "summary": "محاولة"},
-    ).status_code == 404  # لا يراها أصلًا
+    assert (
+        json_post(
+            env["counselor2_client"],
+            f"{CASES}{case_id}/sessions/",
+            {"session_type": "STUDENT_MEETING", "summary": "محاولة"},
+        ).status_code
+        == 404
+    )  # لا يراها أصلًا
 
 
 # ---------------------------------------------------------------- الملف والمسار
@@ -148,16 +155,19 @@ def test_full_workflow_through_the_api(env):
     case_id = make_case(env)
     client = env["counselor_client"]
 
-    assert json_post(
-        client,
-        f"{CASES}{case_id}/sessions/",
-        {
-            "session_type": "STUDENT_MEETING",
-            "summary": "مقابلة أولى مع الطالب.",
-            "observations": "متعاون",
-            "outcome": "اتفقنا على خطة",
-        },
-    ).status_code == 201
+    assert (
+        json_post(
+            client,
+            f"{CASES}{case_id}/sessions/",
+            {
+                "session_type": "STUDENT_MEETING",
+                "summary": "مقابلة أولى مع الطالب.",
+                "observations": "متعاون",
+                "outcome": "اتفقنا على خطة",
+            },
+        ).status_code
+        == 201
+    )
 
     plan = json_post(
         client,
@@ -186,17 +196,26 @@ def test_full_workflow_through_the_api(env):
         {"activity_type": "STUDENT_CHECK_IN", "title": "متابعة أسبوعية", "due_date": "2026-08-10"},
     )
     assert activity.status_code == 201
-    assert json_post(
-        client, f"/api/v1/counselor/activities/{activity.json()['id']}/complete/"
-    ).json()["status"] == "COMPLETED"
+    assert (
+        json_post(client, f"/api/v1/counselor/activities/{activity.json()['id']}/complete/").json()[
+            "status"
+        ]
+        == "COMPLETED"
+    )
 
-    assert json_post(
-        client, f"{CASES}{case_id}/status/", {"status": "FOLLOW_UP_ACTIVE"}
-    ).status_code == 200
+    assert (
+        json_post(client, f"{CASES}{case_id}/status/", {"status": "FOLLOW_UP_ACTIVE"}).status_code
+        == 200
+    )
     timeline = client.get(f"{CASES}{case_id}/timeline/").json()
     types = {event["event_type"] for event in timeline}
-    assert {"CASE_OPENED", "SESSION_ADDED", "PLAN_CREATED", "ACTIVITY_COMPLETED",
-            "STATUS_CHANGED"} <= types
+    assert {
+        "CASE_OPENED",
+        "SESSION_ADDED",
+        "PLAN_CREATED",
+        "ACTIVITY_COMPLETED",
+        "STATUS_CHANGED",
+    } <= types
 
 
 def test_close_requires_reason_then_reopen(env):
@@ -265,11 +284,14 @@ def test_teacher_sees_only_own_request_without_case_content(env):
 
     # معلم آخر لا يرى الطلب ولا يرد عليه (البندان 98-99)
     assert env["teacher2_client"].get(TEACHER_REQUESTS).json() == []
-    assert json_post(
-        env["teacher2_client"],
-        f"{TEACHER_REQUESTS}{request_id}/respond/",
-        {"observation": "محاولة", "improvement_status": "IMPROVED"},
-    ).status_code == 404
+    assert (
+        json_post(
+            env["teacher2_client"],
+            f"{TEACHER_REQUESTS}{request_id}/respond/",
+            {"observation": "محاولة", "improvement_status": "IMPROVED"},
+        ).status_code
+        == 404
+    )
 
     answered = json_post(
         env["teacher_client"],
@@ -278,11 +300,14 @@ def test_teacher_sees_only_own_request_without_case_content(env):
     )
     assert answered.status_code == 201
     # الرد ثابت: محاولة ثانية مرفوضة (البند 127)
-    assert json_post(
-        env["teacher_client"],
-        f"{TEACHER_REQUESTS}{request_id}/respond/",
-        {"observation": "تعديل", "improvement_status": "WORSE"},
-    ).status_code == 409
+    assert (
+        json_post(
+            env["teacher_client"],
+            f"{TEACHER_REQUESTS}{request_id}/respond/",
+            {"observation": "تعديل", "improvement_status": "WORSE"},
+        ).status_code
+        == 409
+    )
 
     # والمرشد يرى الرد داخل حالته
     requests = env["counselor_client"].get(f"{CASES}{case_id}/teacher-requests/").json()
@@ -301,17 +326,18 @@ def test_teacher_cannot_reach_case_endpoints_by_id(env):
         f"{CASES}{case_id}/teacher-requests/",
     ):
         assert teacher.get(url).status_code == 403, url
-    assert env["teacher_client"].get(
-        f"/api/v1/students/{env['students'][0].id}/counseling/"
-    ).status_code == 403
+    assert (
+        env["teacher_client"]
+        .get(f"/api/v1/students/{env['students'][0].id}/counseling/")
+        .status_code
+        == 403
+    )
 
 
 # ---------------------------------------------------------------- العزل
 
 
-def test_cross_school_isolation(
-    env, role_client, make_school, make_user, make_membership
-):
+def test_cross_school_isolation(env, role_client, make_school, make_user, make_membership):
     case_id = make_case(env)
     other = build_school(
         make_school, make_user, make_membership, prefix="32200", mobile_base="055142000"
@@ -322,14 +348,18 @@ def test_cross_school_isolation(
     assert foreign_manager.get(f"{CASES}{case_id}/").status_code == 404
     assert foreign_counselor.get(f"{CASES}{case_id}/").status_code == 404
     assert foreign_manager.get(CASES).json()["count"] == 0
-    assert json_post(
-        foreign_counselor,
-        f"{CASES}{case_id}/sessions/",
-        {"session_type": "STUDENT_MEETING", "summary": "اختراق"},
-    ).status_code == 404
-    assert foreign_manager.get(
-        f"/api/v1/students/{env['students'][0].id}/counseling/"
-    ).status_code == 404
+    assert (
+        json_post(
+            foreign_counselor,
+            f"{CASES}{case_id}/sessions/",
+            {"session_type": "STUDENT_MEETING", "summary": "اختراق"},
+        ).status_code
+        == 404
+    )
+    assert (
+        foreign_manager.get(f"/api/v1/students/{env['students'][0].id}/counseling/").status_code
+        == 404
+    )
 
 
 def test_multi_role_multi_school_no_leakage(
@@ -375,8 +405,14 @@ def test_dashboard_kpis_shape(env):
     make_case(env)
     body = env["counselor_client"].get(DASHBOARD).json()
     assert set(body) == {
-        "new_referrals", "open_cases", "under_assessment", "follow_up_active",
-        "resolved", "waiting_teacher_response", "due_activities", "closed_this_month",
+        "new_referrals",
+        "open_cases",
+        "under_assessment",
+        "follow_up_active",
+        "resolved",
+        "waiting_teacher_response",
+        "due_activities",
+        "closed_this_month",
     }
     assert body["open_cases"] == 1
 

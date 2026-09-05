@@ -83,6 +83,20 @@ describe("SettingsPage", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("بين 1 و120"),
     );
   });
+
+  it("manager can create grades and sections from school settings", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/grades/": { body: [] },
+      "/sections/": { body: [] },
+    });
+    renderApp("/settings?section=structure");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("اسم الصف"), "الثالث المتوسط");
+    await user.type(screen.getByLabelText("رمز الصف"), "MID-3");
+    await user.click(screen.getByRole("button", { name: "حفظ الصف" }));
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/grades/") && call.init?.method === "POST")).toBe(true));
+  });
 });
 
 describe("validatePeriods (تحقق مطابق للخادم)", () => {
@@ -123,5 +137,9 @@ describe("validatePeriods (تحقق مطابق للخادم)", () => {
         period(2, "متداخلة", "07:30", "08:15"),
       ]),
     ).toMatch("تداخل");
+  });
+
+  it("rejects an unreasonable multi-hour class duration", () => {
+    expect(validatePeriods([period(1, "الأولى", "00:00", "23:59")])).toMatch("غير معتادة");
   });
 });

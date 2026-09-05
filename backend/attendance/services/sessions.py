@@ -39,9 +39,7 @@ ADMIN_CORRECTION_ROLES = {SchoolRole.VICE_PRINCIPAL, SchoolRole.SCHOOL_MANAGER}
 
 
 def _active_year(school) -> AcademicYear:
-    year = AcademicYear.objects.filter(
-        school=school, status=AcademicYearStatus.ACTIVE
-    ).first()
+    year = AcademicYear.objects.filter(school=school, status=AcademicYearStatus.ACTIVE).first()
     if year is None:
         raise ApiError(
             "ACTIVE_ACADEMIC_YEAR_REQUIRED",
@@ -89,28 +87,28 @@ def start_session(
 
     # Reopening an existing session is the common polling/navigation path. Avoid using a
     # failed INSERT as control flow; the unique constraint remains the concurrency authority.
-    existing = AttendanceSession.objects.select_related(
-        "submitted_by_membership__user"
-    ).filter(
-        school=school,
-        section=section,
-        attendance_date=local_date,
-        period_sequence=period.sequence,
-    ).first()
+    existing = (
+        AttendanceSession.objects.select_related("submitted_by_membership__user")
+        .filter(
+            school=school,
+            section=section,
+            attendance_date=local_date,
+            period_sequence=period.sequence,
+        )
+        .first()
+    )
     if existing is not None:
         roster = get_roster(school=school, section=section, academic_year=year)
         return existing, roster, True
 
     # سياق اليوم يتجمد عند أول نشاط حضور (م8) — مرجع expected_periods التاريخي
-    from attendance.services.day_context import get_or_create_attendance_day_context
+    from attendance.services.day_context import get_or_refresh_pristine_day_context
 
-    get_or_create_attendance_day_context(school=school, attendance_date=local_date)
+    get_or_refresh_pristine_day_context(school=school, attendance_date=local_date)
 
     roster = get_roster(school=school, section=section, academic_year=year)
     settings_obj = get_or_create_settings(school=school)
-    semester = Semester.objects.filter(
-        school=school, status=SemesterStatus.ACTIVE
-    ).first()
+    semester = Semester.objects.filter(school=school, status=SemesterStatus.ACTIVE).first()
 
     try:
         with transaction.atomic():
@@ -126,9 +124,7 @@ def start_session(
                     period, local_date, settings_obj.timezone
                 ),
                 roster_fingerprint=roster_fingerprint(roster),
-                unprepared_alert_minutes_snapshot=(
-                    settings_obj.unprepared_period_alert_minutes
-                ),
+                unprepared_alert_minutes_snapshot=(settings_obj.unprepared_period_alert_minutes),
                 started_by_membership=membership,
             )
         record_event(
@@ -143,9 +139,7 @@ def start_session(
         return session, roster, False
     except IntegrityError:
         # جلسة قائمة لنفس (الفصل، التاريخ، الحصة) — الحكم من قاعدة البيانات
-        existing = AttendanceSession.objects.select_related(
-            "submitted_by_membership__user"
-        ).get(
+        existing = AttendanceSession.objects.select_related("submitted_by_membership__user").get(
             school=school,
             section=section,
             attendance_date=local_date,
@@ -183,9 +177,8 @@ def _parse_snapshot_start(session: AttendanceSession) -> time:
 def _compute_late_minutes(session: AttendanceSession, arrival: time) -> int:
     """من snapshot البداية حصرًا — لا BellPeriod الحالي ولا قيمة من العميل."""
     start = _parse_snapshot_start(session)
-    delta = (
-        datetime.combine(session.attendance_date, arrival)
-        - datetime.combine(session.attendance_date, start)
+    delta = datetime.combine(session.attendance_date, arrival) - datetime.combine(
+        session.attendance_date, start
     )
     minutes = int(delta.total_seconds() // 60)
     if minutes < 0:
@@ -237,8 +230,9 @@ _ROSTER_CHANGED_ERROR = (
 )
 
 
-def submit_session(*, session_id: int, school, membership, marks: list[dict],
-                   request=None) -> AttendanceSession:
+def submit_session(
+    *, session_id: int, school, membership, marks: list[dict], request=None
+) -> AttendanceSession:
     """تحديث بصمة الـ roster عند التغير يجب أن يثبت رغم رفض الاعتماد —
     لذا الخطأ يرفع بعد خروج الـ transaction بنجاح (نمط المرحلة 4)."""
     with transaction.atomic():
@@ -251,9 +245,7 @@ def submit_session(*, session_id: int, school, membership, marks: list[dict],
     # م10 — عذر Full-Day اعتُمد ويوم كان ناقصًا: التغطية تتوسع تلقائيًا (بند 56)
     from excuses.services.coverage import reconcile_excuse_coverage_for_date
 
-    reconcile_excuse_coverage_for_date(
-        school=school, attendance_date=session.attendance_date
-    )
+    reconcile_excuse_coverage_for_date(school=school, attendance_date=session.attendance_date)
 
     # تحديث ملخصات اليوم متزامنًا (م8) — الوكيل لا ينتظر worker ليرى التحليلات
     from attendance.services.daily_summary import recalculate_daily_attendance_for_section
@@ -289,9 +281,7 @@ def _submit_locked(*, session_id: int, school, membership, marks: list[dict]):
     if session.status == AttendanceSessionStatus.SUBMITTED:
         raise _already_submitted_error(session)
 
-    roster = get_roster(
-        school=school, section=session.section, academic_year=session.academic_year
-    )
+    roster = get_roster(school=school, section=session.section, academic_year=session.academic_year)
     if roster_fingerprint(roster) != session.roster_fingerprint:
         # الفصل تغير منذ البدء — تثبت البصمة الجديدة ثم يرفض الاعتماد
         session.roster_fingerprint = roster_fingerprint(roster)
@@ -316,9 +306,7 @@ def _submit_locked(*, session_id: int, school, membership, marks: list[dict]):
     session.status = AttendanceSessionStatus.SUBMITTED
     session.submitted_by_membership = membership
     session.submitted_at = dj_timezone.now()
-    session.save(
-        update_fields=["status", "submitted_by_membership", "submitted_at", "updated_at"]
-    )
+    session.save(update_fields=["status", "submitted_by_membership", "submitted_at", "updated_at"])
     return session, roster, None
 
 
@@ -348,8 +336,16 @@ def _can_edit(session: AttendanceSession, membership, roles: list[str]) -> None:
         )
 
 
-def edit_session(*, session_id: int, school, membership, roles: list[str],
-                 marks: list[dict], reason: str = "", request=None) -> AttendanceSession:
+def edit_session(
+    *,
+    session_id: int,
+    school,
+    membership,
+    roles: list[str],
+    marks: list[dict],
+    reason: str = "",
+    request=None,
+) -> AttendanceSession:
     """تعديل جلسة معتمدة — كل فرق يسجل في AttendanceChange (يشمل PRESENT)."""
     with transaction.atomic():
         session = (

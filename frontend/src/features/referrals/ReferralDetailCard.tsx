@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { openCaseFromReferral } from "@/features/counseling/api";
 import {
   type ReferralMetrics,
   acknowledgeReferral,
@@ -39,6 +41,7 @@ export function ReferralDetailCard({
   const schoolId = useActiveSchoolId();
   const me = useMe();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [counselorId, setCounselorId] = useState("");
@@ -100,6 +103,14 @@ export function ReferralDetailCard({
     onSuccess: () => {
       setNotes("");
       refresh();
+    },
+    onError: fail,
+  });
+  const openCaseMutation = useMutation({
+    mutationFn: () => openCaseFromReferral(referralId),
+    onSuccess: (createdCase) => {
+      refresh();
+      navigate(`/counselor/cases/${createdCase.id}`);
     },
     onError: fail,
   });
@@ -274,6 +285,24 @@ export function ReferralDetailCard({
               data-testid="acknowledge-referral"
             >
               استلام الحالة
+            </Button>
+          )}
+          {(canManage || isCounselor) && referral.counseling_case_id && (
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/counselor/cases/${referral.counseling_case_id}`)}
+              data-testid="open-counseling-case"
+            >
+              فتح ملف المتابعة
+            </Button>
+          )}
+          {(roles.includes("SCHOOL_MANAGER") || isCounselor) && referral.status === "ACKNOWLEDGED" && !referral.counseling_case_id && (
+            <Button
+              onClick={() => openCaseMutation.mutate()}
+              disabled={openCaseMutation.isPending}
+              data-testid="create-counseling-case"
+            >
+              {openCaseMutation.isPending ? "جارٍ فتح الملف..." : "فتح ملف المتابعة"}
             </Button>
           )}
           <label className="flex flex-col gap-1 text-sm">

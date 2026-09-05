@@ -108,6 +108,7 @@ export interface GradeItem {
   id: number;
   name: string;
   code: string;
+  sequence: number;
 }
 
 export interface SectionItem {
@@ -292,6 +293,12 @@ export const getGrades = (signal?: AbortSignal) =>
 
 export const getSections = (signal?: AbortSignal) =>
   apiRequest<SectionItem[]>("/sections/", { signal });
+
+export const createGrade = (body: { name: string; code: string; sequence: number }) =>
+  apiRequest<GradeItem>("/grades/", { method: "POST", body });
+
+export const createSection = (body: { grade_id: number; name: string; code: string }) =>
+  apiRequest<SectionItem>("/sections/", { method: "POST", body });
 
 // ---- الاستيراد ----
 

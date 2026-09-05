@@ -176,6 +176,6 @@ describe("LoginPage", () => {
     await user.type(await screen.findByLabelText("رقم الجوال"), "0550000016");
     await user.type(screen.getByLabelText("كلمة المرور"), "secret");
     await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
-    expect(await screen.findByRole("heading", { name: "Platform Admin" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "إدارة المنصة" })).toBeInTheDocument();
   });
 });
