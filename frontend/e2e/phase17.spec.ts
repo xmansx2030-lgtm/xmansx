@@ -210,7 +210,7 @@ test("VP tablet, counselor tablet, manager desktop, and platform admin remain us
 
   await login(page, "0550000016");
   await page.goto("/platform");
-  await expect(page.getByRole("heading", { name: "Platform Admin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "إدارة المنصة" })).toBeVisible();
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "platform-admin-desktop.png");
 });

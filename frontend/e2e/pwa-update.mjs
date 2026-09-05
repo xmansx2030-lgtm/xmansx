@@ -58,7 +58,7 @@ try {
     undefined,
     { timeout: 30_000 },
   );
-  await page.getByRole("heading", { name: "Platform Admin" }).waitFor();
+  await page.getByRole("heading", { name: "إدارة المنصة" }).waitFor();
   console.log("PWA update flow: phase17-v1 -> phase17-v2, session preserved");
 } finally {
   await context.close();

@@ -81,7 +81,7 @@ test("Phase 16 SaaS lifecycle, limits, isolation, and recovery", async ({
 
   await useSession(page, platform);
   await page.goto("/platform");
-  await expect(page.getByRole("heading", { name: "Platform Admin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "إدارة المنصة" })).toBeVisible();
 
   const lowPlanResponse = await post(platform, "/platform/plans/", {
     code: `phase16-low-${unique}`,
@@ -325,7 +325,7 @@ call_command('process_subscription_transitions')
 
   await useSession(page, manager);
   await page.goto("/platform");
-  await expect(page.getByRole("heading", { name: "Platform Admin" })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "إدارة المنصة" })).not.toBeVisible();
   await expect(page.getByTestId("active-school-name")).toBeVisible();
 
   await manager.dispose();
