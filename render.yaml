@@ -16,7 +16,6 @@ services:
       python manage.py bootstrap_platform_admin &&
       python manage.py create_database_backup --local-only
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 90
     disk:
       name: xmansx-storage
       mountPath: /app/storage
