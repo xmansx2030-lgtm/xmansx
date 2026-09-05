@@ -439,9 +439,13 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
     assert other.absence_status == "NONE"  # حاضر واليوم مكتمل (حصة واحدة متوقعة)
 
     # ‏ABSENT → LATE
+    from datetime import date as date_cls
+    from datetime import datetime as datetime_cls
     from datetime import timedelta
 
-    arrival = (env2["local_now"] + timedelta(minutes=5)).time().replace(microsecond=0)
+    arrival = (
+        datetime_cls.combine(date_cls(2026, 1, 1), env2["period"].start_time) + timedelta(minutes=5)
+    ).time()
     edit_session(
         session_id=session.id,
         school=school,
