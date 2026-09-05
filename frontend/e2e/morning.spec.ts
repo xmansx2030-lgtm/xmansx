@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -24,8 +24,9 @@ function yesterdayIso(): string {
 
 function runBridge(command: string[], expectFailure = false): string {
   // ‏E2E_PYTHON: شجرة موازية بلا venv خاص بها تستعير مفسر الشجرة الرئيسية
+  const venvPython = resolve(ROOT, "backend", ".venv", "Scripts", "python.exe");
   const python =
-    process.env.E2E_PYTHON ?? resolve(ROOT, "backend", ".venv", "Scripts", "python.exe");
+    process.env.E2E_PYTHON ?? (existsSync(venvPython) ? venvPython : "python");
   try {
     return execFileSync(python, ["-m", "bridge_core", ...command], {
       cwd: resolve(ROOT, "bridge"),

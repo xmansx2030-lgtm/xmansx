@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -116,8 +116,9 @@ async function deactivateLeftoverDevices(context: APIRequestContext) {
 async function runBridge(configPath: string) {
   const root = resolve(import.meta.dirname, "..", "..");
   // ‏E2E_PYTHON: شجرة موازية بلا venv خاص بها تستعير مفسر الشجرة الرئيسية
+  const venvPython = resolve(root, "backend", ".venv", "Scripts", "python.exe");
   const python =
-    process.env.E2E_PYTHON ?? resolve(root, "backend", ".venv", "Scripts", "python.exe");
+    process.env.E2E_PYTHON ?? (existsSync(venvPython) ? venvPython : "python");
   execFileSync(python, ["-m", "bridge_core", "run-once", "--config", configPath], {
     cwd: resolve(root, "bridge"),
     env: { ...process.env, PYTHONPATH: resolve(root, "bridge") },
