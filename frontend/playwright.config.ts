@@ -18,6 +18,9 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    // مدارس الـseed تستخدم Asia/Riyadh؛ توحيد ساعة المتصفح يمنع اختلاف تاريخ
+    // الواجهة عن تاريخ الخادم عند منتصف الليل على عمال CI بتوقيت UTC.
+    timezoneId: "Asia/Riyadh",
   },
   webServer: {
     command: "npm run dev",
