@@ -22,6 +22,7 @@ RUN apt-get update \
         libgdk-pixbuf-2.0-0 \
         fonts-noto-core \
         postgresql-common \
+        redis-server \
     && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
     && apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client-18 \
@@ -48,7 +49,7 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY --from=deps /install /usr/local
 # ننسخ الكود فقط — لا .env ولا git history ولا artifacts (انظر .dockerignore)
 COPY --chown=app:app . .
-RUN mkdir -p /app/mediafiles /app/privatefiles/documents /app/staticfiles /app/storage \
+RUN mkdir -p /app/mediafiles /app/privatefiles/documents /app/staticfiles /app/storage/redis \
         /tmp/.cache/fontconfig \
     && chown -R app:app /app/mediafiles /app/privatefiles /app/staticfiles /app/storage \
         /tmp/.cache

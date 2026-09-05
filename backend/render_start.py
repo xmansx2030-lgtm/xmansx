@@ -36,15 +36,37 @@ def _prepare_storage() -> None:
         value = os.environ.get(name)
         if value:
             Path(value).mkdir(parents=True, exist_ok=True)
+    Path(os.environ.get("REDIS_DATA_DIR", "/app/storage/redis")).mkdir(
+        parents=True, exist_ok=True
+    )
 
 
 def main() -> int:
     _prepare_storage()
     concurrency = str(_positive_int("CELERY_WORKER_CONCURRENCY", 1))
+    redis_data_dir = os.environ.get("REDIS_DATA_DIR", "/app/storage/redis")
+    redis_maxmemory = os.environ.get("REDIS_MAXMEMORY", "64mb")
     beat_schedule = os.environ.get(
         "CELERY_BEAT_SCHEDULE_PATH", str(Path.cwd() / "celerybeat-schedule")
     )
     commands = {
+        "redis": [
+            "redis-server",
+            "--bind",
+            "127.0.0.1",
+            "--port",
+            "6379",
+            "--dir",
+            redis_data_dir,
+            "--appendonly",
+            "yes",
+            "--appendfsync",
+            "everysec",
+            "--maxmemory",
+            redis_maxmemory,
+            "--maxmemory-policy",
+            "noeviction",
+        ],
         "web": [
             "gunicorn",
             "config.wsgi:application",
@@ -59,6 +81,8 @@ def main() -> int:
             "--loglevel=info",
             "--concurrency",
             concurrency,
+            "--pool",
+            os.environ.get("CELERY_WORKER_POOL", "solo"),
             "--hostname",
             "render-worker@%h",
         ],

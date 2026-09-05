@@ -7,7 +7,7 @@ services:
     repo: https://github.com/xmansx2030-lgtm/xmansx.git
     branch: main
     region: frankfurt
-    plan: 1c-2g
+    plan: 0.5c-512mb
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     dockerCommand: python render_start.py
@@ -19,7 +19,7 @@ services:
     disk:
       name: xmansx-storage
       mountPath: /app/storage
-      sizeGB: 5
+      sizeGB: 1
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.production
@@ -56,10 +56,11 @@ services:
           name: xmansx-postgres
           property: port
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: xmansx-cache
-          property: connectionString
+        value: redis://127.0.0.1:6379/0
+      - key: REDIS_DATA_DIR
+        value: /app/storage/redis
+      - key: REDIS_MAXMEMORY
+        value: 64mb
       - key: FIELD_ENCRYPTION_KEYS
         generateValue: true
       - key: NATIONAL_ID_HMAC_KEY
@@ -95,13 +96,15 @@ services:
       - key: R2_ENABLED
         value: "false"
       - key: GUNICORN_WORKERS
-        value: "2"
+        value: "1"
       - key: GUNICORN_THREADS
         value: "2"
       - key: GUNICORN_TIMEOUT
         value: "60"
       - key: CELERY_WORKER_CONCURRENCY
         value: "1"
+      - key: CELERY_WORKER_POOL
+        value: solo
       - key: PDF_RENDER_CONCURRENCY
         value: "1"
       - key: OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS
@@ -117,7 +120,7 @@ services:
     repo: https://github.com/xmansx2030-lgtm/xmansx.git
     branch: main
     region: frankfurt
-    plan: 0.5c-512mb
+    plan: free
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     autoDeployTrigger: checksPass
@@ -129,21 +132,13 @@ services:
           name: xmansx-core
           property: hostport
 
-  - type: keyvalue
-    name: xmansx-cache
-    region: frankfurt
-    plan: 256mb
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    persistenceMode: journal-snapshot
-
 databases:
   - name: xmansx-postgres
     region: frankfurt
-    plan: 0.5c-1g
+    plan: 0.1c-256mb
     postgresMajorVersion: "18"
     databaseName: xmansx
     user: xmansx
-    diskSizeGB: 15
+    diskSizeGB: 1
     storageAutoscalingEnabled: true
     ipAllowList: []
