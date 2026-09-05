@@ -9,7 +9,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { copyFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,9 +36,7 @@ function meta(): Meta {
   if (M === null) {
     M = JSON.parse(readFileSync(resolve(FIXTURES, "meta.json"), "utf-8")) as Meta;
     SNAPSHOT_XLSX = resolve(FIXTURES, "referrals-run.xlsx");
-    execSync(
-      `powershell -Command "Copy-Item '${resolve(FIXTURES, "noor-10.xlsx")}' '${SNAPSHOT_XLSX}' -Force"`,
-    );
+    copyFileSync(resolve(FIXTURES, "noor-10.xlsx"), SNAPSHOT_XLSX);
   }
   return M;
 }
