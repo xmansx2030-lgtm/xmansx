@@ -178,7 +178,10 @@ function YearCard({
   });
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section
+      data-testid="academic-year-card"
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-bold">{year.name}</h3>

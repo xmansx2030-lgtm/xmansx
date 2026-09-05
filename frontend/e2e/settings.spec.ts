@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const PASSWORD = process.env.E2E_SEED_PASSWORD ?? "E2e-Dev-2026!pass";
 const RUN_TAG = `${Date.now()}`.slice(-6);
+const CITY_VALUE = `الرياض ${RUN_TAG}`;
 
 async function loginAsManager(page: Page) {
   await page.goto("/");
@@ -30,9 +31,9 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await expect(page.getByRole("heading", { name: "إعدادات المدرسة" })).toBeVisible();
 
   // 1) تعديل بيانات المدرسة
-  await page.getByLabel("المدينة").fill("الرياض");
+  await page.getByLabel("المدينة").fill(CITY_VALUE);
   await page.getByRole("button", { name: "حفظ البيانات" }).click();
-  await expect(page.getByText("تم حفظ البيانات.")).toBeVisible();
+  await expect(page.getByText("تم حفظ بيانات المدرسة بنجاح.")).toBeVisible();
 
   // 2) إنشاء عام دراسي
   await page.getByRole("tab", { name: "العام الدراسي" }).click();
@@ -40,7 +41,9 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await page.getByLabel("بداية العام").fill("2026-08-23");
   await page.getByLabel("نهاية العام").fill("2027-06-25");
   await page.getByRole("button", { name: "إنشاء عام دراسي" }).click();
-  const yearCard = page.locator("section", { hasText: `عام ${RUN_TAG}` }).first();
+  const yearCard = page.getByTestId("academic-year-card").filter({
+    has: page.getByRole("heading", { name: `عام ${RUN_TAG}`, exact: true }),
+  });
   await expect(yearCard).toBeVisible();
 
   // 3) إنشاء فصل دراسي داخل العام
@@ -54,9 +57,12 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await page.getByRole("tab", { name: "أوقات الحصص" }).click();
   await page.getByLabel(/اسم الجدول/).fill(`الجدول العادي ${RUN_TAG}`);
   await page.getByRole("button", { name: "إنشاء جدول" }).click();
-  const scheduleCard = page
-    .locator("section", { hasText: `الجدول العادي ${RUN_TAG}` })
-    .first();
+  const scheduleCard = page.getByTestId("bell-schedule-card").filter({
+    has: page.getByRole("heading", {
+      name: `الجدول العادي ${RUN_TAG}`,
+      exact: true,
+    }),
+  });
   await expect(scheduleCard).toBeVisible();
 
   const times: [string, string][] = [
@@ -80,23 +86,27 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await scheduleCard.getByRole("button", { name: "تطبيق على الأيام المحددة" }).click();
   await expect(scheduleCard.getByText("تم ربط الجدول بالأيام المحددة.")).toBeVisible();
 
-  // 6) إعدادات التحضير: تنبيه 25 ومهلة 15
+  // 6) إعدادات التحضير: غيّر القيم فعليًا حتى يبقى الاختبار صالحًا بعد إعادة التشغيل
   await page.getByRole("tab", { name: "إعدادات التحضير" }).click();
-  await page.getByLabel(/إظهار تنبيه/).fill("25");
-  await page.getByLabel(/السماح للمعلم/).fill("15");
+  const alertInput = page.getByLabel(/إظهار تنبيه/);
+  const editWindowInput = page.getByLabel("مهلة تعديل التحضير");
+  const alertValue = (await alertInput.inputValue()) === "25" ? "26" : "25";
+  const editWindowValue = (await editWindowInput.inputValue()) === "15" ? "16" : "15";
+  await alertInput.fill(alertValue);
+  await editWindowInput.fill(editWindowValue);
   await page.getByRole("button", { name: "حفظ الإعدادات" }).click();
-  await expect(page.getByText("تم الحفظ.")).toBeVisible();
+  await expect(page.getByText("تم حفظ سياسة التحضير.")).toBeVisible();
 
   // 7) إعادة تحميل — كل القيم ثابتة
   await page.reload();
   await page.getByRole("tab", { name: "إعدادات التحضير" }).click();
-  await expect(page.getByLabel(/إظهار تنبيه/)).toHaveValue("25");
-  await expect(page.getByLabel(/السماح للمعلم/)).toHaveValue("15");
+  await expect(page.getByLabel(/إظهار تنبيه/)).toHaveValue(alertValue);
+  await expect(page.getByLabel("مهلة تعديل التحضير")).toHaveValue(editWindowValue);
 
   await page.getByRole("tab", { name: "بيانات المدرسة" }).click();
-  await expect(page.getByLabel("المدينة")).toHaveValue("الرياض");
+  await expect(page.getByLabel("المدينة")).toHaveValue(CITY_VALUE);
 
-  await page.getByRole("tab", { name: "أيام الدراسة والحصص" }).click();
+  await page.getByRole("tab", { name: "أيام الدراسة", exact: true }).click();
   await expect(
     page.locator("li", { hasText: "الأحد" }).locator("select"),
   ).toContainText(`الجدول العادي ${RUN_TAG}`);

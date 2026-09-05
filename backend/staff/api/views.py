@@ -5,23 +5,26 @@ COUNSELOR/TEACHER محجوبان. التفاصيل بالجوال الكامل �
 لا يكشف أي endpoint مدارس المستخدم الأخرى أو أدواره فيها.
 """
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework import status as http_status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from accounts.mobile import mask_mobile
+from accounts.mobile import mask_mobile, normalize_mobile
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
-from common.excel_security import read_headers, validate_upload
+from common.excel_security import read_header_candidates, validate_upload
 from common.pagination import DefaultPagination
 from memberships.api_base import SETTINGS_WRITE_ROLES, SchoolScopedAPIView
 from memberships.models import SchoolRole
 from staff.models import StaffImportJob, StaffImportStatus, StaffProfile
+from staff.services import counselor_sections as counselor_section_service
 from staff.services import management
-from staff.services.directory import staff_queryset
+from staff.services import manual as manual_service
+from staff.services.directory import COUNSELOR_SECTIONS_PREFETCH, staff_queryset
 from staff.services.imports import commit as commit_service
 from staff.services.imports import mapping as mapping_service
 from staff.tasks import process_staff_import_job
@@ -40,9 +43,68 @@ class StaffPatchSerializer(serializers.Serializer):
     job_title = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
 
-def _serialize_staff(profile: StaffProfile, *, full_mobile: bool) -> dict:
+class StaffCreateSerializer(serializers.Serializer):
+    display_name = serializers.CharField(max_length=200)
+    mobile = serializers.CharField(max_length=30)
+    employee_number = serializers.CharField(
+        max_length=30, required=False, allow_blank=True
+    )
+    job_title = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    role = serializers.ChoiceField(choices=sorted(management.MANAGEABLE_ROLES))
+    counselor_section_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=True,
+        default=list,
+    )
+    confirm_section_reassignment = serializers.BooleanField(default=False)
+
+    def validate_display_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("أدخل اسم الموظف كاملًا.")
+        return value
+
+    def validate_mobile(self, value):
+        try:
+            return normalize_mobile(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def validate_employee_number(self, value):
+        return value.strip()
+
+    def validate_job_title(self, value):
+        return value.strip()
+
+    def validate(self, attrs):
+        if (
+            attrs.get("role") != SchoolRole.COUNSELOR
+            and attrs.get("counselor_section_ids")
+        ):
+            raise serializers.ValidationError(
+                {"counselor_section_ids": "اختيار الفصول متاح للمرشد الطلابي فقط."}
+            )
+        return attrs
+
+
+class CounselorSectionsSerializer(serializers.Serializer):
+    counselor_section_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), allow_empty=True
+    )
+    confirm_section_reassignment = serializers.BooleanField(default=False)
+
+
+def _serialize_staff(
+    profile: StaffProfile, *, full_mobile: bool, current_user_id: int | None = None
+) -> dict:
     membership = profile.membership
     user = membership.user
+    sections = (
+        counselor_section_service.counselor_sections(membership)
+        if SchoolRole.COUNSELOR in membership.role_codes()
+        else []
+    )
     return {
         "id": profile.id,
         "display_name": profile.display_name,
@@ -53,6 +115,9 @@ def _serialize_staff(profile: StaffProfile, *, full_mobile: bool) -> dict:
         "membership_status": membership.status,
         "joined_at": membership.joined_at.date().isoformat(),
         "is_active": profile.is_active,
+        "is_current_user": membership.user_id == current_user_id,
+        "counselor_sections": sections,
+        "counselor_section_count": len(sections),
     }
 
 
@@ -71,8 +136,29 @@ class StaffListView(SchoolScopedAPIView):
         page = paginator.paginate_queryset(queryset, request)
         # القائمة: جوال مقنع دائمًا (حتى للمدير) — الكامل في التفاصيل فقط
         return paginator.get_paginated_response(
-            [_serialize_staff(p, full_mobile=False) for p in page]
+            [
+                _serialize_staff(
+                    p, full_mobile=False, current_user_id=request.user.id
+                )
+                for p in page
+            ]
         )
+
+    def post(self, request: Request) -> Response:
+        serializer = StaffCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile, temporary_password = manual_service.create_staff(
+            school=request.school,
+            data=serializer.validated_data,
+            actor=request.user,
+            request=request,
+        )
+        payload = _serialize_staff(
+            profile, full_mobile=False, current_user_id=request.user.id
+        )
+        payload["temporary_password"] = temporary_password
+        payload["invitation_sent"] = temporary_password is None
+        return Response(payload, status=http_status.HTTP_201_CREATED)
 
 
 class StaffDetailView(SchoolScopedAPIView):
@@ -82,7 +168,7 @@ class StaffDetailView(SchoolScopedAPIView):
     def get_object(self, request, staff_id: int) -> StaffProfile:
         return get_object_or_404(
             StaffProfile.objects.select_related("membership__user").prefetch_related(
-                "membership__roles"
+                "membership__roles", COUNSELOR_SECTIONS_PREFETCH
             ),
             id=staff_id,
             school=request.school,
@@ -90,7 +176,11 @@ class StaffDetailView(SchoolScopedAPIView):
 
     def get(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
-        return Response(_serialize_staff(profile, full_mobile=True))
+        return Response(
+            _serialize_staff(
+                profile, full_mobile=True, current_user_id=request.user.id
+            )
+        )
 
     def patch(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
@@ -111,10 +201,21 @@ class StaffDetailView(SchoolScopedAPIView):
                 target_type="SchoolMembership", target_id=profile.membership_id,
                 metadata={"changed_fields": changed},
             )
-        return Response(_serialize_staff(profile, full_mobile=True))
+        return Response(
+            _serialize_staff(
+                profile, full_mobile=True, current_user_id=request.user.id
+            )
+        )
+
+    def delete(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        management.delete_staff(profile=profile, actor=request.user, request=request)
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 
 class StaffRolesView(StaffDetailView):
+    http_method_names = ["post", "options"]
+
     def post(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
         role = str(request.data.get("role", "")).strip()
@@ -122,39 +223,112 @@ class StaffRolesView(StaffDetailView):
             membership=profile.membership, role=role, actor=request.user, request=request
         )
         profile.membership.refresh_from_db()
-        return Response(_serialize_staff(self.get_object(request, staff_id), full_mobile=True))
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
+
+
+class StaffCounselorSectionsView(StaffDetailView):
+    http_method_names = ["get", "patch", "options"]
+
+    def get(self, request: Request, staff_id: int) -> Response:
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
+
+    def patch(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        serializer = CounselorSectionsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        counselor_section_service.set_counselor_sections(
+            school=request.school,
+            membership=profile.membership,
+            section_ids=serializer.validated_data["counselor_section_ids"],
+            actor=request.user,
+            confirm_reassignment=serializer.validated_data[
+                "confirm_section_reassignment"
+            ],
+            request=request,
+        )
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 
 class StaffRoleDeleteView(StaffDetailView):
+    http_method_names = ["delete", "options"]
+
     def delete(self, request: Request, staff_id: int, role: str) -> Response:
         profile = self.get_object(request, staff_id)
         management.remove_role(
             membership=profile.membership, role=role, actor=request.user, request=request
         )
-        return Response(_serialize_staff(self.get_object(request, staff_id), full_mobile=True))
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 
 class StaffSuspendView(StaffDetailView):
+    http_method_names = ["post", "options"]
+
     def post(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
         management.suspend(membership=profile.membership, actor=request.user, request=request)
-        return Response(_serialize_staff(self.get_object(request, staff_id), full_mobile=True))
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 
 class StaffActivateView(StaffDetailView):
+    http_method_names = ["post", "options"]
+
     def post(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
         management.reactivate(
             membership=profile.membership, actor=request.user, request=request
         )
-        return Response(_serialize_staff(self.get_object(request, staff_id), full_mobile=True))
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 
 class StaffReinviteView(StaffDetailView):
+    http_method_names = ["post", "options"]
+
     def post(self, request: Request, staff_id: int) -> Response:
         profile = self.get_object(request, staff_id)
         management.reinvite(membership=profile.membership, actor=request.user, request=request)
-        return Response(_serialize_staff(self.get_object(request, staff_id), full_mobile=True))
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 
 # ---------- الاستيراد ----------
@@ -166,6 +340,7 @@ def _serialize_job(job: StaffImportJob) -> dict:
         "status": job.status,
         "original_filename": job.original_filename,
         "headers": job.headers,
+        "header_row": int(job.summary.get("header_row", 1)),
         "column_mapping": job.column_mapping,
         "suggested_mapping": job.summary.get("suggested_mapping"),
         "total_rows": job.total_rows,
@@ -174,7 +349,11 @@ def _serialize_job(job: StaffImportJob) -> dict:
         "duplicate_rows": job.duplicate_rows,
         "new_user_rows": job.new_user_rows,
         "existing_user_rows": job.existing_user_rows,
-        "summary": {k: v for k, v in job.summary.items() if k != "suggested_mapping"},
+        "summary": {
+            k: v
+            for k, v in job.summary.items()
+            if k not in ("suggested_mapping", "header_row")
+        },
         "error_code": job.error_code,
         "created_at": job.created_at.isoformat(),
     }
@@ -197,7 +376,9 @@ class StaffImportUploadView(SchoolScopedAPIView):
             unsupported_code="STAFF_IMPORT_INVALID_FILE",
             invalid_code="STAFF_IMPORT_INVALID_FILE",
         )
-        headers = read_headers(uploaded)
+        header_row, headers = mapping_service.select_header_row(
+            read_header_candidates(uploaded)
+        )
         suggested = mapping_service.suggest_mapping(headers)
         job = StaffImportJob.objects.create(
             school=request.school,
@@ -205,7 +386,7 @@ class StaffImportUploadView(SchoolScopedAPIView):
             original_filename=uploaded.name[:255],
             file=uploaded,
             headers=headers,
-            summary={"suggested_mapping": suggested},
+            summary={"suggested_mapping": suggested, "header_row": header_row},
         )
         record_event(
             AuditAction.STAFF_IMPORT_UPLOADED,

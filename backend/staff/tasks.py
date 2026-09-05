@@ -31,7 +31,8 @@ def process_staff_import_job(job_id: int) -> str:
 
         try:
             with job.file.open("rb") as file_obj:
-                raw_rows = read_rows(file_obj)
+                header_row = int(job.summary.get("header_row", 1))
+                raw_rows = read_rows(file_obj, start_row=header_row + 1)
 
             normalized = [
                 pipeline.build_normalized_row(number, values, job.column_mapping)

@@ -4,18 +4,22 @@
 TEACHER لا يملك قائمة طلاب عامة في هذه المرحلة (تأتي مع الحضور).
 """
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from drf_spectacular.utils import extend_schema
+from rest_framework import serializers
 from rest_framework import status as http_status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from academics.models import AcademicYear, AcademicYearStatus
+from accounts.mobile import normalize_mobile
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from common.pagination import DefaultPagination
+from common.security.identifiers import normalize_national_id
 from memberships.api_base import SETTINGS_WRITE_ROLES, SchoolScopedAPIView
 from students.api.profile_serializers import (
     AttendanceChangeSerializer,
@@ -31,6 +35,7 @@ from students.models import (
     StudentImportJob,
 )
 from students.services import attendance_profile as attendance_profile_service
+from students.services import manual as manual_service
 from students.services import morning_profile as morning_profile_service
 from students.services.imports import commit as commit_service
 from students.services.imports import mapping as mapping_service
@@ -65,6 +70,41 @@ def _serialize_student(student) -> dict:
     }
 
 
+class StudentCreateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=200)
+    national_id = serializers.CharField(max_length=30, write_only=True)
+    student_number = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    guardian_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    guardian_mobile = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    section_id = serializers.IntegerField(min_value=1)
+
+    def validate_full_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("أدخل اسم الطالب كاملًا.")
+        return value
+
+    def validate_national_id(self, value):
+        try:
+            return normalize_national_id(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def validate_guardian_mobile(self, value):
+        if not value.strip():
+            return ""
+        try:
+            return normalize_mobile(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def validate_student_number(self, value):
+        return value.strip()
+
+    def validate_guardian_name(self, value):
+        return value.strip()
+
+
 class StudentListView(SchoolScopedAPIView):
     def get(self, request: Request) -> Response:
         queryset = students_queryset(
@@ -79,6 +119,36 @@ class StudentListView(SchoolScopedAPIView):
         paginator = DefaultPagination()
         page = paginator.paginate_queryset(queryset, request)
         return paginator.get_paginated_response([_serialize_student(s) for s in page])
+
+    def post(self, request: Request) -> Response:
+        serializer = StudentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        year = _active_year(request.school)
+        if year is None:
+            raise ApiError(
+                "ACTIVE_ACADEMIC_YEAR_REQUIRED",
+                "يجب تفعيل عام دراسي قبل إضافة طالب.",
+                status_code=409,
+            )
+        section = get_object_or_404(
+            Section.objects.select_related("grade"),
+            id=serializer.validated_data["section_id"],
+            school=request.school,
+            is_active=True,
+            grade__is_active=True,
+        )
+        student = manual_service.create_student(
+            school=request.school,
+            academic_year=year,
+            section=section,
+            data=serializer.validated_data,
+            actor=request.user,
+            request=request,
+        )
+        created = students_queryset(
+            school=request.school, academic_year=year
+        ).get(id=student.id)
+        return Response(_serialize_student(created), status=http_status.HTTP_201_CREATED)
 
 
 class StudentSearchView(StudentListView):
@@ -134,6 +204,10 @@ def _serialize_job(job: StudentImportJob) -> dict:
         "status": job.status,
         "original_filename": job.original_filename,
         "headers": job.headers,
+        "header_row": int(job.summary.get("header_row", 1)),
+        "import_format": job.summary.get("import_format", "TABULAR"),
+        "source_sheet_count": int(job.summary.get("source_sheet_count", 1)),
+        "detected_rows": int(job.summary.get("detected_rows", 0)),
         "column_mapping": job.column_mapping,
         "suggested_mapping": job.summary.get("suggested_mapping"),
         "academic_year": {"id": job.academic_year_id},
@@ -141,7 +215,18 @@ def _serialize_job(job: StudentImportJob) -> dict:
         "valid_rows": job.valid_rows,
         "invalid_rows": job.invalid_rows,
         "duplicate_rows": job.duplicate_rows,
-        "summary": {k: v for k, v in job.summary.items() if k != "suggested_mapping"},
+        "summary": {
+            k: v
+            for k, v in job.summary.items()
+            if k
+            not in (
+                "suggested_mapping",
+                "header_row",
+                "import_format",
+                "source_sheet_count",
+                "detected_rows",
+            )
+        },
         "error_code": job.error_code,
         "created_at": job.created_at.isoformat(),
     }
@@ -170,8 +255,10 @@ class ImportUploadView(SchoolScopedAPIView):
             raise ApiError("VALIDATION_ERROR", "أرفق ملف Excel في الحقل file.")
 
         parser_service.validate_upload(uploaded)
-        headers = parser_service.read_headers(uploaded)
+        analysis = parser_service.analyze_import(uploaded)
+        headers = analysis["headers"]
         suggested = mapping_service.suggest_mapping(headers)
+        analysis_summary = {key: value for key, value in analysis.items() if key != "headers"}
 
         job = StudentImportJob.objects.create(
             school=request.school,
@@ -180,13 +267,18 @@ class ImportUploadView(SchoolScopedAPIView):
             original_filename=uploaded.name[:255],
             file=uploaded,
             headers=headers,
-            summary={"suggested_mapping": suggested},
+            summary={"suggested_mapping": suggested, **analysis_summary},
         )
         record_event(
             AuditAction.STUDENT_IMPORT_UPLOADED,
             request=request, actor=request.user, school=request.school,
             target_type="StudentImportJob", target_id=job.id,
-            metadata={"filename": job.original_filename},
+            metadata={
+                "filename": job.original_filename,
+                "import_format": analysis["import_format"],
+                "source_sheet_count": analysis["source_sheet_count"],
+                "detected_rows": analysis["detected_rows"],
+            },
         )
         return Response(_serialize_job(job), status=http_status.HTTP_201_CREATED)
 

@@ -124,7 +124,7 @@ TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True
 USE_TZ = True
 
-# ---- Static / Media (مفهومان منفصلان؛ Object Storage للمرفقات يأتي لاحقًا) ----
+# ---- Static / Media ----
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
@@ -198,29 +198,62 @@ BACKUP_MAX_AGE_SECONDS = env_int("BACKUP_MAX_AGE_SECONDS", 26 * 60 * 60)
 PG_DUMP_BINARY = env_str("PG_DUMP_BINARY", "pg_dump")
 PG_RESTORE_BINARY = env_str("PG_RESTORE_BINARY", "pg_restore")
 
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    "backups": {
-        "BACKEND": env_str("BACKUP_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage"),
-        "OPTIONS": {
-            "location": env_str(
-                "BACKUP_STORAGE_LOCATION", str(BASE_DIR / "local_storage" / "repository")
-            )
-        },
-    },
-}
+R2_ENABLED = env_bool("R2_ENABLED", False)
 
-# django-storages S3/R2 safety defaults. Credentials remain standard SDK environment secrets.
-AWS_DEFAULT_ACL = None
-AWS_QUERYSTRING_AUTH = True
-AWS_S3_FILE_OVERWRITE = False
-AWS_S3_OBJECT_PARAMETERS = {
-    "ServerSideEncryption": env_str("BACKUP_S3_SERVER_SIDE_ENCRYPTION", "AES256")
-}
-AWS_STORAGE_BUCKET_NAME = env_str("AWS_STORAGE_BUCKET_NAME", "")
-AWS_S3_ENDPOINT_URL = env_str("AWS_S3_ENDPOINT_URL", "")
-AWS_S3_REGION_NAME = env_str("AWS_S3_REGION_NAME", "auto")
+
+def _r2_storage(bucket_name: str, location: str) -> dict:
+    """Build an isolated, private R2 storage alias.
+
+    Alias-local options avoid the global ``AWS_STORAGE_BUCKET_NAME`` setting so
+    application objects and database backups can live in different buckets.
+    """
+    return {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": env_str("R2_ACCESS_KEY_ID", ""),
+            "secret_key": env_str("R2_SECRET_ACCESS_KEY", ""),
+            "bucket_name": bucket_name,
+            "endpoint_url": env_str("R2_ENDPOINT_URL", ""),
+            "region_name": "auto",
+            "location": location,
+            "default_acl": None,
+            "querystring_auth": True,
+            "file_overwrite": False,
+            "object_parameters": {"ServerSideEncryption": "AES256"},
+        },
+    }
+
+
+if R2_ENABLED:
+    _private_bucket = env_str("R2_PRIVATE_BUCKET_NAME", "")
+    _backup_bucket = env_str("R2_BACKUP_BUCKET_NAME", "")
+    STORAGES = {
+        "default": _r2_storage(_private_bucket, env_str("R2_MEDIA_PREFIX", "media")),
+        "private_documents": _r2_storage(
+            _private_bucket, env_str("R2_DOCUMENTS_PREFIX", "documents")
+        ),
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "backups": _r2_storage(
+            _backup_bucket, env_str("R2_BACKUPS_PREFIX", "database-backups")
+        ),
+    }
+else:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "private_documents": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": GENERATED_DOCUMENTS_ROOT},
+        },
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "backups": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {
+                "location": env_str(
+                    "BACKUP_STORAGE_LOCATION", str(BASE_DIR / "local_storage" / "repository")
+                )
+            },
+        },
+    }
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL

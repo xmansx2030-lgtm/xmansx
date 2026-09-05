@@ -6,7 +6,12 @@ import pytest
 
 from academics.models import AcademicYear, AcademicYearStatus
 from students.models import EnrollmentStatus, Student, StudentEnrollment
-from tests.xlsx_helper import build_xlsx_upload, noor_row
+from tests.xlsx_helper import (
+    build_noor_report_upload,
+    build_official_noor_upload,
+    build_xlsx_upload,
+    noor_row,
+)
 
 IMPORTS_URL = "/api/v1/student-imports/"
 
@@ -54,6 +59,111 @@ def test_upload_suggests_mapping_from_noor_headers(import_manager):
     assert suggested["full_name"] == 1
     assert suggested["grade"] == 2
     assert suggested["section"] == 3
+
+
+@pytest.mark.django_db
+def test_noor_report_discovers_header_row_and_imports_data(import_manager):
+    client, school, year = import_manager
+    rows = [
+        noor_row("1012345678", "أحمد محمد", "الأول الثانوي", "1", "S-1001"),
+        noor_row("1012345679", "خالد سعد", "الأول الثانوي", "2", "S-1002"),
+    ]
+    response = client.post(IMPORTS_URL, {"file": build_noor_report_upload(rows)})
+
+    assert response.status_code == 201
+    job = response.json()
+    assert job["header_row"] == 12
+    assert job["suggested_mapping"] == {
+        "national_id": 7,
+        "full_name": 5,
+        "grade": 1,
+        "section": 3,
+        "student_number": 9,
+        "guardian_name": 11,
+        "guardian_mobile": 13,
+    }
+
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"]
+    assert [row["row_number"] for row in preview] == [13, 14]
+
+    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    assert committed.status_code == 200
+    assert Student.objects.filter(school=school).count() == 2
+    assert StudentEnrollment.objects.filter(
+        school=school, academic_year=year, status=EnrollmentStatus.ACTIVE
+    ).count() == 2
+
+
+@pytest.mark.django_db
+def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import_manager):
+    client, school, year = import_manager
+    upload_file = build_official_noor_upload(
+        [
+            {
+                "grade": "الأول الثانوي",
+                "section": "1",
+                "rows": [
+                    noor_row("1012345678", "طالب أول", section="1", guardian="ولي أول"),
+                    noor_row("1012345679", "طالب ثان", section="1", guardian="ولي ثان"),
+                ],
+            },
+            {
+                "grade": "الأول الثانوي",
+                "section": "1",
+                "rows": [noor_row("1012345680", "طالب ثالث", section="1")],
+            },
+            {
+                "grade": "الثاني الثانوي",
+                "section": "2",
+                "section_metadata": False,
+                "department": "المسار العام",
+                "rows": [noor_row("2012345678", "طالب رابع", section="2")],
+            },
+        ]
+    )
+    response = client.post(IMPORTS_URL, {"file": upload_file})
+
+    assert response.status_code == 201
+    job = response.json()
+    assert job["import_format"] == "NOOR_OFFICIAL_MULTI_SHEET"
+    assert job["source_sheet_count"] == 3
+    assert job["detected_rows"] == 4
+    assert job["header_row"] == 21
+    assert job["suggested_mapping"]["national_id"] == 20
+    assert job["suggested_mapping"]["full_name"] == 28
+    assert job["suggested_mapping"]["section"] == 18
+    assert job["suggested_mapping"]["guardian_name"] == 16
+    assert job["suggested_mapping"]["grade"] == 30
+    assert job["suggested_mapping"]["guardian_mobile"] is None
+
+    assert process(client, job["id"]).status_code == 202
+    status_body = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert status_body["status"] == "READY_FOR_REVIEW"
+    assert status_body["total_rows"] == 4
+    assert status_body["summary"]["new"] == 4
+    assert set(status_body["summary"]["will_create_grades"]) == {
+        "الأول الثانوي",
+        "الثاني الثانوي",
+    }
+
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"]
+    assert [row["row_number"] for row in preview] == [22, 23, 24, 25]
+    assert {row["data"]["grade_name"] for row in preview} == {
+        "الأول الثانوي",
+        "الثاني الثانوي",
+    }
+
+    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    assert committed.status_code == 200
+    committed_job = committed.json()
+    assert committed_job["import_format"] == "NOOR_OFFICIAL_MULTI_SHEET"
+    assert committed_job["source_sheet_count"] == 3
+    assert committed_job["detected_rows"] == 4
+    assert Student.objects.filter(school=school).count() == 4
+    assert StudentEnrollment.objects.filter(
+        school=school, academic_year=year, status=EnrollmentStatus.ACTIVE
+    ).count() == 4
 
 
 @pytest.mark.django_db

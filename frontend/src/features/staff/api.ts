@@ -11,6 +11,31 @@ export interface StaffMember {
   membership_status: string;
   joined_at: string;
   is_active: boolean;
+  is_current_user?: boolean;
+  counselor_sections?: CounselorSection[];
+  counselor_section_count?: number;
+}
+
+export interface CounselorSection {
+  id: number;
+  name: string;
+  code: string;
+  grade: { id: number; name: string };
+}
+
+export interface ManualStaffInput {
+  display_name: string;
+  mobile: string;
+  employee_number?: string;
+  job_title?: string;
+  role: string;
+  counselor_section_ids?: number[];
+  confirm_section_reassignment?: boolean;
+}
+
+export interface ManualStaffResult extends StaffMember {
+  temporary_password: string | null;
+  invitation_sent: boolean;
 }
 
 export interface StaffImportJob {
@@ -25,6 +50,7 @@ export interface StaffImportJob {
     | "CANCELLED";
   original_filename: string;
   headers: string[];
+  header_row?: number;
   suggested_mapping: Partial<Record<string, number | null>> | null;
   total_rows: number;
   invalid_rows: number;
@@ -74,7 +100,23 @@ export function getStaff(
   return apiRequest<Paginated<StaffMember>>(`/staff/${suffix}`, { signal });
 }
 
+export const createStaff = (input: ManualStaffInput) =>
+  apiRequest<ManualStaffResult>("/staff/", { method: "POST", body: input });
+
 export const getStaffDetail = (id: number) => apiRequest<StaffMember>(`/staff/${id}/`);
+
+export const updateCounselorSections = (
+  id: number,
+  counselorSectionIds: number[],
+  confirmSectionReassignment = false,
+) =>
+  apiRequest<StaffMember>(`/staff/${id}/counselor-sections/`, {
+    method: "PATCH",
+    body: {
+      counselor_section_ids: counselorSectionIds,
+      confirm_section_reassignment: confirmSectionReassignment,
+    },
+  });
 
 export const addStaffRole = (id: number, role: string) =>
   apiRequest<StaffMember>(`/staff/${id}/roles/`, { method: "POST", body: { role } });
@@ -90,6 +132,9 @@ export const activateStaff = (id: number) =>
 
 export const reinviteStaff = (id: number) =>
   apiRequest<StaffMember>(`/staff/${id}/reinvite/`, { method: "POST" });
+
+export const deleteStaff = (id: number) =>
+  apiRequest<void>(`/staff/${id}/`, { method: "DELETE" });
 
 // ---- الاستيراد ----
 

@@ -103,8 +103,7 @@ async function login(page: Page, mobile: string, school: string) {
 }
 
 async function logout(page: Page) {
-  await api(page, "/auth/logout/", { method: "POST" });
-  await page.goto("/login");
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -212,7 +211,7 @@ test("warning document: generate, download a real PDF, and reprint the frozen sn
   const documentRow = page.locator('[data-testid^="doc-row-"]').first();
   await expect(documentRow).toContainText("الإنذار الثاني", { timeout: 60_000 });
   await expect(documentRow).toContainText("جاهز");
-  await expect(documentRow).toContainText("warning_level_2:v1");
+  await expect(documentRow).toContainText("warning_level_2:v2");
 
   const listing = await api<{ results: { id: number; checksum: string; status: string }[] }>(
     page,

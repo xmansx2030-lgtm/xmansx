@@ -271,9 +271,12 @@ class DocumentDownloadView(SchoolScopedAPIView):
             metadata={"document_type": document.document_type},
         )
         label = TYPE_LABELS.get(document.document_type, document.document_type)
+        # العرض المضمن يفتح عارض PDF في المتصفح للطباعة، والتنزيل الافتراضي يبقى
+        # كما هو للتوافق مع العملاء الحاليين. كلا المسارين مصادق ومدقق الصلاحية.
+        inline = request.query_params.get("inline") == "1"
         return FileResponse(
             handle,
-            as_attachment=True,
+            as_attachment=not inline,
             filename=f"{label}-{document.id}.pdf",
             content_type=document.mime_type or "application/pdf",
         )

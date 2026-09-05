@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, Filter, Plus, Upload, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { Modal } from "@/components/Modal";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { useActiveSchoolId } from "@/features/settings/hooks";
@@ -14,6 +18,7 @@ import {
   getSections,
   getStudents,
 } from "@/features/students/api";
+import { ManualStudentForm } from "@/features/students/ManualStudentForm";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "منتظم",
@@ -39,6 +44,8 @@ export function StudentsPage() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const graduateMutation = useMutation({
     mutationFn: (ids: number[]) => bulkSetStatus(ids, "GRADUATED"),
@@ -101,20 +108,21 @@ export function StudentsPage() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">الطلاب النشطون</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link to="/students/inactive" className="text-sm text-blue-700 underline">
-            الطلاب غير النشطين
-          </Link>
+    <div className="space-y-5">
+      <PageHeader
+        icon={UsersRound}
+        eyebrow="السجل الطلابي"
+        title="الطلاب النشطون"
+        description="الوصول السريع إلى ملف الطالب ومواظبته وإجراءاته، مع أدوات استيراد وإدارة آمنة لفريق المدرسة."
+        tone="operational"
+        badge={`${students.data?.count ?? 0} طالبًا`}
+        actions={<div className="flex flex-wrap items-center gap-2"><Link to="/students/inactive" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"><Archive aria-hidden size={17} /> غير النشطين</Link>
           {canImport && (
-            <Link to="/students/import">
-              <Button>استيراد من نور</Button>
-            </Link>
-          )}
-        </div>
-      </div>
+            <><Link to="/students/import"><Button className="bg-white/10 text-white ring-1 ring-white/15 hover:bg-white/15"><Upload aria-hidden size={17} /> استيراد</Button></Link><Button onClick={() => setManualOpen(true)} className="bg-white text-slate-950 hover:bg-slate-50"><Plus aria-hidden size={17} /> إدخال يدوي</Button></>
+          )}</div>}
+      />
+
+      {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{notice}</p>}
 
       {canImport && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -135,7 +143,9 @@ export function StudentsPage() {
       )}
 
       {/* الفلاتر */}
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2"><Filter aria-hidden size={18} className="text-slate-500" /><h2 className="font-black text-slate-900">البحث والتصفية</h2></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="search-name" className="text-sm font-medium text-slate-700">
             بحث بالاسم
@@ -210,7 +220,8 @@ export function StudentsPage() {
             ))}
           </select>
         </div>
-      </div>
+        </div>
+      </section>
 
       {students.isPending && <Spinner />}
       {students.isError && <ErrorState error={students.error} />}
@@ -283,7 +294,7 @@ export function StudentsPage() {
                 {students.data.results.length === 0 && (
                   <tr>
                     <td colSpan={canImport ? 6 : 5} className="p-6 text-center text-slate-400">
-                      لا يوجد طلاب مطابقون.
+                      <EmptyState title="لا يوجد طلاب مطابقون" description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
                     </td>
                   </tr>
                 )}
@@ -313,6 +324,21 @@ export function StudentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {manualOpen && (
+        <Modal title="إضافة طالب يدويًا" description="أدخل بيانات الطالب وحدد فصله في العام الدراسي الحالي." onClose={() => setManualOpen(false)}>
+          <ManualStudentForm
+            sections={sections.data ?? []}
+            onCancel={() => setManualOpen(false)}
+            onCreated={(student) => {
+              setManualOpen(false);
+              setNotice(`تمت إضافة الطالب ${student.full_name} بنجاح.`);
+              setPage(1);
+              void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "students") });
+            }}
+          />
+        </Modal>
       )}
     </div>
   );

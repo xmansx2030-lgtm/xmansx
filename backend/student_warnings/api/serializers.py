@@ -62,6 +62,17 @@ class LevelStateSerializer(serializers.Serializer):
     state = serializers.ChoiceField(choices=["DUE", "NOT_DUE", "ISSUED"])
 
 
+class WarningDocumentSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+
+
+class IssuedWarningSummarySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    level = serializers.CharField()
+    document = WarningDocumentSummarySerializer(allow_null=True)
+
+
 class EligibilityRowSerializer(serializers.Serializer):
     student_id = serializers.IntegerField()
     full_name = serializers.CharField()
@@ -74,6 +85,7 @@ class EligibilityRowSerializer(serializers.Serializer):
     highest_reached_level = serializers.CharField(allow_null=True)
     highest_due_level = serializers.CharField(allow_null=True)
     issued_levels = serializers.ListField(child=serializers.CharField())
+    issued_warnings = IssuedWarningSummarySerializer(many=True)
     levels = serializers.DictField(child=LevelStateSerializer())
 
 

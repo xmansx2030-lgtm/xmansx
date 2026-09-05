@@ -18,6 +18,7 @@ _ALIASES: dict[str, list[str]] = {
     "national_id": [
         "رقم الهوية", "السجل المدني", "هوية الطالب", "رقم الهويه",
         "رقم السجل المدني", "الهوية", "رقم الاقامة", "رقم الإقامة",
+        "رقم رخصة الاقامة", "رقم رخصة الإقامة",
     ],
     "full_name": ["اسم الطالب", "الاسم", "اسم الطالب الرباعي", "الطالب"],
     "grade": ["الصف", "المرحلة والصف", "الصف الدراسي"],
@@ -33,7 +34,15 @@ IDENTITY_FIELDS = ("national_id", "student_number")
 
 
 def _clean(header: str) -> str:
-    return header.strip().replace("أ", "ا").replace("إ", "ا").replace("ة", "ه")
+    normalized = (
+        header.strip()
+        .replace("أ", "ا")
+        .replace("إ", "ا")
+        .replace("آ", "ا")
+        .replace("ة", "ه")
+        .replace("ـ", "")
+    )
+    return " ".join(normalized.split())
 
 
 def suggest_mapping(headers: list[str]) -> dict[str, int | None]:
@@ -50,6 +59,47 @@ def suggest_mapping(headers: list[str]) -> dict[str, int | None]:
             if mapping[field] is not None:
                 break
     return mapping
+
+
+def select_header_row(candidates: list[tuple[int, list[str]]]) -> tuple[int, list[str]]:
+    """يختار صف ترويسات نور حتى لو سبقته عناوين أو شعار أو بيانات المدرسة.
+
+    تعطى الأولوية للصف الذي يجمع الاسم والصف والفصل مع أحد معرّفات الطالب.
+    وإذا لم نتعرف على أي عنوان، نعرض أكثر الصفوف امتلاءً للمطابقة اليدوية.
+    """
+    if not candidates:
+        return 1, []
+
+    ranked: list[tuple[int, int, int, int, int, int, list[str]]] = []
+    for row_number, headers in candidates:
+        suggested = suggest_mapping(headers)
+        required_matches = sum(suggested[field] is not None for field in REQUIRED_FIELDS)
+        identity_match = int(any(suggested[field] is not None for field in IDENTITY_FIELDS))
+        complete = int(required_matches == len(REQUIRED_FIELDS) and identity_match == 1)
+        essential_matches = required_matches + identity_match
+        all_matches = sum(index is not None for index in suggested.values())
+        nonempty = sum(bool(header) for header in headers)
+        ranked.append(
+            (
+                complete,
+                essential_matches,
+                required_matches,
+                all_matches,
+                nonempty,
+                -row_number,
+                headers,
+            )
+        )
+
+    complete, essential, _required, all_matches, _filled, negative_row, headers = max(
+        ranked
+    )
+    if complete == 0 and essential == 0 and all_matches == 0:
+        # قالب غير معروف: اختر الصف الأقرب لشكل جدول ليطابقه المستخدم يدويًا.
+        *_scores, negative_row, headers = max(
+            ranked, key=lambda item: (item[4], item[5])
+        )
+    return -negative_row, headers
 
 
 def validate_mapping(mapping: dict[str, int | None], headers_count: int) -> None:

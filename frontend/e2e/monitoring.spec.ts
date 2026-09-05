@@ -196,13 +196,18 @@ test("isolation: teacher role in school B gets no dashboard, link, or data", asy
 }) => {
   // خالد مدير في A ومعلم في B
   await login(page, "0550000002", "ثانوية الأندلس");
-  await expect(page.getByRole("link", { name: "متابعة التحضير" })).toBeVisible();
+  const primaryNavigation = page.getByRole("navigation", { name: "التنقل الرئيسي" });
+  await expect(
+    primaryNavigation.getByRole("link", { name: "متابعة التحضير" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "ثانوية الأندلس" }).click();
   await page.getByRole("listbox").getByRole("button", { name: /مدارس الرواد/ }).click();
   await expect(page.getByTestId("active-school-name")).toHaveText("مدارس الرواد");
 
-  await expect(page.getByRole("link", { name: "متابعة التحضير" })).not.toBeVisible();
+  await expect(
+    primaryNavigation.getByRole("link", { name: "متابعة التحضير" }),
+  ).not.toBeVisible();
   await page.goto("/attendance/monitoring");
   await expect(page.getByRole("alert")).toContainText("صلاحية");
 

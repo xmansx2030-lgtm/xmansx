@@ -16,6 +16,23 @@ from common.errors import ApiError
 TOO_LARGE_MESSAGE = "حجم الملف يتجاوز الحد المسموح (10MB)."
 UNSUPPORTED_MESSAGE = "صيغة الملف غير مدعومة. المسموح: ملف Excel بامتداد ‎.xlsx فقط."
 INVALID_FILE_MESSAGE = "تعذر قراءة الملف. تأكد أنه ملف Excel سليم."
+MAX_IMPORT_COLUMNS = 200
+MAX_HEADER_SCAN_ROWS = 50
+
+
+def _bounded_max_column(sheet) -> int:
+    """يعالج ملفات الجهات الرسمية التي لا تصرّح بأبعاد الورقة في XML."""
+    max_column = sheet.max_column
+    if isinstance(max_column, int) and max_column > 0:
+        return min(max_column, MAX_IMPORT_COLUMNS)
+    return MAX_IMPORT_COLUMNS
+
+
+def _headers_from_values(values) -> list[str]:
+    headers = [str(cell).strip() if cell is not None else "" for cell in values]
+    while headers and not headers[-1]:
+        headers.pop()
+    return headers
 
 
 def validate_upload(
@@ -59,21 +76,70 @@ def read_headers(file_obj) -> list[str]:
     workbook = load_workbook(file_obj, read_only=True, data_only=True)
     try:
         sheet = workbook.active
-        first_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ())
-        return [str(cell).strip() if cell is not None else "" for cell in first_row]
+        first_row = next(
+            sheet.iter_rows(
+                min_row=1,
+                max_row=1,
+                max_col=_bounded_max_column(sheet),
+                values_only=True,
+            ),
+            (),
+        )
+        return _headers_from_values(first_row)
+    finally:
+        workbook.close()
+        file_obj.seek(0)
+
+
+def read_header_candidates(
+    file_obj, *, max_scan_rows: int = MAX_HEADER_SCAN_ROWS
+) -> list[tuple[int, list[str]]]:
+    """يعيد الصفوف غير الفارغة المرشحة لترويسة التقرير مع أرقامها الأصلية.
+
+    بعض تقارير الجهات الخارجية تسبق الجدول بشعار وعنوان وعدة صفوف فارغة؛ لذلك
+    يختار مستورد المجال الصف الصحيح حسب أسماء أعمدته المعروفة بدل افتراض الصف الأول.
+    """
+    workbook = load_workbook(file_obj, read_only=True, data_only=True)
+    try:
+        sheet = workbook.active
+        candidates: list[tuple[int, list[str]]] = []
+        for row_number, values in enumerate(
+            sheet.iter_rows(
+                min_row=1,
+                max_row=max_scan_rows,
+                max_col=_bounded_max_column(sheet),
+                values_only=True,
+            ),
+            start=1,
+        ):
+            headers = _headers_from_values(values)
+            if any(headers):
+                candidates.append((row_number, headers))
+        return candidates
     finally:
         workbook.close()
         file_obj.seek(0)
 
 
 def read_rows(
-    file_obj, *, too_large_code: str = "IMPORT_FILE_TOO_LARGE"
+    file_obj,
+    *,
+    start_row: int = 2,
+    too_large_code: str = "IMPORT_FILE_TOO_LARGE",
 ) -> list[tuple[int, tuple]]:
     workbook = load_workbook(file_obj, read_only=True, data_only=True)
     try:
         sheet = workbook.active
         rows: list[tuple[int, tuple]] = []
-        for index, values in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+        safe_start_row = max(2, int(start_row))
+        for index, values in enumerate(
+            sheet.iter_rows(
+                min_row=safe_start_row,
+                max_col=_bounded_max_column(sheet),
+                values_only=True,
+            ),
+            start=safe_start_row,
+        ):
             if values is None or all(v is None or str(v).strip() == "" for v in values):
                 continue
             rows.append((index, values))

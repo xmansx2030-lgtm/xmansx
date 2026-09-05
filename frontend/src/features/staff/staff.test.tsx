@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -47,7 +47,8 @@ describe("StaffPage", () => {
     expect(await screen.findByText("أحمد الغامدي")).toBeInTheDocument();
     expect(screen.getByText("+9665****0001")).toBeInTheDocument();
     expect(screen.getAllByText("المرشد الطلابي").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "استيراد معلمين" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "استيراد" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إدخال يدوي" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "إدارة" }).length).toBe(2);
   });
 
@@ -58,8 +59,61 @@ describe("StaffPage", () => {
     });
     renderApp("/staff");
     expect(await screen.findByText("أحمد الغامدي")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "استيراد معلمين" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "استيراد" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إدخال يدوي" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إدارة" })).not.toBeInTheDocument();
+  });
+
+  it("adds staff manually and shows the one-time password", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": (init) => init?.method === "POST"
+        ? { status: 201, body: { ...STAFF_PAGE.results[0], id: 12, display_name: "معلم يدوي", temporary_password: "Temp-pass-9", invitation_sent: false } }
+        : { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدخال يدوي" }));
+    await user.type(screen.getByLabelText("اسم الموظف الكامل *"), "معلم يدوي");
+    await user.type(screen.getByLabelText("رقم الجوال *"), "0557771111");
+    await user.click(screen.getByRole("button", { name: "إضافة الموظف" }));
+    expect(await screen.findByText("Temp-pass-9")).toBeInTheDocument();
+    expect(screen.getByText(/تظهر مرة واحدة فقط/)).toBeInTheDocument();
+  });
+
+  it("confirms suspending a staff member before disabling access", async () => {
+    const api = mockApi({
+      "/staff/1/suspend/": { body: { ...STAFF_PAGE.results[0], membership_status: "SUSPENDED" } },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    await user.click(screen.getByRole("button", { name: "تعطيل الموظف" }));
+    const dialog = screen.getByRole("dialog", { name: /تعطيل أحمد الغامدي/ });
+    expect(within(dialog).getByText(/يمكن إعادة تفعيل الموظف لاحقًا/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "تأكيد التعطيل" }));
+    await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/suspend/") && call.init?.method === "POST")).toBe(true));
+  });
+
+  it("requires typing the employee name before permanent deletion", async () => {
+    const api = mockApi({
+      "/staff/1/": { body: {} },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    await user.click(screen.getByRole("button", { name: "حذف نهائي" }));
+    const dialog = screen.getByRole("dialog", { name: /حذف أحمد الغامدي نهائيًا/ });
+    const deleteButton = within(dialog).getByRole("button", { name: "حذف نهائي" });
+    expect(deleteButton).toBeDisabled();
+    await user.type(within(dialog).getByLabelText(/للتأكيد اكتب اسم الموظف/), "أحمد الغامدي");
+    expect(deleteButton).toBeEnabled();
+    await user.click(deleteButton);
+    await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/") && call.init?.method === "DELETE")).toBe(true));
   });
 
   it("teacher denied staff directory and nav hidden", async () => {
@@ -80,6 +134,7 @@ describe("StaffImportWizard", () => {
 
   const UPLOADED = {
     id: 7, status: "UPLOADED", original_filename: "staff.xlsx",
+    header_row: 15,
     headers: ["اسم المعلم", "رقم الجوال"],
     suggested_mapping: { full_name: 0, mobile: 1 },
     total_rows: 0, invalid_rows: 0, duplicate_rows: 0, summary: {}, error_code: "",
@@ -131,6 +186,7 @@ describe("StaffImportWizard", () => {
     await user.click(screen.getByRole("button", { name: "رفع الملف" }));
 
     expect(await screen.findByText("مطابقة الأعمدة")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("الصف 15");
     await user.click(screen.getByRole("button", { name: "بدء التحليل" }));
 
     expect(await screen.findByRole("tab", { name: "معلمون جدد (1)" })).toBeInTheDocument();

@@ -125,8 +125,7 @@ async function login(page: Page, mobile: string, school: string) {
 }
 
 async function logout(page: Page) {
-  await api(page, "/auth/logout/", { method: "POST" });
-  await page.goto("/login");
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 

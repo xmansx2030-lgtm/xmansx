@@ -150,7 +150,7 @@ def test_preview_then_generate_warning_document(role_client, env):
     body = preview.json()
     assert body["already_exists"] is False
     assert body["snapshot"]["warning"]["metric_value_at_issue"] == 5
-    assert body["template"] == "warning_level_2:v1"
+    assert body["template"] == "warning_level_2:v2"
 
     created = json_post(
         vice, GENERATE_URL,
@@ -189,7 +189,7 @@ def test_client_snapshot_values_are_ignored(role_client, env):
     document = GeneratedDocument.objects.get(id=response.json()["id"])
     assert document.snapshot_data["warning"]["metric_value_at_issue"] == 5
     assert document.snapshot_data["student"]["name"] == student.full_name
-    assert document.template_version == "v1"
+    assert document.template_version == "v2"
 
 
 @requires_pdf
@@ -226,7 +226,13 @@ def test_download_permissions(role_client, env):
     response = vice.get(url)
     assert response.status_code == 200
     assert response["Content-Type"] == "application/pdf"
+    assert response["Content-Disposition"].startswith("attachment;")
     assert b"".join(response.streaming_content)[:5] == b"%PDF-"
+
+    inline = vice.get(f"{url}?inline=1")
+    assert inline.status_code == 200
+    assert inline["Content-Disposition"].startswith("inline;")
+    assert b"".join(inline.streaming_content)[:5] == b"%PDF-"
 
     manager = login(role_client, env, ["SCHOOL_MANAGER"])
     assert manager.get(url).status_code == 200

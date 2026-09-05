@@ -1,0 +1,229 @@
+{% comment %}
+قالب الإنذار الرسمي الداخلي v2. يستخدم شعار وزارة التعليم من حزمة الهوية الرسمية،
+ولا يصف نفسه بأنه «نموذج وزاري معتمد». جميع التفاصيل لقطة ثابتة وقت الإصدار.
+{% endcomment %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>{{ data.title }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 11mm 13mm 13mm;
+    @bottom-center {
+      content: "صفحة " counter(page) " من " counter(pages);
+      font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+      font-size: 8.5pt;
+      color: #64748b;
+    }
+  }
+  * { box-sizing: border-box; }
+  :root {
+    --ink: #172b35;
+    --muted: #5d6f77;
+    --line: #b9cbd1;
+    --brand: #128278;
+    --brand-dark: #075e5a;
+    --brand-pale: #eaf7f5;
+    --blue-pale: #edf6fa;
+    --gold: #b58a38;
+  }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+    font-size: 10.4pt;
+    line-height: 1.55;
+  }
+  .official-header {
+    border-top: 3px solid var(--brand);
+    border-bottom: 1px solid var(--line);
+    padding: 3mm 1mm 3.5mm;
+    page-break-inside: avoid;
+  }
+  .official-header table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .official-header td { vertical-align: middle; }
+  .logo-cell { width: 42mm; }
+  .logo-crop { position: relative; width: 38mm; height: 29mm; overflow: hidden; }
+  .logo-crop img {
+    position: absolute;
+    width: 89.0625mm;
+    height: 89.0625mm;
+    max-width: none;
+    left: -25.57mm;
+    top: -30.06mm;
+  }
+  .authority { text-align: center; font-size: 9.5pt; color: var(--muted); }
+  .authority strong { display: block; color: var(--brand-dark); font-size: 11pt; }
+  .school-block { width: 57mm; text-align: left; }
+  .school-block .school-name { font-size: 13pt; font-weight: bold; color: var(--brand-dark); }
+  .school-block .school-meta { margin-top: 1mm; font-size: 8.8pt; color: var(--muted); }
+  .document-heading { text-align: center; margin: 4mm 0 3.5mm; page-break-inside: avoid; }
+  .document-heading .eyebrow { font-size: 8.5pt; color: var(--brand); letter-spacing: .2mm; }
+  h1 { margin: 0.8mm 0 1mm; font-size: 17pt; color: var(--brand-dark); }
+  .document-heading .type { display: inline-block; min-width: 76mm; padding: 1.2mm 4mm; border-radius: 8mm; background: var(--brand-pale); color: var(--brand-dark); font-weight: bold; }
+  .reference-grid, .student-grid { width: 100%; border-collapse: collapse; margin-bottom: 3mm; page-break-inside: avoid; }
+  .reference-grid td, .student-grid td { border: 1px solid var(--line); padding: 1.7mm 2.3mm; }
+  .reference-grid .label, .student-grid .label { width: 17%; background: var(--blue-pale); color: var(--brand-dark); font-weight: bold; }
+  .formal-copy { margin: 3mm 0; text-align: justify; line-height: 1.85; }
+  .formal-copy strong { color: var(--brand-dark); }
+  .summary-box {
+    margin: 2.5mm 0 3mm;
+    padding: 2.3mm 3mm;
+    border-right: 3px solid var(--gold);
+    background: #fffbeb;
+    page-break-inside: avoid;
+  }
+  .summary-box strong { color: #805f1d; }
+  table.details { width: 100%; border-collapse: collapse; font-size: 9.5pt; page-break-inside: auto; }
+  table.details caption { padding: 1.8mm 2mm; background: var(--brand-dark); color: white; font-size: 10.5pt; font-weight: bold; }
+  table.details th, table.details td { border: 1px solid var(--line); padding: 1.45mm 1.8mm; text-align: center; }
+  table.details th { background: var(--brand-pale); color: var(--brand-dark); }
+  table.details tbody tr:nth-child(even) { background: #f8fbfb; }
+  table.details thead { display: table-header-group; }
+  table.details tr { page-break-inside: avoid; }
+  .legacy-note { padding: 3mm; text-align: center; border: 1px dashed var(--line); color: var(--muted); }
+  .notice { margin-top: 3mm; font-size: 9.2pt; color: var(--muted); }
+  .notes { margin-top: 2.5mm; padding: 2mm 3mm; background: #f8fafc; border: 1px solid #dce5e8; }
+  .acknowledgment { margin: 3.5mm 0 2mm; padding-top: 2.5mm; border-top: 1px solid var(--line); font-size: 9.4pt; text-align: justify; }
+  .signatures { width: 100%; border-collapse: separate; border-spacing: 3mm 0; page-break-inside: avoid; }
+  .signatures td { width: 33.333%; height: 29mm; padding: 2.2mm; border: 1px solid var(--line); vertical-align: top; text-align: center; }
+  .signatures .role { color: var(--brand-dark); font-weight: bold; }
+  .signatures .person { min-height: 7mm; padding-top: 1.5mm; font-size: 9.5pt; }
+  .signatures .signature-line { margin-top: 8mm; padding-top: 1.5mm; border-top: 1px dotted #6f8187; color: var(--muted); font-size: 9pt; }
+  .document-footer { margin-top: 2.5mm; text-align: center; font-size: 8pt; color: #718086; }
+</style>
+</head>
+<body>
+  <header class="official-header">
+    <table>
+      <tr>
+        <td class="logo-cell">
+          <div class="logo-crop"><img src="{{ assets.ministry_logo_data_uri }}" alt="شعار وزارة التعليم"></div>
+        </td>
+        <td class="authority">
+          <strong>المملكة العربية السعودية</strong>
+          وزارة التعليم
+          {% if data.school.city %}<br>إدارة التعليم - {{ data.school.city }}{% endif %}
+        </td>
+        <td class="school-block">
+          <div class="school-name">{{ data.school.name }}</div>
+          <div class="school-meta">
+            {% if data.school.ministry_school_number %}الرقم الوزاري: {{ data.school.ministry_school_number }}{% endif %}
+            {% if data.warning.academic_year %}<br>العام الدراسي: {{ data.warning.academic_year }}{% endif %}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </header>
+
+  <section class="document-heading">
+    <div class="eyebrow">إشعار رسمي لولي الأمر</div>
+    <h1>{{ data.title }}</h1>
+    <div class="type">{{ data.warning.type_label }}</div>
+  </section>
+
+  <table class="reference-grid">
+    <tr>
+      <td class="label">رقم المرجع</td><td>{{ data.warning.reference }}</td>
+      <td class="label">تاريخ الإصدار</td><td>{{ data.warning.issued_at }}</td>
+      <td class="label">مُصدر الإنذار</td><td>{{ data.warning.issued_by|default:"إدارة المدرسة" }}</td>
+    </tr>
+  </table>
+
+  <table class="student-grid">
+    <tr>
+      <td class="label">اسم الطالب</td><td colspan="3">{{ data.student.name }}</td>
+      <td class="label">الهوية</td><td>{{ data.student.national_id_masked|default:"-" }}</td>
+    </tr>
+    <tr>
+      <td class="label">الصف</td><td>{{ data.student.grade|default:"-" }}</td>
+      <td class="label">الفصل</td><td>{{ data.student.section|default:"-" }}</td>
+      <td class="label">درجة الإنذار</td><td>{{ data.warning.level_label }}</td>
+    </tr>
+  </table>
+
+  {% if data.warning.type == "UNEXCUSED_FULL_DAY_ABSENCE" %}
+    <p class="formal-copy">
+      سعادة ولي أمر الطالب/ة <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل المواظبة
+      رصد غياب الطالب/ة عن <strong>{{ data.warning.metric_value_at_issue }} يوم دراسي كامل بدون عذر</strong>،
+      وقد بلغ بذلك الحد المقرر لإصدار {{ data.warning.level_label }} وهو
+      {{ data.warning.threshold_at_issue }} أيام. نأمل منكم متابعة انتظام الطالب/ة والحضور إلى المدرسة عند الحاجة.
+    </p>
+    <div class="summary-box">
+      إجمالي أيام الغياب الكامل بدون عذر عند الإصدار:
+      <strong>{{ data.warning.metric_value_at_issue }} يوم</strong>
+    </div>
+    {% if data.detail_rows %}
+      <table class="details">
+        <caption>تفاصيل أيام الغياب المشمولة في الإنذار</caption>
+        <thead><tr><th>م</th><th>اليوم</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+        <tbody>
+          {% for row in data.detail_rows %}
+            <tr><td>{{ forloop.counter }}</td><td>{{ row.weekday }}</td><td>{{ row.date }}</td><td>{{ row.status }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="legacy-note">هذه نسخة تاريخية لا تتضمن تفصيل الأيام؛ القيمة المجمدة وقت الإصدار هي {{ data.warning.metric_value_at_issue }} يوم.</div>
+    {% endif %}
+  {% elif data.warning.type == "MORNING_LATE_OCCURRENCES" %}
+    <p class="formal-copy">
+      سعادة ولي أمر الطالب/ة <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل الحضور الصباحي
+      رصد <strong>{{ data.warning.metric_value_at_issue }} حالات تأخر عن بداية الدوام الصباحي</strong>،
+      وقد بلغ بذلك الحد المقرر لإصدار {{ data.warning.level_label }} وهو
+      {{ data.warning.threshold_at_issue }} حالات. نأمل منكم التأكيد على الحضور في الوقت المحدد.
+    </p>
+    <div class="summary-box">
+      إجمالي حالات التأخر الصباحي عند الإصدار:
+      <strong>{{ data.warning.metric_value_at_issue }} حالة</strong>
+    </div>
+    {% if data.detail_rows %}
+      <table class="details">
+        <caption>تفاصيل حالات التأخر الصباحي المشمولة في الإنذار</caption>
+        <thead><tr><th>م</th><th>اليوم</th><th>التاريخ</th><th>وقت الحضور</th><th>مدة التأخر</th></tr></thead>
+        <tbody>
+          {% for row in data.detail_rows %}
+            <tr>
+              <td>{{ forloop.counter }}</td><td>{{ row.weekday }}</td><td>{{ row.date }}</td>
+              <td>{{ row.arrival_time }}</td><td>{{ row.late_minutes }} دقيقة</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="legacy-note">هذه نسخة تاريخية لا تتضمن تفصيل الحالات؛ العدد المجمد وقت الإصدار هو {{ data.warning.metric_value_at_issue }} حالة.</div>
+    {% endif %}
+  {% endif %}
+
+  {% if data.warning.notes %}<div class="notes"><strong>ملاحظات الإدارة:</strong> {{ data.warning.notes }}</div>{% endif %}
+  <p class="notice">هذا الإنذار مبني على سجل المواظبة المجمد لحظة الإصدار، ولا يعرض أي نوع مخالفة آخر غير سبب الإنذار الموضح أعلاه.</p>
+
+  <div class="acknowledgment">
+    أقر بالاطلاع على هذا الإنذار واستلام نسخة منه، وأن التوقيع أدناه يثبت الاستلام والعلم بمحتواه.
+  </div>
+  <table class="signatures">
+    <tr>
+      <td>
+        <div class="role">الطالب/ة</div>
+        <div class="person">الاسم: {{ data.student.name }}</div>
+        <div class="signature-line">التوقيع</div>
+      </td>
+      <td>
+        <div class="role">ولي الأمر</div>
+        <div class="person">الاسم: ....................................</div>
+        <div class="signature-line">التوقيع</div>
+      </td>
+      <td>
+        <div class="role">مدير المدرسة</div>
+        <div class="person">الاسم: {{ data.school.principal_name|default:"...................................." }}</div>
+        <div class="signature-line">التوقيع والختم</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="document-footer">
+    مستند مدرسي صادر إلكترونيًا من {{ data.school.name }} - المرجع {{ data.warning.reference }}
+  </div>
+</body>
+</html>

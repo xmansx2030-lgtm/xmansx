@@ -54,6 +54,50 @@ class StaffProfile(TimestampedModel):
         return f"{self.display_name} — {self.school}"
 
 
+class CounselorSectionAssignment(TimestampedModel):
+    """المرشد الأساسي للفصل — فصل واحد لا يملك أكثر من مرشد مسؤول.
+
+    الإسناد تشغيلي للحالات الجديدة فقط؛ تغيير المرشد هنا لا يعيد كتابة
+    الإحالات أو الحالات الإرشادية التاريخية التي سبق إسنادها.
+    """
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        related_name="counselor_section_assignments",
+    )
+    section = models.OneToOneField(
+        "students.Section",
+        on_delete=models.CASCADE,
+        related_name="counselor_assignment",
+    )
+    counselor_membership = models.ForeignKey(
+        "memberships.SchoolMembership",
+        on_delete=models.CASCADE,
+        related_name="counselor_section_assignments",
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "إسناد فصل لمرشد"
+        verbose_name_plural = "إسنادات الفصول للمرشدين"
+        indexes = [
+            models.Index(
+                fields=["school", "counselor_membership"],
+                name="counselor_section_owner_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.section} → {self.counselor_membership}"
+
+
 class StaffImportStatus(models.TextChoices):
     UPLOADED = "UPLOADED", "مرفوع"
     PROCESSING = "PROCESSING", "قيد المعالجة"

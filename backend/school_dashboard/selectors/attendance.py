@@ -306,15 +306,37 @@ def today_operations(*, school) -> dict:
     completion = None
     if summary and summary["total"]:
         completion = round((summary["submitted"] / summary["total"]) * 100, 1)
+
+    period = monitoring["period"]
+    if period is None:
+        operational_state = "IDLE"
+        headline = "لا توجد حصة جارية الآن — لا توجد متابعة تحضير مطلوبة."
+    elif summary and summary["overdue_total"] > 0:
+        operational_state = "ACTION_REQUIRED"
+        headline = (
+            f"{period['name']} جارية — {summary['overdue_total']} فصل يحتاج متابعة "
+            f"من أصل {summary['total']}."
+        )
+    elif summary and summary["submitted"] == summary["total"]:
+        operational_state = "ON_TRACK"
+        headline = f"اكتمل تحضير جميع فصول {period['name']}."
+    else:
+        operational_state = "IN_PROGRESS"
+        submitted = summary["submitted"] if summary else 0
+        total = summary["total"] if summary else 0
+        headline = f"{period['name']} جارية — اعتُمد تحضير {submitted} من {total} فصلًا."
     return {
         "school_time": monitoring["school_time"],
         "date": monitoring["date"],
-        "period": monitoring["period"],
+        "period": period,
         "alert": monitoring["alert"],
         "summary": summary,
         "submission_completion_pct": completion,
+        "operational_state": operational_state,
+        "headline": headline,
+        "updated_at": monitoring["school_time"],
         # لا حصة جارية: قبل الدوام أو فسحة أو يوم غير دراسي — ليست حالة خطأ
-        "has_active_period": monitoring["period"] is not None,
+        "has_active_period": period is not None,
     }
 
 

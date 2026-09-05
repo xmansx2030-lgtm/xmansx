@@ -255,6 +255,7 @@ def _commit_locked(
     job.status = ImportJobStatus.COMPLETED
     job.committed_at = timezone.now()
     job.summary = {
+        **job.summary,
         **result["summary"],
         "created": created_students,
         "updated": updated_students,

@@ -1,25 +1,29 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Building2, LogOut } from "lucide-react";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { acceptInvitation, declineInvitation } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
+import { safeReturnTo } from "@/features/auth/returnTo";
 import { ME_QUERY_KEY, useLogout, useMe, useSwitchSchool } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
 
 export function SelectSchoolPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const me = useMe();
   const switchSchool = useSwitchSchool();
   const doLogout = useLogout();
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const returnTo = safeReturnTo(searchParams.get("returnTo"));
 
   const switchMutation = useMutation({
     mutationFn: (schoolId: number) => switchSchool(schoolId),
-    onSuccess: () => navigate("/", { replace: true }),
+    onSuccess: () => navigate(returnTo ?? "/", { replace: true }),
     onSettled: () => setPendingId(null),
   });
 
@@ -47,10 +51,12 @@ export function SelectSchoolPage() {
   const apiError = switchMutation.error instanceof ApiError ? switchMutation.error : null;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md">
-        <h1 className="mb-1 text-center text-2xl font-black text-slate-800">اختر المدرسة</h1>
-        <p className="mb-6 text-center text-sm text-slate-500">
+    <main className="auth-shell flex min-h-dvh items-center justify-center p-4 sm:p-8">
+      <div className="auth-card w-full max-w-xl rounded-3xl p-6 sm:p-9">
+        <span className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><Building2 aria-hidden size={24} /></span>
+        <p className="mb-1 text-center text-sm font-bold text-blue-700">مساحة العمل</p>
+        <h1 className="text-center text-2xl font-black text-slate-900">اختر المدرسة</h1>
+        <p className="mb-7 mt-2 text-center text-sm text-slate-500">
           مرحباً {me.data.name}، اختر المدرسة التي تريد الدخول إليها
         </p>
 
@@ -67,7 +73,7 @@ export function SelectSchoolPage() {
               {me.data.invitations.map((invitation) => (
                 <li
                   key={invitation.id}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
                 >
                   <p className="font-bold text-slate-800">{invitation.school.name}</p>
                   <p className="mb-3 text-sm text-slate-600">
@@ -107,7 +113,7 @@ export function SelectSchoolPage() {
         <ul className="space-y-3">
           {me.data.memberships.map((membership) => (
             <li key={membership.id}>
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md">
                 <div>
                   <p className="font-bold text-slate-800">{membership.school.name}</p>
                   <p className="text-sm text-slate-500">{roleLabels(membership.roles)}</p>
@@ -131,12 +137,12 @@ export function SelectSchoolPage() {
         <div className="mt-6 text-center">
           <button
             type="button"
-            className="text-sm text-slate-500 underline hover:text-slate-700"
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             onClick={() => {
               void doLogout().then(() => navigate("/login", { replace: true }));
             }}
           >
-            تسجيل الخروج
+            <LogOut aria-hidden size={16} /> تسجيل الخروج
           </button>
         </div>
       </div>

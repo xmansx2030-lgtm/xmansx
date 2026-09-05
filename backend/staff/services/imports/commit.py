@@ -1,6 +1,6 @@
 """اعتماد استيراد المعلمين — ذري، Idempotent، محمي من stale، وآمن للسباقات.
 
-- جديد: User (كلمة مؤقتة عبر secrets + must_change_password) + عضوية ACTIVE
+- جديد: User (رقم الجوال المحلي كلمة أولية + must_change_password) + عضوية ACTIVE
   + دور TEACHER + StaffProfile. الكلمة تعاد مرة واحدة في الاستجابة فقط —
   لا تخزن plaintext في Job/staging/audit/logs إطلاقًا.
 - موجود عالميًا: إعادة استخدام User + عضوية INVITED + دور TEACHER + Profile —
@@ -8,8 +8,6 @@
 - سباق إنشاء User: قيد UNIQUE(mobile) هو الحكم؛ IntegrityError → إعادة جلب
   الموجود والتحول لمسار الدعوة.
 """
-
-import secrets
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -25,13 +23,10 @@ from memberships.models import (
     SchoolRole,
 )
 from staff.models import StaffImportJob, StaffImportStatus, StaffProfile, StaffSource
+from staff.services.credentials import initial_password_from_mobile
 from staff.services.imports.pipeline import categorize_rows
 
 _APPLY = {"NEW", "EXISTING_USER_INVITE", "ADD_TEACHER_ROLE", "PROFILE_UPDATE"}
-
-
-def _generate_temp_password() -> str:
-    return secrets.token_urlsafe(9)  # ~12 محرفًا، cryptographically secure
 
 
 def commit_import(*, job_id: int, actor, request=None) -> tuple[StaffImportJob, list[dict]]:
@@ -201,7 +196,9 @@ def _ensure_profile(job, membership, row, counts, actor, request, created_member
 
 
 def _apply_new(job, row, credentials, counts, actor, request):
-    temp_password = _generate_temp_password()
+    # مطلب تشغيلي: المعلم يدخل أول مرة برقم جواله المحلي نفسه، ثم تمنعه
+    # بوابة must_change_password من استخدام المنصة حتى يختار كلمة جديدة قوية.
+    temp_password = initial_password_from_mobile(row["mobile"])
     try:
         with transaction.atomic():  # savepoint لالتقاط سباق UNIQUE(mobile)
             user = User.objects.create_user(

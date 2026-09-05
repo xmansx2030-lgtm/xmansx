@@ -189,7 +189,10 @@ function UploadStep({
         <p className="mb-1 font-medium text-slate-700">
           اسحب ملف نور هنا أو اضغط للاختيار
         </p>
-        <p className="text-sm text-slate-500">ملف Excel بامتداد ‎.xlsx — بحد أقصى 10MB</p>
+        <p className="max-w-xl text-sm leading-6 text-slate-500">
+          ارفع تقرير الطلاب بصيغته المصدرة من نور؛ سيتعرف النظام تلقائيًا على صف
+          العناوين وترتيب الأعمدة حتى عند وجود بيانات المدرسة قبله. ملف ‎.xlsx بحد أقصى 10MB.
+        </p>
         <input
           ref={inputRef}
           type="file"
@@ -243,6 +246,28 @@ function MappingStep({
         تحقق من ربط أعمدة الملف بحقول النظام — الحقول: اسم الطالب والصف والفصل مطلوبة،
         ورقم الهوية مطلوب للمطابقة الموثوقة.
       </p>
+
+      {job.import_format === "NOOR_OFFICIAL_MULTI_SHEET" ? (
+        <div
+          className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+          role="status"
+        >
+          <p className="font-bold">تم التعرف على تقرير نور الرسمي بنجاح</p>
+          <p className="mt-1 leading-6">
+            جُمعت {job.source_sheet_count ?? 1} ورقة، واكتُشف {job.detected_rows ?? 0} طالبًا.
+            سيُستخرج الصف والفصل من رأس كل صفحة تلقائيًا، وتظهر السجلات التي تحتاج
+            مراجعة في خطوة المعاينة.
+          </p>
+        </div>
+      ) : job.header_row != null && job.header_row > 1 ? (
+        <div
+          className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
+          role="status"
+        >
+          تم التعرف تلقائيًا على عناوين تقرير نور في الصف {job.header_row}. راجع
+          المطابقة ثم ابدأ التحليل.
+        </div>
+      ) : null}
 
       <div className="mb-4 space-y-3">
         {(Object.keys(MAPPING_LABELS) as MappingField[]).map((field) => (
@@ -348,7 +373,7 @@ function PreviewStep({
       {(summary.missing_from_file ?? 0) > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           {summary.missing_from_file} طالبًا موجودون في النظام وغير موجودين في الملف الجديد —
-          لن يتم حذفهم أو تغييرهم.
+          لن يتغيروا تلقائيًا، وستتمكن من مراجعتهم وتصنيفهم بعد اعتماد الاستيراد.
         </p>
       )}
 
@@ -495,7 +520,8 @@ function ConfirmStep({
         )}
         {(summary.missing_from_file ?? 0) > 0 && (
           <li className="text-amber-700">
-            {summary.missing_from_file} طالبًا غير موجودين في الملف — لن يمسوا.
+            {summary.missing_from_file} طالبًا غير موجودين في الملف — لن يتغيروا تلقائيًا،
+            وستظهر مراجعتهم بعد الاعتماد.
           </li>
         )}
       </ul>
@@ -513,6 +539,7 @@ function ConfirmStep({
 
 function ResultStep({ job }: { job: ImportJob }) {
   const summary = job.summary;
+  const missingCount = summary.missing_from_file ?? 0;
   return (
     <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
       <h3 className="mb-3 font-bold text-emerald-800">تم استيراد البيانات بنجاح</h3>
@@ -522,8 +549,20 @@ function ResultStep({ job }: { job: ImportJob }) {
         <li>تغييرات فصول: {summary.enrollment_changes ?? 0}</li>
         <li>بدون تغيير: {summary.unchanged ?? 0}</li>
       </ul>
+      {missingCount > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+          <p className="font-bold">يلزم إجراء على {missingCount} طالبًا غير موجودين في الملف</p>
+          <p className="mt-1 text-sm">
+            راجعهم ثم صنّف من غادر المدرسة كمنتقل أو متخرج. بعد التصنيف يمكنك حذفه
+            نهائيًا إذا لم تعد بحاجة إلى سجلاته.
+          </p>
+          <Link to="/students/inactive?filter=missing" className="mt-3 inline-block">
+            <Button variant="secondary">مراجعة الطلاب غير الموجودين</Button>
+          </Link>
+        </div>
+      )}
       <Link to="/students">
-        <Button>عرض الطلاب</Button>
+        <Button>عرض جميع الطلاب</Button>
       </Link>
     </section>
   );

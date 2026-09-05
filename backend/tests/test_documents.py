@@ -9,6 +9,7 @@ import hashlib
 from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
+from django.template.loader import render_to_string
 from django.utils import timezone as dj_timezone
 
 from attendance.models import (
@@ -20,6 +21,7 @@ from common.errors import ApiError
 from devices.models import ArrivalSource, ArrivalStatus, SchoolArrival
 from documents.models import DocumentStatus, DocumentType, GeneratedDocument
 from documents.pdf import pdf_engine_available
+from documents.render_assets import render_assets
 from documents.services import snapshots as snapshot_service
 from documents.services.generation import (
     generate_document,
@@ -58,13 +60,39 @@ def env(make_school, make_user, make_membership):
 
 
 def make_warning(
-    env, student, *, level=WarningLevel.LEVEL_2, value=5, threshold=5
+    env,
+    student,
+    *,
+    level=WarningLevel.LEVEL_2,
+    value=5,
+    threshold=5,
+    warning_type=WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE,
 ) -> StudentWarning:
+    if warning_type == WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE:
+        detail_rows = [
+            {
+                "date": (DAY + timedelta(days=offset)).isoformat(),
+                "weekday": "الأحد",
+                "status": "غياب يوم دراسي كامل بدون عذر",
+            }
+            for offset in range(value)
+        ]
+    else:
+        detail_rows = [
+            {
+                "date": (DAY + timedelta(days=offset)).isoformat(),
+                "weekday": "الأحد",
+                "arrival_time": "07:18",
+                "late_minutes": 13,
+                "status": "تأخر عن بداية الدوام الصباحي",
+            }
+            for offset in range(value)
+        ]
     return StudentWarning.objects.create(
         school=env["school"],
         student=student,
         academic_year=env["year"],
-        warning_type=WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE,
+        warning_type=warning_type,
         level=level,
         status=WarningStatus.ISSUED,
         threshold_at_issue=threshold,
@@ -82,6 +110,7 @@ def make_warning(
         morning_late_minutes_at_issue=137,
         period_late_occurrences_at_issue=3,
         period_late_minutes_at_issue=25,
+        detail_rows_snapshot=detail_rows,
         issued_by_membership=env["vice"],
         issued_at=dj_timezone.now(),
     )
@@ -125,11 +154,50 @@ def test_warning_document_is_ready_with_real_pdf(env):
     assert document.size_bytes > 0
     assert document.mime_type == "application/pdf"
     assert document.template_key == "warning_level_2"
-    assert document.template_version == "v1"
+    assert document.template_version == "v2"
+    assert document.snapshot_schema_version == 2
     handle = open_for_download(document)
     content = handle.read()
     assert content[:5] == b"%PDF-"
     assert hashlib.sha256(content).hexdigest() == document.checksum
+
+
+def test_warning_v2_renders_absence_details_only(env):
+    student = env["students"][0]
+    warning = make_warning(env, student)
+    snapshot = snapshot_service.warning_snapshot(
+        school=env["school"], warning=warning, membership=env["vice"], title="إشعار"
+    )
+    html = render_to_string(
+        "documents/warning_v2.html", {"data": snapshot, "assets": render_assets()}
+    )
+    assert "تفاصيل أيام الغياب المشمولة في الإنذار" in html
+    assert "غياب يوم دراسي كامل بدون عذر" in html
+    assert "وقت الحضور" not in html
+    assert "مدة التأخر" not in html
+    assert "تفاصيل حالات التأخر الصباحي" not in html
+
+
+def test_warning_v2_renders_morning_late_details_only(env):
+    student = env["students"][0]
+    warning = make_warning(
+        env,
+        student,
+        value=3,
+        threshold=3,
+        warning_type=WarningRuleType.MORNING_LATE_OCCURRENCES,
+    )
+    snapshot = snapshot_service.warning_snapshot(
+        school=env["school"], warning=warning, membership=env["vice"], title="إشعار"
+    )
+    html = render_to_string(
+        "documents/warning_v2.html", {"data": snapshot, "assets": render_assets()}
+    )
+    assert "تفاصيل حالات التأخر الصباحي المشمولة في الإنذار" in html
+    assert "وقت الحضور" in html
+    assert "مدة التأخر" in html
+    assert "تفاصيل أيام الغياب المشمولة في الإنذار" not in html
+    assert "غياب يوم دراسي كامل بدون عذر" not in html
 
 
 @requires_pdf

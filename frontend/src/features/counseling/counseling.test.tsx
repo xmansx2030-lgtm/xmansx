@@ -145,6 +145,20 @@ describe("counselor dashboard (Phase 14)", () => {
     document.cookie = "csrftoken=test-token";
   });
 
+  it("uses the counselor dashboard as the counselor's real home page", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/counselor/dashboard/": { body: KPIS },
+      "/counselor/cases/": {
+        body: { count: 0, next: null, previous: null, results: [] },
+      },
+    });
+
+    renderApp("/");
+    expect(await screen.findByRole("heading", { name: "لوحة الإرشاد الطلابي" })).toBeInTheDocument();
+    expect(screen.queryByText(/تأتي في المراحل القادمة/)).toBeNull();
+  });
+
   it("shows KPIs and the case list", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["COUNSELOR"]) },
@@ -232,7 +246,7 @@ describe("case detail (Phase 14)", () => {
 
     renderApp("/counselor/cases/7");
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "الجلسات" }));
+    await user.click(await screen.findByRole("tab", { name: "الجلسات" }));
     await user.selectOptions(await screen.findByTestId("session-type"), "STUDENT_MEETING");
     await user.type(screen.getByTestId("session-summary"), "مقابلة أولى");
     await user.click(screen.getByTestId("save-session"));
@@ -259,7 +273,7 @@ describe("case detail (Phase 14)", () => {
 
     renderApp("/counselor/cases/7");
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "خطة المتابعة" }));
+    await user.click(await screen.findByRole("tab", { name: "خطة المتابعة" }));
     const goal = await screen.findByTestId("goal-21");
     expect(goal).toHaveTextContent("خفض التأخر الصباحي");
     expect(goal).toHaveTextContent("من 6 إلى 1");
@@ -283,7 +297,7 @@ describe("case detail (Phase 14)", () => {
 
     renderApp("/counselor/cases/7");
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "طلبات المعلمين" }));
+    await user.click(await screen.findByRole("tab", { name: "طلبات المعلمين" }));
     await user.selectOptions(await screen.findByTestId("request-teacher"), "9");
     await user.selectOptions(screen.getByTestId("request-type"), "CLASSROOM_BEHAVIOR");
     await user.type(screen.getByTestId("request-question"), "كيف كان تفاعله؟");

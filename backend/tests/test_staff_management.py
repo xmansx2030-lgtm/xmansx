@@ -51,6 +51,49 @@ def test_one_profile_per_membership(make_user, make_school):
 
 
 @pytest.mark.django_db
+def test_manager_creates_staff_manually_with_one_time_password(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    response = client.post(
+        STAFF_URL,
+        {
+            "display_name": "معلم يدوي",
+            "mobile": "0557771111",
+            "employee_number": "T-900",
+            "job_title": "معلم رياضيات",
+            "role": "TEACHER",
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["display_name"] == "معلم يدوي"
+    assert body["temporary_password"] == "0557771111"
+    assert body["invitation_sent"] is False
+    user = User.objects.get(mobile="+966557771111")
+    assert user.must_change_password is True
+    assert user.check_password(body["temporary_password"])
+    assert StaffProfile.objects.get(school=school, membership__user=user).source == "MANUAL"
+
+
+@pytest.mark.django_db
+def test_manual_staff_invites_existing_account(role_client, make_user):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    existing = make_user("0557772222")
+    response = client.post(
+        STAFF_URL,
+        {"display_name": "موظف مدعو", "mobile": "0557772222", "role": "COUNSELOR"},
+        content_type="application/json",
+    )
+    assert response.status_code == 201
+    assert response.json()["temporary_password"] is None
+    assert response.json()["invitation_sent"] is True
+    membership = SchoolMembership.objects.get(school=school, user=existing)
+    assert membership.status == MembershipStatus.INVITED
+    assert membership.role_codes() == ["COUNSELOR"]
+
+
+@pytest.mark.django_db
 def test_directory_masks_mobile_in_list_full_in_detail(role_client, make_user):
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     user = make_user("0558880003")
@@ -168,6 +211,76 @@ def test_suspend_does_not_affect_other_schools(role_client, make_user, make_memb
 
 
 @pytest.mark.django_db
+def test_manager_permanently_deletes_staff_from_school_only(
+    role_client, make_user, make_membership, make_school
+):
+    client, school_a, _ = role_client(["SCHOOL_MANAGER"])
+    school_b = make_school()
+    user = make_user("0558880060")
+    membership_a, profile_a = _make_staff(school_a, user, ["TEACHER"])
+    membership_b = make_membership(user, school_b, ["TEACHER"])
+
+    response = client.delete(f"{STAFF_URL}{profile_a.id}/")
+
+    assert response.status_code == 204
+    assert not StaffProfile.objects.filter(id=profile_a.id).exists()
+    membership_a.refresh_from_db()
+    assert membership_a.status == MembershipStatus.LEFT
+    assert membership_a.roles.count() == 0
+    membership_b.refresh_from_db()
+    assert membership_b.status == MembershipStatus.ACTIVE
+    user.refresh_from_db()
+    assert user.is_active is True
+
+
+@pytest.mark.django_db
+def test_permanent_delete_is_only_available_on_staff_detail_url(role_client, make_user):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    _, profile = _make_staff(school, make_user("0558880062"), ["TEACHER"])
+
+    response = client.delete(f"{STAFF_URL}{profile.id}/suspend/")
+
+    assert response.status_code == 405
+    assert StaffProfile.objects.filter(id=profile.id).exists()
+
+
+@pytest.mark.django_db
+def test_deleted_staff_can_be_added_again_by_invitation(role_client, make_user):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    user = make_user("0558880061")
+    membership, profile = _make_staff(school, user, ["TEACHER"], "موظف سابق")
+    assert client.delete(f"{STAFF_URL}{profile.id}/").status_code == 204
+
+    response = client.post(
+        STAFF_URL,
+        {"display_name": "موظف عائد", "mobile": "0558880061", "role": "TEACHER"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["invitation_sent"] is True
+    membership.refresh_from_db()
+    assert membership.status == MembershipStatus.INVITED
+    assert membership.role_codes() == ["TEACHER"]
+    assert StaffProfile.objects.filter(membership=membership, display_name="موظف عائد").exists()
+
+
+@pytest.mark.django_db
+def test_manager_cannot_delete_self_from_staff(role_client):
+    client, school, manager_user = role_client(["SCHOOL_MANAGER"])
+    membership = SchoolMembership.objects.get(user=manager_user, school=school)
+    profile = StaffProfile.objects.create(
+        school=school, membership=membership, display_name="المدير الحالي"
+    )
+
+    response = client.delete(f"{STAFF_URL}{profile.id}/")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "SELF_STAFF_DELETE_NOT_ALLOWED"
+    assert StaffProfile.objects.filter(id=profile.id).exists()
+
+
+@pytest.mark.django_db
 def test_staff_tenant_isolation(role_client, make_user):
     manager_a, _, _ = role_client(["SCHOOL_MANAGER"])
     manager_b, school_b, _ = role_client(["SCHOOL_MANAGER"])
@@ -184,6 +297,7 @@ def test_staff_tenant_isolation(role_client, make_user):
         content_type="application/json",
     ).status_code == 404
     assert manager_a.post(f"{STAFF_URL}{foreign_profile.id}/suspend/").status_code == 404
+    assert manager_a.delete(f"{STAFF_URL}{foreign_profile.id}/").status_code == 404
 
 
 # ---------- Invitations ----------

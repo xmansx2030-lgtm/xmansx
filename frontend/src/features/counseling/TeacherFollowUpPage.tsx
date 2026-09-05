@@ -1,8 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardCheck, MessageSquareReply } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import {
@@ -54,21 +57,13 @@ export function TeacherFollowUpPage() {
   const rows = requests.data ?? [];
 
   return (
-    <div className="space-y-4" data-testid="teacher-follow-ups">
-      <h1 className="text-2xl font-bold">طلبات المتابعة</h1>
-      <p className="text-sm text-slate-600">
-        طلبات ملاحظة عن طلابك من المرشد الطلابي — ملاحظتك تصل إليه مباشرة.
-      </p>
+    <div className="space-y-5" data-testid="teacher-follow-ups">
+      <PageHeader icon={MessageSquareReply} eyebrow="مساحة المعلم" title="طلبات المتابعة" description="طلبات ملاحظة عن طلابك من المرشد الطلابي؛ ملاحظتك المهنية تصل إلى ملف المتابعة مباشرة." tone="teacher" badge={`${rows.filter((row) => !row.response).length} بانتظار ردك`} />
 
       {error != null && <ErrorState error={error} />}
 
       {rows.length === 0 ? (
-        <p
-          className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm"
-          data-testid="no-requests"
-        >
-          لا توجد طلبات متابعة حاليًا.
-        </p>
+        <EmptyState title="لا توجد طلبات متابعة حاليًا" description="ستظهر هنا الطلبات المرسلة لك من المرشد، مع السؤال والموعد المحدد للرد." icon={ClipboardCheck} testId="no-requests" />
       ) : (
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
           {rows.map((row) => (

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Check, FileSpreadsheet, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -81,29 +82,38 @@ export function StaffImportWizard() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h2 className="mb-2 text-2xl font-bold">استيراد المعلمين</h2>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-slate-900/10 sm:p-7">
+        <div aria-hidden className="absolute -left-10 -top-16 size-48 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div className="relative">
+          <Link to="/staff" className="mb-5 inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white"><ArrowRight aria-hidden size={15} /> العودة إلى الموظفين</Link>
+          <div className="flex items-start gap-4">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15"><FileSpreadsheet aria-hidden size={24} /></span>
+            <div><p className="text-xs font-bold text-emerald-200">إضافة جماعية</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">استيراد الموظفين</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">ارفع ملف Excel، راجع المطابقة والنتائج، ثم اعتمد الإضافة بعد التحقق.</p></div>
+          </div>
+        </div>
+      </header>
 
-      <ol className="mb-6 flex flex-wrap gap-2 text-sm" aria-label="خطوات الاستيراد">
+      <ol className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-sm sm:grid-cols-5" aria-label="خطوات الاستيراد">
         {STEPS.map((label, index) => (
           <li
             key={label}
             aria-current={index === step ? "step" : undefined}
-            className={`rounded-full px-3 py-1 ${
+            className={`flex items-center gap-2 rounded-xl px-3 py-2.5 font-bold ${
               index === step
-                ? "bg-blue-600 text-white"
+                ? "bg-blue-600 text-white shadow-sm"
                 : index < step
-                  ? "bg-emerald-100 text-emerald-800"
+                  ? "bg-emerald-50 text-emerald-800"
                   : "bg-slate-100 text-slate-500"
             }`}
           >
-            {index + 1}. {label}
+            <span className={`grid size-5 shrink-0 place-items-center rounded-full text-[10px] ${index === step ? "bg-white/20" : "bg-white"}`}>{index < step ? <Check aria-hidden size={12} /> : index + 1}</span><span>الخطوة: {label}</span>
           </li>
         ))}
       </ol>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -145,7 +155,8 @@ function UploadStep({
   const [selected, setSelected] = useState<File | null>(null);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="mb-5"><h2 className="text-lg font-black text-slate-900">اختر ملف الموظفين</h2><p className="mt-1 text-sm text-slate-500">يدعم ملفات XLSX البسيطة وتقارير معلمي المدرسة المصدّرة من وزارة التعليم، مع اكتشاف صف الترويسات تلقائيًا.</p></div>
       <div
         role="button"
         tabIndex={0}
@@ -157,9 +168,10 @@ function UploadStep({
           const file = e.dataTransfer.files[0];
           if (file) setSelected(file);
         }}
-        className="mb-4 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-6 text-center"
+        className="mb-4 flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-6 text-center transition hover:border-blue-400 hover:bg-blue-50/40 focus-visible:outline-2 focus-visible:outline-blue-500"
       >
-        <p className="mb-1 font-medium text-slate-700">
+        <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"><UploadCloud aria-hidden size={23} /></span>
+        <p className="mb-1 font-bold text-slate-800">
           اسحب ملف المعلمين هنا أو اضغط للاختيار
         </p>
         <p className="text-sm text-slate-500">الأعمدة الأساسية: اسم المعلم ورقم الجوال</p>
@@ -176,11 +188,9 @@ function UploadStep({
         />
       </div>
       {selected && (
-        <p className="mb-4 text-sm text-slate-600">
-          الملف: <span className="font-medium">{selected.name}</span>
-        </p>
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><FileSpreadsheet aria-hidden size={19} /><div className="min-w-0"><p className="font-bold">الملف جاهز للرفع</p><p className="truncate text-xs text-emerald-700">{selected.name}</p></div></div>
       )}
-      <Button disabled={!selected || pending} onClick={() => selected && onUpload(selected)}>
+      <Button className="w-full sm:w-auto" disabled={!selected || pending} onClick={() => selected && onUpload(selected)}>
         {pending ? "جارٍ الرفع..." : "رفع الملف"}
       </Button>
     </section>
@@ -209,6 +219,11 @@ function MappingStep({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-4 font-bold">مطابقة الأعمدة</h3>
+      {job.header_row != null && job.header_row > 1 && (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900" role="status">
+          تم التعرف تلقائيًا على ترويسات تقرير الموظفين في الصف {job.header_row}. راجع المطابقة ثم ابدأ التحليل.
+        </div>
+      )}
       <div className="mb-4 space-y-3">
         {Object.entries(STAFF_MAPPING_LABELS).map(([field, label]) => (
           <div key={field} className="flex flex-wrap items-center gap-3">
@@ -387,7 +402,7 @@ function ConfirmStep({
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-3 font-bold">ملخص التغييرات</h3>
       <ul className="mb-4 space-y-1 text-sm" data-testid="staff-confirm-summary">
-        <li>حسابات معلمين جديدة: {summary.new ?? 0} (ستولد كلمات مرور مؤقتة)</li>
+        <li>حسابات معلمين جديدة: {summary.new ?? 0} (كلمة الدخول الأولى هي رقم الجوال)</li>
         <li>حسابات موجودة ستدعى للانضمام: {summary.invite ?? 0}</li>
         <li>أعضاء سيضاف لهم دور معلم: {summary.add_role ?? 0}</li>
         <li>تحديث بيانات: {summary.profile_update ?? 0}</li>
@@ -426,8 +441,8 @@ function ResultStep({ job }: { job: StaffImportJob }) {
           data-testid="new-credentials"
         >
           <h3 className="mb-1 font-bold text-amber-900">حسابات جديدة — بيانات الدخول</h3>
-          <p className="mb-3 text-sm font-medium text-amber-800">
-            ⚠️ هذه البيانات ستظهر مرة واحدة فقط ولن يمكن استعادتها — سلّمها للمعلمين الآن.
+          <p className="mb-3 text-sm font-medium leading-6 text-amber-800">
+            تظهر هذه التفاصيل مرة واحدة فقط. كلمة المرور الأولية لكل معلم هي رقم جواله بصيغة 05XXXXXXXX، وسيُطلب منه تعيين كلمة مرور جديدة فور أول دخول قبل استخدام المنصة.
           </p>
           <ul className="space-y-2">
             {credentials.map((c, index) => (
@@ -440,7 +455,7 @@ function ResultStep({ job }: { job: StaffImportJob }) {
                   الجوال: <span dir="ltr">{c.mobile_masked}</span>
                 </p>
                 <p className="text-slate-600">
-                  كلمة المرور المؤقتة:{" "}
+                  كلمة المرور الأولية (رقم الجوال):{" "}
                   <code
                     dir="ltr"
                     className="rounded bg-slate-100 px-2 py-0.5 font-mono"

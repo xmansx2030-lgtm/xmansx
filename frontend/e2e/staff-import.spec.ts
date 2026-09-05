@@ -36,6 +36,11 @@ async function login(page: Page, mobile: string, password: string) {
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();
 }
 
+async function logout(page: Page) {
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
+  await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
+}
+
 async function selectSchool(page: Page, schoolName: string) {
   await page
     .locator("li", { hasText: schoolName })
@@ -78,13 +83,13 @@ test("new teacher journey: import → one-time credentials → forced password c
 
   // الدليل يعرض المعلم الجديد بجوال مقنع
   await page.getByRole("button", { name: "عرض الموظفين" }).click();
-  await page.getByLabel(/بحث/).fill(m.teacher1_name);
+  await page.getByRole("textbox", { name: "بحث عن موظف" }).fill(m.teacher1_name);
   const row = page.locator("li", { hasText: m.teacher1_name });
   await expect(row).toBeVisible();
   await expect(row).not.toContainText(m.teacher1_mobile.replace(/^0/, "+966"));
 
   // خروج المدير ودخول المعلم الجديد بالكلمة المؤقتة
-  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
+  await logout(page);
   await login(page, m.teacher1_mobile, teacher1TempPassword);
 
   // شاشة التغيير الإجبارية
@@ -112,7 +117,7 @@ test("existing multi-school teacher: B imports same mobile → invitation → ac
   // النتيجة: حساب جديد واحد (معلم 3) ودعوة واحدة (معلم 1)
   await expect(page.getByTestId("staff-import-result")).toContainText("حسابات جديدة: 1");
   await expect(page.getByTestId("staff-import-result")).toContainText("دعوات أرسلت: 1");
-  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
+  await logout(page);
 
   // المعلم 1 يدخل بكلمته الجديدة (غيرها في الاختبار السابق)
   await login(page, m.teacher1_mobile, TEACHER1_NEW_PASSWORD);
@@ -151,7 +156,7 @@ test("counselor imported as teacher keeps both roles", async ({ page }) => {
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
   await expect(page.getByTestId("staff-import-result")).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
+  await logout(page);
 
   // فهد: دوراه معًا في مدرسته
   await login(page, "0550000004", PASSWORD);
@@ -165,12 +170,13 @@ test("isolation: manager in A is teacher in B — staff import blocked in B", as
 }) => {
   await login(page, "0550000002", PASSWORD);
   await selectSchool(page, "ثانوية الأندلس");
-  await expect(page.getByRole("link", { name: "الموظفون" })).toBeVisible();
+  const mainNavigation = page.getByLabel("التنقل الرئيسي");
+  await expect(mainNavigation.getByRole("link", { name: "الموظفون" })).toBeVisible();
 
   await page.getByRole("button", { name: /ثانوية الأندلس/ }).click();
   await page.getByRole("button", { name: /مدارس الرواد/ }).click();
   await expect(page.getByTestId("active-school-name")).toHaveText("مدارس الرواد");
-  await expect(page.getByRole("link", { name: "الموظفون" })).not.toBeVisible();
+  await expect(mainNavigation.getByRole("link", { name: "الموظفون" })).not.toBeVisible();
 
   const status = await page.evaluate(async () => {
     const csrf = document.cookie

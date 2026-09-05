@@ -51,7 +51,8 @@ describe("StudentsPage", () => {
     expect(screen.queryByText("1012345678")).not.toBeInTheDocument();
     expect(screen.getByText(/الإجمالي: 2 طالبًا/)).toBeInTheDocument();
     // زر الاستيراد للمدير
-    expect(screen.getByRole("button", { name: "استيراد من نور" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "استيراد" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إدخال يدوي" })).toBeInTheDocument();
   });
 
   it("vice principal sees list without import button", async () => {
@@ -63,7 +64,28 @@ describe("StudentsPage", () => {
     });
     renderApp("/students");
     expect(await screen.findByText("أحمد محمد")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "استيراد من نور" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "استيراد" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إدخال يدوي" })).not.toBeInTheDocument();
+  });
+
+  it("adds a student manually from the directory", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/": (init) => init?.method === "POST"
+        ? { status: 201, body: { ...STUDENTS_PAGE.results[0], id: 9, full_name: "سالم اليدوي" } }
+        : { body: STUDENTS_PAGE },
+      "/grades/": { body: [{ id: 1, name: "الأول الثانوي", code: "1" }] },
+      "/sections/": { body: [{ id: 1, name: "أ", code: "A", grade: { id: 1, name: "الأول الثانوي" } }] },
+    });
+    renderApp("/students");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدخال يدوي" }));
+    await user.type(screen.getByLabelText("اسم الطالب الكامل *"), "سالم اليدوي");
+    await user.type(screen.getByLabelText("رقم الهوية أو الإقامة *"), "1098765432");
+    await user.selectOptions(screen.getByLabelText("الصف *"), "1");
+    await user.selectOptions(screen.getByLabelText("الفصل *"), "1");
+    await user.click(screen.getByRole("button", { name: "إضافة الطالب" }));
+    expect(await screen.findByText("تمت إضافة الطالب سالم اليدوي بنجاح.")).toBeInTheDocument();
   });
 
   it("teacher is denied the students directory and has no nav link", async () => {
@@ -86,6 +108,10 @@ describe("ImportWizard", () => {
     id: 5,
     status: "UPLOADED",
     original_filename: "noor.xlsx",
+    header_row: 21,
+    import_format: "NOOR_OFFICIAL_MULTI_SHEET",
+    source_sheet_count: 40,
+    detected_rows: 837,
     headers: ["رقم الهوية", "اسم الطالب", "الصف", "الفصل"],
     column_mapping: {},
     suggested_mapping: { national_id: 0, full_name: 1, grade: 2, section: 3 },
@@ -153,6 +179,10 @@ describe("ImportWizard", () => {
 
     // 2) المطابقة — الاقتراح معبأ مسبقًا
     expect(await screen.findByText("مطابقة الأعمدة")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "تم التعرف على تقرير نور الرسمي بنجاح",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("جُمعت 40 ورقة، واكتُشف 837 طالبًا");
     const nidSelect = screen.getByLabelText("عمود رقم الهوية") as HTMLSelectElement;
     expect(nidSelect.value).toBe("0");
     await user.click(screen.getByRole("button", { name: "بدء التحليل" }));
@@ -160,7 +190,7 @@ describe("ImportWizard", () => {
     // 3) المعاينة — الفئات بأعدادها + تنبيه المفقودين
     expect(await screen.findByRole("tab", { name: "جدد (2)" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "انتقال فصل (1)" })).toBeInTheDocument();
-    expect(screen.getByText(/لن يتم حذفهم/)).toBeInTheDocument();
+    expect(screen.getByText(/لن يتغيروا تلقائيًا/)).toBeInTheDocument();
     expect(await screen.findByText("أحمد محمد")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "متابعة إلى التأكيد" }));
 
@@ -174,6 +204,9 @@ describe("ImportWizard", () => {
     const result = await screen.findByTestId("import-result");
     expect(result).toHaveTextContent("طلاب جدد: 2");
     expect(result).toHaveTextContent("تغييرات فصول: 1");
+    expect(
+      screen.getByRole("link", { name: "مراجعة الطلاب غير الموجودين" }),
+    ).toHaveAttribute("href", "/students/inactive?filter=missing");
     expect(processed && committed).toBe(true);
   });
 

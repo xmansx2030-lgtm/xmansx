@@ -45,6 +45,10 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev,test]"
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install pip-audit
+          pip-audit
       - name: Ruff lint
         run: ruff check .
       - name: Django system checks
@@ -71,6 +75,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -79,6 +85,94 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+
+  bridge:
+    name: Device bridge tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Tests
+        run: python -m pytest bridge/tests -q
+
+  production-e2e:
+    name: Production-like browser gate
+    needs: [backend, frontend, bridge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:5173
+      DJANGO_SECURE_SSL_REDIRECT: "false"
+      POSTGRES_DB: xmansx_e2e
+      POSTGRES_USER: xmansx_e2e
+      POSTGRES_PASSWORD: xmansx-e2e-only
+      REDIS_URL: redis://redis:6379/0
+      BACKUP_ENVIRONMENT: ci-production-gate
+      BACKUP_REMOTE_ENABLED: "false"
+      BACKUP_REQUIRE_REMOTE: "false"
+      BACKUP_SCHEDULE_ENABLED: "false"
+      R2_ENABLED: "false"
+      LOGIN_RATE_LIMIT_IP_MAX: "500"
+      E2E_COMPOSE_PROJECT: xmansx-ci
+      E2E_PRODUCTION_LIKE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Generate CI-only production keys
+        shell: bash
+        run: |
+          echo "DJANGO_SECRET_KEY=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "NATIONAL_ID_HMAC_KEY=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "FIELD_ENCRYPTION_KEYS=$(openssl rand -base64 32 | tr '+/' '-_')" >> "$GITHUB_ENV"
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          python -m pip install openpyxl
+      - name: Start production-like stack
+        run: >-
+          docker compose -p xmansx-ci -f docker-compose.yml
+          -f docker-compose.production.yml up -d --build
+      - name: Apply migrations
+        run: >-
+          docker compose -p xmansx-ci -f docker-compose.yml
+          -f docker-compose.production.yml exec -T backend
+          python manage.py migrate --noinput
+      - name: Run all browser journeys
+        working-directory: frontend
+        run: npm run e2e:release
+      - name: Preserve service diagnostics
+        if: failure()
+        run: >-
+          docker compose -p xmansx-ci -f docker-compose.yml
+          -f docker-compose.production.yml logs --no-color --tail=300
+      - name: Upload browser failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-e2e-traces
+          path: frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop isolated stack
+        if: always()
+        run: >-
+          docker compose -p xmansx-ci -f docker-compose.yml
+          -f docker-compose.production.yml down -v
 
   secrets-scan:
     name: Secrets scan (gitleaks)

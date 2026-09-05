@@ -123,6 +123,55 @@ def issued_levels_map(*, school, year, student_ids=None) -> dict[tuple[int, str]
     return result
 
 
+def issued_warnings_map(*, school, year, student_ids=None) -> dict[tuple[int, str], list[dict]]:
+    """الإنذارات الفعلية الصادرة لكل طالب/نوع، مع حالة قالب الطباعة إن وُجد.
+
+    تستخدمها لوحة الإنذارات فقط لربط المستوى الصادر بسجله وبنسخة PDF دون
+    استعلام لكل صف. المستند الملغى لا يظهر، والأحدث هو المعتمد عند وجود سجل قديم.
+    """
+    warnings = StudentWarning.objects.filter(
+        school=school, academic_year=year, status=WarningStatus.ISSUED
+    )
+    if student_ids is not None:
+        warnings = warnings.filter(student_id__in=student_ids)
+    warning_rows = list(
+        warnings.values("id", "student_id", "warning_type", "level").order_by("id")
+    )
+    if not warning_rows:
+        return {}
+
+    # استيراد محلي يبقي تطبيق الإنذارات مستقلًا وقت تحميل Django، مع استعلام
+    # تجميعي واحد لكل القوالب بدل N+1.
+    from documents.models import DocumentStatus, GeneratedDocument
+
+    document_by_warning: dict[int, dict] = {}
+    documents = (
+        GeneratedDocument.objects.filter(
+            school=school,
+            warning_id__in=[row["id"] for row in warning_rows],
+        )
+        .exclude(status=DocumentStatus.VOIDED)
+        .order_by("warning_id", "-created_at", "-id")
+        .values("id", "warning_id", "status")
+    )
+    for document in documents:
+        document_by_warning.setdefault(
+            document["warning_id"],
+            {"id": document["id"], "status": document["status"]},
+        )
+
+    result: dict[tuple[int, str], list[dict]] = {}
+    for warning in warning_rows:
+        result.setdefault((warning["student_id"], warning["warning_type"]), []).append(
+            {
+                "id": warning["id"],
+                "level": warning["level"],
+                "document": document_by_warning.get(warning["id"]),
+            }
+        )
+    return result
+
+
 def evaluate_student_warning_eligibility(*, school, student, year=None) -> dict:
     """تقييم طالب واحد — يستخدم عند الإصدار (إعادة حساب خادمية، لا ثقة بالواجهة)."""
     year = year or active_year(school)
@@ -198,7 +247,9 @@ def eligibility_dashboard(
             "id", "full_name"
         )
     )
-    issued = issued_levels_map(school=school, year=year, student_ids=list(names))
+    issued_warnings = issued_warnings_map(
+        school=school, year=year, student_ids=list(names)
+    )
 
     rows = []
     summary = {t: {"due_students": 0, "issued_students": 0} for t in types}
@@ -211,7 +262,8 @@ def eligibility_dashboard(
             value = values.get(student_id, 0)
             if value == 0:
                 continue
-            issued_for = issued.get((student_id, current_type), set())
+            warning_rows = issued_warnings.get((student_id, current_type), [])
+            issued_for = {warning["level"] for warning in warning_rows}
             state = _levels_state(
                 value=value, thresholds=config["levels"], issued_levels=issued_for
             )
@@ -239,6 +291,7 @@ def eligibility_dashboard(
                     "highest_reached_level": state["highest_reached_level"],
                     "highest_due_level": state["highest_due_level"],
                     "issued_levels": sorted(issued_for),
+                    "issued_warnings": warning_rows,
                     "levels": state["levels"],
                     "_sort": (
                         enrollment.grade.sequence,

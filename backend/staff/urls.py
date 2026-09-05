@@ -6,6 +6,10 @@ urlpatterns = [
     path("staff/", views.StaffListView.as_view()),
     path("staff/<int:staff_id>/", views.StaffDetailView.as_view()),
     path("staff/<int:staff_id>/roles/", views.StaffRolesView.as_view()),
+    path(
+        "staff/<int:staff_id>/counselor-sections/",
+        views.StaffCounselorSectionsView.as_view(),
+    ),
     path("staff/<int:staff_id>/roles/<str:role>/", views.StaffRoleDeleteView.as_view()),
     path("staff/<int:staff_id>/suspend/", views.StaffSuspendView.as_view()),
     path("staff/<int:staff_id>/activate/", views.StaffActivateView.as_view()),

@@ -195,13 +195,21 @@ export function CaseDetailPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-200">
+      <div
+        className="flex gap-1 overflow-x-auto border-b border-slate-200"
+        role="tablist"
+        aria-label="أقسام ملف المتابعة"
+      >
         {TABS.map(([value, label]) => (
           <button
             key={value}
             type="button"
+            role="tab"
+            id={`case-tab-${value}`}
+            aria-selected={tab === value}
+            tabIndex={tab === value ? 0 : -1}
             onClick={() => setTab(value)}
-            className={`border-b-2 px-3 py-2 text-sm ${
+            className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm ${
               tab === value ? "border-blue-700 text-blue-700" : "border-transparent text-slate-600"
             }`}
           >

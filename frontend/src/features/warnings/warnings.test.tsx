@@ -44,6 +44,9 @@ const ELIGIBILITY = {
       highest_reached_level: "LEVEL_2",
       highest_due_level: "LEVEL_2",
       issued_levels: ["LEVEL_1"],
+      issued_warnings: [
+        { id: 20, level: "LEVEL_1", document: { id: 40, status: "READY" } },
+      ],
       levels: {
         LEVEL_1: { threshold: 3, state: "ISSUED" },
         LEVEL_2: { threshold: 5, state: "DUE" },
@@ -75,6 +78,24 @@ const WARNING_ROW = {
   voided_at: null,
   voided_by: null,
   void_reason: "",
+};
+
+const WARNING_DOCUMENT = {
+  id: 41,
+  student_id: 5,
+  document_type: "WARNING_LEVEL_2",
+  document_type_label: "الإنذار الثاني",
+  status: "READY",
+  status_label: "جاهز",
+  template: "warning_level_2:1",
+  warning_id: 21,
+  action_id: null,
+  generated_at: "2026-08-19T09:01:00Z",
+  generated_by_name: "سعد الوكيل",
+  size_bytes: 1234,
+  checksum: "abc",
+  error_code: "",
+  can_download: true,
 };
 
 function parseBody(init?: RequestInit): Record<string, unknown> {
@@ -187,6 +208,10 @@ describe("warnings dashboard (Phase 11)", () => {
     expect(within(row).getByTestId("issue-5-UNEXCUSED_FULL_DAY_ABSENCE-LEVEL_2")).toBeInTheDocument();
     expect(within(row).queryByTestId("issue-5-UNEXCUSED_FULL_DAY_ABSENCE-LEVEL_1")).not.toBeInTheDocument();
     expect(within(row).queryByTestId("issue-5-UNEXCUSED_FULL_DAY_ABSENCE-LEVEL_3")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("print-warning-20")).toHaveAttribute(
+      "href",
+      "/api/v1/documents/40/download/?inline=1",
+    );
   });
 
   it("issues a warning with only student/type/level in the payload", async () => {
@@ -194,6 +219,7 @@ describe("warnings dashboard (Phase 11)", () => {
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/warnings/eligibility/": { body: ELIGIBILITY },
       "/warnings/issue/": { status: 201, body: WARNING_ROW },
+      "/documents/generate/": { status: 201, body: WARNING_DOCUMENT },
     });
 
     renderApp("/warnings");
@@ -201,6 +227,10 @@ describe("warnings dashboard (Phase 11)", () => {
     await user.click(await screen.findByTestId("issue-5-UNEXCUSED_FULL_DAY_ABSENCE-LEVEL_2"));
 
     expect(await screen.findByTestId("issue-result")).toHaveTextContent("الإنذار الثاني");
+    expect(await screen.findByTestId("issued-warning-print")).toHaveAttribute(
+      "href",
+      "/api/v1/documents/41/download/?inline=1",
+    );
     const post = calls.find((c) => c.url.includes("/warnings/issue/"));
     const body = parseBody(post?.init);
     expect(body).toEqual({
@@ -211,6 +241,12 @@ describe("warnings dashboard (Phase 11)", () => {
     // القيم الموثوقة لا ترسل من العميل إطلاقًا
     expect(body).not.toHaveProperty("threshold_at_issue");
     expect(body).not.toHaveProperty("metric_value_at_issue");
+    const documentPost = calls.find((c) => c.url.includes("/documents/generate/"));
+    expect(parseBody(documentPost?.init)).toEqual({
+      student_id: 5,
+      document_type: "WARNING_LEVEL_2",
+      warning_id: 21,
+    });
   });
 
   it("filters by type and empty state message", async () => {

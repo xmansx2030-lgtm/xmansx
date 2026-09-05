@@ -15,6 +15,12 @@ export const routes = [
       { path: "/login", element: <LoginPage /> },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },
       {
+        path: "/qr/:token",
+        lazy: async () => ({
+          Component: (await import("@/features/attendance/QrScanPage")).QrScanPage,
+        }),
+      },
+      {
         element: <RequireAuth />,
         children: [
           { path: "/select-school", element: <SelectSchoolPage /> },
@@ -128,10 +134,6 @@ export const routes = [
                   {
                     path: "teacher/follow-ups",
                     lazy: async () => ({ Component: (await import("@/features/counseling/TeacherFollowUpPage")).TeacherFollowUpPage }),
-                  },
-                  {
-                    path: "qr/:token",
-                    lazy: async () => ({ Component: (await import("@/features/attendance/QrScanPage")).QrScanPage }),
                   },
                   { path: "*", element: <NotFoundPage /> },
                 ],

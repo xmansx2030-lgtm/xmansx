@@ -157,6 +157,14 @@ def test_trend_sections_and_attention(api_env):
     today = api_env["client"].get(f"{BASE}today/").json()
     assert "has_active_period" in today
     assert "submission_completion_pct" in today
+    assert today["operational_state"] in {
+        "IDLE",
+        "ACTION_REQUIRED",
+        "ON_TRACK",
+        "IN_PROGRESS",
+    }
+    assert today["headline"]
+    assert today["updated_at"] == today["school_time"]
 
 
 # ---------- الفلاتر والأخطاء ----------

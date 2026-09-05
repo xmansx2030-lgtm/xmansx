@@ -1,7 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleDot, Filter, Inbox, Send, UserRoundCheck } from "lucide-react";
 import { useState } from "react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MetricCard } from "@/components/MetricCard";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
@@ -92,9 +96,7 @@ export function ReferralsTable({
         </tbody>
       </table>
       {rows.length === 0 && (
-        <p className="p-6 text-sm text-slate-500" data-testid="no-referrals">
-          {emptyText}
-        </p>
+        <div className="p-4"><EmptyState title="لا توجد إحالات" description={emptyText} testId="no-referrals" compact /></div>
       )}
     </div>
   );
@@ -149,15 +151,24 @@ export function ReferralsPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold">الإحالات</h1>
+      <PageHeader
+        icon={Send}
+        eyebrow="صندوق المتابعة المشترك"
+        title="الإحالات"
+        description="متابعة الإحالات الواردة وتعيينها للمرشد وتوثيق مسار التعامل معها حتى الإغلاق."
+        tone={me.data?.roles.includes("COUNSELOR") ? "counselor" : "operational"}
+        badge={me.data?.roles.includes("COUNSELOR") ? "المرشد الطلابي" : "فريق الإدارة"}
+      />
 
       <div className="grid grid-cols-3 gap-2" data-testid="referral-kpis">
-        <Kpi label="جديدة" value={kpis.data?.new_count ?? 0} />
-        <Kpi label="تم استلامها" value={kpis.data?.acknowledged_count ?? 0} />
-        <Kpi label="غير معينة" value={kpis.data?.unassigned_count ?? 0} />
+        <MetricCard label="جديدة" value={kpis.data?.new_count ?? 0} icon={Inbox} tone="blue" />
+        <MetricCard label="تم استلامها" value={kpis.data?.acknowledged_count ?? 0} icon={UserRoundCheck} tone="teal" />
+        <MetricCard label="غير معينة" value={kpis.data?.unassigned_count ?? 0} icon={CircleDot} tone="amber" />
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2"><Filter aria-hidden size={18} className="text-slate-500" /><h2 className="font-black text-slate-900">تصفية صندوق الإحالات</h2></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm">
           الحالة
           <select
@@ -212,7 +223,8 @@ export function ReferralsPage() {
             <option value="UNASSIGNED">غير معينة</option>
           </select>
         </label>
-      </div>
+        </div>
+      </section>
 
       {list.isPending ? (
         <Spinner />
@@ -232,15 +244,6 @@ export function ReferralsPage() {
           onClose={() => setSelected(null)}
         />
       )}
-    </div>
-  );
-}
-
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-      <p className="text-xs text-slate-500">{label}</p>
-      <strong className="mt-1 block text-2xl font-bold text-slate-800">{value}</strong>
     </div>
   );
 }

@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, CheckCircle2, Clock3, FileCheck2, Filter, Plus, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MetricCard } from "@/components/MetricCard";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
@@ -69,20 +73,21 @@ export function ExcusesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">الأعذار</h1>
-        {canManage && (
-          <Button onClick={() => setCreating((value) => !value)} data-testid="new-excuse">
-            {creating ? "إغلاق" : "إضافة عذر"}
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        icon={FileCheck2}
+        eyebrow="السجل الإداري"
+        title="الأعذار"
+        description="استقبال أعذار الطلاب ومراجعتها واعتماد أثرها على سجل المواظبة من مساحة واضحة وقابلة للتتبع."
+        tone="operational"
+        badge={canManage ? "صلاحية الاعتماد" : "عرض السجل"}
+        actions={canManage ? <Button onClick={() => setCreating((value) => !value)} data-testid="new-excuse" className="bg-white text-slate-950 hover:bg-slate-50"><Plus aria-hidden size={18} />{creating ? "إغلاق النموذج" : "إضافة عذر"}</Button> : undefined}
+      />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="excuse-kpis">
-        <Kpi label="بانتظار الاعتماد" value={kpis.data?.pending_count ?? 0} />
-        <Kpi label="معتمدة اليوم" value={kpis.data?.approved_today_count ?? 0} />
-        <Kpi label="مرفوضة" value={kpis.data?.rejected_count ?? 0} />
-        <Kpi label="ملغاة" value={kpis.data?.cancelled_count ?? 0} />
+        <MetricCard label="بانتظار الاعتماد" value={kpis.data?.pending_count ?? 0} icon={Clock3} tone="amber" />
+        <MetricCard label="معتمدة اليوم" value={kpis.data?.approved_today_count ?? 0} icon={CheckCircle2} tone="teal" />
+        <MetricCard label="مرفوضة" value={kpis.data?.rejected_count ?? 0} icon={XCircle} tone="red" />
+        <MetricCard label="ملغاة" value={kpis.data?.cancelled_count ?? 0} icon={Ban} tone="neutral" />
       </div>
 
       {creating && canManage && (
@@ -96,7 +101,9 @@ export function ExcusesPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2"><Filter aria-hidden size={18} className="text-slate-500" /><h2 className="font-black text-slate-900">تصفية سجل الأعذار</h2></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm">
           الحالة
           <select
@@ -144,7 +151,8 @@ export function ExcusesPage() {
             className="rounded-lg border border-slate-300 px-3 py-2"
           />
         </label>
-      </div>
+        </div>
+      </section>
 
       {list.isPending ? (
         <Spinner />
@@ -198,11 +206,7 @@ export function ExcusesPage() {
               ))}
             </tbody>
           </table>
-          {(list.data?.results.length ?? 0) === 0 && (
-            <p className="p-6 text-sm text-slate-500" data-testid="no-excuses">
-              لا توجد أعذار مطابقة.
-            </p>
-          )}
+          {(list.data?.results.length ?? 0) === 0 && <div className="p-4"><EmptyState title="لا توجد أعذار مطابقة" description="غيّر معايير البحث أو أضف عذرًا جديدًا للطالب عند توفر المستند المؤيد." testId="no-excuses" compact /></div>}
           <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
             <span className="text-slate-500">
               صفحة {page} من {totalPages}
@@ -249,15 +253,6 @@ export function StatusBadge({ status, label }: { status: string; label: string }
           ? "bg-slate-200 text-slate-700"
           : "bg-amber-100 text-amber-900";
   return <span className={`rounded-full px-2 py-1 text-xs ${tone}`}>{label}</span>;
-}
-
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-      <p className="text-xs text-slate-500">{label}</p>
-      <strong className="mt-1 block text-2xl font-bold text-slate-800">{value}</strong>
-    </div>
-  );
 }
 
 export function useExcuseMutation<TArgs extends unknown[], TResult>(

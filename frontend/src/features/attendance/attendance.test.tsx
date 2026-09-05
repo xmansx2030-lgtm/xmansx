@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
-import { buildMe, membership, mockApi } from "@/test/mockApi";
+import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
 vi.mock("qrcode", () => ({
@@ -80,6 +80,37 @@ describe("attendance", () => {
     const list = await screen.findByTestId("sections-list");
     expect(within(list).getByTestId("section-3")).toHaveTextContent("3 طالبًا");
     expect(within(list).getByTestId("section-4")).toHaveTextContent("الأول الثانوي");
+  });
+
+  it("filters a long section list and offers a clear empty search state", async () => {
+    const manySections = [
+      ...SECTIONS,
+      { id: 5, name: "1", grade_name: "الثاني الثانوي", students_count: 20 },
+      { id: 6, name: "2", grade_name: "الثاني الثانوي", students_count: 22 },
+      { id: 7, name: "1", grade_name: "الثالث الثانوي", students_count: 18 },
+      { id: 8, name: "2", grade_name: "الثالث الثانوي", students_count: 21 },
+      { id: 9, name: "الموهوبين", grade_name: "الأول الثانوي", students_count: 12 },
+    ];
+    mockApi({
+      "/auth/me/": { body: teacherMe() },
+      "/attendance/current-period/": { body: { period: null, date: "2026-08-19" } },
+      "/attendance/sections/": { body: manySections },
+    });
+
+    renderApp("/");
+    const user = userEvent.setup();
+    const search = await screen.findByTestId("section-search");
+
+    await user.type(search, "الموهوبين");
+    const list = screen.getByTestId("sections-list");
+    expect(within(list).getByTestId("section-9")).toBeInTheDocument();
+    expect(within(list).queryByTestId("section-3")).toBeNull();
+
+    await user.clear(search);
+    await user.type(search, "غير موجود");
+    expect(screen.getByText("لا يوجد فصل مطابق")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "مسح البحث" }));
+    expect(await screen.findByTestId("section-3")).toBeInTheDocument();
   });
 
   it("teacher home shows a clear message when no period is active", async () => {
@@ -254,6 +285,39 @@ describe("attendance", () => {
     expect(await screen.findByTestId("roster-student-11")).toBeInTheDocument();
   });
 
+  it("shows an isolated public gate without resolving or leaking QR data", async () => {
+    const { calls } = mockApi({ "/auth/me/": UNAUTHENTICATED });
+
+    renderApp("/qr/private-token-123");
+
+    expect(
+      await screen.findByRole("heading", { name: "هذا الرمز مخصص للمعلمين المصرح لهم" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("qr-access-gate")).toHaveTextContent("لم يتم عرض أي بيانات مدرسية");
+    expect(screen.getByRole("link", { name: "دخول الموظفين المصرح لهم" })).toHaveAttribute(
+      "href",
+      "/login?returnTo=%2Fqr%2Fprivate-token-123",
+    );
+    expect(screen.queryByText("private-token-123")).not.toBeInTheDocument();
+    expect(screen.queryByText("ثانوية الأندلس")).not.toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/attendance/qr/resolve/"))).toBe(false);
+  });
+
+  it("does not send the QR token for an authenticated non-teacher", async () => {
+    const { calls } = mockApi({ "/auth/me/": { body: managerMe() } });
+
+    renderApp("/qr/private-token-123");
+
+    expect(
+      await screen.findByRole("heading", { name: "هذا الحساب غير مخول بفتح التحضير" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("qr-access-gate")).toHaveTextContent(
+      "لم يتم إرسال الرمز للتحقق",
+    );
+    expect(screen.queryByText("ثانوية الأندلس")).not.toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/attendance/qr/resolve/"))).toBe(false);
+  });
+
   it("shows the API error for an invalid or rotated QR token", async () => {
     mockApi({
       "/auth/me/": { body: teacherMe() },
@@ -275,8 +339,23 @@ describe("attendance", () => {
   it("manager generates and rotates a section QR", async () => {
     let rotated = false;
     vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    vi.stubGlobal("print", vi.fn());
     const { calls } = mockApi({
       "/auth/me/": { body: managerMe() },
+      "/school/settings/": {
+        body: {
+          school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+          ministry_school_number: "12345",
+          education_stage: "SECONDARY",
+          city: "الرياض",
+          official_principal_name: "خالد المدير",
+          timezone: "Asia/Riyadh",
+          logo_url: null,
+          attendance_edit_window_minutes: 15,
+          unprepared_period_alert_minutes: 25,
+          staff: { managers: ["خالد المدير"], vice_principals: [], counselors: [] },
+        },
+      },
       "/attendance/sections/": { body: SECTIONS },
       "/sections/3/qr/": (init) => {
         if (init?.method === "POST") rotated = true;
@@ -295,9 +374,22 @@ describe("attendance", () => {
     renderApp("/attendance/qr");
     const user = userEvent.setup();
 
+    const search = await screen.findByLabelText("البحث في الفصول");
+    await user.type(search, "2");
+    expect(screen.queryByTestId("qr-section-3")).toBeNull();
+    expect(screen.getByTestId("qr-section-4")).toBeInTheDocument();
+    await user.clear(search);
+
     await user.click(await screen.findByTestId("qr-section-3"));
-    expect(await screen.findByTestId("qr-section-title")).toHaveTextContent("الأول الثانوي");
+    expect(await screen.findByTestId("qr-section-title")).toHaveTextContent("الفصل 1");
     expect(screen.getByTestId("qr-canvas")).toBeInTheDocument();
+    const printSheet = screen.getByTestId("qr-print-sheet");
+    expect(printSheet).toHaveTextContent("ثانوية الأندلس");
+    expect(printSheet).toHaveTextContent("الفصل 1");
+    expect(printSheet).toHaveTextContent("الأول الثانوي");
+
+    await user.click(screen.getByTestId("print-qr"));
+    expect(window.print).toHaveBeenCalledOnce();
 
     await user.click(screen.getByTestId("rotate-qr"));
     await waitFor(() => {

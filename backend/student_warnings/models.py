@@ -131,6 +131,9 @@ class StudentWarning(TimestampedModel):
     morning_late_minutes_at_issue = models.PositiveIntegerField(default=0)
     period_late_occurrences_at_issue = models.PositiveSmallIntegerField(default=0)
     period_late_minutes_at_issue = models.PositiveIntegerField(default=0)
+    # تفاصيل النوع نفسه لحظة الإصدار فقط: أيام الغياب الكامل أو حالات التأخر
+    # الصباحي. لا تخلط الأنواع ولا يعاد حسابها عند الطباعة لاحقًا.
+    detail_rows_snapshot = models.JSONField(default=list, blank=True)
 
     issued_by_membership = models.ForeignKey(
         "memberships.SchoolMembership", on_delete=models.PROTECT, related_name="+"

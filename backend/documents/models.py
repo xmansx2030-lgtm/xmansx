@@ -15,7 +15,7 @@ from django.db import models
 from common.models import TimestampedModel
 from documents.storage import PrivateDocumentStorage, generated_document_path
 
-SNAPSHOT_SCHEMA_VERSION = 1
+SNAPSHOT_SCHEMA_VERSION = 2
 
 
 class DocumentType(models.TextChoices):

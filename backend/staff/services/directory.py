@@ -1,18 +1,23 @@
 """استعلامات دليل الموظفين — بلا N+1، وبحث محدود (لا Global User Search)."""
 
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 
 from accounts.mobile import normalize_mobile
 from memberships.models import SchoolMembership
-from staff.models import StaffProfile
+from staff.models import CounselorSectionAssignment, StaffProfile
+
+COUNSELOR_SECTIONS_PREFETCH = Prefetch(
+    "membership__counselor_section_assignments",
+    queryset=CounselorSectionAssignment.objects.select_related("section__grade"),
+)
 
 
 def staff_queryset(*, school, search: str = "", role: str = "", status: str = ""):
     queryset = (
         StaffProfile.objects.filter(school=school)
         .select_related("membership__user")
-        .prefetch_related("membership__roles")
+        .prefetch_related("membership__roles", COUNSELOR_SECTIONS_PREFETCH)
         .order_by("display_name")
     )
     if search:

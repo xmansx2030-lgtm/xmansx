@@ -105,13 +105,20 @@ async function login(page: Page, mobile: string, school: string) {
   const chooser = page
     .locator("li", { hasText: school })
     .getByRole("button", { name: "دخول" });
-  await chooser.click({ timeout: 4000 }).catch(() => undefined);
-  await expect(page.getByTestId("active-school-name")).toHaveText(school);
+  const activeSchool = page.getByTestId("active-school-name");
+  // مستخدم المدرسة الواحدة يدخل مباشرة، أما متعدد المدارس فقد يتأخر ظهور
+  // الخيارات بعد تسجيل الدخول تحت الحمل؛ لا نتجاهل نقرة اختيار مدرسة موجودة.
+  await expect(chooser.or(activeSchool)).toBeVisible({ timeout: 15_000 });
+  if (await chooser.isVisible()) {
+    await chooser.click();
+  }
+  await expect(activeSchool).toHaveText(school, {
+    timeout: 15_000,
+  });
 }
 
 async function logout(page: Page) {
-  await api(page, "/auth/logout/", { method: "POST" });
-  await page.goto("/login");
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -129,10 +136,10 @@ test("teacher referral becomes a counselor case visible on the dashboard", async
   await page.getByRole("button", { name: "رفع الملف" }).click();
   await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
-  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
-  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 60_000 });
 
   const daily = await api<{ date: string; day_periods: { sequence: number }[] }>(
     page,
@@ -217,7 +224,7 @@ test("session, plan with a numeric goal, and activity completion", async ({ page
   await expect(page.getByTestId("case-detail")).toBeVisible({ timeout: 20_000 });
 
   // (2) جلسة مقابلة الطالب
-  await page.getByRole("button", { name: "الجلسات" }).click();
+  await page.getByRole("tab", { name: "الجلسات" }).click();
   await page.getByTestId("session-type").selectOption("STUDENT_MEETING");
   await page.getByTestId("session-summary").fill("مقابلة أولى: الطالب متعاون ووعد بالالتزام.");
   await page.getByTestId("save-session").click();
@@ -226,7 +233,7 @@ test("session, plan with a numeric goal, and activity completion", async ({ page
   ).toBeVisible({ timeout: 20_000 });
 
   // (3) خطة متابعة بهدف رقمي ثم تنفيذ إجراء
-  await page.getByRole("button", { name: "خطة المتابعة" }).click();
+  await page.getByRole("tab", { name: "خطة المتابعة" }).click();
   await page.getByTestId("plan-title").fill("خطة الالتزام بالحضور");
   await page.getByTestId("create-plan").click();
   const plan = page.locator('[data-testid^="plan-"]').first();
@@ -252,7 +259,7 @@ test("session, plan with a numeric goal, and activity completion", async ({ page
   await expect(activity).toContainText("منفذ", { timeout: 20_000 });
 
   // الخط الزمني يعكس ما جرى
-  await page.getByRole("button", { name: "الخط الزمني" }).click();
+  await page.getByRole("tab", { name: "الخط الزمني" }).click();
   const timeline = page.getByTestId("case-timeline");
   await expect(timeline).toContainText("فتح الحالة");
   await expect(timeline).toContainText("إضافة جلسة");
@@ -262,24 +269,32 @@ test("session, plan with a numeric goal, and activity completion", async ({ page
 test("teacher follow-up: request, response, and other teacher privacy", async ({ page }) => {
   await login(page, "0550000005", "ثانوية الأندلس"); // المرشدة
   await page.goto(`/counselor/cases/${caseId}`);
-  await page.getByRole("button", { name: "طلبات المعلمين" }).click();
+  await page.getByRole("tab", { name: "طلبات المعلمين" }).click();
 
   const teachers = await api<{ membership_id: number; name: string }[]>(
     page,
     "/counselor/teachers/",
   );
   expect(teachers.status).toBe(200);
-  await page.getByTestId("request-teacher").selectOption(String(teachers.body[0].membership_id));
+  const ahmed = teachers.body.find((teacher) => teacher.name === "أحمد المعلم");
+  expect(ahmed).toBeDefined();
+  await page.getByTestId("request-teacher").selectOption(String(ahmed!.membership_id));
   await page.getByTestId("request-type").selectOption("CLASSROOM_BEHAVIOR");
   await page.getByTestId("request-question").fill("كيف كان التزامه داخل الفصل هذا الأسبوع؟");
   await page.getByTestId("send-request").click();
   const requestRow = page.locator('[data-testid^="req-row-"]').first();
   await expect(requestRow).toContainText("بانتظار الرد", { timeout: 20_000 });
-  const requests = await api<{ id: number }[]>(
+  const requests = await api<{ id: number; question: string; status: string }[]>(
     page,
     `/counselor/cases/${caseId}/teacher-requests/`,
   );
-  requestId = requests.body[0].id;
+  const pendingRequest = requests.body.find(
+    (row) =>
+      row.status === "PENDING" &&
+      row.question === "كيف كان التزامه داخل الفصل هذا الأسبوع؟",
+  );
+  expect(pendingRequest).toBeDefined();
+  requestId = pendingRequest!.id;
 
   // المعلم يرى طلبه هو ويرد
   await logout(page);
@@ -307,7 +322,7 @@ test("teacher follow-up: request, response, and other teacher privacy", async ({
   await logout(page);
   await login(page, "0550000005", "ثانوية الأندلس");
   await page.goto(`/counselor/cases/${caseId}`);
-  await page.getByRole("button", { name: "طلبات المعلمين" }).click();
+  await page.getByRole("tab", { name: "طلبات المعلمين" }).click();
   await expect(page.getByTestId(`req-response-${requestId}`)).toContainText("تحسن واضح", {
     timeout: 20_000,
   });
@@ -373,7 +388,7 @@ test("case closes with a reason and reopens with a full timeline", async ({ page
   await page.getByTestId("reopen-case").click();
   await expect(page.getByTestId("case-status")).toHaveText("مفتوحة", { timeout: 20_000 });
 
-  await page.getByRole("button", { name: "الخط الزمني" }).click();
+  await page.getByRole("tab", { name: "الخط الزمني" }).click();
   const timeline = page.getByTestId("case-timeline");
   await expect(timeline).toContainText("إعادة فتح الحالة");
   await expect(timeline).toContainText("إغلاق الحالة");

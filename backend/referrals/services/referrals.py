@@ -98,6 +98,36 @@ def validate_counselor(*, school, counselor_id: int) -> SchoolMembership:
     return counselor
 
 
+def assigned_counselor_for_student(*, school, student) -> SchoolMembership | None:
+    """مرشد فصل القيد النشط الحالي، إن كان المرشد نفسه فعالًا."""
+    from staff.models import CounselorSectionAssignment
+    from students.models import EnrollmentStatus
+
+    enrollment = (
+        student.enrollments.filter(
+            school=school,
+            status=EnrollmentStatus.ACTIVE,
+            academic_year__status="ACTIVE",
+        )
+        .select_related("section")
+        .order_by("-enrolled_at", "-id")
+        .first()
+    )
+    if enrollment is None:
+        return None
+    assignment = (
+        CounselorSectionAssignment.objects.filter(
+            school=school,
+            section=enrollment.section,
+            counselor_membership__status=MembershipStatus.ACTIVE,
+            counselor_membership__roles__role=SchoolRole.COUNSELOR,
+        )
+        .select_related("counselor_membership")
+        .first()
+    )
+    return assignment.counselor_membership if assignment else None
+
+
 def find_open_duplicate(*, school, student, category: str) -> StudentReferral | None:
     """حالة مفتوحة لنفس الطالب والفئة — أساس اقتراح «أضف ملاحظة» بدل إحالة جديدة."""
     return (
@@ -152,7 +182,7 @@ def create_referral(
     counselor = (
         validate_counselor(school=school, counselor_id=assigned_counselor_id)
         if assigned_counselor_id is not None
-        else None
+        else assigned_counselor_for_student(school=school, student=student)
     )
     if source_warning is not None and (
         source_warning.school_id != school.id or source_warning.student_id != student.id
@@ -219,7 +249,10 @@ def create_referral(
                 referral=referral,
                 event_type=ReferralEventType.ASSIGNED,
                 membership=membership,
-                metadata={"counselor_membership_id": counselor.id},
+                metadata={
+                    "counselor_membership_id": counselor.id,
+                    "automatic": assigned_counselor_id is None,
+                },
             )
         # دمج م12+م13 (البنود 31-35): إحالة إدارية تترك أثرًا في سجل الإجراءات،
         # داخل **نفس المعاملة** فإما ينجحان معًا أو لا شيء. إحالة المعلم لا تنتج

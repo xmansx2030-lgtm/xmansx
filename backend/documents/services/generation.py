@@ -30,6 +30,7 @@ from documents.models import (
     GeneratedDocument,
 )
 from documents.pdf import MIME_PDF, PdfEngineUnavailable, render_pdf
+from documents.render_assets import render_assets
 from documents.services import snapshots as snapshot_service
 from documents.templates_registry import template_for, template_of
 from student_warnings.models import StudentWarning, WarningStatus
@@ -75,7 +76,10 @@ def _with_render_slot(func):
 
 def _render(*, template, snapshot: dict) -> bytes:
     """‏HTML من قالب Django (تهريب تلقائي) ← PDF. لا مورد خارجي ولا مسار ملفات."""
-    html = render_to_string(template.template_name, {"data": snapshot})
+    html = render_to_string(
+        template.template_name,
+        {"data": snapshot, "assets": render_assets()},
+    )
     return render_pdf(html)
 
 

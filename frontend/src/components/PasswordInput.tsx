@@ -13,7 +13,7 @@ export function PasswordInput({ label, error, className = "", ...props }: Passwo
 
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      <label htmlFor={id} className="text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="text-sm font-bold text-slate-700">
         {label}
       </label>
       <div className="relative">
@@ -22,7 +22,7 @@ export function PasswordInput({ label, error, className = "", ...props }: Passwo
           type={visible ? "text" : "password"}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className={`w-full rounded-lg border px-3 py-2 pe-16 text-sm outline-none transition-colors focus:ring-2 ${
+          className={`w-full rounded-xl border bg-white px-3.5 py-2.5 pe-18 text-sm outline-none transition-all focus:ring-2 ${
             error
               ? "border-red-400 focus:border-red-500 focus:ring-red-100"
               : "border-slate-300 focus:border-blue-500 focus:ring-blue-100"
@@ -32,7 +32,7 @@ export function PasswordInput({ label, error, className = "", ...props }: Passwo
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="absolute end-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+          className="absolute end-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
           aria-label={visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
         >
           {visible ? "إخفاء" : "إظهار"}

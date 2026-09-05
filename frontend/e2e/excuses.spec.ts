@@ -87,10 +87,9 @@ function seedSessions(sectionCode: string, periods: unknown[]): SeedOutput {
   return JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as SeedOutput;
 }
 
-/** خروج عبر API مباشرة — أسرع وأثبت من انتظار زر الهيدر. */
+/** خروج من مسار المستخدم الحقيقي كي تُلغى طلبات المدرسة قبل حذف الجلسة. */
 async function logout(page: Page) {
-  await api(page, "/auth/logout/", { method: "POST" });
-  await page.goto("/login");
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 

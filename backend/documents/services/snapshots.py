@@ -157,7 +157,10 @@ def warning_snapshot(*, school, warning: StudentWarning, membership, title: str)
             "issued_by": _membership_name(warning.issued_by_membership),
             "academic_year": warning.academic_year.name,
             "notes": warning.notes,
+            "reference": f"W-{warning.id:06d}",
         },
+        # صفوف النوع نفسه فقط، جُمّدت وقت الإصدار في م11.
+        "detail_rows": warning.detail_rows_snapshot or [],
         "metrics_at_issue": {
             "full_absence_days": warning.full_absence_days_at_issue,
             "unexcused_full_absence_days": warning.unexcused_full_absence_days_at_issue,

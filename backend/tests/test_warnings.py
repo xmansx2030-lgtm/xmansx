@@ -301,6 +301,36 @@ def test_issue_level_1_creates_warning_with_snapshot(env):
     assert warning.period_late_occurrences_at_issue == 0
     assert warning.issued_by_membership_id == env["vice"].id
     assert warning.academic_year_id == env["year"].id
+    assert len(warning.detail_rows_snapshot) == 3
+    assert all(
+        row["status"] == "غياب يوم دراسي كامل بدون عذر"
+        for row in warning.detail_rows_snapshot
+    )
+    assert all(
+        "arrival_time" not in row and "late_minutes" not in row
+        for row in warning.detail_rows_snapshot
+    )
+
+
+@pytest.mark.django_db
+def test_issue_morning_late_freezes_only_arrival_details(env):
+    student = env["students"][0]
+    set_rules(env, MORNING, 3, 5, 10)
+    morning_late(env, student, 3)
+
+    warning = issue(env, student, MORNING, WarningLevel.LEVEL_1)
+
+    assert warning.metric_value_at_issue == 3
+    assert len(warning.detail_rows_snapshot) == 3
+    assert all(
+        row["status"] == "تأخر عن بداية الدوام الصباحي"
+        for row in warning.detail_rows_snapshot
+    )
+    assert all(
+        row["arrival_time"] and row["late_minutes"] == 13
+        for row in warning.detail_rows_snapshot
+    )
+    assert all("غياب" not in row["status"] for row in warning.detail_rows_snapshot)
 
 
 @pytest.mark.django_db
@@ -475,6 +505,13 @@ def test_dashboard_lists_due_students_with_issued_levels(env):
     assert absence_row["current_value"] == 5
     assert absence_row["highest_due_level"] == WarningLevel.LEVEL_2
     assert absence_row["issued_levels"] == [WarningLevel.LEVEL_1]
+    assert absence_row["issued_warnings"] == [
+        {
+            "id": StudentWarning.objects.get(student=first).id,
+            "level": WarningLevel.LEVEL_1,
+            "document": None,
+        }
+    ]
     assert (second.id, ABSENCE) not in rows  # لم يصل الحد
     assert (third.id, MORNING) in rows
     assert result["summary"][ABSENCE]["due_students"] == 1

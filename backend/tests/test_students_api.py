@@ -96,6 +96,55 @@ def test_cross_school_enrollment_blocked(make_school):
 
 
 @pytest.mark.django_db
+def test_manager_creates_student_manually(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    existing = _make_student(school, "1012345678", "طالب تمهيدي")
+    enrollment = _enroll(school, existing)
+
+    response = client.post(
+        STUDENTS_URL,
+        {
+            "full_name": "طالب يدوي",
+            "national_id": "١٠٩٨٧٦٥٤٣٢",
+            "student_number": "S-100",
+            "guardian_name": "ولي الطالب",
+            "guardian_mobile": "0551234567",
+            "section_id": enrollment.section_id,
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["full_name"] == "طالب يدوي"
+    assert response.json()["national_id_masked"] == "******5432"
+    created = Student.objects.get(full_name="طالب يدوي", school=school)
+    assert created.guardian_mobile == "+966551234567"
+    assert created.enrollments.get().section_id == enrollment.section_id
+
+
+@pytest.mark.django_db
+def test_manual_student_rejects_duplicate_and_non_manager(role_client, make_school):
+    school = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    enrollment = _enroll(school, _make_student(school, "1012345678", "موجود"))
+    payload = {
+        "full_name": "مكرر",
+        "national_id": "1012345678",
+        "section_id": enrollment.section_id,
+    }
+    assert manager.post(STUDENTS_URL, payload, content_type="application/json").status_code == 409
+    assert (
+        vice.post(
+            STUDENTS_URL,
+            {**payload, "national_id": "1098765432"},
+            content_type="application/json",
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.django_db
 def test_student_list_masked_and_paginated(role_client):
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     for i in range(30):

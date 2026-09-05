@@ -36,7 +36,12 @@ def process_import_job(job_id: int) -> str:
 
         try:
             with job.file.open("rb") as file_obj:
-                raw_rows = parser.read_rows(file_obj)
+                header_row = int(job.summary.get("header_row", 1))
+                raw_rows = parser.read_rows(
+                    file_obj,
+                    start_row=header_row + 1,
+                    import_format=job.summary.get("import_format", "TABULAR"),
+                )
 
             normalized = [
                 validation.build_normalized_row(number, values, job.column_mapping)
@@ -76,7 +81,11 @@ def process_import_job(job_id: int) -> str:
             job.valid_rows = job.total_rows - summary["errors"] - summary["duplicates"]
             job.invalid_rows = summary["errors"]
             job.duplicate_rows = summary["duplicates"]
-            job.summary = {**summary, "missing_names": result["missing"]}
+            job.summary = {
+                **job.summary,
+                **summary,
+                "missing_names": result["missing"],
+            }
             job.status = ImportJobStatus.READY_FOR_REVIEW
             job.validated_at = timezone.now()
             job.save()

@@ -174,3 +174,7 @@ export const voidDocument = (documentId: number, reason: string) =>
 /** التنزيل عبر endpoint مصادق — لا رابط تخزين عام (البندان 55-57). */
 export const documentDownloadUrl = (documentId: number) =>
   `/api/v1/documents/${documentId}/download/`;
+
+/** عرض PDF داخل المتصفح لتمكين الطباعة مباشرة، مع بقاء المصادقة والصلاحيات. */
+export const documentPrintUrl = (documentId: number) =>
+  `/api/v1/documents/${documentId}/download/?inline=1`;

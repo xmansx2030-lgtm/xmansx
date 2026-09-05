@@ -6,38 +6,62 @@
 الوحيد الممكن عبر endpoint مصادق ومحدود بالمستأجر والدور.
 """
 
-import os
 from uuid import uuid4
 
 from django.conf import settings
-from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import FileSystemStorage, Storage, storages
+from django.utils.deconstruct import deconstructible
 
 
-class PrivateDocumentStorage(FileSystemStorage):
-    """مسار الجذر يقرأ من الإعدادات **وقت الاستخدام** لا وقت الاستيراد.
+@deconstructible
+class PrivateDocumentStorage(Storage):
+    """Proxy to the configured private-document storage.
 
-    ‏FileSystemStorage يخزن الجذر في cached_property؛ استبدالها بخاصية عادية
-    يجعل `override_settings` في الاختبارات فعالة بلا إعادة تحميل الوحدة.
+    Development uses a filesystem outside ``MEDIA_ROOT`` while production uses
+    the private R2 bucket. The local backend is built at use time so
+    ``override_settings(GENERATED_DOCUMENTS_ROOT=...)`` remains effective.
     """
 
-    def __init__(self, **kwargs):
-        kwargs.setdefault("base_url", None)
-        super().__init__(**kwargs)
-
     @property
-    def base_location(self):
-        return self._value_or_setting(self._location, settings.GENERATED_DOCUMENTS_ROOT)
+    def backend(self):
+        if settings.R2_ENABLED:
+            return storages["private_documents"]
+        return FileSystemStorage(location=settings.GENERATED_DOCUMENTS_ROOT, base_url=None)
 
-    @property
-    def location(self):
-        return os.path.abspath(self.base_location)
+    def _open(self, name, mode="rb"):
+        return self.backend.open(name, mode)
+
+    def _save(self, name, content):
+        return self.backend.save(name, content)
+
+    def delete(self, name):
+        return self.backend.delete(name)
+
+    def exists(self, name):
+        return self.backend.exists(name)
+
+    def listdir(self, path):
+        return self.backend.listdir(path)
+
+    def size(self, name):
+        return self.backend.size(name)
+
+    def path(self, name):
+        return self.backend.path(name)
+
+    def get_accessed_time(self, name):
+        return self.backend.get_accessed_time(name)
+
+    def get_created_time(self, name):
+        return self.backend.get_created_time(name)
+
+    def get_modified_time(self, name):
+        return self.backend.get_modified_time(name)
 
     def url(self, name):
         """لا رابط عام إطلاقًا.
 
-        ‏`FileSystemStorage.base_url` يرجع إلى `MEDIA_URL` عند تمرير None، فيولد
-        رابطًا يوحي بإمكان التنزيل المباشر. الرفض الصريح يجعل أي محاولة ربط في
-        الواجهة تفشل وقت التطوير لا وقت التسريب.
+        الرفض الصريح يمنع كشف رابط دائم سواء كان المخزن محليًا أو R2.
         """
         raise ValueError(
             "المستندات المولدة لا تملك رابطاً عاماً — التنزيل عبر endpoint مصرح فقط."

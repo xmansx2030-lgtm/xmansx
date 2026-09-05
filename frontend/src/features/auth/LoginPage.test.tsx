@@ -24,11 +24,32 @@ describe("LoginPage", () => {
     const { calls } = mockApi({ "/auth/me/": UNAUTHENTICATED });
     renderApp("/login");
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("رقم الجوال"), "abc");
+    const mobile = await screen.findByLabelText("رقم الجوال");
+    await user.type(mobile, "966550000001");
+    expect(mobile).toHaveValue("0");
     await user.type(screen.getByLabelText("كلمة المرور"), "secret");
     await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("رقم جوال سعودي صحيح");
+    expect(await screen.findByRole("alert")).toHaveTextContent("05XXXXXXXX");
     expect(calls.some((c) => c.url.includes("/auth/login/"))).toBe(false);
+  });
+
+  it("accepts exactly 05 plus eight digits and sends the equivalent +966 format", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/login/": { status: 401, body: { code: "INVALID_CREDENTIALS", message: "بيانات غير صحيحة", details: {} } },
+    });
+    renderApp("/login");
+    const user = userEvent.setup();
+    const mobile = await screen.findByLabelText("رقم الجوال");
+    expect(mobile).toHaveAttribute("maxlength", "10");
+    expect(mobile).toHaveAttribute("pattern", "05[0-9]{8}");
+    await user.type(mobile, "٠٥٥٠٠٠٠٠٠١");
+    expect(mobile).toHaveValue("0550000001");
+    await user.type(screen.getByLabelText("كلمة المرور"), "secret");
+    await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+    await screen.findByRole("alert");
+    const loginCall = calls.find((call) => call.url.includes("/auth/login/"));
+    expect(JSON.parse(String(loginCall?.init?.body))).toMatchObject({ mobile: "+966550000001" });
   });
 
   it("shows API error message for invalid credentials", async () => {
@@ -89,6 +110,35 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText("كلمة المرور"), "secret");
     await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
     expect(await screen.findByTestId("active-school-name")).toHaveTextContent("ثانوية الأندلس");
+  });
+
+  it("returns an authorized employee to the scanned QR after login", async () => {
+    const teacher = buildMe({
+      active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+      roles: ["TEACHER"],
+      memberships: [membership(1, 10, "ثانوية الأندلس", ["TEACHER"])],
+    });
+    const { calls } = mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/login/": { body: teacher },
+      "/attendance/qr/resolve/": {
+        status: 404,
+        body: {
+          code: "SECTION_QR_INVALID",
+          message: "رمز QR غير صالح أو تم تجديده.",
+          details: {},
+        },
+      },
+    });
+
+    renderApp("/login?returnTo=%2Fqr%2Ftok-abc123");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("رقم الجوال"), "0550000001");
+    await user.type(screen.getByLabelText("كلمة المرور"), "secret");
+    await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("رمز QR غير صالح");
+    expect(calls.some((call) => call.url.includes("/attendance/qr/resolve/"))).toBe(true);
   });
 
   it("multi-school user is sent to school selection", async () => {

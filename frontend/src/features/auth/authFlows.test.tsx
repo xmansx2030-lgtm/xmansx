@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderApp } from "@/test/renderApp";
 import { queryClient } from "@/app/queryClient";
@@ -93,6 +93,7 @@ describe("School switching", () => {
 
   it("logout clears state and returns to login", async () => {
     let loggedOut = false;
+    const cancelQueries = vi.spyOn(queryClient, "cancelQueries");
     mockApi({
       "/auth/me/": () => (loggedOut ? UNAUTHENTICATED : { body: ME_A }),
       "/auth/logout/": () => {
@@ -105,5 +106,7 @@ describe("School switching", () => {
     await screen.findByTestId("active-school-name");
     await user.click(screen.getByRole("button", { name: "تسجيل الخروج" }));
     expect(await screen.findByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
+    expect(cancelQueries).toHaveBeenCalled();
+    cancelQueries.mockRestore();
   });
 });

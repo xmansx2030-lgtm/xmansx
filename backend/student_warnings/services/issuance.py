@@ -16,6 +16,7 @@ from audit.services import record_event
 from common.errors import ApiError
 from devices.models import ArrivalStatus, SchoolArrival
 from excuses.selectors import (
+    UNEXCUSED_FULL_DAY_FILTER,
     count_excused_full_absence_days,
     count_unexcused_absent_periods,
     count_unexcused_full_absence_days,
@@ -34,6 +35,15 @@ from student_warnings.selectors.eligibility import (
 from student_warnings.services.rules import get_rules_map
 
 VOID_ROLES = ("SCHOOL_MANAGER",)
+WEEKDAY_NAMES = [
+    "الاثنين",
+    "الثلاثاء",
+    "الأربعاء",
+    "الخميس",
+    "الجمعة",
+    "السبت",
+    "الأحد",
+]
 
 
 def _placement_snapshot(*, student, year) -> dict:
@@ -52,7 +62,52 @@ def _placement_snapshot(*, student, year) -> dict:
     }
 
 
-def _metrics_snapshot(*, school, student, year) -> dict:
+def _detail_rows_snapshot(*, school, student, year, warning_type: str) -> list[dict]:
+    """تفاصيل النوع الذي أصدر الإنذار فقط، مجمدة لحظة الإصدار."""
+    from attendance.models import DailyAttendanceSummary
+
+    if warning_type == WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE:
+        rows = (
+            DailyAttendanceSummary.objects.filter(
+                school=school,
+                student=student,
+                academic_year=year,
+            )
+            .filter(UNEXCUSED_FULL_DAY_FILTER)
+            .order_by("attendance_date")
+            .values("attendance_date")
+        )
+        return [
+            {
+                "date": row["attendance_date"].isoformat(),
+                "weekday": WEEKDAY_NAMES[row["attendance_date"].weekday()],
+                "status": "غياب يوم دراسي كامل بدون عذر",
+            }
+            for row in rows
+        ]
+
+    if warning_type == WarningRuleType.MORNING_LATE_OCCURRENCES:
+        rows = SchoolArrival.objects.filter(
+            school=school,
+            student=student,
+            status=ArrivalStatus.LATE,
+            attendance_date__gte=year.start_date,
+            attendance_date__lte=year.end_date,
+        ).order_by("attendance_date")
+        return [
+            {
+                "date": row.attendance_date.isoformat(),
+                "weekday": WEEKDAY_NAMES[row.attendance_date.weekday()],
+                "arrival_time": dj_timezone.localtime(row.first_arrival_at).strftime("%H:%M"),
+                "late_minutes": row.counted_late_minutes,
+                "status": "تأخر عن بداية الدوام الصباحي",
+            }
+            for row in rows
+        ]
+    return []
+
+
+def _metrics_snapshot(*, school, student, year, warning_type: str) -> dict:
     """كل ما تحتاجه م12 لإنتاج المستند — مقاييس المرحلتين 8/8.5/10 كما هي لحظة الإصدار."""
     from django.db.models import Count, Q, Sum
 
@@ -90,6 +145,12 @@ def _metrics_snapshot(*, school, student, year) -> dict:
         "morning_late_minutes_at_issue": arrivals["minutes"] or 0,
         "period_late_occurrences_at_issue": summary["period_late_occurrences"] or 0,
         "period_late_minutes_at_issue": summary["period_late_minutes"] or 0,
+        "detail_rows_snapshot": _detail_rows_snapshot(
+            school=school,
+            student=student,
+            year=year,
+            warning_type=warning_type,
+        ),
     }
 
 
@@ -157,7 +218,12 @@ def issue_student_warning(
                 issued_at=now,
                 notes=notes[:300],
                 **_placement_snapshot(student=student, year=year),
-                **_metrics_snapshot(school=school, student=student, year=year),
+                **_metrics_snapshot(
+                    school=school,
+                    student=student,
+                    year=year,
+                    warning_type=warning_type,
+                ),
             )
     except IntegrityError:
         # الحكم النهائي من قاعدة البيانات (نقر مزدوج/تزامن) — إنذار واحد لا اثنان

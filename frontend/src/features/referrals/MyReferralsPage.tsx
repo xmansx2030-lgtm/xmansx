@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Send } from "lucide-react";
 import { useState } from "react";
 
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { getMyReferrals } from "@/features/referrals/api";
@@ -28,12 +30,7 @@ export function MyReferralsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">إحالاتي</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          الإحالات التي أنشأتها أو أضفت إليها ملاحظة، وحالتها لدى المرشد.
-        </p>
-      </div>
+      <PageHeader icon={Send} eyebrow="مساحة المعلم" title="إحالاتي" description="تابع الإحالات التي أنشأتها أو أضفت إليها ملاحظة، واعرف حالتها لدى المرشد دون كشف ملفات لا تخصك." tone="teacher" />
 
       {list.isPending ? (
         <Spinner />

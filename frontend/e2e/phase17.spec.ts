@@ -85,6 +85,7 @@ test("production PWA manifest, headers, service worker, and SPA fallbacks", asyn
     const response = await request.get(path);
     expect(response.status(), path).toBe(200);
     expect(response.headers()["content-security-policy"]).toContain("script-src 'self'");
+    expect(response.headers()["permissions-policy"]).toContain("camera=(self)");
   }
 
   await page.goto("/");
@@ -176,7 +177,7 @@ test("primary shell has no horizontal overflow at release viewports", async ({ p
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: /لوحة/ })).toBeVisible();
+    await expect(page.getByTestId("dashboard-page")).toBeVisible();
     await assertNoPageOverflow(page);
     await screenshot(page, testInfo, `dashboard-${viewport.width}x${viewport.height}.png`);
   }
@@ -186,7 +187,7 @@ test("VP tablet, counselor tablet, manager desktop, and platform admin remain us
   await page.setViewportSize({ width: 768, height: 1024 });
   await login(page, "0550000003", "ثانوية الأندلس");
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /لوحة/ })).toBeVisible();
+  await expect(page.getByTestId("dashboard-page")).toBeVisible();
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "vice-principal-tablet.png");
   await logout(page);

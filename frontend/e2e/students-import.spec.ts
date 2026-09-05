@@ -67,7 +67,7 @@ test("full Noor import journey: upload → map → preview → commit → studen
   await expect(page.getByTestId("import-result")).toContainText("طلاب جدد: 8", {
     timeout: 30_000,
   });
-  await page.getByRole("button", { name: "عرض الطلاب" }).click();
+  await page.getByRole("button", { name: "عرض جميع الطلاب" }).click();
 
   // القائمة: الاسم + هوية مقنعة فقط (لا رقم كامل)
   await page.getByLabel("بحث بالاسم").fill(m.first_student);

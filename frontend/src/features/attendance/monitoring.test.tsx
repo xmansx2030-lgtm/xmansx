@@ -240,9 +240,24 @@ describe("attendance monitoring", () => {
   });
 
   it("vice principal sees the home summary card with counts", async () => {
+    const monitoring = monitoringBody();
     mockApi({
       "/auth/me/": { body: viceMe() },
-      "/attendance/monitoring/current/": { body: monitoringBody() },
+      "/attendance/monitoring/current/": { body: monitoring },
+      "/dashboard/today/": {
+        body: {
+          school_time: monitoring.school_time,
+          date: monitoring.date,
+          period: monitoring.period,
+          alert: monitoring.alert,
+          summary: monitoring.summary,
+          submission_completion_pct: 33.3,
+          has_active_period: true,
+          operational_state: "ACTION_REQUIRED",
+          headline: "فصلان يحتاجان متابعة التحضير الآن",
+          updated_at: monitoring.school_time,
+        },
+      },
     });
 
     renderApp("/");
@@ -250,8 +265,8 @@ describe("attendance monitoring", () => {
     expect(await within(card).findByTestId("monitoring-summary-line")).toHaveTextContent(
       "3 فصلًا",
     );
-    expect(within(card).getByRole("link", { name: "عرض تفاصيل الفصول" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "متابعة التحضير" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "عرض تفاصيل الفصول" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "متابعة التحضير" }).length).toBeGreaterThan(0);
   });
 
   it("teacher sees neither the monitoring nav link nor the summary card", async () => {

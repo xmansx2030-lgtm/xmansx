@@ -1,7 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  BarChart3,
+  BellRing,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  FileCheck2,
+  Filter,
+  GraduationCap,
+  RefreshCw,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  UsersRound,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { ApiError } from "@/api/client";
+import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections } from "@/features/attendance/api";
@@ -13,17 +34,22 @@ import type {
   DashboardPreset,
   OverviewResponse,
   SectionsResponse,
+  TodayOperations,
 } from "@/features/dashboard/api";
 import {
   getAttention,
   getOverview,
   getSections,
+  getToday,
   getTrend,
 } from "@/features/dashboard/api";
 import { TrendChart } from "@/features/dashboard/TrendChart";
 
-/** «يحتاج متابعة» طابور عمل لحظي — يُحدَّث تلقائيًا، وبقية اللوحة عند التنقل فقط. */
+/** تحديث متدرج: التشغيل أسرع، والتنبيهات أبطأ، والتحليلات لا تُحمّل كل عدة ثوانٍ. */
+const LIVE_POLL_MS = 20_000;
 const ATTENTION_POLL_MS = 60_000;
+const OVERVIEW_POLL_MS = 120_000;
+const ANALYTICS_POLL_MS = 300_000;
 
 const PRESETS: [DashboardPreset, string][] = [
   ["TODAY", "اليوم"],
@@ -70,16 +96,25 @@ export function DashboardPage() {
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "overview", ...filterKey),
     queryFn: ({ signal }) => getOverview(filters, signal),
     enabled,
+    refetchInterval: OVERVIEW_POLL_MS,
+  });
+  const todayQuery = useQuery({
+    queryKey: schoolScopedKey(activeSchoolId, "dashboard", "today"),
+    queryFn: ({ signal }) => getToday(signal),
+    enabled,
+    refetchInterval: LIVE_POLL_MS,
   });
   const trendQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "trend", ...filterKey),
     queryFn: ({ signal }) => getTrend(filters, signal),
     enabled,
+    refetchInterval: ANALYTICS_POLL_MS,
   });
   const sectionsQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "sections", ...filterKey),
     queryFn: ({ signal }) => getSections(filters, signal),
     enabled,
+    refetchInterval: ANALYTICS_POLL_MS,
   });
   const attentionQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "attention"),
@@ -87,6 +122,29 @@ export function DashboardPage() {
     enabled,
     refetchInterval: ATTENTION_POLL_MS,
   });
+
+  const academicSetupRequired = [
+    overviewQuery.error,
+    todayQuery.error,
+    trendQuery.error,
+    sectionsQuery.error,
+    attentionQuery.error,
+  ].some(
+    (error) =>
+      error instanceof ApiError && error.code === "ACTIVE_ACADEMIC_YEAR_REQUIRED",
+  );
+  const canManageCalendar = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
+  const roleLabel = canManageCalendar ? "مدير المدرسة" : "وكيل المدرسة";
+  const liveToday = todayQuery.data ?? overviewQuery.data?.today_operations;
+  const highPriorityCount =
+    attentionQuery.data?.items.filter((item) => item.priority === "HIGH").length ?? 0;
+  const lastUpdatedAt = Math.max(
+    todayQuery.dataUpdatedAt,
+    attentionQuery.dataUpdatedAt,
+    overviewQuery.dataUpdatedAt,
+  );
+  const isRefreshing =
+    todayQuery.isFetching || attentionQuery.isFetching || overviewQuery.isFetching;
 
   const grades = useMemo(() => {
     const map = new Map<number, string>();
@@ -99,159 +157,154 @@ export function DashboardPage() {
     (s) => gradeId === "" || s.grade_id === gradeId,
   );
 
+  function refreshOperationalData() {
+    void Promise.all([
+      todayQuery.refetch(),
+      attentionQuery.refetch(),
+      overviewQuery.refetch(),
+    ]);
+  }
+
   return (
-    <div className="space-y-4" data-testid="dashboard-page">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-slate-800">لوحة إدارة المدرسة</h2>
-          {overviewQuery.isSuccess && (
-            <p className="text-xs text-slate-500" data-testid="dashboard-context">
-              {overviewQuery.data.context.academic_year?.name ?? "لا يوجد عام دراسي نشط"}
-              {overviewQuery.data.context.semester
-                ? ` · ${overviewQuery.data.context.semester.name}`
-                : ""}{" "}
-              · بتوقيت {overviewQuery.data.context.timezone} · اليوم{" "}
-              {overviewQuery.data.context.today}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <label className="text-sm text-slate-600">
-            الفترة{" "}
-            <select
-              value={preset}
-              onChange={(e) => setPreset(e.target.value as DashboardPreset)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
-              data-testid="dashboard-preset"
-            >
-              {PRESETS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {preset === "CUSTOM" && (
-            <>
-              <label className="text-sm text-slate-600">
-                من{" "}
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-2 py-1.5"
-                  data-testid="dashboard-from"
-                />
-              </label>
-              <label className="text-sm text-slate-600">
-                إلى{" "}
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-2 py-1.5"
-                  data-testid="dashboard-to"
-                />
-              </label>
-            </>
-          )}
-          <label className="text-sm text-slate-600">
-            الصف{" "}
-            <select
-              value={gradeId}
-              onChange={(e) => {
-                setGradeId(e.target.value === "" ? "" : Number(e.target.value));
-                setSectionId(""); // فصل من صف آخر يرفضه الخادم — نمنع الحالة أصلًا
-              }}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
-              data-testid="dashboard-grade"
-            >
-              <option value="">كل الصفوف</option>
-              {grades.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm text-slate-600">
-            الفصل{" "}
-            <select
-              value={sectionId}
-              onChange={(e) => setSectionId(e.target.value === "" ? "" : Number(e.target.value))}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
-              data-testid="dashboard-section"
-            >
-              <option value="">كل الفصول</option>
-              {sectionOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.grade_name} / {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {overviewQuery.isSuccess && (
-          <p className="mt-2 text-xs text-slate-500" data-testid="dashboard-range">
-            الفترة {overviewQuery.data.context.range.from_date} إلى{" "}
-            {overviewQuery.data.context.range.to_date} ({overviewQuery.data.context.range.days}{" "}
-            يومًا) · تُقارن بـ {overviewQuery.data.context.previous_range.from_date} إلى{" "}
-            {overviewQuery.data.context.previous_range.to_date} (
-            {overviewQuery.data.context.previous_range.days} يومًا)
-          </p>
-        )}
-      </section>
-
-      {overviewQuery.isPending && <Spinner label="جارٍ تحميل اللوحة..." />}
-      {overviewQuery.isError && (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <ErrorState error={overviewQuery.error} />
-        </section>
-      )}
-
-      {overviewQuery.isSuccess && <OverviewBody data={overviewQuery.data} />}
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 font-bold text-slate-800">اتجاه الغياب</h3>
-        {trendQuery.isPending && <Spinner />}
-        {trendQuery.isError && <ErrorState error={trendQuery.error} />}
-        {trendQuery.isSuccess && (
-          <>
-            {trendQuery.data.granularity === "WEEK" && (
-              <p className="mb-2 text-xs text-amber-700" data-testid="trend-aggregated">
-                الفترة طويلة — النقاط مجمّعة أسبوعيًا.
+    <div className="space-y-5" data-testid="dashboard-page">
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-blue-950 p-5 text-white shadow-xl shadow-slate-950/10 sm:p-7">
+        <div aria-hidden className="absolute -left-16 -top-20 size-64 rounded-full bg-blue-500/20 blur-3xl" />
+        <div aria-hidden className="absolute -bottom-24 right-1/3 size-52 rounded-full bg-teal-400/10 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div className="flex items-start gap-4">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-blue-200 ring-1 ring-white/15">
+              <Sparkles aria-hidden size={24} />
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-bold text-blue-200">مركز قيادة المدرسة</p>
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-200 ring-1 ring-white/10">{roleLabel}</span>
+              </div>
+              <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+                {me.data?.active_school?.name ?? "لوحة إدارة المدرسة"}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                متابعة مباشرة لما يحدث الآن، وما يحتاج إلى إجراء إداري دون تأخير.
               </p>
-            )}
-            <TrendChart
-              points={trendQuery.data.points}
-              granularity={trendQuery.data.granularity}
-            />
-          </>
-        )}
-      </section>
-
-      <AttentionSection
-        query={attentionQuery}
-      />
-
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <h3 className="border-b border-slate-100 p-4 font-bold text-slate-800">
-          الفصول — مرتبة بالأعلى غيابًا بدون عذر
-        </h3>
-        {sectionsQuery.isPending && (
-          <div className="p-4">
-            <Spinner />
+              {overviewQuery.isSuccess && (
+                <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400" data-testid="dashboard-context">
+                  <CalendarDays aria-hidden size={14} />
+                  {overviewQuery.data.context.academic_year?.name ?? "لا يوجد عام دراسي نشط"}
+                  {overviewQuery.data.context.semester ? ` · ${overviewQuery.data.context.semester.name}` : ""}
+                  <span>· {overviewQuery.data.context.today}</span>
+                </p>
+              )}
+            </div>
           </div>
-        )}
-        {sectionsQuery.isError && (
-          <div className="p-4">
-            <ErrorState error={sectionsQuery.error} />
+
+          <div className="flex flex-col items-start gap-3 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              {highPriorityCount > 0 && (
+                <span className="inline-flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2 text-xs font-bold text-red-100 ring-1 ring-red-400/25">
+                  <ShieldAlert aria-hidden size={16} /> {highPriorityCount} إجراء عالي الأولوية
+                </span>
+              )}
+              <Button variant="secondary" onClick={refreshOperationalData} disabled={isRefreshing} className="border-white/15 bg-white/10 text-white shadow-none hover:bg-white/15">
+                <RefreshCw aria-hidden size={16} className={isRefreshing ? "animate-spin" : ""} />
+                تحديث الآن
+              </Button>
+            </div>
+            <p className="flex items-center gap-2 text-[11px] text-slate-400" data-testid="dashboard-last-updated">
+              <span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-40" /><span className="relative inline-flex size-2 rounded-full bg-emerald-400" /></span>
+              تحديث تلقائي كل 20 ثانية
+              {lastUpdatedAt > 0 && ` · آخر تحديث ${new Date(lastUpdatedAt).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}`}
+            </p>
           </div>
-        )}
-        {sectionsQuery.isSuccess && <SectionsTable data={sectionsQuery.data} />}
-      </section>
+        </div>
+
+        <nav aria-label="إجراءات سريعة" className="relative mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
+          <QuickLink to="/excuses" icon={FileCheck2}>الأعذار</QuickLink>
+          <QuickLink to="/warnings" icon={BellRing}>الإنذارات</QuickLink>
+          <QuickLink to="/referrals" icon={Send}>الإحالات</QuickLink>
+          {canManageCalendar && <QuickLink to="/staff" icon={UsersRound}>الموظفون</QuickLink>}
+        </nav>
+      </header>
+
+      {academicSetupRequired ? (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm" role="status" data-testid="academic-setup-required">
+          <div className="flex items-start gap-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800"><AlertTriangle aria-hidden size={22} /></span>
+            <div>
+              <h2 className="text-lg font-black text-amber-950">يلزم تفعيل عام دراسي لبدء التشغيل</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">تعتمد مؤشرات الحضور والتنبيهات والفصول على عام دراسي نشط. لن تعرض اللوحة أرقامًا ناقصة أو مضللة قبل اكتمال الإعداد.</p>
+              <p className="mt-2 text-sm text-amber-800">{canManageCalendar ? "أنشئ عامًا دراسيًا أو فعّل العام القادم، ثم ارجع إلى هذه اللوحة." : "يمكنك مراجعة التقويم، ويحتاج التفعيل إلى مدير المدرسة."}</p>
+              <Link to="/settings?section=calendar" className="mt-4 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-950">
+                {canManageCalendar ? "إعداد العام الدراسي" : "مراجعة العام الدراسي"}
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          {liveToday ? (
+            <TodayCard data={liveToday} />
+          ) : todayQuery.isPending ? (
+            <div className="grid min-h-48 place-items-center rounded-3xl border border-slate-200 bg-white"><Spinner label="جارٍ تحميل التشغيل المباشر..." /></div>
+          ) : null}
+
+          <AttentionSection query={attentionQuery} />
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><Filter aria-hidden size={18} /></span>
+                <div><h2 className="font-black text-slate-900">نطاق التحليل</h2><p className="mt-1 text-xs text-slate-500">خصص الفترة أو الصف أو الفصل. التشغيل المباشر أعلاه يبقى لليوم الحالي.</p></div>
+              </div>
+              {overviewQuery.isSuccess && <p className="text-xs text-slate-500" data-testid="dashboard-range">الفترة {overviewQuery.data.context.range.from_date} إلى {overviewQuery.data.context.range.to_date} ({overviewQuery.data.context.range.days} يومًا) · تُقارن بـ {overviewQuery.data.context.previous_range.from_date} إلى {overviewQuery.data.context.previous_range.to_date} ({overviewQuery.data.context.previous_range.days} يومًا)</p>}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-bold text-slate-600">الفترة
+                <select value={preset} onChange={(event) => setPreset(event.target.value as DashboardPreset)} className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium" data-testid="dashboard-preset">
+                  {PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              {preset === "CUSTOM" ? (
+                <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-600">من<input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-slate-300 px-2 text-sm" data-testid="dashboard-from" /></label>
+                  <label className="text-xs font-bold text-slate-600">إلى<input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-slate-300 px-2 text-sm" data-testid="dashboard-to" /></label>
+                </div>
+              ) : null}
+              <label className="text-xs font-bold text-slate-600">الصف
+                <select value={gradeId} onChange={(event) => { setGradeId(event.target.value === "" ? "" : Number(event.target.value)); setSectionId(""); }} className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium" data-testid="dashboard-grade">
+                  <option value="">كل الصفوف</option>
+                  {grades.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600">الفصل
+                <select value={sectionId} onChange={(event) => setSectionId(event.target.value === "" ? "" : Number(event.target.value))} className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium" data-testid="dashboard-section">
+                  <option value="">كل الفصول</option>
+                  {sectionOptions.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}</option>)}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          {overviewQuery.isPending && <div className="grid min-h-40 place-items-center rounded-2xl border border-slate-200 bg-white"><Spinner label="جارٍ تحميل مؤشرات المدرسة..." /></div>}
+          {overviewQuery.isError && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><ErrorState error={overviewQuery.error} /></section>}
+          {overviewQuery.isSuccess && <OverviewBody data={overviewQuery.data} />}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700"><BarChart3 aria-hidden size={19} /></span><div><h2 className="font-black text-slate-900">اتجاه الغياب</h2><p className="mt-1 text-xs text-slate-500">تغير مؤشرات المواظبة داخل الفترة المحددة.</p></div></div>
+            {trendQuery.isPending && <Spinner />}
+            {trendQuery.isError && <ErrorState error={trendQuery.error} />}
+            {trendQuery.isSuccess && <>{trendQuery.data.granularity === "WEEK" && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800" data-testid="trend-aggregated">الفترة طويلة — النقاط مجمّعة أسبوعيًا.</p>}<TrendChart points={trendQuery.data.points} granularity={trendQuery.data.granularity} /></>}
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-start gap-3 border-b border-slate-100 p-4 sm:p-5"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><GraduationCap aria-hidden size={19} /></span><div><h2 className="font-black text-slate-900">الفصول الأكثر احتياجًا للمتابعة</h2><p className="mt-1 text-xs text-slate-500">مرتبة وصفيًا حسب الغياب بدون عذر في الفترة المحددة.</p></div></div>
+            {sectionsQuery.isPending && <div className="p-5"><Spinner /></div>}
+            {sectionsQuery.isError && <div className="p-5"><ErrorState error={sectionsQuery.error} /></div>}
+            {sectionsQuery.isSuccess && <SectionsTable data={sectionsQuery.data} />}
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -270,9 +323,9 @@ function OverviewBody({ data }: { data: OverviewResponse }) {
         </p>
       )}
 
-      <TodayCard data={data} />
-
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="dashboard-kpis">
+      <section>
+        <div className="mb-3 flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700"><BarChart3 aria-hidden size={19} /></span><div><h2 className="font-black text-slate-900">مؤشرات الفترة</h2><p className="mt-1 text-xs text-slate-500">ملخص مواظبة المدرسة مع المقارنة بالفترة السابقة.</p></div></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="dashboard-kpis">
         <Kpi
           testId="kpi-unexcused-full"
           label="غياب يوم كامل بدون عذر"
@@ -308,13 +361,14 @@ function OverviewBody({ data }: { data: OverviewResponse }) {
           value={a.undetermined_days}
         />
         <Kpi testId="kpi-student-days" label="أيام-طالب مشمولة" value={a.student_days} />
+        </div>
       </section>
-      <p className="text-xs text-slate-500" data-testid="unit-note">
+      <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500" data-testid="unit-note">
         الوحدة: أيام-طالب (لا عدد طلاب متفردين) · {a.distinct_students} طالبًا ضمن الفترة ·
         التأخر الصباحي والتأخر داخل الحصص مؤشران منفصلان لا يُجمعان.
       </p>
 
-      <div className="grid gap-2 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <FollowUpCard title="الإنذارات" testId="card-warnings">
           <p className="text-sm text-slate-700">
             صادرة في الفترة:{" "}
@@ -390,46 +444,88 @@ function OverviewBody({ data }: { data: OverviewResponse }) {
   );
 }
 
-function TodayCard({ data }: { data: OverviewResponse }) {
-  const today = data.today_operations;
+function QuickLink({ to, icon: Icon, children }: { to: string; icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <Link to={to} className="inline-flex items-center gap-2 rounded-xl bg-white/7 px-3 py-2 text-xs font-bold text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12 hover:text-white">
+      <Icon aria-hidden size={15} />{children}<ArrowLeft aria-hidden size={13} className="opacity-60" />
+    </Link>
+  );
+}
+
+function TodayCard({ data: today }: { data: TodayOperations }) {
+  const state = today.operational_state ?? (
+    !today.has_active_period
+      ? "IDLE"
+      : (today.summary?.overdue_total ?? 0) > 0
+        ? "ACTION_REQUIRED"
+        : today.submission_completion_pct === 100
+          ? "ON_TRACK"
+          : "IN_PROGRESS"
+  );
+  const presentation = {
+    ACTION_REQUIRED: { label: "يلزم إجراء", icon: ShieldAlert, shell: "border-red-200 bg-gradient-to-l from-red-50 to-white", iconClass: "bg-red-100 text-red-700", badge: "bg-red-100 text-red-800 ring-red-200" },
+    ON_TRACK: { label: "التشغيل مكتمل", icon: CheckCircle2, shell: "border-emerald-200 bg-gradient-to-l from-emerald-50 to-white", iconClass: "bg-emerald-100 text-emerald-700", badge: "bg-emerald-100 text-emerald-800 ring-emerald-200" },
+    IN_PROGRESS: { label: "تشغيل مباشر", icon: Activity, shell: "border-blue-200 bg-gradient-to-l from-blue-50 to-white", iconClass: "bg-blue-100 text-blue-700", badge: "bg-blue-100 text-blue-800 ring-blue-200" },
+    IDLE: { label: "لا توجد حصة", icon: Clock3, shell: "border-slate-200 bg-white", iconClass: "bg-slate-100 text-slate-600", badge: "bg-slate-100 text-slate-700 ring-slate-200" },
+  }[state];
+  const StateIcon = presentation.icon;
+  const summary = today.summary;
+
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className={`overflow-hidden rounded-3xl border p-5 shadow-sm sm:p-6 ${presentation.shell}`}
       data-testid="today-card"
+      data-state={state}
+      id="live-operations"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-bold text-slate-800">تشغيل اليوم</h3>
-        <span className="text-xs text-slate-500">
-          {today.date} · {today.school_time}
-        </span>
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${presentation.iconClass}`}><StateIcon aria-hidden size={24} /></span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-black text-slate-900">التشغيل المباشر</h2>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${presentation.badge}`}>{presentation.label}</span>
+            </div>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+              {today.headline ?? (!today.has_active_period ? "لا توجد حصة جارية الآن." : `${today.period?.name ?? "الحصة الحالية"} قيد التشغيل.`)}
+            </p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Clock3 aria-hidden size={13} />{today.date} · <span dir="ltr">{formatSchoolTime(today.school_time)}</span></p>
+          </div>
+        </div>
+        <Link to="/attendance/monitoring" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800">
+          عرض تفاصيل الفصول <ArrowLeft aria-hidden size={15} />
+        </Link>
       </div>
       {!today.has_active_period ? (
-        <p className="mt-2 text-sm text-slate-600" data-testid="no-active-period">
-          لا توجد حصة جارية الآن.
-        </p>
-      ) : (
-        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
-          <span className="font-medium text-slate-800" data-testid="active-period">
-            {today.period?.name} ({today.period?.start_time}–{today.period?.end_time})
-          </span>
-          <span className="text-slate-600" data-testid="submission-pct">
-            نسبة الاعتماد: {today.submission_completion_pct ?? 0}%
-          </span>
-          {today.summary && (
-            <span
-              className={today.summary.overdue_total > 0 ? "text-red-700" : "text-slate-600"}
-              data-testid="overdue-total"
-            >
-              متأخر عن المهلة: {today.summary.overdue_total} من {today.summary.total}
-            </span>
-          )}
-          <Link to="/attendance/monitoring" className="text-xs text-blue-700">
-            متابعة التحضير ←
-          </Link>
+        <p className="mt-5 rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600" data-testid="no-active-period">لا توجد حصة جارية الآن. ستتحول البطاقة تلقائيًا عند بداية الحصة التالية.</p>
+      ) : summary && (
+        <div className="mt-5" data-testid="monitoring-summary-card">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-slate-800" data-testid="active-period">{today.period?.name} <span dir="ltr" className="font-medium text-slate-500">{today.period?.start_time}–{today.period?.end_time}</span></p>
+            <p className="text-xs font-bold text-slate-600" data-testid="submission-pct">نسبة الاعتماد: {today.submission_completion_pct ?? 0}%</p>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full transition-all duration-500 ${summary.overdue_total > 0 ? "bg-red-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, today.submission_completion_pct ?? 0)}%` }} /></div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="monitoring-summary-line">
+            <p className="sr-only">{summary.total} فصلًا: {summary.submitted} مكتمل، {summary.in_progress} قيد التحضير، {summary.not_started} لم يبدأ، {summary.overdue_total} متأخر.</p>
+            <LiveMetric label="إجمالي الفصول" value={summary.total} tone="slate" />
+            <LiveMetric label="تم الاعتماد" value={summary.submitted} tone="green" />
+            <LiveMetric label="قيد التحضير" value={summary.in_progress} tone="blue" />
+            <LiveMetric label="متأخر أو لم يبدأ" value={summary.overdue_total} tone={summary.overdue_total > 0 ? "red" : "slate"} testId="overdue-total" />
+          </div>
         </div>
       )}
     </section>
   );
+}
+
+function formatSchoolTime(value: string): string {
+  const time = value.includes("T") ? value.split("T")[1] : value;
+  return time?.slice(0, 5) ?? value;
+}
+
+function LiveMetric({ label, value, tone, testId }: { label: string; value: number; tone: "slate" | "green" | "blue" | "red"; testId?: string }) {
+  const tones = { slate: "border-slate-200 bg-white/70 text-slate-800", green: "border-emerald-200 bg-emerald-50 text-emerald-800", blue: "border-blue-200 bg-blue-50 text-blue-800", red: "border-red-200 bg-red-50 text-red-800" };
+  return <div className={`rounded-2xl border p-3 ${tones[tone]}`} data-testid={testId}><p className="text-2xl font-black">{value}</p><p className="mt-1 text-[11px] font-bold opacity-80">{label}</p></div>;
 }
 
 function Kpi({
@@ -445,11 +541,11 @@ function Kpi({
 }) {
   return (
     <div
-      className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm"
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       data-testid={testId}
     >
-      <p className="text-2xl font-bold text-slate-800">{value}</p>
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-2xl font-black text-slate-900 sm:text-3xl">{value}</p>
+      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{label}</p>
       {comparison && <ComparisonNote comparison={comparison} />}
     </div>
   );
@@ -487,21 +583,21 @@ function FollowUpCard({
 }) {
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
       data-testid={testId}
     >
-      <h3 className="mb-2 font-bold text-slate-800">{title}</h3>
+      <h3 className="mb-3 font-black text-slate-900">{title}</h3>
       {children}
     </section>
   );
 }
 
-const ATTENTION_GROUPS: [string, string][] = [
-  ["attendance_overdue", "تحضير متأخر"],
-  ["warning_due", "إنذارات مستحقة"],
-  ["excuse_pending", "أعذار بانتظار البت"],
-  ["referral_unassigned", "إحالات بلا مرشد"],
-  ["counseling", "الإرشاد"],
+const ATTENTION_GROUPS: { key: string; label: string; icon: LucideIcon }[] = [
+  { key: "attendance_overdue", label: "تحضير متأخر", icon: Activity },
+  { key: "warning_due", label: "إنذارات مستحقة", icon: BellRing },
+  { key: "excuse_pending", label: "أعذار معلقة", icon: FileCheck2 },
+  { key: "referral_unassigned", label: "إحالات بلا مرشد", icon: Send },
+  { key: "counseling", label: "متابعة إرشادية", icon: UsersRound },
 ];
 
 function AttentionSection({
@@ -511,15 +607,28 @@ function AttentionSection({
 }) {
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
       data-testid="attention-section"
     >
-      <div className="border-b border-slate-100 p-4">
-        <h3 className="font-bold text-slate-800">يحتاج متابعة</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          قائمة عمل إداري لحظية — ليست تصنيفًا للطلاب ولا تقييمًا لأحد، ولا يترتب عليها أي
-          إجراء تلقائي.
-        </p>
+      <div className={`border-b p-5 sm:p-6 ${query.data && query.data.total > 0 ? "border-red-100 bg-gradient-to-l from-red-50 to-white" : "border-emerald-100 bg-gradient-to-l from-emerald-50 to-white"}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${query.data && query.data.total > 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {query.data && query.data.total > 0 ? <ShieldAlert aria-hidden size={22} /> : <CheckCircle2 aria-hidden size={22} />}
+            </span>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">تنبيهات وإجراءات مطلوبة</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                قائمة عمل إداري لحظية — ليست تصنيفًا للطلاب ولا تقييمًا لأحد، ولا يترتب عليها أي إجراء تلقائي.
+              </p>
+            </div>
+          </div>
+          {query.isSuccess && (
+            <span className={`rounded-full px-3 py-1.5 text-xs font-black ring-1 ${query.data.total > 0 ? "bg-red-100 text-red-800 ring-red-200" : "bg-emerald-100 text-emerald-800 ring-emerald-200"}`}>
+              {query.data.total > 0 ? `${query.data.total} تحتاج متابعة` : "الوضع مستقر"}
+            </span>
+          )}
+        </div>
       </div>
       {query.isPending && (
         <div className="p-4">
@@ -533,23 +642,21 @@ function AttentionSection({
       )}
       {query.isSuccess && (
         <>
-          <div className="flex flex-wrap gap-2 p-4 pb-0 text-xs">
-            {ATTENTION_GROUPS.map(([key, label]) => (
-              <span
-                key={key}
-                className="rounded-full bg-slate-100 px-2 py-1 text-slate-700"
-                data-testid={`attention-count-${key}`}
-              >
-                {label}: {query.data.counts[key] ?? 0}
-              </span>
-            ))}
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 sm:p-5 lg:grid-cols-5">
+            {ATTENTION_GROUPS.map(({ key, label, icon: Icon }) => {
+              const count = query.data.counts[key] ?? 0;
+              return (
+                <div key={key} className={`rounded-2xl border p-3 ${count > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`} data-testid={`attention-count-${key}`}>
+                  <div className="flex items-center justify-between gap-2"><Icon aria-hidden size={16} className={count > 0 ? "text-amber-700" : "text-slate-400"} /><strong className={`text-lg font-black ${count > 0 ? "text-amber-900" : "text-slate-500"}`}>{count}</strong></div>
+                  <p className="mt-2 text-[11px] font-bold text-slate-600">{label}</p>
+                </div>
+              );
+            })}
           </div>
           {query.data.items.length === 0 ? (
-            <p className="p-4 text-sm text-slate-600" data-testid="attention-empty">
-              لا يوجد ما يحتاج متابعة الآن.
-            </p>
+            <div className="px-5 pb-6 text-center" data-testid="attention-empty"><p className="text-sm font-bold text-emerald-800">لا يوجد ما يحتاج متابعة الآن.</p><p className="mt-1 text-xs text-slate-500">ستظهر هنا أي حالة تتطلب تدخلًا إداريًا.</p></div>
           ) : (
-            <ul className="mt-2 divide-y divide-slate-100" data-testid="attention-items">
+            <ul className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5" data-testid="attention-items">
               {query.data.items.map((item) => (
                 <AttentionRow key={`${item.kind}-${item.entity_id}`} item={item} />
               ))}
@@ -562,22 +669,29 @@ function AttentionSection({
 }
 
 function AttentionRow({ item }: { item: AttentionItem }) {
+  const presentation: Record<string, { icon: LucideIcon; action: string }> = {
+    ATTENDANCE_OVERDUE: { icon: Activity, action: "متابعة التحضير" },
+    WARNING_DUE: { icon: BellRing, action: "مراجعة الإنذار" },
+    EXCUSE_PENDING: { icon: FileCheck2, action: "مراجعة العذر" },
+    REFERRAL_UNASSIGNED: { icon: Send, action: "تعيين مرشد" },
+  };
+  const meta = presentation[item.kind] ?? { icon: AlertTriangle, action: "فتح المتابعة" };
+  const Icon = meta.icon;
+  const high = item.priority === "HIGH";
   return (
     <li
-      className="flex flex-wrap items-center justify-between gap-2 p-3"
+      className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${high ? "border-red-200 bg-white shadow-sm shadow-red-100/40" : "border-amber-200 bg-white"}`}
       data-testid={`attention-item-${item.kind}-${item.entity_id}`}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className={`inline-block size-2 rounded-full ${
-            item.priority === "HIGH" ? "bg-red-500" : "bg-slate-300"
-          }`}
-          aria-label={item.priority === "HIGH" ? "أولوية عالية" : "أولوية عادية"}
-        />
-        <span className="text-sm text-slate-800">{item.display_text}</span>
+      <div className="flex min-w-0 items-start gap-3">
+        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${high ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}><Icon aria-hidden size={17} /></span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${high ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`} aria-label={high ? "أولوية عالية" : "أولوية عادية"}>{high ? "أولوية عالية" : "متابعة"}</span></div>
+          <p className="mt-1.5 text-sm font-bold leading-6 text-slate-800">{item.display_text}</p>
+        </div>
       </div>
-      <Link to={item.target_url} className="text-xs text-blue-700">
-        فتح ←
+      <Link to={item.target_url} className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${high ? "bg-red-600 text-white hover:bg-red-700" : "bg-amber-100 text-amber-900 hover:bg-amber-200"}`}>
+        {meta.action} <ArrowLeft aria-hidden size={14} />
       </Link>
     </li>
   );

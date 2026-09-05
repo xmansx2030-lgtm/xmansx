@@ -217,6 +217,7 @@ function mockDashboard(overrides: Record<string, unknown> = {}) {
         { id: 4, name: "1", grade_id: 2, grade_name: "الثاني الثانوي", students_count: 25 },
       ],
     },
+    "/dashboard/today/": { body: OVERVIEW.today_operations },
     "/dashboard/overview/": { body: OVERVIEW },
     "/dashboard/attendance-trend/": { body: TREND },
     "/dashboard/sections/": { body: SECTIONS },
@@ -358,7 +359,11 @@ describe("لوحة إدارة المدرسة", () => {
       "1",
     );
     const row = screen.getByTestId("attention-item-ATTENDANCE_OVERDUE-3");
-    expect(within(row).getByRole("link")).toHaveAttribute("href", "/attendance/monitoring");
+    expect(row).toHaveTextContent("أولوية عالية");
+    expect(within(row).getByRole("link", { name: "متابعة التحضير" })).toHaveAttribute(
+      "href",
+      "/attendance/monitoring",
+    );
   });
 
   it("ترسم الاتجاه بنقطة لكل يوم مع جدول مكافئ", async () => {
@@ -443,18 +448,49 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.queryByTestId("dashboard-kpis")).toBeNull();
   });
 
-  it("لا حصة جارية: حالة مفهومة لا خطأ", async () => {
+  it("تجمع غياب العام الدراسي في حالة إعداد واحدة قابلة للتصرف", async () => {
+    const noActiveYear = {
+      status: 409,
+      body: {
+        code: "ACTIVE_ACADEMIC_YEAR_REQUIRED",
+        message: "لم يتم العثور على عام دراسي نشط لهذه المدرسة.",
+        details: {},
+      },
+    };
     mockDashboard({
+      "/dashboard/overview/": noActiveYear,
+      "/dashboard/attendance-trend/": noActiveYear,
+      "/dashboard/sections/": noActiveYear,
+      "/dashboard/attention/": noActiveYear,
+    });
+
+    renderApp("/dashboard");
+    const setup = await screen.findByTestId("academic-setup-required");
+    expect(setup).toHaveTextContent("يلزم تفعيل عام دراسي");
+    expect(within(setup).getByRole("link", { name: "إعداد العام الدراسي" })).toHaveAttribute(
+      "href",
+      "/settings?section=calendar",
+    );
+    expect(screen.queryByText("اتجاه الغياب")).toBeNull();
+    expect(screen.queryByTestId("attention-section")).toBeNull();
+  });
+
+  it("لا حصة جارية: حالة مفهومة لا خطأ", async () => {
+    const noActivePeriod = {
+      ...OVERVIEW.today_operations,
+      period: null,
+      summary: null,
+      submission_completion_pct: null,
+      has_active_period: false,
+      operational_state: "IDLE",
+      headline: "لا توجد حصة جارية الآن",
+    };
+    mockDashboard({
+      "/dashboard/today/": { body: noActivePeriod },
       "/dashboard/overview/": {
         body: {
           ...OVERVIEW,
-          today_operations: {
-            ...OVERVIEW.today_operations,
-            period: null,
-            summary: null,
-            submission_completion_pct: null,
-            has_active_period: false,
-          },
+          today_operations: noActivePeriod,
         },
       },
     });
@@ -471,7 +507,7 @@ describe("لوحة إدارة المدرسة", () => {
       queryClient.clear();
       mockDashboard({ "/auth/me/": { body: roleMe([role]) } });
       const view = renderApp("/");
-      await screen.findByTestId("active-school-name");
+      await within(view.container).findByTestId("active-school-name");
       expect(within(view.container).queryByRole("link", { name: "لوحة الإدارة" })).toBeNull();
       view.unmount();
     }

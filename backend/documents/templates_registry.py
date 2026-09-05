@@ -46,6 +46,14 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         template_name="documents/warning.html",
     ),
     DocumentTemplate(
+        key="warning_level_1",
+        version="v2",
+        document_type=DocumentType.WARNING_LEVEL_1,
+        title="إشعار الإنذار الأول",
+        template_name="documents/warning_v2.html",
+        source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
+    ),
+    DocumentTemplate(
         key="warning_level_2",
         version="v1",
         document_type=DocumentType.WARNING_LEVEL_2,
@@ -53,11 +61,27 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         template_name="documents/warning.html",
     ),
     DocumentTemplate(
+        key="warning_level_2",
+        version="v2",
+        document_type=DocumentType.WARNING_LEVEL_2,
+        title="إشعار الإنذار الثاني",
+        template_name="documents/warning_v2.html",
+        source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
+    ),
+    DocumentTemplate(
         key="warning_level_3",
         version="v1",
         document_type=DocumentType.WARNING_LEVEL_3,
         title="إشعار إنذار ثالث",
         template_name="documents/warning.html",
+    ),
+    DocumentTemplate(
+        key="warning_level_3",
+        version="v2",
+        document_type=DocumentType.WARNING_LEVEL_3,
+        title="إشعار الإنذار الثالث",
+        template_name="documents/warning_v2.html",
+        source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
     ),
     DocumentTemplate(
         key="attendance_commitment",

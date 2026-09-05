@@ -94,6 +94,7 @@ def test_eligibility_and_issue_flow(role_client, env):  # noqa: F811
     assert row["current_value"] == 3
     assert row["highest_due_level"] == WarningLevel.LEVEL_1
     assert row["issued_levels"] == []
+    assert row["issued_warnings"] == []
     assert listing["summary"][ABSENCE]["due_students"] == 1
 
     response = vice.post(
@@ -126,6 +127,9 @@ def test_eligibility_and_issue_flow(role_client, env):  # noqa: F811
     updated = vice.get(f"{ELIGIBILITY_URL}?warning_type={ABSENCE}&status=all").json()
     row = next(r for r in updated["results"] if r["student_id"] == student.id)
     assert row["issued_levels"] == [WarningLevel.LEVEL_1]
+    assert row["issued_warnings"] == [
+        {"id": warning.id, "level": WarningLevel.LEVEL_1, "document": None}
+    ]
 
 
 @pytest.mark.django_db

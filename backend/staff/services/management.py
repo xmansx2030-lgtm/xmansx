@@ -5,6 +5,8 @@
 - إزالة آخر دور للعضوية مرفوضة — على المدير إيقاف العضوية صراحة بدلًا من
   تركها فعالة بلا دور تشغيلي (LAST_ROLE_SUSPEND_INSTEAD).
 - الإيقاف لا يمس User العالمي ولا عضوياته في مدارس أخرى (بنية العزل تضمنها).
+- الحذف النهائي يزيل ملف الموظف وأدواره من المدرسة، مع إبقاء العضوية التاريخية
+  بحالة LEFT حتى لا تنكسر سجلات الحضور والتدقيق المرتبطة بها.
 - إعادة دعوة DECLINED إجراء صريح فقط (reinvite) — لا تلقائي عبر الاستيراد.
 """
 
@@ -72,6 +74,10 @@ def remove_role(*, membership: SchoolMembership, role: str, actor, request=None)
             409,
         )
     role_row.delete()
+    if role == SchoolRole.COUNSELOR:
+        from staff.services.counselor_sections import clear_counselor_sections
+
+        clear_counselor_sections(membership=membership)
     record_event(
         AuditAction.STAFF_ROLE_REMOVED,
         request=request, actor=actor, school=membership.school,
@@ -92,6 +98,9 @@ def suspend(*, membership: SchoolMembership, actor, request=None) -> None:
         )
     membership.status = MembershipStatus.SUSPENDED
     membership.save(update_fields=["status", "updated_at"])
+    from staff.services.counselor_sections import clear_counselor_sections
+
+    clear_counselor_sections(membership=membership)
     record_event(
         AuditAction.STAFF_SUSPENDED,
         request=request, actor=actor, school=membership.school,
@@ -123,4 +132,39 @@ def reinvite(*, membership: SchoolMembership, actor, request=None) -> None:
         request=request, actor=actor, school=membership.school,
         target_type="SchoolMembership", target_id=membership.id,
         metadata={"reinvite": True},
+    )
+
+
+@transaction.atomic
+def delete_staff(*, profile, actor, request=None) -> None:
+    """يحذف وجود الموظف من المدرسة دون المساس بحسابه العالمي أو التاريخ."""
+    membership = profile.membership
+    if membership.user_id == actor.id:
+        raise ApiError(
+            "SELF_STAFF_DELETE_NOT_ALLOWED",
+            "لا يمكنك حذف حسابك الحالي. اطلب من مدير آخر تنفيذ الإجراء.",
+            409,
+        )
+    if _is_last_active_manager(membership):
+        raise ApiError(
+            "LAST_SCHOOL_MANAGER_REQUIRED",
+            "لا يمكن حذف مدير المدرسة الوحيد — عيّن مديرًا آخر أولاً.",
+            409,
+        )
+
+    membership_id = membership.id
+    from staff.services.counselor_sections import clear_counselor_sections
+
+    clear_counselor_sections(membership=membership)
+    profile.delete()
+    membership.roles.all().delete()
+    membership.status = MembershipStatus.LEFT
+    membership.save(update_fields=["status", "updated_at"])
+    record_event(
+        AuditAction.STAFF_DELETED,
+        request=request,
+        actor=actor,
+        school=membership.school,
+        target_type="SchoolMembership",
+        target_id=membership_id,
     )

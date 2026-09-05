@@ -37,6 +37,11 @@ export interface EligibilityRow {
   highest_reached_level: WarningLevel | null;
   highest_due_level: WarningLevel | null;
   issued_levels: WarningLevel[];
+  issued_warnings: Array<{
+    id: number;
+    level: WarningLevel;
+    document: { id: number; status: "PENDING" | "READY" | "FAILED" } | null;
+  }>;
   levels: Record<WarningLevel, { threshold: number; state: LevelState }>;
 }
 

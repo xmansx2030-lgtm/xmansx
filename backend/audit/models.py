@@ -104,6 +104,7 @@ class AuditAction(models.TextChoices):
     STAFF_ROLE_REMOVED = "STAFF_ROLE_REMOVED", "إزالة دور"
     STAFF_SUSPENDED = "STAFF_SUSPENDED", "إيقاف موظف"
     STAFF_REACTIVATED = "STAFF_REACTIVATED", "إعادة تفعيل موظف"
+    STAFF_DELETED = "STAFF_DELETED", "حذف موظف نهائيًا"
     INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
     # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
     PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"

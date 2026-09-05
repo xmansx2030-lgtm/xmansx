@@ -117,6 +117,15 @@ export interface SectionItem {
   grade: { id: number; name: string };
 }
 
+export interface ManualStudentInput {
+  full_name: string;
+  national_id: string;
+  student_number?: string;
+  guardian_name?: string;
+  guardian_mobile?: string;
+  section_id: number;
+}
+
 export type MappingField =
   | "national_id"
   | "full_name"
@@ -138,6 +147,10 @@ export interface ImportJob {
     | "CANCELLED";
   original_filename: string;
   headers: string[];
+  header_row?: number;
+  import_format?: "TABULAR" | "NOOR_OFFICIAL_MULTI_SHEET";
+  source_sheet_count?: number;
+  detected_rows?: number;
   column_mapping: Partial<Record<MappingField, number>>;
   suggested_mapping: Partial<Record<MappingField, number | null>> | null;
   total_rows: number;
@@ -206,6 +219,9 @@ export function getStudents(
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<Paginated<StudentRow>>(`/students/${suffix}`, { signal });
 }
+
+export const createStudent = (input: ManualStudentInput) =>
+  apiRequest<StudentRow>("/students/", { method: "POST", body: input });
 
 function profileQuery(params: { fromDate: string; toDate: string }): string {
   return `?from_date=${encodeURIComponent(params.fromDate)}&to_date=${encodeURIComponent(params.toDate)}`;

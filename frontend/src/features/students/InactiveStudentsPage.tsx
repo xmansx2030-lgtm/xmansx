@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
@@ -34,8 +34,11 @@ export function InactiveStudentsPage() {
   const schoolId = useActiveSchoolId();
   const queryClient = useQueryClient();
   const isManager = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [filter, setFilter] = useState<string>("");
+  const [filter, setFilter] = useState<string>(() =>
+    searchParams.get("filter") === "missing" ? "missing" : "",
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -118,6 +121,11 @@ export function InactiveStudentsPage() {
 
   const rows = students.data?.results ?? [];
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const selectedRows = rows.filter((row) => selected.has(row.id));
+  const selectedArePurgeable =
+    selected.size > 0 &&
+    selectedRows.length === selected.size &&
+    selectedRows.every((row) => row.status !== "ACTIVE");
   const expectedConfirm = preview ? `حذف ${preview.summary.students} طالبًا` : "";
   const jobData = purgeJob.data;
   const jobDone =
@@ -126,7 +134,11 @@ export function InactiveStudentsPage() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">الطلاب غير النشطين</h2>
+        <h2 className="text-2xl font-bold">
+          {filter === "missing"
+            ? "مراجعة الطلاب غير الموجودين في آخر ملف نور"
+            : "الطلاب غير النشطين"}
+        </h2>
         <Link to="/students" className="text-sm text-blue-700 underline">
           الطلاب النشطون
         </Link>
@@ -156,6 +168,7 @@ export function InactiveStudentsPage() {
             aria-selected={filter === f.key}
             onClick={() => {
               setFilter(f.key);
+              setSearchParams(f.key ? { filter: f.key } : {});
               setPage(1);
               setSelected(new Set());
             }}
@@ -169,6 +182,16 @@ export function InactiveStudentsPage() {
           </button>
         ))}
       </div>
+
+      {filter === "missing" && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-bold">هذه القائمة تحتاج قرارًا إداريًا، ولا تعني الحذف تلقائيًا.</p>
+          <p className="mt-1">
+            حدّد من غادر المدرسة وصنّفه كمنتقل أو متخرج أولًا. بعد إغلاق قيده سيصبح
+            زر الحذف النهائي متاحًا، مع معاينة مستقلة لكل السجلات التي ستُحذف.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -233,6 +256,23 @@ export function InactiveStudentsPage() {
               >
                 تعيين كخريجين
               </Button>
+              <Button
+                variant="danger"
+                disabled={!selectedArePurgeable || previewMutation.isPending}
+                onClick={() => previewMutation.mutate([...selected])}
+                title={
+                  selected.size > 0 && !selectedArePurgeable
+                    ? "صنّف الطلاب كمنتقلين أو متخرجين أولًا"
+                    : undefined
+                }
+              >
+                حذف المحددين نهائيًا
+              </Button>
+              {selected.size > 0 && !selectedArePurgeable && (
+                <span className="text-xs text-amber-800">
+                  الحذف النهائي يتاح بعد تصنيف الطالب وإغلاق قيده النشط.
+                </span>
+              )}
             </>
           )}
           {filter !== "missing" && (

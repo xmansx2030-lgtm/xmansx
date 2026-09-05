@@ -32,6 +32,7 @@ services:
       retries: 10
 
   backend:
+    image: ${BACKEND_IMAGE:-xmansx-backend:local}
     build:
       context: ./backend
       target: dev
@@ -67,6 +68,7 @@ services:
       start_period: 20s
 
   worker:
+    image: ${BACKEND_IMAGE:-xmansx-backend:local}
     build:
       context: ./backend
       target: dev
@@ -87,6 +89,7 @@ services:
       start_period: 30s
 
   beat:
+    image: ${BACKEND_IMAGE:-xmansx-backend:local}
     build:
       context: ./backend
       target: dev
@@ -107,6 +110,7 @@ services:
       start_period: 150s
 
   frontend:
+    image: ${FRONTEND_IMAGE:-xmansx-frontend:local}
     build:
       context: ./frontend
       target: dev

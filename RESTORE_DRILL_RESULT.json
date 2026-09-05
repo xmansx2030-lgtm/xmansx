@@ -1,41 +1,43 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "status": "PASS",
-  "executed_at": "2026-08-21",
-  "compose_project": "xmansx-phase18-final",
+  "executed_at": "2026-09-05T17:00:54+03:00",
+  "compose_project": "xmansx-phase20",
+  "environment": "isolated-local-production-like",
+  "images": {
+    "backend": "sha256:ef4b72316d4093e81da589e47c09503e99096535b27f22eaa37a1fe2fd3f2108",
+    "frontend": "sha256:5e5562514830ef3a87254d52a2cbcf5f47c3e6b7d9ab2933a3be2133cd7e4bec",
+    "djangorestframework": "3.17.2"
+  },
   "backup": {
     "format": "postgresql-custom",
-    "size_bytes": 380742,
-    "duration_ms": 6001,
-    "sha256": "3ddf2024cc3c544f0391f4ce6877e56e2fa49b1cd68843601ee49f104cf8bc78"
+    "size_bytes": 622440,
+    "duration_ms": 923,
+    "sha256": "dfb89359645cdf4acc6322791d59d0ac4de818080268c2483106a700ec9f00c1"
   },
   "restore": {
-    "target": "new-isolated-database",
-    "duration_ms": 17349,
-    "verification_duration_ms": 15948,
-    "measured_end_to_end_seconds": 88.2,
-    "application_started": true,
+    "target": "xmansx_phase20_restore",
+    "target_is_separate_database": true,
+    "duration_ms": 4271,
+    "create_and_restore_end_to_end_ms": 9228,
+    "verification_duration_ms": 13850,
+    "migrations_pending": false,
+    "django_check": "PASS",
+    "manifest_verification": "PASS",
     "manager_login_status": 200
   },
   "private_objects": {
-    "count": 2,
-    "size_bytes": 80,
+    "backup_count": 29,
+    "backup_size_bytes": 3385608,
+    "restored": 29,
+    "skipped": 0,
+    "verified": 29,
     "missing": 0,
     "checksum_mismatch": 0,
-    "errors": 0
+    "errors": 0,
+    "restore_target": "separate-temporary-volumes"
   },
-  "api_smoke": {
-    "student": 200,
-    "attendance": 200,
-    "excuse": 200,
-    "warning": 200,
-    "document": 200,
-    "referral": 200,
-    "counselor_case": 200,
-    "subscription": 200,
-    "generated_document_checksum_match": true
-  },
-  "entity_counts": {
+  "representative_entity_counts": {
     "students": 1,
     "enrollments": 1,
     "attendance": 1,

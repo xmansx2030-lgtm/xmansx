@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { KeyRound, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
@@ -48,14 +49,16 @@ export function ChangeInitialPasswordPage() {
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-slate-50 p-4">
+    <main className="auth-shell flex min-h-dvh items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="auth-card w-full max-w-md rounded-3xl p-6 sm:p-9"
       >
-        <h1 className="mb-1 text-xl font-bold">تغيير كلمة المرور</h1>
-        <p className="mb-5 text-sm text-slate-500">
+        <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><KeyRound aria-hidden size={23} /></span>
+        <p className="mb-1 text-sm font-bold text-blue-700">خطوة أمان مطلوبة</p>
+        <h1 className="text-2xl font-black text-slate-900">تغيير كلمة المرور</h1>
+        <p className="mb-6 mt-2 text-sm leading-6 text-slate-500">
           يجب تغيير كلمة المرور المؤقتة قبل متابعة استخدام المنصة.
         </p>
 
@@ -92,9 +95,10 @@ export function ChangeInitialPasswordPage() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={mutation.isPending}>
+        <Button type="submit" className="mt-1 w-full py-3" disabled={mutation.isPending}>
           {mutation.isPending ? "جارٍ الحفظ..." : "حفظ كلمة المرور"}
         </Button>
+        <p className="mt-5 flex items-center justify-center gap-2 text-xs text-slate-400"><ShieldCheck aria-hidden size={15} /> اختر كلمة مرور فريدة لا تستخدمها في مكان آخر</p>
       </form>
     </main>
   );

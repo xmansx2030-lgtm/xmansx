@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { Building2, ImagePlus, RotateCcw, UsersRound } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 
 import { ApiError } from "@/api/client";
@@ -43,17 +44,23 @@ function SchoolInfoForm({
   const invalidate = useInvalidateSchoolData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState(() => ({
+  const initialForm = {
     name: initial.school.name,
     ministry_school_number: initial.ministry_school_number,
     education_stage: initial.education_stage as string,
     city: initial.city,
     official_principal_name: initial.official_principal_name,
-  }));
+  };
+  const [form, setForm] = useState(initialForm);
+  const [savedForm, setSavedForm] = useState(initialForm);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 
   const saveMutation = useMutation({
     mutationFn: () => patchSettings(form),
-    onSuccess: () => void invalidate("settings"),
+    onSuccess: () => {
+      setSavedForm(form);
+      void invalidate("settings");
+    },
   });
 
   const logoMutation = useMutation({
@@ -69,12 +76,15 @@ function SchoolInfoForm({
   const staff = initial.staff;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
       >
-        <h3 className="mb-4 font-bold">بيانات المدرسة</h3>
+        <div className="mb-5 flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 aria-hidden size={20} /></span>
+          <div><h3 className="font-bold">البيانات الرسمية</h3><p className="mt-1 text-sm text-slate-500">تظهر هذه البيانات في المنصة والتقارير المطبوعة.</p></div>
+        </div>
 
         <TextField
           label="اسم المدرسة"
@@ -91,7 +101,7 @@ function SchoolInfoForm({
           className="mb-3"
         />
         <div className="mb-3 flex flex-col gap-1">
-          <label htmlFor="stage-select" className="text-sm font-medium text-slate-700">
+          <label htmlFor="stage-select" className="text-sm font-bold text-slate-700">
             المرحلة التعليمية
           </label>
           <select
@@ -124,32 +134,33 @@ function SchoolInfoForm({
         />
 
         {saveMutation.error instanceof ApiError && (
-          <p role="alert" className="mb-3 text-sm text-red-700">
+          <p role="alert" className="mb-3 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
             {saveMutation.error.message}
           </p>
         )}
         {saveMutation.isSuccess && (
-          <p className="mb-3 text-sm text-emerald-700">تم حفظ البيانات.</p>
+          <p role="status" className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">تم حفظ بيانات المدرسة بنجاح.</p>
         )}
 
         {canWrite && (
-          <Button type="submit" disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? "جارٍ الحفظ..." : "حفظ البيانات"}
-          </Button>
+          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+            <Button type="submit" disabled={saveMutation.isPending || !isDirty}>{saveMutation.isPending ? "جارٍ الحفظ..." : "حفظ البيانات"}</Button>
+            {isDirty && <Button type="button" variant="secondary" onClick={() => setForm(savedForm)}><RotateCcw aria-hidden size={16} /> التراجع عن التغييرات</Button>}
+          </div>
         )}
       </form>
 
       <div className="space-y-6">
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 font-bold">شعار المدرسة</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><ImagePlus aria-hidden size={20} /></span><div><h3 className="font-bold">شعار المدرسة</h3><p className="text-xs text-slate-500">يستخدم في المستندات والتقارير.</p></div></div>
           {initial.logo_url ? (
             <img
               src={initial.logo_url}
               alt="شعار المدرسة"
-              className="mb-3 h-24 w-24 rounded-lg border border-slate-200 object-contain"
+              className="mb-4 h-28 w-28 rounded-2xl border border-slate-200 bg-slate-50 object-contain p-2"
             />
           ) : (
-            <p className="mb-3 text-sm text-slate-500">لا يوجد شعار.</p>
+            <div className="mb-4 grid min-h-28 place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">لا يوجد شعار مرفوع</div>
           )}
           {canWrite && (
             <>
@@ -168,29 +179,30 @@ function SchoolInfoForm({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={logoMutation.isPending}
               >
-                {logoMutation.isPending ? "جارٍ الرفع..." : "رفع شعار (PNG/JPG/WEBP)"}
+                <ImagePlus aria-hidden size={17} /> {logoMutation.isPending ? "جارٍ الرفع..." : initial.logo_url ? "تغيير الشعار" : "رفع الشعار"}
               </Button>
               {logoMutation.isError && (
                 <p role="alert" className="mt-2 text-sm text-red-700">
                   {logoMutation.error.message}
                 </p>
               )}
+              <p className="mt-2 text-xs text-slate-400">PNG أو JPG أو WEBP، ويفضل شعار مربع بخلفية شفافة.</p>
             </>
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 font-bold">الطاقم الإداري (من العضويات — للعرض فقط)</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600"><UsersRound aria-hidden size={20} /></span><div><h3 className="font-bold">الطاقم الإداري</h3><p className="text-xs text-slate-500">للعرض فقط، ويُدار من صفحة الموظفين.</p></div></div>
           <dl className="space-y-2 text-sm">
-            <div>
+            <div className="rounded-xl bg-slate-50 p-3">
               <dt className="font-medium text-slate-500">مدير المدرسة</dt>
               <dd>{staff.managers.join("، ") || "—"}</dd>
             </div>
-            <div>
+            <div className="rounded-xl bg-slate-50 p-3">
               <dt className="font-medium text-slate-500">الوكلاء</dt>
               <dd>{staff.vice_principals.join("، ") || "—"}</dd>
             </div>
-            <div>
+            <div className="rounded-xl bg-slate-50 p-3">
               <dt className="font-medium text-slate-500">المرشدون الطلابيون</dt>
               <dd>{staff.counselors.join("، ") || "—"}</dd>
             </div>

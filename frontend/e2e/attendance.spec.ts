@@ -34,7 +34,9 @@ async function login(page: Page, mobile: string, school: string) {
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();
   // كل حسابات هذا الملف متعددة العضويات → صفحة اختيار المدرسة تظهر دائمًا
   await page.locator("li", { hasText: school }).getByRole("button", { name: "دخول" }).click();
-  await expect(page.getByTestId("active-school-name")).toHaveText(school);
+  await expect(page.getByTestId("active-school-name")).toHaveText(school, {
+    timeout: 15_000,
+  });
 }
 
 /** معرف الفصل بالاسم عبر الـ API من داخل جلسة المتصفح (بلا تخمين معرفات). */
@@ -61,10 +63,10 @@ test("manager imports sections 8+9 and generates a section QR", async ({ page })
   await page.getByRole("button", { name: "رفع الملف" }).click();
   await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
-  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
-  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 60_000 });
 
   // صفحة رموز QR: اختيار فصل التشغيل الحالي → الرمز يظهر
   const m = meta();

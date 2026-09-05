@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, Layers3, LoaderCircle, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { MetricCard } from "@/components/MetricCard";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type { MonitoringSection } from "@/features/attendance/api";
 import { getMonitoring } from "@/features/attendance/api";
@@ -111,67 +114,25 @@ export function MonitoringPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">متابعة تحضير الحصة الحالية</h2>
-            {data.period ? (
-              <p className="text-sm text-slate-500" data-testid="monitoring-period">
-                {data.period.name} ·{" "}
-                <span dir="ltr">
-                  {data.period.start_time} – {data.period.end_time}
-                </span>
-                {data.alert && (
-                  <span className="ms-2">
-                    موعد التنبيه: <span dir="ltr">{data.alert.alert_at}</span> (
-                    {data.alert.minutes} دقيقة)
-                  </span>
-                )}
-              </p>
-            ) : (
-              <p className="text-slate-600" data-testid="monitoring-no-period">
-                لا توجد حصة دراسية نشطة حاليًا — لا تنبيهات خارج الحصص.
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            {lastUpdated && <span data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}
-            <Button
-              variant="secondary"
-              onClick={() => void query.refetch()}
-              disabled={query.isFetching}
-              data-testid="manual-refresh"
-            >
-              تحديث
-            </Button>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        icon={Activity}
+        eyebrow="غرفة العمليات المباشرة"
+        title="متابعة تحضير الحصة الحالية"
+        description={data.period ? "راقب اكتمال التحضير لحظة بلحظة، وركّز التدخل على الفصول المتأخرة فقط." : "لا توجد حصة نشطة الآن؛ تبدأ المتابعة والتنبيهات تلقائيًا مع الحصة القادمة."}
+        tone="executive"
+        badge={data.period?.name ?? "خارج وقت الحصص"}
+        meta={data.period ? <span data-testid="monitoring-period"><Clock3 aria-hidden size={14} className="inline" /> {data.period.name} · <span dir="ltr">{data.period.start_time} – {data.period.end_time}</span>{data.alert && <> · التنبيه <span dir="ltr">{data.alert.alert_at}</span> ({data.alert.minutes} دقيقة)</>}</span> : <span data-testid="monitoring-no-period">لا توجد حصة دراسية نشطة حاليًا — لا تنبيهات خارج الحصص.</span>}
+        actions={<div className="flex flex-wrap items-center gap-2">{lastUpdated && <span className="text-xs text-slate-300" data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}<Button onClick={() => void query.refetch()} disabled={query.isFetching} data-testid="manual-refresh" className="bg-white text-slate-950 hover:bg-slate-50"><RefreshCw aria-hidden size={17} className={query.isFetching ? "animate-spin" : ""} /> تحديث</Button></div>}
+      />
 
       {data.period && (
         <>
-          <section
-            className="grid grid-cols-2 gap-2 sm:grid-cols-5"
-            data-testid="monitoring-kpis"
-          >
-            {(
-              [
-                ["kpi-total", "الفصول", kpis.total, "bg-white text-slate-800"],
-                ["kpi-submitted", "تم التحضير", kpis.submitted, "bg-green-50 text-green-800"],
-                ["kpi-in-progress", "قيد التحضير", kpis.inProgress, "bg-orange-50 text-orange-800"],
-                ["kpi-not-started", "لم يبدأ", kpis.notStarted, "bg-slate-50 text-slate-700"],
-                ["kpi-overdue", "متأخر", kpis.overdue, "bg-red-50 text-red-800"],
-              ] as const
-            ).map(([testId, label, value, className]) => (
-              <div
-                key={testId}
-                data-testid={testId}
-                className={`rounded-xl border border-slate-200 p-3 text-center shadow-sm ${className}`}
-              >
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="text-xs">{label}</p>
-              </div>
-            ))}
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-5" data-testid="monitoring-kpis">
+            <MetricCard testId="kpi-total" label="الفصول" value={kpis.total} icon={Layers3} valueFirst />
+            <MetricCard testId="kpi-submitted" label="تم التحضير" value={kpis.submitted} icon={CheckCircle2} tone="teal" valueFirst />
+            <MetricCard testId="kpi-in-progress" label="قيد التحضير" value={kpis.inProgress} icon={LoaderCircle} tone="blue" valueFirst />
+            <MetricCard testId="kpi-not-started" label="لم يبدأ" value={kpis.notStarted} icon={Clock3} tone="amber" valueFirst />
+            <MetricCard testId="kpi-overdue" label="متأخر" value={kpis.overdue} icon={AlertTriangle} tone="red" valueFirst />
           </section>
 
           <section className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">

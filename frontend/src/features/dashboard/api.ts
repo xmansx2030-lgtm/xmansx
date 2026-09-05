@@ -75,6 +75,9 @@ export interface TodayOperations {
   } | null;
   submission_completion_pct: number | null;
   has_active_period: boolean;
+  operational_state?: "IDLE" | "IN_PROGRESS" | "ON_TRACK" | "ACTION_REQUIRED";
+  headline?: string;
+  updated_at?: string;
 }
 
 export interface OverviewResponse {

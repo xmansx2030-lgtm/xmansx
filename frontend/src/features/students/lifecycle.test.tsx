@@ -134,8 +134,27 @@ describe("InactiveStudentsPage", () => {
       await screen.findByRole("button", { name: "تعيين كمنتقلين" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تعيين كخريجين" })).toBeInTheDocument();
-    // لا زر حذف مباشر في فلتر المفقودين — التصنيف أولًا
-    expect(screen.queryByRole("button", { name: /حذف المحددين/ })).not.toBeInTheDocument();
+    // يظهر مسار الحذف بوضوح، لكنه يبقى محميًا حتى تصنيف الطالب وإغلاق قيده.
+    const deleteButton = screen.getByRole("button", { name: "حذف المحددين نهائيًا" });
+    expect(deleteButton).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: "تحديد خريج أول" }));
+    expect(deleteButton).toBeEnabled();
+  });
+
+  it("opens the missing students review directly from the import result link", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/inactive/": { body: INACTIVE_PAGE },
+    });
+    renderApp("/students/inactive?filter=missing");
+    expect(
+      await screen.findByRole("heading", {
+        name: "مراجعة الطلاب غير الموجودين في آخر ملف نور",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "غير الموجودين في آخر ملف نور" }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 });
 

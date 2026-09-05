@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { BarChart3, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type {
   MatchMode,
@@ -62,21 +64,9 @@ export function AnalyticsPage() {
   }, [sectionsQuery.data]);
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-slate-800">الغياب والحضور</h2>
-          <label className="text-sm text-slate-600">
-            التاريخ{" "}
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
-              data-testid="analytics-date"
-            />
-          </label>
-        </div>
+    <div className="space-y-5">
+      <PageHeader icon={BarChart3} eyebrow="التحليل التشغيلي" title="الغياب والحضور" description="حلّل الحضور حسب الحصة أو عبر عدة حصص، ثم انتقل من المؤشر إلى قائمة الطلاب القابلة للإجراء." tone="executive" badge={isToday ? "بيانات اليوم المباشرة" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="analytics-date" /></label>} />
+      <section className="rounded-2xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
         <div className="mt-3 flex gap-1 border-b border-slate-100" role="tablist">
           {(
             [

@@ -89,12 +89,13 @@ async function login(page: Page, mobile: string, school: string) {
     .getByRole("button", { name: "دخول" })
     .click({ timeout: 4000 })
     .catch(() => undefined);
-  await expect(page.getByTestId("active-school-name")).toHaveText(school);
+  await expect(page.getByTestId("active-school-name")).toHaveText(school, {
+    timeout: 15_000,
+  });
 }
 
 async function logout(page: Page) {
-  await api(page, "/auth/logout/", { method: "POST" });
-  await page.goto("/login");
+  await page.getByRole("button", { name: "تسجيل الخروج" }).click();
   await expect(page.getByLabel("رقم الجوال")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -109,10 +110,10 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
   await page.getByRole("button", { name: "رفع الملف" }).click();
   await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
-  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
-  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("import-result")).toBeVisible({ timeout: 60_000 });
 
   const daily = await api<{ day_periods: { sequence: number }[] }>(
     page,

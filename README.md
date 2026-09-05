@@ -2,7 +2,10 @@
 
 منصة SaaS متعددة المدارس لإدارة حضور الطلاب وغيابهم وتأخرهم والأعذار والإنذارات والإجراءات والإحالات والمتابعة الإرشادية والتقارير والاشتراكات.
 
-**الحالة:** المرحلة 1 (Foundation) — أساس تقني فقط، لا Features أعمال بعد. انظر [PHASE_1_REPORT.md](PHASE_1_REPORT.md).
+**الحالة:** المراحل الوظيفية 0–19 منفذة، وبوابة المرحلة 20 الإنتاجية المحلية
+وتجربة الاستعادة الفعلية ناجحتان. الترقية إلى خادم خارجي، والنسخ البعيد، وإثبات
+Sentry تحتاج مستودعًا وبيئة إنتاج وأسرارًا فعلية ولم يُدّع تنفيذها محليًا. انظر
+[PHASE_20_REPORT.md](PHASE_20_REPORT.md).
 
 ## المتطلبات (Requirements)
 
@@ -15,12 +18,13 @@
 
 ```text
 xmansx/
-├── backend/          # Django 5.2 + DRF (config/, common/, tests/)
+├── backend/          # Django 5.2 + DRF ووحدات الأعمال والاختبارات
 ├── frontend/         # React 19 + TypeScript + Vite + Tailwind 4 (Feature-Based)
-├── docs/             # وثائق المعمارية والتصميم (المرحلة 0)
-├── infra/            # ملفات بنية تحتية (لاحقًا)
-├── scripts/          # سكربتات مساعدة (لاحقًا)
-├── .github/          # GitHub Actions CI
+├── bridge/           # جسر أجهزة الحضور المحلي بطابور SQLite دائم
+├── docs/             # المعمارية والأمان والتشغيل والاستعادة
+├── infra/            # إعدادات البنية والخادم
+├── scripts/          # النشر والاختبارات ومولدات البيانات
+├── .github/          # CI وبناء صور الإصدار
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -102,13 +106,19 @@ npm run e2e          # Playwright smoke (يتطلب backend على :8000)
 
 ## الاختبارات
 
-- **Backend:** pytest + pytest-django على PostgreSQL حقيقي (health, readiness, بنية الأخطاء, request-id, celery eager).
-- **Frontend:** Vitest + React Testing Library (render, RTL, 404, طبقة API).
-- **E2E:** Playwright smoke — فتح الواجهة والتحقق من الوصول الفعلي للـ backend.
+- **Backend:** pytest + pytest-django على PostgreSQL حقيقي، بما يشمل العزل والصلاحيات
+  والتزامن والنسخ والاستعادة.
+- **Frontend:** Vitest + React Testing Library مع RTL وTypeScript وESLint وبناء PWA.
+- **Bridge:** pytest مستقل للطابور وإعادة المحاولة وفقد ACK والمزامنة.
+- **E2E:** Playwright على حزمة Nginx/Gunicorn/Celery/PostgreSQL/Redis إنتاجية مع رحلات
+  المدير والمعلم والوكيل والمرشد ومشرف المنصة.
 
 ## CI
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): backend (ruff + checks + migrations + pytest مع postgres/redis) + frontend (lint + typecheck + tests + build) + فحص أسرار (gitleaks).
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): Backend مع تدقيق
+الاعتماديات، Frontend مع `npm audit`، اختبارات الجسر، Gitleaks، وبوابة Playwright
+إنتاجية كاملة. بعد نجاحها يبني [release.yml](.github/workflows/release.yml) صورتي
+الإنتاج من SHA واحد وينشرهما إلى GHCR.
 
 ## الوثائق
 
@@ -120,3 +130,6 @@ GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): backend (
 | [docs/PERMISSIONS.md](docs/PERMISSIONS.md) | مصفوفة الصلاحيات |
 | [docs/SECURITY.md](docs/SECURITY.md) | النموذج الأمني |
 | [docs/PHASE_PLAN.md](docs/PHASE_PLAN.md) | خطة المراحل 0–20 |
+| [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md) | قائمة الإطلاق والتحقق والتراجع |
+| [docs/PRODUCTION_RELEASE.md](docs/PRODUCTION_RELEASE.md) | عقد صور الإصدار وأمر النشر |
+| [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) | النسخ والاستعادة الآمنة |

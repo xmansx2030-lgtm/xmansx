@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarDays, ScanFace } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import {
   correctArrival,
@@ -44,21 +46,9 @@ export function MorningPage() {
     });
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-slate-800">الحضور الصباحي</h2>
-          <label className="text-sm text-slate-600">
-            التاريخ{" "}
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
-              data-testid="morning-date"
-            />
-          </label>
-        </div>
+    <div className="space-y-5">
+      <PageHeader icon={ScanFace} eyebrow="الاستقبال الصباحي" title="الحضور الصباحي" description="مراقبة وصول الطلاب من أجهزة الحضور، ومعالجة الحالات اليدوية دون الخلط بينها وبين الغياب الرسمي." tone="operational" badge={isToday ? "تحديث مباشر" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="morning-date" /></label>} />
+      <section className="rounded-2xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
         <div className="mt-3 flex gap-1 border-b border-slate-100" role="tablist">
           {(
             [

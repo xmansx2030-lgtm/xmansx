@@ -2,6 +2,8 @@ import { RefreshCw, WifiOff, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
+import { PwaInstallPrompt } from "@/app/PwaInstallPrompt";
+
 export function PwaStatus() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const {
@@ -22,7 +24,9 @@ export function PwaStatus() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-x-3 bottom-3 z-50 flex flex-col items-center gap-2">
+    <>
+      <PwaInstallPrompt />
+      <div className="pointer-events-none fixed inset-x-3 bottom-3 z-50 flex flex-col items-center gap-2">
       {!online && (
         <div
           role="status"
@@ -76,6 +80,7 @@ export function PwaStatus() {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

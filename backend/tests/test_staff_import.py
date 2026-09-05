@@ -9,7 +9,7 @@ from memberships.models import (
     SchoolMembership,
 )
 from staff.models import StaffProfile
-from tests.xlsx_helper import build_xlsx_upload
+from tests.xlsx_helper import build_ministry_staff_upload, build_xlsx_upload
 
 IMPORTS_URL = "/api/v1/staff-imports/"
 STAFF_HEADERS = ["اسم المعلم", "رقم الجوال", "الرقم الوظيفي", "المسمى الوظيفي"]
@@ -47,8 +47,7 @@ def test_new_teacher_full_chain(role_client):
     credentials = body["new_credentials"]
     assert len(credentials) == 1
     temp_password = credentials[0]["temporary_password"]
-    assert len(temp_password) >= 10
-    assert "0559990001" not in str(credentials)  # الجوال مقنع في النتيجة
+    assert temp_password == "0559990001"
 
     user = User.objects.get(mobile="+966559990001")
     assert user.must_change_password is True
@@ -68,6 +67,45 @@ def test_new_teacher_full_chain(role_client):
     )
     assert login.status_code == 200
     assert login.json()["must_change_password"] is True
+
+
+@pytest.mark.django_db
+def test_ministry_teacher_report_detects_header_row_and_imports(role_client):
+    """تقرير الوزارة الحقيقي: ترويسات الصف 15 وأعمدة C/F وخلايا مدمجة."""
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    response = client.post(
+        IMPORTS_URL,
+        {
+            "file": build_ministry_staff_upload(
+                [
+                    ["966559990016", "t16@moe.gov.sa", "معلم التقرير الأول", "1010000016"],
+                    ["966559990017", "t17@moe.gov.sa", "معلم التقرير الثاني", "1010000017"],
+                ],
+                filename="معلمي المدرسة 1447.xlsx",
+            )
+        },
+    )
+    assert response.status_code == 201
+    job = response.json()
+    assert job["header_row"] == 15
+    assert job["suggested_mapping"]["mobile"] == 2  # العمود C
+    assert job["suggested_mapping"]["full_name"] == 5  # العمود F
+
+    assert process(client, job["id"]).status_code == 202
+    reviewed = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert reviewed["total_rows"] == 2
+    assert reviewed["summary"]["new"] == 2
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"]
+    assert [row["row_number"] for row in preview] == [16, 17]
+
+    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    assert committed.status_code == 200
+    assert committed.json()["summary"]["created"] == 2
+    assert User.objects.filter(
+        mobile__in=["+966559990016", "+966559990017"]
+    ).count() == 2
+    assert User.objects.get(mobile="+966559990016").check_password("0559990016")
+    assert StaffProfile.objects.filter(school=school).count() >= 2
 
 
 @pytest.mark.django_db

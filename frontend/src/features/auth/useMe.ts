@@ -38,6 +38,9 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   return async (): Promise<void> => {
+    // أوقف طلبات الجلسة القديمة قبل تدوير/حذف cookie الجلسة. وإلا قد تصل
+    // استجابة متأخرة من طلب بدأ قبل الخروج وتمسح جلسة تسجيل دخول لاحقة.
+    await queryClient.cancelQueries();
     try {
       await logout();
     } finally {
