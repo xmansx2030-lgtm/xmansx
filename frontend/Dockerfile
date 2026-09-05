@@ -24,5 +24,6 @@ ENV PORT=80 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY infra-nginx.conf /etc/nginx/templates/default.conf.template
 COPY infra-security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf
+COPY --chmod=755 infra-render-dns.envsh /docker-entrypoint.d/15-render-dns.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

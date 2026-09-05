@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Render exposes private services by short hostnames through a per-environment
+# DNS search domain. nginx's asynchronous resolver does not apply that search
+# domain, so expand the backend name before the stock entrypoint renders the
+# nginx template. Local Docker networks keep using their ordinary short name.
+case "${BACKEND_HOSTPORT:-}" in
+    *:*)
+        backend_host="${BACKEND_HOSTPORT%:*}"
+        backend_port="${BACKEND_HOSTPORT##*:}"
+        ;;
+    *)
+        return 0
+        ;;
+esac
+
+case "$backend_host" in
+    *.*|localhost|[0-9]*)
+        return 0
+        ;;
+esac
+
+render_search_domain="$(
+    awk '
+        $1 == "search" {
+            for (i = 2; i <= NF; i++) {
+                if ($i ~ /\.svc\.cluster\.local$/) {
+                    print $i
+                    exit
+                }
+            }
+        }
+    ' /etc/resolv.conf
+)"
+
+if [ -n "$render_search_domain" ]; then
+    export BACKEND_HOSTPORT="${backend_host}.${render_search_domain}:${backend_port}"
+fi
