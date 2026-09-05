@@ -364,7 +364,8 @@ export function PlatformAdminPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-5">
+    <main className="min-h-screen bg-slate-50 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-screen-2xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">إدارة المنصة</h1>
@@ -396,7 +397,8 @@ export function PlatformAdminPage() {
         )
       )}
       {tab === "schools" && <SchoolsPanel plans={activePlans} />}
-      {tab === "plans" && (plans.isPending ? <Spinner label="جارٍ تحميل الباقات..." /> : <PlanForm plans={activePlans} />)}
-    </div>
+        {tab === "plans" && (plans.isPending ? <Spinner label="جارٍ تحميل الباقات..." /> : <PlanForm plans={activePlans} />)}
+      </div>
+    </main>
   );
 }

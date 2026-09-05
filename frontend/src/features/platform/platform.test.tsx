@@ -51,7 +51,9 @@ describe("platform and subscription UI", () => {
 
     renderApp("/platform");
 
-    expect(await screen.findByRole("heading", { name: "إدارة المنصة" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "إدارة المنصة" });
+    expect(heading).toBeInTheDocument();
+    expect(heading.closest("main")).toHaveClass("px-4", "sm:px-6", "lg:px-8");
     expect(await screen.findByText("12")).toBeInTheDocument();
     expect(screen.getByText("900")).toBeInTheDocument();
   });
