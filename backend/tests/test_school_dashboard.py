@@ -240,6 +240,51 @@ def test_undetermined_never_counted_as_absence(env):
     assert kpis["completeness"]["is_significant"] is True
 
 
+@pytest.mark.django_db
+def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(env):
+    """المؤشر الحي: غائب متتابع، حالة أحدث حصة، وفصل لم يعتمد لا يخمّن."""
+    continuously_absent, absent_then_present, late_now, absent_then_late, present = env["students"]
+    for seq in (1, 2):
+        session = make_session(env, seq)
+        mark(env, session, continuously_absent, "ABSENT")
+        if seq == 1:
+            mark(env, session, absent_then_present, "ABSENT")
+            mark(env, session, absent_then_late, "ABSENT")
+        else:
+            mark(env, session, late_now, "LATE", minutes=8)
+            mark(env, session, absent_then_late, "LATE", minutes=11)
+
+    # فصل نشط آخر: لا يعتمد الحصة الثانية، لذلك طالبه لا يصنف في أي فئة حية.
+    make_students(env["school"], env["section_b"], env["year"], 1, prefix="90400")
+    make_session(env, 1, section=env["section_b"])
+
+    snapshot = attendance_selectors.live_attendance_snapshot(
+        school=env["school"], attendance_date=DAY, current_period_sequence=2
+    )
+
+    assert snapshot == {
+        "status": "AVAILABLE",
+        "total_students": 6,
+        "covered_students": 5,
+        "pending_students": 1,
+        "present_students": 2,
+        "absent_students": 1,
+        "late_students": 2,
+        "covered_sections": 1,
+        "pending_sections": 1,
+        "period_sequences": [1, 2],
+    }
+
+
+@pytest.mark.django_db
+def test_live_attendance_snapshot_has_no_status_outside_an_active_period(env):
+    snapshot = attendance_selectors.live_attendance_snapshot(
+        school=env["school"], attendance_date=DAY, current_period_sequence=None
+    )
+    assert snapshot["status"] == "NO_ACTIVE_PERIOD"
+    assert snapshot["total_students"] == 0
+
+
 # ---------- الاتجاه والفصول ----------
 
 

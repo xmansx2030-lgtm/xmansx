@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, GraduationCap } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getExcuses } from "@/features/excuses/api";
@@ -14,6 +16,7 @@ import { useActiveSchoolId } from "@/features/settings/hooks";
 import { StudentCounselingTab } from "@/features/counseling/StudentCounselingTab";
 import { StudentActionsTab } from "@/features/documents/StudentActionsTab";
 import { StudentDocumentsTab } from "@/features/documents/StudentDocumentsTab";
+import { StudentLeavesTab } from "@/features/leaves/StudentLeavesTab";
 import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
 import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
 import {
@@ -53,6 +56,7 @@ type Tab =
   | "days"
   | "absences"
   | "lates"
+  | "leaves"
   | "morning"
   | "excuses"
   | "warnings"
@@ -97,6 +101,7 @@ export function StudentAttendanceProfilePage() {
     (role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL",
   ) ?? false;
   const canManageExcuses = canSeeChanges;
+  const canSeeLeaves = canSeeChanges;
   const range = { fromDate, toDate };
 
   const profile = useQuery({
@@ -168,6 +173,7 @@ export function StudentAttendanceProfilePage() {
     ["absences", "غياب الحصص"],
     ["lates", "تأخر الحصص"],
     ["morning", "الحضور الصباحي"],
+    ...(canSeeLeaves ? [["leaves", "الاستئذانات"] as [Tab, string]] : []),
     ["excuses", "الأعذار"],
     ["warnings", "الإنذارات"],
     ["actions", "الإجراءات"],
@@ -179,18 +185,31 @@ export function StudentAttendanceProfilePage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link to="/students" className="text-sm text-blue-700 underline">العودة إلى الطلاب</Link>
-          <h1 className="mt-2 text-2xl font-bold">{student.full_name}</h1>
-          <p className="text-sm text-slate-600">
-            {student.grade?.name ?? "لا يوجد صف حالي"} / {student.section?.name ?? "لا يوجد فصل حالي"}
-            <span className="mx-2">•</span>{STATUS_LABELS[student.status] ?? student.status}
-            <span className="mx-2">•</span><span dir="ltr">{student.national_id_masked}</span>
-          </p>
-        </div>
-        <div className="text-sm text-slate-600">رقم الطالب: {student.student_number ?? "غير متوفر"}</div>
-      </div>
+      <PageHeader
+        icon={GraduationCap}
+        eyebrow="ملف الطالب الموحد"
+        title={student.full_name}
+        description={`${student.grade?.name ?? "لا يوجد صف حالي"} / ${student.section?.name ?? "لا يوجد فصل حالي"}`}
+        tone="executive"
+        badge={STATUS_LABELS[student.status] ?? student.status}
+        meta={(
+          <>
+            <span>رقم الطالب: {student.student_number ?? "غير متوفر"}</span>
+            <span className="text-white/30">•</span>
+            <span>الهوية: <bdi>{student.national_id_masked}</bdi></span>
+          </>
+        )}
+        actions={(
+          <Link
+            to="/students"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ArrowRight aria-hidden size={17} />
+            العودة إلى الطلاب
+          </Link>
+        )}
+        testId="student-profile-header"
+      />
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <label className="flex flex-col gap-1 text-sm">الفترة
@@ -265,6 +284,7 @@ export function StudentAttendanceProfilePage() {
       {tab === "absences" && <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />}
       {tab === "lates" && <PeriodTab rows={lates.data?.results ?? []} count={lates.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حالات تأخر عن الحصص في الفترة." showLate />}
       {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
+      {tab === "leaves" && canSeeLeaves && <StudentLeavesTab studentId={id} />}
       {tab === "warnings" && <StudentWarningsTab studentId={id} />}
       {tab === "actions" && <StudentActionsTab studentId={id} />}
       {tab === "documents" && <StudentDocumentsTab studentId={id} />}

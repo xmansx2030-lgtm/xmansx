@@ -138,6 +138,34 @@ describe("attendance", () => {
     expect(await screen.findByTestId("no-sections")).toBeInTheDocument();
   });
 
+  it("searches the roster and can focus on attendance exceptions", async () => {
+    mockApi({
+      "/auth/me/": { body: teacherMe() },
+      "/attendance/sessions/start/": { status: 201, body: sessionBody() },
+    });
+
+    renderApp("/attendance/section/3");
+    const user = userEvent.setup();
+    const search = await screen.findByRole("searchbox", { name: "البحث في قائمة الطلاب" });
+
+    await user.type(search, "ثانٍ");
+    expect(screen.getByTestId("roster-student-12")).toBeInTheDocument();
+    expect(screen.queryByTestId("roster-student-11")).toBeNull();
+
+    await user.clear(search);
+    await user.click(
+      within(screen.getByTestId("roster-student-11")).getByRole("button", { name: "غائب" }),
+    );
+    await user.click(screen.getByTestId("exceptions-only"));
+
+    expect(screen.getByTestId("roster-student-11")).toBeInTheDocument();
+    expect(screen.queryByTestId("roster-student-12")).toBeNull();
+    expect(screen.getByText("سيُرسل 1 استثناء، والبقية حاضرون تلقائيًا.")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("exceptions-only"));
+    expect(screen.getByTestId("roster-student-12")).toBeInTheDocument();
+  });
+
   it("submits exceptions only: absent + late with arrival time, never late_minutes", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },

@@ -78,6 +78,18 @@ export interface TodayOperations {
   operational_state?: "IDLE" | "IN_PROGRESS" | "ON_TRACK" | "ACTION_REQUIRED";
   headline?: string;
   updated_at?: string;
+  live_attendance?: {
+    status: "AVAILABLE" | "NO_ACTIVE_PERIOD";
+    total_students: number;
+    covered_students: number;
+    pending_students: number;
+    present_students: number;
+    absent_students: number;
+    late_students: number;
+    covered_sections: number;
+    pending_sections: number;
+    period_sequences: number[];
+  };
 }
 
 export interface OverviewResponse {

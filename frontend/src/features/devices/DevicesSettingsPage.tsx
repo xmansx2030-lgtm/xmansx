@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Cable, Fingerprint, Link2, Router, ShieldCheck, UsersRound, Wifi, WifiOff } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type { BridgeCredential, IdentityRow } from "@/features/devices/api";
 import {
@@ -73,15 +75,17 @@ export function DevicesSettingsPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-800">أجهزة الحضور</h2>
-        <p className="text-sm text-slate-500">
-          الجسر يعمل داخل شبكة المدرسة ويتصل للخارج فقط — لا حاجة لفتح أي منفذ، ولا
-          تخزن المنصة أي بيانات بيومترية.
-        </p>
-        {actionError != null && <ErrorState error={actionError} />}
-      </section>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Fingerprint}
+        eyebrow="التكاملات التشغيلية"
+        title="أجهزة الحضور"
+        description="إدارة جسور الاتصال والأجهزة ومطابقة معرفات الطلاب من مساحة واحدة آمنة. الاتصال يبدأ من داخل شبكة المدرسة ولا تُخزن بيانات بيومترية في المنصة."
+        tone="operational"
+        badge={devicesQuery.data ? `${devicesQuery.data.filter((device) => device.status === "ONLINE").length} متصل من ${devicesQuery.data.length}` : "جارٍ التحقق"}
+        meta={<><span className="inline-flex items-center gap-1"><ShieldCheck aria-hidden size={14} /> اتصال خارجي آمن</span><span aria-hidden>•</span><span>لا حاجة لفتح منافذ واردة</span></>}
+      />
+      {actionError != null && <ErrorState error={actionError} />}
 
       {credential && (
         <section
@@ -102,12 +106,26 @@ export function DevicesSettingsPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-2 font-bold text-slate-800">الجسور</h3>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Router aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">جسور الاتصال</h2><p className="text-xs text-slate-500">الخادم الوسيط داخل شبكة المدرسة</p></div></div>{bridgesQuery.data && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{bridgesQuery.data.length} جسر</span>}</div>
+        <form
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!bridgeName.trim()) return;
+            void run(async () => {
+              setCredential(await createBridge(bridgeName.trim()));
+              setBridgeName("");
+            });
+          }}
+        >
+          <label className="min-w-56 flex-1"><span className="mb-1 block text-xs font-bold text-slate-600">اسم الجسر الجديد</span><input value={bridgeName} onChange={(e) => setBridgeName(e.target.value)} placeholder="مثال: خادم الاستقبال" aria-label="اسم الجسر" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" /></label>
+          <Button type="submit" data-testid="add-bridge" disabled={!bridgeName.trim()}><Link2 aria-hidden size={16} /> إضافة جسر</Button>
+        </form>
         {bridgesQuery.isPending && <Spinner />}
         {bridgesQuery.isError && <ErrorState error={bridgesQuery.error} />}
         {bridgesQuery.isSuccess && (
-          <ul className="divide-y divide-slate-100" data-testid="bridges-list">
+          <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-100 px-3" data-testid="bridges-list">
             {bridgesQuery.data.length === 0 && (
               <li className="py-2 text-slate-500">لا توجد جسور بعد.</li>
             )}
@@ -118,8 +136,8 @@ export function DevicesSettingsPage() {
                 data-testid={`bridge-${bridge.id}`}
               >
                 <span className="font-medium">{bridge.installation_name}</span>
-                <span className="text-sm text-slate-600">
-                  {bridge.is_online ? "🟢 متصل" : "⚪ غير متصل"}
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${bridge.is_online ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                  {bridge.is_online ? <Wifi aria-hidden size={13} /> : <WifiOff aria-hidden size={13} />}{bridge.is_online ? "متصل" : "غير متصل"}
                 </span>
                 <Button
                   variant="secondary"
@@ -140,36 +158,30 @@ export function DevicesSettingsPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><Cable aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">الأجهزة المسجلة</h2><p className="text-xs text-slate-500">حالة الاتصال والفحص الفني لكل جهاز</p></div></div>{devicesQuery.data && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{devicesQuery.data.length} جهاز</span>}</div>
         <form
-          className="mt-3 flex flex-wrap items-center gap-2"
+          className="mb-4 grid gap-2 rounded-2xl border border-violet-100 bg-violet-50/50 p-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!bridgeName.trim()) return;
+            if (!deviceForm.name.trim()) return;
             void run(async () => {
-              setCredential(await createBridge(bridgeName.trim()));
-              setBridgeName("");
+              await createDevice({ name: deviceForm.name.trim(), vendor: deviceForm.vendor.trim(), local_ip: deviceForm.local_ip.trim() || undefined });
+              setDeviceForm({ name: "", vendor: "", local_ip: "" });
             });
           }}
         >
-          <input
-            value={bridgeName}
-            onChange={(e) => setBridgeName(e.target.value)}
-            placeholder="اسم الجسر (مثال: خادم الاستقبال)"
-            aria-label="اسم الجسر"
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-          />
-          <Button type="submit" data-testid="add-bridge">
-            إضافة جسر
-          </Button>
+          <label><span className="mb-1 block text-xs font-bold text-slate-600">اسم الجهاز</span><input value={deviceForm.name} onChange={(e) => setDeviceForm({ ...deviceForm, name: e.target.value })} placeholder="البوابة الرئيسية" aria-label="اسم الجهاز" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" /></label>
+          <label><span className="mb-1 block text-xs font-bold text-slate-600">الشركة أو النوع</span><input value={deviceForm.vendor} onChange={(e) => setDeviceForm({ ...deviceForm, vendor: e.target.value })} placeholder="SIMULATOR للتجربة" aria-label="الشركة" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" /></label>
+          <label><span className="mb-1 block text-xs font-bold text-slate-600">عنوان الشبكة (اختياري)</span><input value={deviceForm.local_ip} onChange={(e) => setDeviceForm({ ...deviceForm, local_ip: e.target.value })} placeholder="192.168.1.50" aria-label="IP المحلي" dir="ltr" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" /></label>
+          <Button type="submit" data-testid="add-device" disabled={!deviceForm.name.trim()}><Cable aria-hidden size={16} /> إضافة جهاز</Button>
         </form>
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-2 font-bold text-slate-800">الأجهزة</h3>
         {devicesQuery.isPending && <Spinner />}
         {devicesQuery.isError && <ErrorState error={devicesQuery.error} />}
         {devicesQuery.isSuccess && (
-          <ul className="divide-y divide-slate-100" data-testid="devices-list">
+          <ul className="max-h-[30rem] divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-100 px-3" data-testid="devices-list">
             {devicesQuery.data.length === 0 && (
               <li className="py-2 text-slate-500">لا توجد أجهزة بعد.</li>
             )}
@@ -208,51 +220,10 @@ export function DevicesSettingsPage() {
             ))}
           </ul>
         )}
-        <form
-          className="mt-3 flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!deviceForm.name.trim()) return;
-            void run(async () => {
-              await createDevice({
-                name: deviceForm.name.trim(),
-                vendor: deviceForm.vendor.trim(),
-                local_ip: deviceForm.local_ip.trim() || undefined,
-              });
-              setDeviceForm({ name: "", vendor: "", local_ip: "" });
-            });
-          }}
-        >
-          <input
-            value={deviceForm.name}
-            onChange={(e) => setDeviceForm({ ...deviceForm, name: e.target.value })}
-            placeholder="اسم الجهاز"
-            aria-label="اسم الجهاز"
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-          />
-          <input
-            value={deviceForm.vendor}
-            onChange={(e) => setDeviceForm({ ...deviceForm, vendor: e.target.value })}
-            placeholder="الشركة (SIMULATOR للتجربة)"
-            aria-label="الشركة"
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-          />
-          <input
-            value={deviceForm.local_ip}
-            onChange={(e) => setDeviceForm({ ...deviceForm, local_ip: e.target.value })}
-            placeholder="IP المحلي (اختياري)"
-            aria-label="IP المحلي"
-            dir="ltr"
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-          />
-          <Button type="submit" data-testid="add-device">
-            إضافة جهاز
-          </Button>
-        </form>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-2 font-bold text-slate-800">مطابقة مستخدمي الأجهزة</h3>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UsersRound aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">مطابقة مستخدمي الأجهزة</h2><p className="text-xs text-slate-500">اربط معرف الجهاز بسجل الطالب الصحيح</p></div></div>
         <div className="mb-3 flex gap-1" role="tablist">
           {(
             [

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, Send } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -28,19 +29,56 @@ export function MyReferralsPage() {
 
   if (list.isError) return <ErrorState error={list.error} />;
 
+  const rows = list.data?.results ?? [];
+  const closedCount = rows.filter((row) => row.status === "CLOSED" || row.status === "CANCELLED").length;
+  const activeCount = rows.length - closedCount;
+
   return (
     <div className="space-y-5">
-      <PageHeader icon={Send} eyebrow="مساحة المعلم" title="إحالاتي" description="تابع الإحالات التي أنشأتها أو أضفت إليها ملاحظة، واعرف حالتها لدى المرشد دون كشف ملفات لا تخصك." tone="teacher" />
+      <PageHeader
+        icon={Send}
+        eyebrow="مساحة المعلم"
+        title="إحالاتي"
+        description="تابع الإحالات التي أنشأتها أو أضفت إليها ملاحظة، واعرف حالتها لدى المرشد دون كشف ملفات لا تخصك."
+        tone="teacher"
+        badge={list.isPending ? "جارٍ التحديث" : `${rows.length} إحالة`}
+        actions={(
+          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15">
+            <ArrowRight aria-hidden size={17} />
+            العودة للتحضير
+          </Link>
+        )}
+      />
 
       {list.isPending ? (
         <Spinner />
       ) : (
-        <ReferralsTable
-          rows={list.data?.results ?? []}
-          onSelect={(id) => setSelected(selected === id ? null : id)}
-          emptyText="لم تنشئ أي إحالة بعد. يمكنك التحويل للمرشد من شاشة التحضير."
-          testId="my-referrals-rows"
-        />
+        <>
+          <section className="grid gap-3 sm:grid-cols-3" aria-label="ملخص إحالات المعلم">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+              <Clock3 aria-hidden size={20} className="mb-3 text-blue-600" />
+              <p className="text-2xl font-black text-slate-900">{activeCount}</p>
+              <p className="text-sm font-medium text-slate-600">قيد المتابعة</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <CheckCircle2 aria-hidden size={20} className="mb-3 text-emerald-600" />
+              <p className="text-2xl font-black text-slate-900">{closedCount}</p>
+              <p className="text-sm font-medium text-slate-600">مغلقة أو مكتملة</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Send aria-hidden size={20} className="mb-3 text-slate-500" />
+              <p className="text-2xl font-black text-slate-900">{rows.length}</p>
+              <p className="text-sm font-medium text-slate-600">إجمالي إحالاتك</p>
+            </div>
+          </section>
+          <ReferralsTable
+            rows={rows}
+            onSelect={(id) => setSelected(selected === id ? null : id)}
+            selectedId={selected}
+            emptyText="لم تنشئ أي إحالة بعد. يمكنك التحويل للمرشد من شاشة التحضير."
+            testId="my-referrals-rows"
+          />
+        </>
       )}
 
       {selected !== null && (

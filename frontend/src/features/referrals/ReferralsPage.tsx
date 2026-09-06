@@ -41,19 +41,21 @@ export function ReferralStatusBadge({
 export function ReferralsTable({
   rows,
   onSelect,
+  selectedId,
   emptyText,
   testId,
 }: {
   rows: ReferralRow[];
   onSelect: (id: number) => void;
+  selectedId?: number | null;
   emptyText: string;
   testId: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-slate-500">
+          <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500">
             <th className="p-3 text-start">الطالب</th>
             <th className="p-3 text-start">الصف/الفصل</th>
             <th className="p-3 text-start">المصدر</th>
@@ -66,8 +68,8 @@ export function ReferralsTable({
         </thead>
         <tbody data-testid={testId}>
           {rows.map((row) => (
-            <tr key={row.id} className="border-b" data-testid={`referral-row-${row.id}`}>
-              <td className="p-3">{row.student.full_name}</td>
+            <tr key={row.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70" data-testid={`referral-row-${row.id}`}>
+              <td className="p-3 font-bold text-slate-800">{row.student.full_name}</td>
               <td className="p-3">
                 {row.student.grade_name ?? "—"} / {row.student.section_name ?? "—"}
               </td>
@@ -84,9 +86,11 @@ export function ReferralsTable({
               <td className="p-3">
                 <button
                   type="button"
-                  className="text-blue-700 underline"
+                  className="min-h-9 rounded-lg bg-blue-50 px-3 font-bold text-blue-700 transition hover:bg-blue-100"
                   onClick={() => onSelect(row.id)}
                   data-testid={`open-referral-${row.id}`}
+                  aria-expanded={selectedId === row.id}
+                  aria-controls="referral-details"
                 >
                   التفاصيل
                 </button>
@@ -232,6 +236,7 @@ export function ReferralsPage() {
         <ReferralsTable
           rows={list.data?.results ?? []}
           onSelect={(id) => setSelected(selected === id ? null : id)}
+          selectedId={selected}
           emptyText="لا توجد إحالات مطابقة."
           testId="referrals-rows"
         />

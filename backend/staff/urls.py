@@ -14,6 +14,10 @@ urlpatterns = [
     path("staff/<int:staff_id>/suspend/", views.StaffSuspendView.as_view()),
     path("staff/<int:staff_id>/activate/", views.StaffActivateView.as_view()),
     path("staff/<int:staff_id>/reinvite/", views.StaffReinviteView.as_view()),
+    path(
+        "staff/<int:staff_id>/reset-password/",
+        views.StaffPasswordResetView.as_view(),
+    ),
     path("staff-imports/", views.StaffImportUploadView.as_view()),
     path("staff-imports/<int:job_id>/", views.StaffImportJobView.as_view()),
     path("staff-imports/<int:job_id>/process/", views.StaffImportProcessView.as_view()),

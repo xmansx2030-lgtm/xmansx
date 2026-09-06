@@ -4,6 +4,7 @@ import pytest
 from django.test import Client
 
 from accounts.models import User
+from audit.models import AuditAction, AuditLog
 from memberships.models import MembershipStatus, SchoolMembership
 from staff.models import StaffProfile
 from tests.conftest import PASSWORD
@@ -298,6 +299,86 @@ def test_staff_tenant_isolation(role_client, make_user):
     ).status_code == 404
     assert manager_a.post(f"{STAFF_URL}{foreign_profile.id}/suspend/").status_code == 404
     assert manager_a.delete(f"{STAFF_URL}{foreign_profile.id}/").status_code == 404
+
+
+# ---------- Manager password reset ----------
+
+
+@pytest.mark.django_db
+def test_manager_resets_teacher_password_to_mobile_and_forces_change(role_client, make_user):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    teacher = make_user("0558880070")
+    _, profile = _make_staff(school, teacher, ["TEACHER"], "معلم كلمة المرور")
+
+    response = client.post(f"{STAFF_URL}{profile.id}/reset-password/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "temporary_password": "0558880070",
+        "must_change_password": True,
+    }
+    teacher.refresh_from_db()
+    assert teacher.must_change_password is True
+    assert teacher.check_password("0558880070")
+    assert not teacher.check_password(PASSWORD)
+    login = Client().post(
+        "/api/v1/auth/login/",
+        {"mobile": "0558880070", "password": "0558880070"},
+        content_type="application/json",
+    )
+    assert login.status_code == 200
+    assert login.json()["must_change_password"] is True
+    assert AuditLog.objects.filter(
+        action=AuditAction.STAFF_PASSWORD_RESET,
+        school=school,
+        target_id=str(profile.membership_id),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_password_reset_requires_manager_same_school_and_teacher_role(
+    role_client, make_user, make_school
+):
+    school = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    _, counselor_profile = _make_staff(
+        school, make_user("0558880071"), ["COUNSELOR"], "مرشد فقط"
+    )
+    _, other_school, _ = role_client(["SCHOOL_MANAGER"])
+    _, foreign_teacher = _make_staff(
+        other_school, make_user("0558880072"), ["TEACHER"], "معلم مدرسة أخرى"
+    )
+
+    assert vice.post(
+        f"{STAFF_URL}{counselor_profile.id}/reset-password/"
+    ).status_code == 403
+    teacher_required = manager.post(
+        f"{STAFF_URL}{counselor_profile.id}/reset-password/"
+    )
+    assert teacher_required.status_code == 409
+    assert teacher_required.json()["code"] == "TEACHER_ROLE_REQUIRED"
+    assert manager.post(
+        f"{STAFF_URL}{foreign_teacher.id}/reset-password/"
+    ).status_code == 404
+
+
+@pytest.mark.django_db
+def test_manager_cannot_reset_password_for_teacher_shared_with_another_school(
+    role_client, make_user, make_membership, make_school
+):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    teacher = make_user("0558880073")
+    _, profile = _make_staff(school, teacher, ["TEACHER"], "معلم مشترك")
+    make_membership(teacher, make_school(), ["TEACHER"])
+
+    response = manager.post(f"{STAFF_URL}{profile.id}/reset-password/")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "SHARED_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED"
+    teacher.refresh_from_db()
+    assert teacher.check_password(PASSWORD)
+    assert teacher.must_change_password is False
 
 
 # ---------- Invitations ----------

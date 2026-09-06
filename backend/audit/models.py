@@ -85,6 +85,8 @@ class AuditAction(models.TextChoices):
     # المرحلة 12 — الإجراءات والمستندات (بلا محتوى PDF ولا snapshot كامل: البند 94)
     STUDENT_ACTION_CREATED = "STUDENT_ACTION_CREATED", "تسجيل إجراء طلابي"
     STUDENT_ACTION_CANCELLED = "STUDENT_ACTION_CANCELLED", "إلغاء إجراء طلابي"
+    STUDENT_LEAVE_RECORDED = "STUDENT_LEAVE_RECORDED", "تسجيل استئذان طالب"
+    STUDENT_LEAVE_CANCELLED = "STUDENT_LEAVE_CANCELLED", "إلغاء استئذان طالب"
     DOCUMENT_GENERATION_REQUESTED = "DOCUMENT_GENERATION_REQUESTED", "طلب إنشاء مستند"
     DOCUMENT_GENERATED = "DOCUMENT_GENERATED", "إنشاء مستند"
     DOCUMENT_GENERATION_FAILED = "DOCUMENT_GENERATION_FAILED", "فشل إنشاء مستند"
@@ -105,6 +107,7 @@ class AuditAction(models.TextChoices):
     STAFF_SUSPENDED = "STAFF_SUSPENDED", "إيقاف موظف"
     STAFF_REACTIVATED = "STAFF_REACTIVATED", "إعادة تفعيل موظف"
     STAFF_DELETED = "STAFF_DELETED", "حذف موظف نهائيًا"
+    STAFF_PASSWORD_RESET = "STAFF_PASSWORD_RESET", "إعادة ضبط كلمة مرور معلم"
     INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
     # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
     PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"

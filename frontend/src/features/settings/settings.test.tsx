@@ -20,7 +20,7 @@ const SETTINGS_BODY = {
   staff: { managers: ["خالد المدير"], vice_principals: ["سعد الوكيل"], counselors: [] },
 };
 
-function meWithRoles(roles: ("SCHOOL_MANAGER" | "TEACHER" | "VICE_PRINCIPAL")[]) {
+function meWithRoles(roles: ("SCHOOL_MANAGER" | "TEACHER" | "VICE_PRINCIPAL" | "COUNSELOR")[]) {
   return buildMe({
     active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
     roles,
@@ -46,25 +46,30 @@ describe("SettingsPage", () => {
     expect(screen.getByText("سعد الوكيل")).toBeInTheDocument();
   });
 
-  it("vice principal sees read-only settings (no save button, fields disabled)", async () => {
+  it("vice principal cannot see or open school settings", async () => {
     mockApi({
       "/auth/me/": { body: meWithRoles(["VICE_PRINCIPAL"]) },
-      "/school/settings/": { body: SETTINGS_BODY },
     });
     renderApp("/settings");
-    const nameField = await screen.findByLabelText("اسم المدرسة");
-    expect(nameField).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "حفظ البيانات" })).not.toBeInTheDocument();
+    await screen.findByTestId("dashboard-page");
+    expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
   });
 
-  it("teacher is denied the settings screen entirely", async () => {
+  it("يعيد المعلم من رابط الإعدادات إلى مساحة عمله", async () => {
     mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/settings");
-    expect(
-      await screen.findByText("لا تملك صلاحية عرض الإعدادات"),
-    ).toBeInTheDocument();
-    // ولا يظهر رابط الإعدادات في الترويسة
+    await screen.findByTestId("active-school-name");
     expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
+  });
+
+  it("counselor cannot see or open school settings", async () => {
+    mockApi({ "/auth/me/": { body: meWithRoles(["COUNSELOR"]) } });
+    renderApp("/settings");
+    await screen.findByTestId("active-school-name");
+    expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
   });
 
   it("attendance tab validates minutes range client-side", async () => {

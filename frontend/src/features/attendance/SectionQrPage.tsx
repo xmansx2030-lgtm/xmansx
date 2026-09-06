@@ -279,7 +279,9 @@ function SectionChoice({ section, selected, onSelect }: { section: AttendanceSec
       }`}
       data-testid={`qr-section-${section.id}`}
     >
-      <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-lg font-black ${selected ? "bg-teal-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>{section.name}</span>
+      <span className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-black ${selected ? "bg-teal-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>
+        {section.name.length <= 4 ? section.name : <GraduationCap aria-hidden size={21} />}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-black text-slate-900">{sectionDisplayName(section.name)}</span>
         <span className="mt-1 block truncate text-xs text-slate-500">{section.grade_name}</span>

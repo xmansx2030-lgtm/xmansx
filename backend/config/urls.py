@@ -41,6 +41,7 @@ urlpatterns = [
     path("api/v1/", include("excuses.urls")),
     path("api/v1/", include("student_warnings.urls")),
     path("api/v1/", include("student_actions.urls")),
+    path("api/v1/", include("student_leaves.urls")),
     path("api/v1/", include("documents.urls")),
     path("api/v1/", include("referrals.urls")),
     path("api/v1/", include("counseling.urls")),

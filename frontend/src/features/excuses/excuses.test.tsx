@@ -391,21 +391,11 @@ describe("excuses page (Phase 10)", () => {
     expect(screen.queryByTestId("attachment-input")).not.toBeInTheDocument();
   });
 
-  it("denies a teacher with an Arabic message", async () => {
-    mockApi({
-      "/auth/me/": { body: meWithRoles(["TEACHER"]) },
-      "/excuses/kpis/": {
-        status: 403,
-        body: { code: "PERMISSION_DENIED", message: "ليست لديك صلاحية.", details: {} },
-      },
-      "/excuses/": {
-        status: 403,
-        body: { code: "PERMISSION_DENIED", message: "ليست لديك صلاحية.", details: {} },
-      },
-    });
+  it("يعيد المعلم إلى مساحة عمله بدلاً من تحميل شاشة الأعذار غير المصرح بها", async () => {
+    mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/excuses");
-    expect(
-      await screen.findByRole("heading", { name: "لا تملك صلاحية عرض الأعذار" }),
-    ).toBeInTheDocument();
+    await screen.findByTestId("active-school-name");
+    expect(screen.queryByRole("link", { name: "الأعذار" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("excuses-page")).not.toBeInTheDocument();
   });
 });

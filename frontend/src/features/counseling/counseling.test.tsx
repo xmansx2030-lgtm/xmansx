@@ -263,6 +263,38 @@ describe("case detail (Phase 14)", () => {
     });
   });
 
+  it("shows the professional observation and outcome in the session record", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/counselor/cases/7/sessions/": {
+        body: [
+          {
+            id: 17,
+            session_type: "STUDENT_MEETING",
+            session_type_label: "مقابلة الطالب",
+            occurred_at: "2026-08-19T08:00:00Z",
+            summary: "ناقشنا أسباب الغياب.",
+            observations: "تفاعل الطالب بوضوح مع الأسئلة.",
+            outcome: "متابعة الالتزام لأسبوع جديد.",
+            status: "RECORDED",
+            status_label: "مسجلة",
+            created_by_name: "ليان المرشدة",
+            void_reason: "",
+          },
+        ],
+      },
+      "/counselor/cases/7/": { body: CASE_DETAIL },
+    });
+
+    renderApp("/counselor/cases/7");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "الجلسات" }));
+
+    const row = await screen.findByTestId("session-17");
+    expect(row).toHaveTextContent("تفاعل الطالب بوضوح مع الأسئلة");
+    expect(row).toHaveTextContent("متابعة الالتزام لأسبوع جديد");
+  });
+
   it("shows the plan with quantitative goal and completes an activity", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["COUNSELOR"]) },
@@ -286,6 +318,50 @@ describe("case detail (Phase 14)", () => {
     });
   });
 
+  it("adds a planned action with its due date", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/counselor/cases/7/plans/": { body: [PLAN] },
+      "/counselor/plans/11/activities/": { status: 201, body: PLAN.activities[0] },
+      "/counselor/cases/7/": { body: CASE_DETAIL },
+    });
+
+    renderApp("/counselor/cases/7");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "خطة المتابعة" }));
+    await user.type(await screen.findByTestId("activity-title"), "اتصال متابعة");
+    await user.type(screen.getByTestId("activity-due-date"), "2026-09-01");
+    await user.click(screen.getByTestId("add-activity"));
+
+    await waitFor(() => {
+      const post = calls.find(
+        (call) => call.init?.method === "POST" && call.url.includes("/plans/11/activities/"),
+      );
+      expect(parseBody(post?.init)).toEqual({
+        activity_type: "STUDENT_CHECK_IN",
+        title: "اتصال متابعة",
+        due_date: "2026-09-01",
+      });
+    });
+  });
+
+  it("keeps goals and activities read-only after the plan is completed", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/counselor/cases/7/plans/": {
+        body: [{ ...PLAN, status: "COMPLETED", status_label: "مكتملة" }],
+      },
+      "/counselor/cases/7/": { body: CASE_DETAIL },
+    });
+
+    renderApp("/counselor/cases/7");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "خطة المتابعة" }));
+    expect(await screen.findByTestId("plan-status-11")).toHaveTextContent("مكتملة");
+    expect(screen.queryByTestId("complete-goal-21")).toBeNull();
+    expect(screen.queryByTestId("complete-activity-31")).toBeNull();
+  });
+
   it("creates a teacher follow-up request", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["COUNSELOR"]) },
@@ -301,6 +377,7 @@ describe("case detail (Phase 14)", () => {
     await user.selectOptions(await screen.findByTestId("request-teacher"), "9");
     await user.selectOptions(screen.getByTestId("request-type"), "CLASSROOM_BEHAVIOR");
     await user.type(screen.getByTestId("request-question"), "كيف كان تفاعله؟");
+    await user.type(screen.getByTestId("request-due-date"), "2026-09-01");
     await user.click(screen.getByTestId("send-request"));
 
     await waitFor(() => {
@@ -311,8 +388,31 @@ describe("case detail (Phase 14)", () => {
         teacher_membership_id: 9,
         request_type: "CLASSROOM_BEHAVIOR",
         question: "كيف كان تفاعله؟",
+        due_date: "2026-09-01",
       });
     });
+  });
+
+  it("filters a long teacher list before creating a follow-up request", async () => {
+    const teacherRows = Array.from({ length: 9 }, (_, index) => ({
+      membership_id: index + 1,
+      name: index === 8 ? "أحمد المعلم" : `معلم تجريبي ${index + 1}`,
+    }));
+    mockApi({
+      "/auth/me/": { body: roleMe(["COUNSELOR"]) },
+      "/counselor/teachers/": { body: teacherRows },
+      "/counselor/cases/7/teacher-requests/": { body: [] },
+      "/counselor/cases/7/": { body: CASE_DETAIL },
+    });
+
+    renderApp("/counselor/cases/7");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "طلبات المعلمين" }));
+    await user.type(await screen.findByTestId("teacher-search"), "أحمد");
+
+    const picker = screen.getByTestId("request-teacher");
+    expect(within(picker).getByRole("option", { name: "أحمد المعلم" })).toBeInTheDocument();
+    expect(within(picker).queryByRole("option", { name: "معلم تجريبي 1" })).toBeNull();
   });
 
   it("closes the case with a reason and offers reopen afterwards", async () => {
@@ -348,6 +448,12 @@ describe("case detail (Phase 14)", () => {
     await screen.findByTestId("case-detail");
     expect(screen.queryByTestId("case-actions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("close-case")).not.toBeInTheDocument();
+    expect(screen.getByText("سجل الجلسات")).toBeInTheDocument();
+    expect(screen.getByText("راجع اللقاءات والاتصالات الموثقة دون تعديل.")).toBeInTheDocument();
+    expect(screen.getByText("خطة المتابعة", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText("طلبات المعلمين", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("وثّق جلسة")).not.toBeInTheDocument();
+    expect(screen.queryByText("اطلب متابعة")).not.toBeInTheDocument();
   });
 });
 
@@ -393,6 +499,23 @@ describe("teacher follow-up inbox (Phase 14)", () => {
         improvement_status: "IMPROVED",
       });
     });
+  });
+
+  it("lets the teacher cancel an unfinished response without sending it", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["TEACHER"]) },
+      "/teacher/follow-up-requests/": { body: [TEACHER_REQUEST] },
+    });
+
+    renderApp("/teacher/follow-ups");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("respond-41"));
+    await user.type(screen.getByTestId("response-observation"), "ملاحظة لم تكتمل");
+    await user.click(screen.getByTestId("cancel-response"));
+
+    expect(screen.queryByTestId("response-observation")).toBeNull();
+    expect(screen.getByTestId("respond-41")).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/respond/"))).toBe(false);
   });
 
   it("shows an answered request as read-only", async () => {

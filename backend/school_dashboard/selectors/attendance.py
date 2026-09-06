@@ -16,6 +16,8 @@ from datetime import timedelta
 from django.db.models import Count, Q, Sum
 
 from attendance.models import (
+    AttendanceMark,
+    AttendanceMarkStatus,
     AttendanceSession,
     AttendanceSessionStatus,
     DailyAbsenceStatus,
@@ -335,8 +337,155 @@ def today_operations(*, school) -> dict:
         "operational_state": operational_state,
         "headline": headline,
         "updated_at": monitoring["school_time"],
+        "live_attendance": live_attendance_snapshot(
+            school=school,
+            attendance_date=date_cls.fromisoformat(monitoring["date"]),
+            current_period_sequence=period["sequence"] if period else None,
+        ),
         # لا حصة جارية: قبل الدوام أو فسحة أو يوم غير دراسي — ليست حالة خطأ
         "has_active_period": period is not None,
+    }
+
+
+def live_attendance_snapshot(
+    *, school, attendance_date: date_cls, current_period_sequence: int | None
+) -> dict:
+    """حالة طلاب المدرسة في هذه اللحظة، وليست ملخصًا نهائيًا لليوم.
+
+    لا يدخل الطالب في حاضر/غائب/متأخر إلا إذا اعتمد فصله جميع الحصص من بداية
+    اليوم حتى الحصة الحالية. لذلك تظل بيانات الفصل غير المعتمد في ``pending``
+    ولا تتحول الغياب الضمني إلى حضور أو غياب. «غائب الآن» يعني غائبًا في كل
+    الحصص المتتابعة المعتمدة، بينما الحاضر/المتأخر هما حالة الحصة الأحدث.
+    """
+    empty = {
+        "status": "NO_ACTIVE_PERIOD",
+        "total_students": 0,
+        "covered_students": 0,
+        "pending_students": 0,
+        "present_students": 0,
+        "absent_students": 0,
+        "late_students": 0,
+        "covered_sections": 0,
+        "pending_sections": 0,
+        "period_sequences": [],
+    }
+    if current_period_sequence is None:
+        return empty
+
+    from attendance.selectors.monitoring import expected_sections_queryset
+    from attendance.services.day_context import get_or_create_attendance_day_context
+    from attendance.services.sessions import _active_year
+    from students.models import EnrollmentStatus
+    from students.services.enrollments import enrollments_on_date
+
+    year = _active_year(school)
+    context = get_or_create_attendance_day_context(
+        school=school, attendance_date=attendance_date
+    )
+    all_periods = sorted(context.attendance_periods, key=lambda item: item["sequence"])
+    current_index = next(
+        (
+            index
+            for index, item in enumerate(all_periods)
+            if item["sequence"] == current_period_sequence
+        ),
+        None,
+    )
+    if current_index is None:
+        return empty
+    sequences = [item["sequence"] for item in all_periods[: current_index + 1]]
+    if not sequences:
+        return empty
+
+    sections = list(expected_sections_queryset(school=school, year=year))
+    section_ids = [section.id for section in sections]
+    enrollments = list(
+        enrollments_on_date(school=school, on_date=attendance_date)
+        .filter(
+            section_id__in=section_ids,
+            status=EnrollmentStatus.ACTIVE,
+            student__status="ACTIVE",
+        )
+        .values_list("student_id", "section_id")
+        .distinct()
+    )
+    students_by_section: dict[int, set[int]] = {}
+    for student_id, section_id in enrollments:
+        students_by_section.setdefault(section_id, set()).add(student_id)
+    total_students = len({student_id for student_id, _ in enrollments})
+
+    sessions = list(
+        AttendanceSession.objects.filter(
+            school=school,
+            attendance_date=attendance_date,
+            section_id__in=section_ids,
+            period_sequence__in=sequences,
+            status=AttendanceSessionStatus.SUBMITTED,
+        ).only("id", "section_id", "period_sequence")
+    )
+    submitted_by_section: dict[int, set[int]] = {}
+    session_id_by_section_period: dict[tuple[int, int], int] = {}
+    for session in sessions:
+        submitted_by_section.setdefault(session.section_id, set()).add(session.period_sequence)
+        session_id_by_section_period[(session.section_id, session.period_sequence)] = session.id
+
+    required_sequences = set(sequences)
+    covered_section_ids = {
+        section_id
+        for section_id, submitted_sequences in submitted_by_section.items()
+        if required_sequences <= submitted_sequences
+    }
+    covered_student_ids = {
+        student_id
+        for section_id in covered_section_ids
+        for student_id in students_by_section.get(section_id, set())
+    }
+    covered_session_ids = [
+        session_id_by_section_period[(section_id, sequence)]
+        for section_id in covered_section_ids
+        for sequence in sequences
+    ]
+    latest_session_ids = [
+        session_id_by_section_period[(section_id, current_period_sequence)]
+        for section_id in covered_section_ids
+    ]
+
+    absent_ids = {
+        row["student_id"]
+        for row in (
+            AttendanceMark.objects.filter(
+                session_id__in=covered_session_ids,
+                student_id__in=covered_student_ids,
+                status=AttendanceMarkStatus.ABSENT,
+            )
+            .values("student_id")
+            .annotate(periods=Count("session__period_sequence", distinct=True))
+        )
+        if row["periods"] == len(sequences)
+    }
+    late_ids = set(
+        AttendanceMark.objects.filter(
+            session_id__in=latest_session_ids,
+            student_id__in=covered_student_ids,
+            status=AttendanceMarkStatus.LATE,
+        ).values_list("student_id", flat=True)
+    )
+    # حالة الجلسة الأخيرة: الغائب المتتابع لا يمكن أن يكون متأخرًا فيها، لكن
+    # نستبعد التقاطع دفاعيًا إذا وجدت بيانات تالفة قديمة.
+    late_ids -= absent_ids
+    present_students = len(covered_student_ids - absent_ids - late_ids)
+    covered_students = len(covered_student_ids)
+    return {
+        "status": "AVAILABLE",
+        "total_students": total_students,
+        "covered_students": covered_students,
+        "pending_students": max(total_students - covered_students, 0),
+        "present_students": present_students,
+        "absent_students": len(absent_ids),
+        "late_students": len(late_ids),
+        "covered_sections": len(covered_section_ids),
+        "pending_sections": max(len(sections) - len(covered_section_ids), 0),
+        "period_sequences": sequences,
     }
 
 

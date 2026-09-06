@@ -31,7 +31,11 @@ export function StructureTab({ canWrite }: { canWrite: boolean }) {
   const gradeMutation = useMutation({
     mutationFn: () => createGrade({ ...grade, name: grade.name.trim(), code: grade.code.trim() }),
     onSuccess: async (created) => {
-      setGrade({ name: "", code: "", sequence: created.sequence + 1 });
+      setGrade((current) => ({
+        name: "",
+        code: "",
+        sequence: Number.isFinite(created.sequence) ? created.sequence + 1 : current.sequence + 1,
+      }));
       setSection((value) => ({ ...value, grade_id: String(created.id) }));
       await refresh();
     },

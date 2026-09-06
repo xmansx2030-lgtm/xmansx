@@ -165,7 +165,12 @@ def serialize_referral_detail(
         "closed_by_name": membership_name(referral.closed_by_membership),
         "closure_reason": referral.closure_reason,
         "contributions": [serialize_contribution(c) for c in referral.contributions.all()],
-        "events": [serialize_event(e) for e in referral.events.all()],
+        # ترتيب صريح يضمن أن يظهر الخط الزمني من الإنشاء إلى أحدث إجراء حتى
+        # عندما تتقارب أزمنة الأحداث أو يغيّر مخطط قاعدة البيانات ترتيب الصفوف.
+        "events": [
+            serialize_event(e)
+            for e in referral.events.order_by("created_at", "id")
+        ],
     }
 
 

@@ -1,6 +1,6 @@
 import {
   BarChart3, BellRing, BookOpenCheck, Building2, CreditCard, Fingerprint,
-  GraduationCap, HeartHandshake, LayoutDashboard, LogOut, Menu,
+  DoorOpen, GraduationCap, HeartHandshake, LayoutDashboard, LogOut, Menu,
   MessageSquareMore, QrCode, RefreshCw, Send, Settings, Sunrise,
   UsersRound, X, type LucideIcon,
 } from "lucide-react";
@@ -45,12 +45,13 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/attendance/monitoring", label: "متابعة التحضير", roles: MANAGER_VP, icon: BookOpenCheck, group: "operations" },
   { to: "/attendance/analytics", label: "الغياب والحضور", roles: MANAGER_VP, icon: BarChart3, group: "operations" },
   { to: "/morning", label: "الحضور الصباحي", roles: MANAGER_VP, icon: Sunrise, group: "operations" },
+  { to: "/student-leaves", label: "الاستئذانات", roles: MANAGER_VP, icon: DoorOpen, group: "operations" },
   { to: "/attendance/qr", label: "رموز QR", roles: ["SCHOOL_MANAGER"], icon: QrCode, group: "operations" },
   { to: "/devices", label: "أجهزة الحضور", roles: ["SCHOOL_MANAGER"], icon: Fingerprint, group: "operations" },
-  { to: "/devices/roster-sync", label: "مزامنة أجهزة الطلاب", roles: MANAGER_VP, icon: RefreshCw, group: "operations" },
+  { to: "/devices/roster-sync", label: "مزامنة أجهزة الطلاب", roles: ["SCHOOL_MANAGER"], icon: RefreshCw, group: "operations" },
   { to: "/staff", label: "الموظفون", roles: MANAGER_VP, icon: UsersRound, group: "management" },
   { to: "/subscription", label: "الاشتراك", roles: ["SCHOOL_MANAGER"], icon: CreditCard, group: "management" },
-  { to: "/settings", label: "الإعدادات", roles: MANAGER_VP_COUNSELOR, icon: Settings, group: "management" },
+  { to: "/settings", label: "الإعدادات", roles: ["SCHOOL_MANAGER"], icon: Settings, group: "management" },
 ];
 
 function Brand({ compact = false }: { compact?: boolean }) {

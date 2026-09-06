@@ -4,6 +4,7 @@
  */
 
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
@@ -58,6 +59,7 @@ const PROFILE_TABS = [
   "غياب الحصص",
   "تأخر الحصص",
   "الحضور الصباحي",
+  "الاستئذانات",
   "الأعذار",
   "الإنذارات",
   "الإجراءات",
@@ -79,10 +81,53 @@ describe("unified student profile (phase 12 + 13)", () => {
 
     renderApp("/students/5/attendance");
     await screen.findByRole("heading", { name: "محمد أحمد" });
+    const header = screen.getByTestId("student-profile-header");
+    expect(header).toHaveTextContent("محمد أحمد");
+    expect(header).toHaveTextContent("رقم الطالب: 1001");
+    expect(header).toHaveTextContent("الهوية: ******5678");
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
     for (const tab of PROFILE_TABS) {
       expect(labels).toContain(tab);
     }
+  });
+
+  it("shows the student's leave history inside the unified record", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/attendance-profile/": { body: PROFILE },
+      "/student-leaves/": {
+        body: {
+          count: 1,
+          next: null,
+          previous: null,
+          summary: { total: 1, active: 1, cancelled: 0 },
+          results: [{
+            id: 81,
+            student: { id: 5, full_name: "محمد أحمد", student_number: "1001", national_id_masked: "******5678" },
+            leave_date: "2026-09-06",
+            leave_time: "10:35",
+            weekday_label: "الأحد",
+            reason: "موعد طبي لدى المستشفى",
+            grade_name: "الأول الثانوي",
+            section_name: "2",
+            status: "ACTIVE",
+            status_label: "ساري",
+            recorded_by_name: "سعد الوكيل",
+            created_at: "2026-09-06T10:30:00+03:00",
+            cancelled_by_name: null,
+            cancelled_at: null,
+            cancellation_reason: "",
+          }],
+        },
+      },
+    });
+    renderApp("/students/5/attendance");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "الاستئذانات" }));
+    const tab = await screen.findByTestId("student-leaves-tab");
+    expect(tab).toHaveTextContent("موعد طبي لدى المستشفى");
+    expect(tab).toHaveTextContent("وقت الخروج 10:35");
+    expect(tab).toHaveTextContent("سعد الوكيل");
   });
 
   it("shows the counselor the read-only tabs without an admin link set", async () => {
@@ -113,7 +158,9 @@ describe("navigation after the merge", () => {
     renderApp("/");
     expect(await screen.findByRole("link", { name: "الإحالات" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "الإنذارات" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "الاستئذانات" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "إحالاتي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "مزامنة أجهزة الطلاب" })).not.toBeInTheDocument();
   });
 
   it("teacher sees only his own referrals, no official documents or admin pages", async () => {

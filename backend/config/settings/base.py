@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "excuses",
     "student_warnings",
     "student_actions",
+    "student_leaves",
     "documents",
     "referrals",
     "counseling",

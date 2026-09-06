@@ -421,21 +421,11 @@ describe("referrals (Phase 13)", () => {
     expect(row).toHaveTextContent("3"); // حاليًا
   });
 
-  it("denies a teacher the counselor inbox with an Arabic message", async () => {
-    mockApi({
-      "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/referrals/kpis/": {
-        status: 403,
-        body: { code: "PERMISSION_DENIED", message: "ليست لديك صلاحية.", details: {} },
-      },
-      "/referrals/": {
-        status: 403,
-        body: { code: "PERMISSION_DENIED", message: "ليست لديك صلاحية.", details: {} },
-      },
-    });
+  it("يعيد المعلم من صندوق إحالات الإدارة إلى مساحة عمله", async () => {
+    mockApi({ "/auth/me/": { body: roleMe(["TEACHER"]) } });
     renderApp("/referrals");
-    expect(
-      await screen.findByRole("heading", { name: "لا تملك صلاحية عرض الإحالات" }),
-    ).toBeInTheDocument();
+    await screen.findByTestId("active-school-name");
+    expect(screen.queryByRole("link", { name: "الإحالات" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("referrals-page")).not.toBeInTheDocument();
   });
 });

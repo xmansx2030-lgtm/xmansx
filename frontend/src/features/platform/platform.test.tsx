@@ -130,7 +130,7 @@ describe("platform and subscription UI", () => {
     renderApp("/subscription");
 
     expect(await screen.findByRole("heading", { name: "اشتراك المدرسة" })).toBeInTheDocument();
-    expect(screen.getByText(/READ_ONLY/)).toBeInTheDocument();
+    expect(screen.getAllByText("قراءة فقط").length).toBeGreaterThan(0);
     expect(screen.getAllByText("تجاوز الحد")).toHaveLength(2);
     expect(screen.getByText("قريب من الحد")).toBeInTheDocument();
   });
@@ -164,7 +164,7 @@ describe("platform and subscription UI", () => {
 
     renderApp("/subscription");
 
-    expect(await screen.findByText(/BLOCKED/)).toBeInTheDocument();
+    expect((await screen.findAllByText("الوصول موقوف")).length).toBeGreaterThan(0);
     expect(screen.getByText(/البيانات محفوظة/)).toBeInTheDocument();
   });
 

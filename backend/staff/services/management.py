@@ -12,6 +12,7 @@
 
 from django.db import transaction
 
+from accounts.models import User
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
@@ -21,6 +22,7 @@ from memberships.models import (
     SchoolMembershipRole,
     SchoolRole,
 )
+from staff.services.credentials import initial_password_from_mobile
 
 MANAGEABLE_ROLES = {r.value for r in SchoolRole}
 
@@ -133,6 +135,56 @@ def reinvite(*, membership: SchoolMembership, actor, request=None) -> None:
         target_type="SchoolMembership", target_id=membership.id,
         metadata={"reinvite": True},
     )
+
+
+@transaction.atomic
+def reset_teacher_password(*, membership: SchoolMembership, actor, request=None) -> str:
+    """يعيد كلمة المعلم إلى جواله المحلي ويفرض عليه استبدالها عند دخوله التالي."""
+    if SchoolRole.TEACHER not in membership.role_codes():
+        raise ApiError(
+            "TEACHER_ROLE_REQUIRED",
+            "إعادة ضبط كلمة المرور متاحة للمعلمين فقط.",
+            409,
+        )
+    if membership.status != MembershipStatus.ACTIVE:
+        raise ApiError(
+            "ACTIVE_TEACHER_REQUIRED",
+            "أعد تفعيل المعلم أولًا قبل إعادة ضبط كلمة مروره.",
+            409,
+        )
+    if membership.user_id == actor.id:
+        raise ApiError(
+            "SELF_PASSWORD_RESET_NOT_ALLOWED",
+            "لا يمكنك إعادة ضبط كلمة مرور حسابك من إدارة الموظفين.",
+            409,
+        )
+    user = User.objects.select_for_update().get(id=membership.user_id)
+    has_other_school = (
+        SchoolMembership.objects.filter(user_id=membership.user_id)
+        .exclude(school_id=membership.school_id)
+        .exclude(status__in=[MembershipStatus.LEFT, MembershipStatus.DECLINED])
+        .exists()
+    )
+    if has_other_school:
+        raise ApiError(
+            "SHARED_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
+            "هذا الحساب مرتبط بمدرسة أخرى؛ يجب أن يغيّر المستخدم كلمة مروره بنفسه.",
+            409,
+        )
+
+    temporary_password = initial_password_from_mobile(user.mobile)
+    user.set_password(temporary_password)
+    user.must_change_password = True
+    user.save(update_fields=["password", "must_change_password", "updated_at"])
+    record_event(
+        AuditAction.STAFF_PASSWORD_RESET,
+        request=request,
+        actor=actor,
+        school=membership.school,
+        target_type="SchoolMembership",
+        target_id=membership.id,
+    )
+    return temporary_password
 
 
 @transaction.atomic

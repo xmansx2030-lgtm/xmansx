@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { useActiveSchoolId } from "@/features/settings/hooks";
@@ -132,19 +134,30 @@ export function InactiveStudentsPage() {
     jobData && ["COMPLETED", "PARTIALLY_FAILED", "FAILED"].includes(jobData.status);
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">
-          {filter === "missing"
-            ? "مراجعة الطلاب غير الموجودين في آخر ملف نور"
-            : "الطلاب غير النشطين"}
-        </h2>
-        <Link to="/students" className="text-sm text-blue-700 underline">
-          الطلاب النشطون
-        </Link>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Archive}
+        eyebrow="السجل الأكاديمي"
+        title={filter === "missing" ? "مراجعة الطلاب غير الموجودين في آخر ملف نور" : "الطلاب غير النشطين"}
+        description={isManager
+          ? "راجع حالات الخريجين والمنقولين والمنسحبين، واتخذ الإجراءات الجماعية بعد التحقق."
+          : "اطّلع على حالات الطلاب خارج القيد النشط وسجل انتقالهم أو تخرجهم دون تعديل البيانات."}
+        tone="operational"
+        badge={isManager ? "إدارة السجل" : "عرض فقط"}
+        meta={<span>{students.data ? `${students.data.count} سجلًا` : "جارٍ تحميل السجلات"}</span>}
+        actions={(
+          <Link
+            to="/students"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ArrowRight aria-hidden size={17} />
+            الطلاب النشطون
+          </Link>
+        )}
+        testId="inactive-students-header"
+      />
 
-      <div className="mb-3">
+      <div>
         <label htmlFor="inactive-search" className="me-2 text-sm font-medium text-slate-700">
           بحث بالاسم
         </label>
@@ -160,7 +173,7 @@ export function InactiveStudentsPage() {
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="فلاتر الحالة">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="فلاتر الحالة">
         {FILTERS.map((f) => (
           <button
             key={f.key}

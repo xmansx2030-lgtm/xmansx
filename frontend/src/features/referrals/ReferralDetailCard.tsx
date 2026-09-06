@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/Button";
@@ -46,6 +46,7 @@ export function ReferralDetailCard({
   const [notes, setNotes] = useState("");
   const [counselorId, setCounselorId] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const roles = me.data?.roles ?? [];
   const canManage = roles.some(
@@ -114,6 +115,16 @@ export function ReferralDetailCard({
     },
     onError: fail,
   });
+  const detailId = detail.data?.id;
+
+  // البطاقة تقع بعد الجدول في أكثر من شاشة. بدون نقل التركيز إليها تبدو نقرة
+  // «التفاصيل» وكأنها لم تستجب، خصوصًا مع قوائم الإحالات الطويلة.
+  // يبقى الـ Hook قبل حالات التحميل كي لا يتغير ترتيبه بين render وآخر.
+  useEffect(() => {
+    if (!detailId) return;
+    detailRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    detailRef.current?.focus({ preventScroll: true });
+  }, [detailId]);
 
   if (detail.isPending) return <Spinner />;
   if (detail.isError) return <ErrorState error={detail.error} />;
@@ -124,6 +135,9 @@ export function ReferralDetailCard({
 
   return (
     <div
+      ref={detailRef}
+      id="referral-details"
+      tabIndex={-1}
       className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="referral-detail"
     >

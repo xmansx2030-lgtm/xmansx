@@ -122,7 +122,7 @@ export function MonitoringPage() {
         tone="executive"
         badge={data.period?.name ?? "خارج وقت الحصص"}
         meta={data.period ? <span data-testid="monitoring-period"><Clock3 aria-hidden size={14} className="inline" /> {data.period.name} · <span dir="ltr">{data.period.start_time} – {data.period.end_time}</span>{data.alert && <> · التنبيه <span dir="ltr">{data.alert.alert_at}</span> ({data.alert.minutes} دقيقة)</>}</span> : <span data-testid="monitoring-no-period">لا توجد حصة دراسية نشطة حاليًا — لا تنبيهات خارج الحصص.</span>}
-        actions={<div className="flex flex-wrap items-center gap-2">{lastUpdated && <span className="text-xs text-slate-300" data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}<Button onClick={() => void query.refetch()} disabled={query.isFetching} data-testid="manual-refresh" className="bg-white text-slate-950 hover:bg-slate-50"><RefreshCw aria-hidden size={17} className={query.isFetching ? "animate-spin" : ""} /> تحديث</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2">{lastUpdated && <span className="text-xs text-slate-300" data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}<Button variant="header" onClick={() => void query.refetch()} disabled={query.isFetching} data-testid="manual-refresh"><RefreshCw aria-hidden size={17} className={query.isFetching ? "animate-spin" : ""} /> تحديث</Button></div>}
       />
 
       {data.period && (

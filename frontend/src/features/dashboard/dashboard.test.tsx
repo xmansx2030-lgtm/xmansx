@@ -37,6 +37,18 @@ const OVERVIEW = {
     summary: { total: 12, submitted: 9, in_progress: 1, not_started: 2, overdue_total: 2 },
     submission_completion_pct: 75,
     has_active_period: true,
+    live_attendance: {
+      status: "AVAILABLE",
+      total_students: 320,
+      covered_students: 280,
+      pending_students: 40,
+      present_students: 250,
+      absent_students: 18,
+      late_students: 12,
+      covered_sections: 10,
+      pending_sections: 2,
+      period_sequences: [1, 2, 3],
+    },
   },
   attendance: {
     unit: "STUDENT_DAYS",
@@ -364,6 +376,40 @@ describe("لوحة إدارة المدرسة", () => {
       "href",
       "/attendance/monitoring",
     );
+  });
+
+  it("تعرض نبض المدرسة الحي بتغطية واضحة بدل دمج الطلاب غير المحضّرين", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const card = await screen.findByTestId("live-school-attendance");
+    expect(card).toHaveTextContent("من الحصة 1 إلى 3");
+    expect(screen.getByTestId("live-attendance-slate")).toHaveTextContent("320");
+    expect(screen.getByTestId("live-attendance-green")).toHaveTextContent("250");
+    expect(screen.getByTestId("live-attendance-red")).toHaveTextContent("18");
+    expect(screen.getByTestId("live-attendance-amber")).toHaveTextContent("12");
+    expect(screen.getByTestId("live-attendance-coverage")).toHaveTextContent("بانتظار تحضير 2 فصل");
+    expect(card).toHaveTextContent("40 طالبًا بانتظار اعتماد تحضير فصلهم");
+  });
+
+  it("تعطي المدير مساحة إشراف، والوكيل محطة تشغيل مختلفة", async () => {
+    mockDashboard();
+    const managerView = renderApp("/dashboard");
+    const managerWorkspace = await screen.findByTestId("role-workspace");
+    expect(managerWorkspace).toHaveAttribute("data-role", "SCHOOL_MANAGER");
+    expect(managerWorkspace).toHaveTextContent("مساحة المدير");
+    expect(within(managerWorkspace).getByRole("link", { name: "إدارة فريق المدرسة" })).toHaveAttribute("href", "/staff");
+    managerView.unmount();
+
+    queryClient.clear();
+    mockDashboard({ "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) } });
+    renderApp("/dashboard");
+    await screen.findByTestId("today-card");
+    const vicePrincipalWorkspace = await screen.findByTestId("role-workspace");
+    expect(vicePrincipalWorkspace).toHaveAttribute("data-role", "VICE_PRINCIPAL");
+    expect(vicePrincipalWorkspace).toHaveTextContent("محطة عمل الوكيل");
+    expect(within(vicePrincipalWorkspace).getByRole("link", { name: /معالجة التحضير المتأخر/ })).toHaveAttribute("href", "/attendance/monitoring");
+    expect(within(vicePrincipalWorkspace).getByRole("link", { name: "مراجعة الأعذار" })).toHaveAttribute("href", "/excuses");
   });
 
   it("ترسم الاتجاه بنقطة لكل يوم مع جدول مكافئ", async () => {

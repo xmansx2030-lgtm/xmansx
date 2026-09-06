@@ -73,6 +73,7 @@ export function StudentReferralsTab({
         <ReferralsTable
           rows={list.data?.results ?? []}
           onSelect={(id) => setSelected(selected === id ? null : id)}
+          selectedId={selected}
           emptyText="لا توجد إحالات لهذا الطالب."
           testId="student-referrals-rows"
         />

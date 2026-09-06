@@ -168,17 +168,15 @@ describe("warning rules settings (Phase 11)", () => {
     });
   });
 
-  it("vice principal sees rules read-only", async () => {
+  it("vice principal cannot open warning rules through school settings", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
-      "/warning-rules/": { body: RULES },
     });
 
     renderApp("/settings");
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole("tab", { name: "الإنذارات" }));
-    expect(await screen.findByTestId("threshold-UNEXCUSED_FULL_DAY_ABSENCE-LEVEL_1")).toBeDisabled();
-    expect(screen.queryByTestId("save-warning-rules")).not.toBeInTheDocument();
+    await screen.findByTestId("dashboard-page");
+    expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
   });
 });
 

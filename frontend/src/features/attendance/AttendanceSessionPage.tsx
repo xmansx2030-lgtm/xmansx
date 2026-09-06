@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, ClipboardCheck, Search, UserRoundPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type {
   AttendanceSessionData,
@@ -83,6 +85,8 @@ export function AttendanceSessionPage() {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<unknown>(null);
   const [rosterNotice, setRosterNotice] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [exceptionsOnly, setExceptionsOnly] = useState(false);
   // م13 — تحويل طالب من قائمة الفصل إلى المرشد
   const [referralTarget, setReferralTarget] = useState<{
     id: number;
@@ -109,6 +113,17 @@ export function AttendanceSessionPage() {
     }
     return { absent, late, present: roster.length - absent - late };
   }, [roster, marks]);
+  const displayedRoster = useMemo(() => {
+    const term = rosterSearch.trim().toLocaleLowerCase("ar");
+    return roster.filter((student) => {
+      const status = marks[student.student_id]?.status ?? "PRESENT";
+      const matchesSearch =
+        term.length === 0 ||
+        student.full_name.toLocaleLowerCase("ar").includes(term) ||
+        student.national_id_masked.includes(term);
+      return matchesSearch && (!exceptionsOnly || status !== "PRESENT");
+    });
+  }, [exceptionsOnly, marks, roster, rosterSearch]);
 
   if (startQuery.isPending || me.isPending) {
     return <Spinner label="جارٍ فتح جلسة التحضير..." />;
@@ -184,36 +199,34 @@ export function AttendanceSessionPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800" data-testid="session-section-name">
-              {session.section.name} — {session.section.grade_name}
-            </h2>
-            <p className="text-sm text-slate-500">
-              {session.period.name} ·{" "}
-              <span dir="ltr">
-                {session.period.start_time} – {session.period.end_time}
-              </span>{" "}
-              · {session.attendance_date}
-            </p>
-          </div>
-          <div className="flex gap-2 text-sm" data-testid="live-summary">
-            <span className="rounded-full bg-green-100 px-3 py-1 text-green-800">
-              حاضر {summary.present}
-            </span>
-            <span className="rounded-full bg-red-100 px-3 py-1 text-red-800">
-              غائب {summary.absent}
-            </span>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-800">
-              متأخر {summary.late}
-            </span>
-          </div>
+      <PageHeader
+        icon={ClipboardCheck}
+        eyebrow="جلسة التحضير"
+        title={<span data-testid="session-section-name">{session.section.name} — {session.section.grade_name}</span>}
+        description="سجّل الاستثناءات فقط؛ جميع الطلاب حاضرون افتراضيًا حتى تختار غائبًا أو متأخرًا."
+        tone="teacher"
+        badge={session.status === "SUBMITTED" && !editing ? "تم الاعتماد" : editing ? "تعديل معتمد" : "قيد التحضير"}
+        meta={<><span>{session.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{session.period.start_time} – {session.period.end_time}</span><span className="text-white/30">•</span><span>{session.attendance_date}</span></>}
+        actions={(
+          <Link
+            to={me.data?.roles.includes("TEACHER") ? "/" : "/attendance/monitoring"}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ArrowRight aria-hidden size={17} />
+            العودة للمتابعة
+          </Link>
+        )}
+      >
+        <div className="flex flex-wrap gap-2 text-sm" data-testid="live-summary">
+          <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-100 ring-1 ring-emerald-300/20">حاضر {summary.present}</span>
+          <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">غائب {summary.absent}</span>
+          <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">متأخر {summary.late}</span>
         </div>
+      </PageHeader>
 
-        {session.status === "SUBMITTED" && !editing && (
+      {session.status === "SUBMITTED" && !editing && (
           <div
-            className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"
+            className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"
             data-testid="submitted-banner"
           >
             تم إرسال التحضير بواسطة {session.submitted_by ?? "—"}
@@ -231,7 +244,6 @@ export function AttendanceSessionPage() {
             )}
           </div>
         )}
-      </section>
 
       {rosterNotice && (
         <p
@@ -270,15 +282,61 @@ export function AttendanceSessionPage() {
         </p>
       )}
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-l from-slate-50 to-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-slate-900">قائمة الطلاب</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                يظهر {displayedRoster.length} من أصل {roster.length} طالبًا
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-pressed={exceptionsOnly}
+              data-testid="exceptions-only"
+              onClick={() => setExceptionsOnly((value) => !value)}
+              className={`min-h-10 rounded-xl px-3 text-sm font-bold transition ${
+                exceptionsOnly
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+              }`}
+            >
+              الاستثناءات فقط ({summary.absent + summary.late})
+            </button>
+          </div>
+          <label className="relative mt-4 block">
+            <span className="sr-only">البحث في قائمة الطلاب</span>
+            <Search
+              aria-hidden
+              size={18}
+              className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={rosterSearch}
+              onChange={(event) => setRosterSearch(event.target.value)}
+              placeholder="ابحث باسم الطالب أو رقم الهوية المخفي"
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pe-10 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10"
+              data-testid="roster-search"
+            />
+          </label>
+        </div>
+
         <ul className="divide-y divide-slate-100" data-testid="roster-list">
-          {roster.map((student) => {
+          {displayedRoster.map((student) => {
             const mark = marks[student.student_id];
             const status = mark?.status ?? "PRESENT";
             return (
               <li
                 key={student.student_id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
+                className={`flex flex-wrap items-center justify-between gap-3 p-4 transition-colors sm:p-5 ${
+                  status === "ABSENT"
+                    ? "bg-red-50/50"
+                    : status === "LATE"
+                      ? "bg-amber-50/60"
+                      : "hover:bg-slate-50/70"
+                }`}
                 data-testid={`roster-student-${student.student_id}`}
               >
                 <div>
@@ -289,7 +347,7 @@ export function AttendanceSessionPage() {
                   {/* م13: التحويل للمرشد من مكان ملاحظة المعلم للطالب فعليًا */}
                   <button
                     type="button"
-                    className="mt-1 text-xs text-blue-700 underline"
+                    className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     onClick={() =>
                       setReferralTarget({
                         id: student.student_id,
@@ -298,18 +356,19 @@ export function AttendanceSessionPage() {
                     }
                     data-testid={`refer-student-${student.student_id}`}
                   >
+                    <UserRoundPlus aria-hidden size={14} />
                     تحويل للمرشد
                   </button>
                 </div>
                 {marking ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {(["PRESENT", "ABSENT", "LATE"] as const).map((option) => (
                       <button
                         key={option}
                         type="button"
                         onClick={() => setStatus(student.student_id, option)}
                         aria-pressed={status === option}
-                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-bold transition-all ${
                           status === option
                             ? option === "PRESENT"
                               ? "bg-green-600 text-white"
@@ -353,10 +412,28 @@ export function AttendanceSessionPage() {
             );
           })}
         </ul>
+        {displayedRoster.length === 0 && (
+          <div className="px-5 py-10 text-center" data-testid="no-roster-results">
+            <p className="font-bold text-slate-700">لا يوجد طالب مطابق</p>
+            <p className="mt-1 text-sm text-slate-500">
+              غيّر البحث أو اعرض جميع الطلاب للمتابعة.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setRosterSearch("");
+                setExceptionsOnly(false);
+              }}
+              className="mt-3 text-sm font-bold text-blue-700 hover:text-blue-800"
+            >
+              عرض جميع الطلاب
+            </button>
+          </div>
+        )}
       </section>
 
       {marking && (
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-900/5 sm:p-5">
           {editing && (
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">سبب التعديل (اختياري)</span>
@@ -371,26 +448,31 @@ export function AttendanceSessionPage() {
             </label>
           )}
           {actionError != null && <ErrorState error={actionError} />}
-          <div className="flex gap-2">
-            <Button
-              onClick={() => void handleSubmit()}
-              disabled={pending}
-              data-testid="submit-attendance"
-            >
-              {pending ? "جارٍ الإرسال..." : editing ? "حفظ التعديل" : "إرسال التحضير"}
-            </Button>
-            {editing && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-500">
+              سيُرسل {summary.absent + summary.late} استثناء، والبقية حاضرون تلقائيًا.
+            </p>
+            <div className="flex gap-2">
               <Button
-                variant="secondary"
-                onClick={() => {
-                  setEditing(false);
-                  setMarks(marksFromSession(session));
-                  setActionError(null);
-                }}
+                onClick={() => void handleSubmit()}
+                disabled={pending}
+                data-testid="submit-attendance"
               >
-                إلغاء
+                {pending ? "جارٍ الإرسال..." : editing ? "حفظ التعديل" : "إرسال التحضير"}
               </Button>
-            )}
+              {editing && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setEditing(false);
+                    setMarks(marksFromSession(session));
+                    setActionError(null);
+                  }}
+                >
+                  إلغاء
+                </Button>
+              )}
+            </div>
           </div>
         </section>
       )}

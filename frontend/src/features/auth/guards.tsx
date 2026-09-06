@@ -3,6 +3,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useMe } from "@/features/auth/useMe";
+import type { SchoolRole } from "@/types/auth";
 
 function FullPageSpinner() {
   return (
@@ -64,4 +65,26 @@ export function RequirePlatformAdmin() {
     return <Navigate to="/" replace />;
   }
   return <Outlet />;
+}
+
+function roleWorkspace(roles: SchoolRole[]) {
+  if (roles.includes("SCHOOL_MANAGER") || roles.includes("VICE_PRINCIPAL")) {
+    return "/dashboard";
+  }
+  if (roles.includes("COUNSELOR")) return "/counselor";
+  return "/";
+}
+
+/**
+ * يمنع المسارات المباشرة من عرض قالب لا يخص دور المستخدم ثم إغراقه بأخطاء 403.
+ * الخادم يبقى مصدر الإنفاذ؛ هذه الطبقة تختار محطة العمل المفيدة للمستخدم فقط.
+ */
+export function RequireSchoolRoles({ allowedRoles }: { allowedRoles: SchoolRole[] }) {
+  const me = useMe();
+
+  if (me.isPending) return <FullPageSpinner />;
+  if (me.isError) return <Navigate to="/login" replace />;
+  if (me.data.roles.some((role) => allowedRoles.includes(role))) return <Outlet />;
+
+  return <Navigate to={roleWorkspace(me.data.roles)} replace />;
 }

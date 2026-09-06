@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   FilterX,
   Hash,
+  KeyRound,
   Phone,
   Plus,
   Search,
@@ -38,6 +39,7 @@ import {
   getStaff,
   MEMBERSHIP_STATUS_LABELS,
   reinviteStaff,
+  resetStaffPassword,
   removeStaffRole,
   suspendStaff,
   updateCounselorSections,
@@ -231,7 +233,7 @@ export function StaffPage() {
   );
 }
 
-type ConfirmAction = "suspend" | "delete" | null;
+type ConfirmAction = "suspend" | "delete" | "reset-password" | null;
 
 function StaffRow({ member, isManager, onError }: { member: StaffMember; isManager: boolean; onError: (message: string | null) => void }) {
   const invalidate = useInvalidateSchoolData();
@@ -239,6 +241,7 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [confirmationName, setConfirmationName] = useState("");
   const [rowError, setRowError] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (action: () => Promise<StaffMember | void>) => action(),
@@ -258,6 +261,21 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
 
   const initials = member.display_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
   const isActive = member.membership_status === "ACTIVE";
+
+  const resetPassword = useMutation({
+    mutationFn: () => resetStaffPassword(member.id),
+    onSuccess: (result) => {
+      setTemporaryPassword(result.temporary_password);
+      setConfirmAction(null);
+      setRowError(null);
+      onError(null);
+    },
+    onError: (error) => {
+      const message = error instanceof ApiError ? error.message : "تعذر إعادة ضبط كلمة المرور.";
+      setRowError(message);
+      onError(message);
+    },
+  });
 
   function closeConfirmation() {
     if (mutation.isPending) return;
@@ -359,6 +377,11 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
                   <CheckCircle2 aria-hidden size={16} /> إعادة إرسال الدعوة
                 </Button>
               )}
+              {isActive && member.roles.includes("TEACHER") && (
+                <Button variant="secondary" className="w-full justify-start border-blue-200 text-blue-800 hover:bg-blue-50" disabled={mutation.isPending || resetPassword.isPending || member.is_current_user} onClick={() => { setTemporaryPassword(null); setConfirmAction("reset-password"); }}>
+                  <KeyRound aria-hidden size={16} /> إعادة ضبط كلمة المرور
+                </Button>
+              )}
               <Button variant="secondary" className="w-full justify-start border-red-200 text-red-700 hover:bg-red-50" disabled={mutation.isPending || member.is_current_user} onClick={() => setConfirmAction("delete")}>
                 <Trash2 aria-hidden size={16} /> حذف نهائي
               </Button>
@@ -368,7 +391,31 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
             <CounselorSectionsEditor member={member} onError={setRowError} />
           )}
           {rowError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700 lg:col-span-2">{rowError}</p>}
+          {temporaryPassword && (
+            <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 lg:col-span-2">
+              <p className="font-black">تمت إعادة ضبط كلمة المرور بنجاح.</p>
+              <p className="mt-1">كلمة المرور المؤقتة هي رقم جوال المعلم:</p>
+              <code dir="ltr" className="mt-2 inline-block rounded-lg bg-white px-3 py-2 font-mono text-base font-black ring-1 ring-emerald-200">{temporaryPassword}</code>
+              <p className="mt-2 text-xs">سيُطلب من المعلم تغييرها فور تسجيل الدخول، وتظهر هنا مرة واحدة فقط.</p>
+            </div>
+          )}
         </div>
+      )}
+
+      {confirmAction === "reset-password" && (
+        <Modal title={`إعادة ضبط كلمة مرور ${member.display_name}`} description="سيُلغى عمل كلمة المرور الحالية فورًا." onClose={closeConfirmation}>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+            <p className="font-black">ستصبح كلمة المرور المؤقتة هي رقم جوال المعلم.</p>
+            <p className="mt-1">عند دخوله بها سيُلزم باختيار كلمة مرور جديدة قبل استخدام النظام.</p>
+          </div>
+          {rowError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{rowError}</p>}
+          <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <Button variant="secondary" onClick={closeConfirmation} disabled={resetPassword.isPending}>إلغاء</Button>
+            <Button onClick={() => resetPassword.mutate()} disabled={resetPassword.isPending}>
+              <KeyRound aria-hidden size={16} /> {resetPassword.isPending ? "جارٍ إعادة الضبط..." : "تأكيد إعادة الضبط"}
+            </Button>
+          </div>
+        </Modal>
       )}
 
       {confirmAction === "suspend" && (

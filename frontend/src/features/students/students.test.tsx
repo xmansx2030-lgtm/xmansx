@@ -88,13 +88,12 @@ describe("StudentsPage", () => {
     expect(await screen.findByText("تمت إضافة الطالب سالم اليدوي بنجاح.")).toBeInTheDocument();
   });
 
-  it("teacher is denied the students directory and has no nav link", async () => {
+  it("يعيد المعلم من رابط الطلاب إلى مساحة عمله ولا يعرض رابط الدليل", async () => {
     mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/students");
-    expect(
-      await screen.findByText("لا تملك صلاحية عرض قائمة الطلاب"),
-    ).toBeInTheDocument();
+    await screen.findByTestId("active-school-name");
     expect(screen.queryByRole("link", { name: "الطلاب" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("students-page")).not.toBeInTheDocument();
   });
 });
 

@@ -97,6 +97,28 @@ describe("StaffPage", () => {
     await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/suspend/") && call.init?.method === "POST")).toBe(true));
   });
 
+  it("manager resets a teacher password to the mobile and sees the forced-change notice", async () => {
+    const api = mockApi({
+      "/staff/1/reset-password/": {
+        body: { temporary_password: "0550000001", must_change_password: true },
+      },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    await user.click(screen.getByRole("button", { name: "إعادة ضبط كلمة المرور" }));
+    const dialog = screen.getByRole("dialog", { name: /إعادة ضبط كلمة مرور أحمد الغامدي/ });
+    expect(within(dialog).getByText(/ستصبح كلمة المرور المؤقتة هي رقم جوال المعلم/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "تأكيد إعادة الضبط" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/reset-password/") && call.init?.method === "POST")).toBe(true));
+    expect(await screen.findByText("0550000001")).toBeInTheDocument();
+    expect(screen.getByText(/سيُطلب من المعلم تغييرها فور تسجيل الدخول/)).toBeInTheDocument();
+  });
+
   it("requires typing the employee name before permanent deletion", async () => {
     const api = mockApi({
       "/staff/1/": { body: {} },
@@ -116,13 +138,12 @@ describe("StaffPage", () => {
     await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/") && call.init?.method === "DELETE")).toBe(true));
   });
 
-  it("teacher denied staff directory and nav hidden", async () => {
+  it("يعيد المعلم من رابط الموظفين إلى مساحة عمله ولا يعرض رابط الدليل", async () => {
     mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/staff");
-    expect(
-      await screen.findByText("لا تملك صلاحية عرض دليل الموظفين"),
-    ).toBeInTheDocument();
+    await screen.findByTestId("active-school-name");
     expect(screen.queryByRole("link", { name: "الموظفون" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("staff-page")).not.toBeInTheDocument();
   });
 });
 

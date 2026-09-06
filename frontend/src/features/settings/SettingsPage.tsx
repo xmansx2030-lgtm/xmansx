@@ -4,7 +4,6 @@ import {
   CalendarRange,
   CheckCircle2,
   Clock3,
-  Eye,
   LayoutGrid,
   School,
   Settings2,
@@ -51,22 +50,19 @@ export function SettingsPage() {
   const tab: TabKey = isTabKey(requestedTab) ? requestedTab : "info";
 
   const roles = me.data?.roles ?? [];
-  const canRead = roles.some((role) =>
-    ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"].includes(role),
-  );
-  const canWrite = roles.includes("SCHOOL_MANAGER");
+  const canManage = roles.includes("SCHOOL_MANAGER");
   const activeTab = TABS.find((item) => item.key === tab) ?? TABS[0];
 
   const selectTab = (key: TabKey) => {
     setSearchParams(key === "info" ? {} : { section: key }, { replace: true });
   };
 
-  if (me.isSuccess && !canRead) {
+  if (me.isSuccess && !canManage) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <span className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-500"><ShieldCheck aria-hidden size={23} /></span>
         <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض الإعدادات</h2>
-        <p className="text-slate-600">إعدادات المدرسة متاحة لفريق الإدارة فقط.</p>
+        <p className="text-slate-600">إعدادات المدرسة متاحة لمدير المدرسة فقط.</p>
       </section>
     );
   }
@@ -85,19 +81,12 @@ export function SettingsPage() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">اضبط بيانات المدرسة والتقويم والحصص وسياسات المتابعة من مكان واحد.</p>
             </div>
           </div>
-          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ring-1 ${canWrite ? "bg-emerald-400/10 text-emerald-200 ring-emerald-300/20" : "bg-white/8 text-slate-200 ring-white/10"}`}>
-            {canWrite ? <ShieldCheck aria-hidden size={15} /> : <Eye aria-hidden size={15} />}
-            {canWrite ? "يمكنك التعديل والحفظ" : "وضع العرض فقط"}
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200 ring-1 ring-emerald-300/20">
+            <ShieldCheck aria-hidden size={15} />
+            يمكنك التعديل والحفظ
           </span>
         </div>
       </header>
-
-      {!canWrite && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
-          <Eye aria-hidden size={19} className="mt-0.5 shrink-0" />
-          <div><strong className="block">أنت في وضع العرض</strong><span className="mt-1 block text-amber-800">يمكنك مراجعة الإعدادات، ويقتصر تعديلها على مدير المدرسة.</span></div>
-        </div>
-      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="lg:sticky lg:top-24">
@@ -144,12 +133,12 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {tab === "info" && <SchoolInfoTab canWrite={canWrite} />}
-          {tab === "calendar" && <CalendarTab canWrite={canWrite} />}
-          {tab === "structure" && <StructureTab canWrite={canWrite} />}
-          {tab === "week-days" && <WeekDaysTab canWrite={canWrite} />}
-          {tab === "bell-schedules" && <BellSchedulesTab canWrite={canWrite} />}
-          {tab === "attendance" && <AttendanceSettingsTab canWrite={canWrite} />}
+          {tab === "info" && <SchoolInfoTab canWrite={canManage} />}
+          {tab === "calendar" && <CalendarTab canWrite={canManage} />}
+          {tab === "structure" && <StructureTab canWrite={canManage} />}
+          {tab === "week-days" && <WeekDaysTab canWrite={canManage} />}
+          {tab === "bell-schedules" && <BellSchedulesTab canWrite={canManage} />}
+          {tab === "attendance" && <AttendanceSettingsTab canWrite={canManage} />}
           {tab === "warnings" && <WarningRulesTab />}
         </section>
       </div>

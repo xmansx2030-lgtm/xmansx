@@ -9,6 +9,9 @@
 > ([STUDENT_ACTIONS.md](STUDENT_ACTIONS.md) و[GENERATED_DOCUMENTS.md](GENERATED_DOCUMENTS.md)).
 > المرشد يقرأ التبويبين ولا ينشئ ولا ينزّل ملفات.
 
+> أضيف تبويب **الاستئذانات** للمدير والوكيل، ويعرض سبب الاستئذان وتاريخه واليوم
+> ووقت خروج الطالب والموظف الذي سجله، مع بقاء السجل الملغى وسبب إلغائه.
+
 ## Scope
 
 Phase 9 is a read-heavy profile built only on the Phase 8 records: `Student`, `StudentEnrollment`, `Grade`, `Section`, `AttendanceDayContext`, `AttendanceSession`, `AttendanceMark`, `AttendanceChange`, and `DailyAttendanceSummary`. It adds no model and no migration.
@@ -35,6 +38,7 @@ The profile is tenant-scoped by `request.school`. A student purged from the data
 - `GET /api/v1/students/{id}/attendance-period-absences/`
 - `GET /api/v1/students/{id}/attendance-period-lates/`
 - `GET /api/v1/students/{id}/attendance-changes/`
+- `GET /api/v1/student-leaves/?student={id}`
 
 `from_date` and `to_date` are ISO dates. Missing dates use the active academic year. A request is limited to 366 days and invalid ranges return `INVALID_ATTENDANCE_DATE_RANGE` or `ATTENDANCE_PROFILE_RANGE_TOO_LARGE`. Detail endpoints use 25, 50, or 100 item pages.
 

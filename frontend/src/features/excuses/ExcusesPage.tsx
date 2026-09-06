@@ -80,7 +80,7 @@ export function ExcusesPage() {
         description="استقبال أعذار الطلاب ومراجعتها واعتماد أثرها على سجل المواظبة من مساحة واضحة وقابلة للتتبع."
         tone="operational"
         badge={canManage ? "صلاحية الاعتماد" : "عرض السجل"}
-        actions={canManage ? <Button onClick={() => setCreating((value) => !value)} data-testid="new-excuse" className="bg-white text-slate-950 hover:bg-slate-50"><Plus aria-hidden size={18} />{creating ? "إغلاق النموذج" : "إضافة عذر"}</Button> : undefined}
+        actions={canManage ? <Button variant="header" onClick={() => setCreating((value) => !value)} data-testid="new-excuse"><Plus aria-hidden size={18} />{creating ? "إغلاق النموذج" : "إضافة عذر"}</Button> : undefined}
       />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="excuse-kpis">

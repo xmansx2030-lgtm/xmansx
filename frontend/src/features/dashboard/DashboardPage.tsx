@@ -8,9 +8,11 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  DoorOpen,
   FileCheck2,
   Filter,
   GraduationCap,
+  Settings,
   RefreshCw,
   Send,
   ShieldAlert,
@@ -220,9 +222,15 @@ export function DashboardPage() {
         <nav aria-label="إجراءات سريعة" className="relative mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
           <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
           <QuickLink to="/excuses" icon={FileCheck2}>الأعذار</QuickLink>
+          <QuickLink to="/student-leaves" icon={DoorOpen}>استئذان طالب</QuickLink>
           <QuickLink to="/warnings" icon={BellRing}>الإنذارات</QuickLink>
           <QuickLink to="/referrals" icon={Send}>الإحالات</QuickLink>
-          {canManageCalendar && <QuickLink to="/staff" icon={UsersRound}>الموظفون</QuickLink>}
+          {canManageCalendar ? (
+            <>
+              <QuickLink to="/staff" icon={UsersRound}>فريق المدرسة</QuickLink>
+              <QuickLink to="/settings" icon={Settings}>إعدادات المدرسة</QuickLink>
+            </>
+          ) : null}
         </nav>
       </header>
 
@@ -234,14 +242,27 @@ export function DashboardPage() {
               <h2 className="text-lg font-black text-amber-950">يلزم تفعيل عام دراسي لبدء التشغيل</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">تعتمد مؤشرات الحضور والتنبيهات والفصول على عام دراسي نشط. لن تعرض اللوحة أرقامًا ناقصة أو مضللة قبل اكتمال الإعداد.</p>
               <p className="mt-2 text-sm text-amber-800">{canManageCalendar ? "أنشئ عامًا دراسيًا أو فعّل العام القادم، ثم ارجع إلى هذه اللوحة." : "يمكنك مراجعة التقويم، ويحتاج التفعيل إلى مدير المدرسة."}</p>
-              <Link to="/settings?section=calendar" className="mt-4 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-950">
-                {canManageCalendar ? "إعداد العام الدراسي" : "مراجعة العام الدراسي"}
-              </Link>
+              {canManageCalendar && (
+                <Link to="/settings?section=calendar" className="mt-4 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-950">
+                  إعداد العام الدراسي
+                </Link>
+              )}
             </div>
           </div>
         </section>
       ) : (
         <>
+          <RoleWorkspace
+            isManager={canManageCalendar}
+            today={liveToday}
+            attention={attentionQuery.data}
+            isLiveLoading={todayQuery.isPending || attentionQuery.isPending}
+          />
+
+          {liveToday?.live_attendance && (
+            <LiveSchoolAttendance data={liveToday.live_attendance} />
+          )}
+
           {liveToday ? (
             <TodayCard data={liveToday} />
           ) : todayQuery.isPending ? (
@@ -449,6 +470,175 @@ function QuickLink({ to, icon: Icon, children }: { to: string; icon: LucideIcon;
     <Link to={to} className="inline-flex items-center gap-2 rounded-xl bg-white/7 px-3 py-2 text-xs font-bold text-slate-200 ring-1 ring-white/10 transition hover:bg-white/12 hover:text-white">
       <Icon aria-hidden size={15} />{children}<ArrowLeft aria-hidden size={13} className="opacity-60" />
     </Link>
+  );
+}
+
+/**
+ * لا نعرض «لوحة واحدة للجميع»: الوكيل يبدأ بتشغيل اليوم، بينما المدير يبدأ
+ * بالإشراف على الحالة والفريق. الأرقام الآنية مصدرها نقاط API القائمة فقط.
+ */
+function RoleWorkspace({
+  isManager,
+  today,
+  attention,
+  isLiveLoading,
+}: {
+  isManager: boolean;
+  today?: TodayOperations;
+  attention?: import("@/features/dashboard/api").AttentionResponse;
+  isLiveLoading: boolean;
+}) {
+  const overdue = today?.summary?.overdue_total ?? 0;
+  const submitted = today?.summary?.submitted ?? 0;
+  const totalSections = today?.summary?.total ?? 0;
+  const highPriority = attention?.items.filter((item) => item.priority === "HIGH").length ?? 0;
+  const hasAction = overdue > 0 || highPriority > 0;
+  const title = isManager ? "مساحة المدير" : "محطة عمل الوكيل";
+  const description = isManager
+    ? "نظرة إشرافية تجمع التشغيل الفوري مع قرارات إدارة المدرسة."
+    : "ابدأ من المهام التي تحفظ انسيابية اليوم الدراسي وتمنع التأخير.";
+  const focus = isManager
+    ? hasAction
+      ? "يوجد ما يحتاج قرارًا أو متابعة"
+      : "وضع المدرسة مستقر الآن"
+    : overdue > 0
+      ? "التحضير يحتاج تدخلاً الآن"
+      : today?.has_active_period
+        ? "متابعة التحضير أثناء الحصة"
+        : "استعداد للمتابعة التالية";
+  const metric = isManager
+    ? { value: highPriority, label: "أولوية عالية" }
+    : today?.has_active_period
+      ? { value: `${submitted}/${totalSections}`, label: "فصول تم اعتمادها" }
+      : { value: attention?.total ?? 0, label: "مهام مفتوحة" };
+  const primary = isManager
+    ? { to: "/attendance/monitoring", label: hasAction ? "فتح التشغيل والمتابعة" : "مراجعة التشغيل اليومي", icon: Activity }
+    : { to: "/attendance/monitoring", label: overdue > 0 ? "معالجة التحضير المتأخر" : "فتح متابعة التحضير", icon: Activity };
+  const secondary = isManager
+    ? { to: "/staff", label: "إدارة فريق المدرسة", icon: UsersRound }
+    : { to: "/excuses", label: "مراجعة الأعذار", icon: FileCheck2 };
+  const PrimaryIcon = primary.icon;
+  const SecondaryIcon = secondary.icon;
+
+  return (
+    <section
+      className="relative overflow-hidden rounded-3xl border border-teal-100 bg-gradient-to-l from-teal-50 via-white to-white p-5 shadow-sm sm:p-6"
+      aria-live="polite"
+      data-testid="role-workspace"
+      data-role={isManager ? "SCHOOL_MANAGER" : "VICE_PRINCIPAL"}
+    >
+      <div aria-hidden className="absolute -left-10 -bottom-16 size-48 rounded-full bg-teal-200/35 blur-3xl" />
+      <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${isManager ? "bg-slate-900 text-teal-200" : "bg-teal-700 text-white"}`}>
+            {isManager ? <ShieldAlert aria-hidden size={23} /> : <Activity aria-hidden size={23} />}
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black text-teal-800">{title}</p>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                <span className={`size-1.5 rounded-full ${isLiveLoading ? "bg-amber-400" : "bg-emerald-500"}`} />
+                {isLiveLoading ? "جارٍ تحديث الحالة" : "حالة مباشرة"}
+              </span>
+            </div>
+            <h2 className="mt-1.5 text-lg font-black text-slate-900">{focus}</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{description}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_auto_auto] lg:grid-cols-[auto_auto_auto]">
+          <div className={`min-w-32 rounded-2xl border px-4 py-3 ${hasAction ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`} data-testid="role-workspace-metric">
+            <p className={`text-2xl font-black tabular-nums ${hasAction ? "text-amber-900" : "text-emerald-800"}`}>{metric.value}</p>
+            <p className="mt-1 text-[11px] font-bold text-slate-600">{metric.label}</p>
+          </div>
+          <Link to={primary.to} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800">
+            <PrimaryIcon aria-hidden size={16} /> {primary.label}
+          </Link>
+          <Link to={secondary.to} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-teal-300 hover:text-teal-800">
+            <SecondaryIcon aria-hidden size={16} /> {secondary.label}
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LiveSchoolAttendance({
+  data,
+}: {
+  data: NonNullable<TodayOperations["live_attendance"]>;
+}) {
+  if (data.status === "NO_ACTIVE_PERIOD") {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" data-testid="live-school-attendance" data-state="NO_ACTIVE_PERIOD">
+        <div className="flex items-start gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-600"><Clock3 aria-hidden size={21} /></span>
+          <div>
+            <h2 className="font-black text-slate-900">نبض المدرسة الآن</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">لا توجد حصة تحضير جارية الآن، لذلك لا نعرض حالة حضور لحظية قد تكون مضللة.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const coverageComplete = data.pending_students === 0;
+  const from = data.period_sequences.at(0);
+  const to = data.period_sequences.at(-1);
+  const rangeLabel = from === to ? `الحصة ${to}` : `من الحصة ${from} إلى ${to}`;
+  const metrics = [
+    { label: "إجمالي طلاب المدرسة", value: data.total_students, tone: "slate", icon: UsersRound },
+    { label: "حاضر الآن", value: data.present_students, tone: "green", icon: CheckCircle2 },
+    { label: "غائب متتابع", value: data.absent_students, tone: "red", icon: ShieldAlert },
+    { label: "متأخر الآن", value: data.late_students, tone: "amber", icon: Clock3 },
+  ] as const;
+  const tones = {
+    slate: "border-slate-200 bg-slate-50 text-slate-900",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    red: "border-red-200 bg-red-50 text-red-900",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+  };
+
+  return (
+    <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-live="polite" data-testid="live-school-attendance" data-state="AVAILABLE">
+      <div aria-hidden className="absolute -right-16 top-0 size-48 rounded-full bg-blue-100/70 blur-3xl" />
+      <div className="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div className="flex items-start gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-800"><Activity aria-hidden size={21} /></span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-black text-slate-900">نبض المدرسة الآن</h2>
+              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-800 ring-1 ring-blue-100">{rangeLabel}</span>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-slate-600">حالة كل طالب بحسب آخر تحضير معتمد؛ الغائب المتتابع غاب في جميع الحصص المعتمدة ضمن النطاق.</p>
+          </div>
+        </div>
+        <span className={`inline-flex w-fit items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ring-1 ${coverageComplete ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`} data-testid="live-attendance-coverage">
+          <span className={`size-2 rounded-full ${coverageComplete ? "bg-emerald-500" : "bg-amber-500"}`} />
+          {coverageComplete ? "بيانات جميع الفصول مكتملة" : `بانتظار تحضير ${data.pending_sections} فصل`}
+        </span>
+      </div>
+
+      <div className="relative mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="live-attendance-metrics">
+        {metrics.map(({ label, value, tone, icon: Icon }) => (
+          <div key={label} className={`rounded-2xl border p-4 ${tones[tone]}`} data-testid={`live-attendance-${tone}`}>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-2xl font-black tabular-nums sm:text-3xl">{value}</p>
+              <Icon aria-hidden size={18} className="opacity-70" />
+            </div>
+            <p className="mt-1.5 text-xs font-bold leading-5 opacity-80">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className={`relative mt-4 rounded-2xl border px-4 py-3 text-xs leading-5 ${coverageComplete ? "border-slate-200 bg-slate-50 text-slate-600" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+        {coverageComplete ? (
+          <>التغطية: {data.covered_students} من {data.total_students} طالبًا عبر {data.covered_sections} فصلًا.</>
+        ) : (
+          <>المصنّف الآن {data.covered_students} من {data.total_students} طالبًا. بقي {data.pending_students} طالبًا بانتظار اعتماد تحضير فصلهم؛ لا يدخلون في الحاضر أو الغائب أو المتأخر حتى تكتمل البيانات.</>
+        )}
+      </div>
+    </section>
   );
 }
 

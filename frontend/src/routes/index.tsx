@@ -2,7 +2,12 @@ import { createBrowserRouter } from "react-router-dom";
 
 import { ChangeInitialPasswordPage } from "@/features/auth/ChangeInitialPasswordPage";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { RequireActiveSchool, RequireAuth, RequirePlatformAdmin } from "@/features/auth/guards";
+import {
+  RequireActiveSchool,
+  RequireAuth,
+  RequirePlatformAdmin,
+  RequireSchoolRoles,
+} from "@/features/auth/guards";
 import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
 import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
@@ -49,96 +54,125 @@ export const routes = [
                 children: [
                   { index: true, element: <HomePage /> },
                   {
-                    path: "dashboard",
-                    lazy: async () => ({ Component: (await import("@/features/dashboard/DashboardPage")).DashboardPage }),
+                    element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL"]} />,
+                    children: [
+                      {
+                        path: "dashboard",
+                        lazy: async () => ({ Component: (await import("@/features/dashboard/DashboardPage")).DashboardPage }),
+                      },
+                      {
+                        path: "morning",
+                        lazy: async () => ({ Component: (await import("@/features/devices/MorningPage")).MorningPage }),
+                      },
+                      {
+                        path: "warnings",
+                        lazy: async () => ({ Component: (await import("@/features/warnings/WarningsDashboardPage")).WarningsDashboardPage }),
+                      },
+                      {
+                        path: "staff",
+                        lazy: async () => ({ Component: (await import("@/features/staff/StaffPage")).StaffPage }),
+                      },
+                      {
+                        path: "students/inactive",
+                        lazy: async () => ({ Component: (await import("@/features/students/InactiveStudentsPage")).InactiveStudentsPage }),
+                      },
+                      {
+                        path: "attendance/monitoring",
+                        lazy: async () => ({ Component: (await import("@/features/attendance/MonitoringPage")).MonitoringPage }),
+                      },
+                      {
+                        path: "attendance/analytics",
+                        lazy: async () => ({ Component: (await import("@/features/attendance/AnalyticsPage")).AnalyticsPage }),
+                      },
+                      {
+                        path: "student-leaves",
+                        lazy: async () => ({ Component: (await import("@/features/leaves/StudentLeavesPage")).StudentLeavesPage }),
+                      },
+                    ],
                   },
                   {
-                    path: "settings",
-                    lazy: async () => ({ Component: (await import("@/features/settings/SettingsPage")).SettingsPage }),
+                    element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER"]} />,
+                    children: [
+                      {
+                        path: "devices",
+                        lazy: async () => ({ Component: (await import("@/features/devices/DevicesSettingsPage")).DevicesSettingsPage }),
+                      },
+                      {
+                        path: "devices/roster-sync",
+                        lazy: async () => ({ Component: (await import("@/features/devices/DeviceRosterSyncPage")).DeviceRosterSyncPage }),
+                      },
+                      {
+                        path: "subscription",
+                        lazy: async () => ({ Component: (await import("@/features/platform/SchoolSubscriptionPage")).SchoolSubscriptionPage }),
+                      },
+                      {
+                        path: "students/import",
+                        lazy: async () => ({ Component: (await import("@/features/students/ImportWizard")).ImportWizard }),
+                      },
+                      {
+                        path: "staff/import",
+                        lazy: async () => ({ Component: (await import("@/features/staff/StaffImportWizard")).StaffImportWizard }),
+                      },
+                      {
+                        path: "attendance/qr",
+                        lazy: async () => ({ Component: (await import("@/features/attendance/SectionQrPage")).SectionQrPage }),
+                      },
+                      {
+                        path: "settings",
+                        lazy: async () => ({ Component: (await import("@/features/settings/SettingsPage")).SettingsPage }),
+                      },
+                    ],
                   },
                   {
-                    path: "devices",
-                    lazy: async () => ({ Component: (await import("@/features/devices/DevicesSettingsPage")).DevicesSettingsPage }),
+                    element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"]} />,
+                    children: [
+                      {
+                        path: "students",
+                        lazy: async () => ({ Component: (await import("@/features/students/StudentsPage")).StudentsPage }),
+                      },
+                      {
+                        path: "students/:studentId/attendance",
+                        lazy: async () => ({ Component: (await import("@/features/students/StudentAttendanceProfilePage")).StudentAttendanceProfilePage }),
+                      },
+                      {
+                        path: "excuses",
+                        lazy: async () => ({ Component: (await import("@/features/excuses/ExcusesPage")).ExcusesPage }),
+                      },
+                      {
+                        path: "referrals",
+                        lazy: async () => ({ Component: (await import("@/features/referrals/ReferralsPage")).ReferralsPage }),
+                      },
+                      {
+                        path: "counselor",
+                        lazy: async () => ({ Component: (await import("@/features/counseling/CounselorDashboardPage")).CounselorDashboardPage }),
+                      },
+                      {
+                        path: "counselor/cases/:caseId",
+                        lazy: async () => ({ Component: (await import("@/features/counseling/CaseDetailPage")).CaseDetailPage }),
+                      },
+                    ],
                   },
                   {
-                    path: "devices/roster-sync",
-                    lazy: async () => ({ Component: (await import("@/features/devices/DeviceRosterSyncPage")).DeviceRosterSyncPage }),
+                    element: <RequireSchoolRoles allowedRoles={["TEACHER"]} />,
+                    children: [
+                      {
+                        path: "attendance/section/:sectionId",
+                        lazy: async () => ({ Component: (await import("@/features/attendance/AttendanceSessionPage")).AttendanceSessionPage }),
+                      },
+                    ],
                   },
                   {
-                    path: "subscription",
-                    lazy: async () => ({ Component: (await import("@/features/platform/SchoolSubscriptionPage")).SchoolSubscriptionPage }),
-                  },
-                  {
-                    path: "morning",
-                    lazy: async () => ({ Component: (await import("@/features/devices/MorningPage")).MorningPage }),
-                  },
-                  {
-                    path: "warnings",
-                    lazy: async () => ({ Component: (await import("@/features/warnings/WarningsDashboardPage")).WarningsDashboardPage }),
-                  },
-                  {
-                    path: "students",
-                    lazy: async () => ({ Component: (await import("@/features/students/StudentsPage")).StudentsPage }),
-                  },
-                  {
-                    path: "students/:studentId/attendance",
-                    lazy: async () => ({ Component: (await import("@/features/students/StudentAttendanceProfilePage")).StudentAttendanceProfilePage }),
-                  },
-                  {
-                    path: "students/inactive",
-                    lazy: async () => ({ Component: (await import("@/features/students/InactiveStudentsPage")).InactiveStudentsPage }),
-                  },
-                  {
-                    path: "students/import",
-                    lazy: async () => ({ Component: (await import("@/features/students/ImportWizard")).ImportWizard }),
-                  },
-                  {
-                    path: "staff",
-                    lazy: async () => ({ Component: (await import("@/features/staff/StaffPage")).StaffPage }),
-                  },
-                  {
-                    path: "staff/import",
-                    lazy: async () => ({ Component: (await import("@/features/staff/StaffImportWizard")).StaffImportWizard }),
-                  },
-                  {
-                    path: "attendance/section/:sectionId",
-                    lazy: async () => ({ Component: (await import("@/features/attendance/AttendanceSessionPage")).AttendanceSessionPage }),
-                  },
-                  {
-                    path: "attendance/monitoring",
-                    lazy: async () => ({ Component: (await import("@/features/attendance/MonitoringPage")).MonitoringPage }),
-                  },
-                  {
-                    path: "attendance/analytics",
-                    lazy: async () => ({ Component: (await import("@/features/attendance/AnalyticsPage")).AnalyticsPage }),
-                  },
-                  {
-                    path: "attendance/qr",
-                    lazy: async () => ({ Component: (await import("@/features/attendance/SectionQrPage")).SectionQrPage }),
-                  },
-                  {
-                    path: "excuses",
-                    lazy: async () => ({ Component: (await import("@/features/excuses/ExcusesPage")).ExcusesPage }),
-                  },
-                  {
-                    path: "referrals",
-                    lazy: async () => ({ Component: (await import("@/features/referrals/ReferralsPage")).ReferralsPage }),
-                  },
-                  {
-                    path: "referrals/mine",
-                    lazy: async () => ({ Component: (await import("@/features/referrals/MyReferralsPage")).MyReferralsPage }),
-                  },
-                  {
-                    path: "counselor",
-                    lazy: async () => ({ Component: (await import("@/features/counseling/CounselorDashboardPage")).CounselorDashboardPage }),
-                  },
-                  {
-                    path: "counselor/cases/:caseId",
-                    lazy: async () => ({ Component: (await import("@/features/counseling/CaseDetailPage")).CaseDetailPage }),
-                  },
-                  {
-                    path: "teacher/follow-ups",
-                    lazy: async () => ({ Component: (await import("@/features/counseling/TeacherFollowUpPage")).TeacherFollowUpPage }),
+                    element: <RequireSchoolRoles allowedRoles={["TEACHER"]} />,
+                    children: [
+                      {
+                        path: "referrals/mine",
+                        lazy: async () => ({ Component: (await import("@/features/referrals/MyReferralsPage")).MyReferralsPage }),
+                      },
+                      {
+                        path: "teacher/follow-ups",
+                        lazy: async () => ({ Component: (await import("@/features/counseling/TeacherFollowUpPage")).TeacherFollowUpPage }),
+                      },
+                    ],
                   },
                   { path: "*", element: <NotFoundPage /> },
                 ],

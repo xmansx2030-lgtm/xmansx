@@ -133,6 +133,14 @@ export const activateStaff = (id: number) =>
 export const reinviteStaff = (id: number) =>
   apiRequest<StaffMember>(`/staff/${id}/reinvite/`, { method: "POST" });
 
+export interface StaffPasswordResetResult {
+  temporary_password: string;
+  must_change_password: true;
+}
+
+export const resetStaffPassword = (id: number) =>
+  apiRequest<StaffPasswordResetResult>(`/staff/${id}/reset-password/`, { method: "POST" });
+
 export const deleteStaff = (id: number) =>
   apiRequest<void>(`/staff/${id}/`, { method: "DELETE" });
 

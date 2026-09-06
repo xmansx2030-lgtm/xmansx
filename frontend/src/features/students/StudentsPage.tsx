@@ -118,7 +118,7 @@ export function StudentsPage() {
         badge={`${students.data?.count ?? 0} طالبًا`}
         actions={<div className="flex flex-wrap items-center gap-2"><Link to="/students/inactive" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"><Archive aria-hidden size={17} /> غير النشطين</Link>
           {canImport && (
-            <><Link to="/students/import"><Button className="bg-white/10 text-white ring-1 ring-white/15 hover:bg-white/15"><Upload aria-hidden size={17} /> استيراد</Button></Link><Button onClick={() => setManualOpen(true)} className="bg-white text-slate-950 hover:bg-slate-50"><Plus aria-hidden size={17} /> إدخال يدوي</Button></>
+            <><Link to="/students/import"><Button variant="headerGhost"><Upload aria-hidden size={17} /> استيراد</Button></Link><Button variant="header" onClick={() => setManualOpen(true)}><Plus aria-hidden size={17} /> إدخال يدوي</Button></>
           )}</div>}
       />
 

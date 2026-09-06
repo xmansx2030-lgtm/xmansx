@@ -331,6 +331,24 @@ class StaffReinviteView(StaffDetailView):
         )
 
 
+class StaffPasswordResetView(StaffDetailView):
+    http_method_names = ["post", "options"]
+
+    def post(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        temporary_password = management.reset_teacher_password(
+            membership=profile.membership,
+            actor=request.user,
+            request=request,
+        )
+        return Response(
+            {
+                "temporary_password": temporary_password,
+                "must_change_password": True,
+            }
+        )
+
+
 # ---------- الاستيراد ----------
 
 
