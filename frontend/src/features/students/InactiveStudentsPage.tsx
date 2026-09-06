@@ -377,7 +377,9 @@ export function InactiveStudentsPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={isManager ? 5 : 4} className="p-6 text-center text-slate-400">
-                      لا يوجد {studentsLabel} {schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}.
+                      {schoolType === "GIRLS"
+                        ? `لا توجد ${studentsLabel} مطابقات.`
+                        : "لا يوجد طلاب مطابقون."}
                     </td>
                   </tr>
                 )}

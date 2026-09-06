@@ -114,6 +114,7 @@ test("Phase 16 SaaS lifecycle, limits, isolation, and recovery", async ({
 
   const schoolResponse = await post(platform, "/platform/schools/", {
     school_name: `مدرسة Phase 16 ${unique}`,
+    school_type: "BOYS",
     manager_name: "مدير Phase 16",
     manager_mobile: managerMobile,
     plan_id: lowPlan.id,
@@ -288,6 +289,7 @@ call_command('process_subscription_transitions')
 
   const secondSchoolResponse = await post(platform, "/platform/schools/", {
     school_name: `مدرسة منتهية ${unique}`,
+    school_type: "BOYS",
     manager_name: "المدير نفسه",
     manager_mobile: managerMobile,
     plan_id: lowPlan.id,
