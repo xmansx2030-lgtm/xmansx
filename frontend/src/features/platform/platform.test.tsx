@@ -58,6 +58,31 @@ describe("platform and subscription UI", () => {
     expect(screen.getByText("900")).toBeInTheDocument();
   });
 
+  it.each(["/", "/select-school"])(
+    "redirects platform admins from school route %s to the platform console",
+    async (path) => {
+      mockApi({
+        "/auth/me/": {
+          body: buildMe({ is_platform_admin: true, name: "مشرف المنصة" }),
+        },
+        "/platform/overview/": {
+          body: {
+            schools_total: 0,
+            subscriptions: { active: 0, trial: 0, grace: 0, expired: 0, suspended: 0 },
+            usage_totals: { active_students: 0, active_staff: 0, active_devices: 0 },
+            expiring_soon: [],
+          },
+        },
+        "/platform/plans/": { body: [] },
+      });
+
+      renderApp(path);
+
+      expect(await screen.findByRole("heading", { name: "إدارة المنصة" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "لا توجد مدارس مرتبطة بحسابك" })).not.toBeInTheDocument();
+    },
+  );
+
   it("keeps school managers out of the platform area", async () => {
     mockApi({
       "/auth/me/": {

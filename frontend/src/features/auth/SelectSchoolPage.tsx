@@ -44,6 +44,7 @@ export function SelectSchoolPage() {
   }
   if (me.isError) return <Navigate to="/login" replace />;
   if (me.data.must_change_password) return <Navigate to="/change-password" replace />;
+  if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
   if (me.data.memberships.length === 0 && me.data.invitations.length === 0) {
     return <Navigate to="/" replace />;
   }

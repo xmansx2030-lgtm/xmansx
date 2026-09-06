@@ -36,6 +36,7 @@ export function RequireActiveSchool() {
 
   if (me.isPending) return <FullPageSpinner />;
   if (me.isError) return <Navigate to="/login" replace />;
+  if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
 
   if (me.data.active_school === null) {
     if (me.data.memberships.length > 0 || me.data.invitations.length > 0) {

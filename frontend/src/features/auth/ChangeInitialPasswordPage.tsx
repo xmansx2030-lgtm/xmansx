@@ -23,12 +23,19 @@ export function ChangeInitialPasswordPage() {
     mutationFn: () => changeInitialPassword(current, next, confirm),
     onSuccess: (updated) => {
       queryClient.setQueryData(ME_QUERY_KEY, updated);
-      navigate(updated.active_school ? "/" : "/select-school", { replace: true });
+      navigate(
+        updated.is_platform_admin
+          ? "/platform"
+          : updated.active_school
+            ? "/"
+            : "/select-school",
+        { replace: true },
+      );
     },
   });
 
   if (me.isSuccess && !me.data.must_change_password) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={me.data.is_platform_admin ? "/platform" : "/"} replace />;
   }
   if (me.isError) return <Navigate to="/login" replace />;
 
