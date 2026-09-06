@@ -134,7 +134,7 @@ test("teacher referral becomes a counselor case visible on the dashboard", async
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(resolve(FIXTURES, "noor-13.xlsx"));
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();

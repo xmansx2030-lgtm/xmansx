@@ -123,7 +123,7 @@ test("import + seed, then single-period and multi-period reports behave exactly"
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(resolve(FIXTURES, "noor-6.xlsx"));
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
@@ -272,7 +272,8 @@ test("isolation: teacher role in school B gets no analytics link, page, or API",
 
   await expect(page.getByRole("link", { name: "الغياب والحضور" })).not.toBeVisible();
   await page.goto("/attendance/analytics");
-  await expect(page.getByRole("alert")).toContainText("صلاحية");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   const statuses = await page.evaluate(async () => {
     const daily = await fetch("/api/v1/attendance/analytics/daily/", {

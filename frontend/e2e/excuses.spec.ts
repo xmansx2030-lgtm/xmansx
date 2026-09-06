@@ -134,7 +134,7 @@ test("full-day excuse: absence stays, classification becomes excused", async ({ 
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(SNAPSHOT_XLSX);
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
@@ -371,7 +371,6 @@ test("isolation: teacher has no excuses link, page, or API access", async ({ pag
   expect(kpis.status).toBe(403);
 
   await page.goto("/excuses");
-  await expect(page.getByRole("heading", { name: "لا تملك صلاحية عرض الأعذار" })).toBeVisible(
-    { timeout: 15_000 },
-  );
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 });

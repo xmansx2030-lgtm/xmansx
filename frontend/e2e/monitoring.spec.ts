@@ -131,7 +131,7 @@ test("monitoring lifecycle: before threshold → overdue → late submission via
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(resolve(FIXTURES, "noor-5.xlsx"));
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
@@ -209,7 +209,8 @@ test("isolation: teacher role in school B gets no dashboard, link, or data", asy
     primaryNavigation.getByRole("link", { name: "متابعة التحضير" }),
   ).not.toBeVisible();
   await page.goto("/attendance/monitoring");
-  await expect(page.getByRole("alert")).toContainText("صلاحية");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   const status = await page.evaluate(async () => {
     const res = await fetch("/api/v1/attendance/monitoring/current/", {

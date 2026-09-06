@@ -126,6 +126,21 @@ async function runBridge(configPath: string) {
   });
 }
 
+async function waitForJobStatus(
+  context: APIRequestContext,
+  jobId: number,
+  expectedStatus: string,
+) {
+  let job: { status: string; create_count: number } | null = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await context.get(`/api/v1/device-roster-syncs/${jobId}/`);
+    job = (await response.json()) as { status: string; create_count: number };
+    if (job.status === expectedStatus) return job;
+    await new Promise((done) => setTimeout(done, 250));
+  }
+  return job;
+}
+
 test("manager creates a missing Simulator roster user and verifies MATCHED", async ({ playwright }) => {
   // مزامنة السجل تنفذ أمرًا حقيقيًا لكل طالب في المدرسة عبر عمليات جسر متتابعة،
   // فزمنها يتناسب مع حجم السجل ويتجاوز مهلة الاختبار الافتراضية.
@@ -182,8 +197,9 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     );
 
     await runBridge(configPath);
-    let jobResponse = await context.get(`/api/v1/device-roster-syncs/${initialJob.id}/`);
-    let job = (await jobResponse.json()) as { status: string; create_count: number };
+    let job = await waitForJobStatus(context, initialJob.id, "READY_FOR_REVIEW");
+    expect(job).not.toBeNull();
+    if (job === null) throw new Error("Roster sync job could not be loaded");
     expect(job.status).toBe("READY_FOR_REVIEW");
     expect(job.create_count).toBeGreaterThan(0);
 
@@ -213,7 +229,7 @@ test("manager creates a missing Simulator roster user and verifies MATCHED", asy
     }[];
     expect(deviceUsers.length).toBeGreaterThan(0);
 
-    jobResponse = await context.get(`/api/v1/device-roster-syncs/${initialJob.id}/`);
+    const jobResponse = await context.get(`/api/v1/device-roster-syncs/${initialJob.id}/`);
     job = (await jobResponse.json()) as { status: string; create_count: number };
     expect(job.status).toBe("COMPLETED");
 

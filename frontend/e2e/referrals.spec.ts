@@ -106,7 +106,7 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(SNAPSHOT_XLSX);
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 120_000 });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
@@ -341,9 +341,8 @@ test("multi-school user keeps roles separate", async ({ page }) => {
   expect((await api(page, "/referrals/counselors/")).status).toBe(403);
 
   await page.goto("/referrals");
-  await expect(
-    page.getByRole("heading", { name: "لا تملك صلاحية عرض الإحالات" }),
-  ).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   // التبديل إلى المدرسة الثانية: صلاحية المرشد تظهر وبيانات الأولى لا تتسرب
   await page.getByRole("button", { name: "ثانوية الأندلس" }).click();

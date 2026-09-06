@@ -45,7 +45,7 @@ async function runImport(page: Page, fixtureFile: string) {
   await page.goto("/students/import");
   await page.getByTestId("import-file-input").setInputFiles(resolve(FIXTURES, fixtureFile));
   await page.getByRole("button", { name: "رفع الملف" }).click();
-  await expect(page.getByText("مطابقة الأعمدة")).toBeVisible();
+  await expect(page.getByText("الخطوة: مطابقة الأعمدة", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "بدء التحليل" }).click();
   // انتظار الـ worker الحقيقي (polling)
   await expect(page.getByRole("tab", { name: /جدد/ })).toBeVisible({ timeout: 30_000 });
