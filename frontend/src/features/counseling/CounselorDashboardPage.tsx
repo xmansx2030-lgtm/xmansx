@@ -12,7 +12,7 @@ import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getCases, getCounselorDashboard } from "@/features/counseling/api";
 import { useActiveSchoolId } from "@/features/settings/hooks";
-import { roleLabel } from "@/utils/roles";
+import { roleLabel, studentLabel } from "@/utils/roles";
 
 const KPI_CARDS: { key: keyof import("@/features/counseling/api").DashboardKpis; label: string; icon: LucideIcon; tone: "teal" | "blue" | "amber" | "red" | "violet" | "neutral" }[] = [
   { key: "new_referrals", label: "إحالات جديدة", icon: Inbox, tone: "blue" },
@@ -117,7 +117,7 @@ export function CounselorDashboardPage() {
             <div>
               <p className="text-xs font-bold text-teal-800">بداية منظمة</p>
               <h2 className="mt-0.5 font-black text-slate-900">ركّز على الإجراء التالي</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ رتّب الحالات ثم افتح ملف الطالب مباشرة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ رتّب الحالات ثم افتح ملف ${studentLabel(schoolType, true)} مباشرة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
             </div>
           </div>
           <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 lg:self-auto">
@@ -203,10 +203,10 @@ export function CounselorDashboardPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="p-3 text-start">الطالب</th>
+                <th className="p-3 text-start">{studentLabel(schoolType, true)}</th>
                 <th className="p-3 text-start">الصف/الفصل</th>
                 <th className="p-3 text-start">سبب الإحالة</th>
-                <th className="p-3 text-start">المرشد</th>
+                <th className="p-3 text-start">{roleLabel("COUNSELOR", schoolType)}</th>
                 <th className="p-3 text-start">الحالة</th>
                 <th className="p-3 text-start">آخر نشاط</th>
                 <th className="p-3 text-start">الإجراء القادم</th>

@@ -17,7 +17,7 @@ import {
 } from "@/features/referrals/api";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { useActiveSchoolId } from "@/features/settings/hooks";
-import { roleLabel } from "@/utils/roles";
+import { roleLabel, studentLabel } from "@/utils/roles";
 
 const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
@@ -45,19 +45,21 @@ export function ReferralsTable({
   selectedId,
   emptyText,
   testId,
+  studentTitle = "الطالب",
 }: {
   rows: ReferralRow[];
   onSelect: (id: number) => void;
   selectedId?: number | null;
   emptyText: string;
   testId: string;
+  studentTitle?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500">
-            <th className="p-3 text-start">الطالب</th>
+            <th className="p-3 text-start">{studentTitle}</th>
             <th className="p-3 text-start">الصف/الفصل</th>
             <th className="p-3 text-start">المصدر</th>
             <th className="p-3 text-start">السبب</th>
@@ -241,6 +243,7 @@ export function ReferralsPage() {
           selectedId={selected}
           emptyText="لا توجد إحالات مطابقة."
           testId="referrals-rows"
+          studentTitle={studentLabel(schoolType, true)}
         />
       )}
 

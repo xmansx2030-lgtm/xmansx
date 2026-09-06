@@ -110,7 +110,7 @@ export function SettingsPage() {
                     <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 group-hover:bg-white"}`}><Icon aria-hidden size={18} /></span>
                     <span className="min-w-0">
                       <strong className="block text-sm">{item.label}</strong>
-                      <span className="mt-0.5 hidden truncate text-[11px] font-normal text-slate-500 lg:block">{item.shortDescription}</span>
+                      <span className="mt-0.5 hidden truncate text-[11px] font-normal text-slate-500 lg:block">{item.key === "structure" && me.data?.active_school?.school_type === "GIRLS" ? "الهيكل الدراسي وخيارات تسجيل الطالبات" : item.shortDescription}</span>
                     </span>
                   </button>
                 );

@@ -4,7 +4,10 @@ import { BadgeCheck, CalendarDays, Database, HardDrive, ShieldCheck, Smartphone,
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
+import { useMe } from "@/features/auth/useMe";
 import { getSchoolSubscription, type SubscriptionState, type Usage } from "@/features/platform/api";
+import type { SchoolType } from "@/types/auth";
+import { studentPluralLabel } from "@/utils/roles";
 
 const ACCESS_LABELS: Record<SubscriptionState["access_mode"], string> = {
   FULL: "وصول كامل",
@@ -25,9 +28,9 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("ar-SA") : "غير محدد";
 }
 
-function UsageRows({ usage }: { usage: Usage }) {
+function UsageRows({ usage, schoolType }: { usage: Usage; schoolType: SchoolType }) {
   const rows = [
-    ["الطلاب", usage.students, UsersRound, "text-blue-700 bg-blue-50"],
+    [studentPluralLabel(schoolType), usage.students, UsersRound, "text-blue-700 bg-blue-50"],
     ["الموظفون", usage.staff, BadgeCheck, "text-emerald-700 bg-emerald-50"],
     ["الأجهزة", usage.devices, Smartphone, "text-violet-700 bg-violet-50"],
     ["التخزين", { ...usage.storage, used: usage.storage.used_gb, limit: usage.storage.limit_gb }, HardDrive, "text-amber-700 bg-amber-50"],
@@ -52,6 +55,8 @@ function UsageRows({ usage }: { usage: Usage }) {
 }
 
 export function SchoolSubscriptionPage() {
+  const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const query = useQuery({
     queryKey: ["school", "subscription"],
     queryFn: ({ signal }) => getSchoolSubscription(signal),
@@ -96,7 +101,7 @@ export function SchoolSubscriptionPage() {
         )}
       </section>
       <div><h2 className="mb-1 text-lg font-black text-slate-950">استهلاك الباقة</h2><p className="mb-3 text-sm text-slate-500">متابعة الحدود قبل أن تؤثر على العمليات اليومية.</p></div>
-      <UsageRows usage={data.usage} />
+      <UsageRows usage={data.usage} schoolType={schoolType} />
     </div>
   );
 }

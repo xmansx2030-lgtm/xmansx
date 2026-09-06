@@ -11,7 +11,7 @@ import { getMyReferrals } from "@/features/referrals/api";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { ReferralsTable } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
-import { roleLabel } from "@/utils/roles";
+import { roleLabel, studentLabel } from "@/utils/roles";
 
 /** «إحالاتي» — ما أنشأه المستخدم أو ساهم فيه فقط (بند 42).
  *
@@ -80,6 +80,7 @@ export function MyReferralsPage() {
             selectedId={selected}
             emptyText="لم تنشئ أي إحالة بعد. يمكنك التحويل للمرشد من شاشة التحضير."
             testId="my-referrals-rows"
+            studentTitle={studentLabel(schoolType, true)}
           />
         </>
       )}

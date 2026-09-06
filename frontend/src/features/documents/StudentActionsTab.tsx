@@ -14,6 +14,7 @@ import {
   getStudentActions,
 } from "@/features/documents/api";
 import { LEVEL_LABELS, getStudentWarnings } from "@/features/warnings/api";
+import { studentLabel } from "@/utils/roles";
 
 /** تبويب الإجراءات في ملف الطالب — تسجيل ما فُعل (لا ما استحقه الطالب). */
 export function StudentActionsTab({ studentId }: { studentId: number }) {
@@ -21,6 +22,9 @@ export function StudentActionsTab({ studentId }: { studentId: number }) {
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const actionTypeLabel = (type: ActionType) => type === "STUDENT_MEETING"
+    ? `مقابلة ${studentLabel(schoolType, true)}`
+    : ACTION_TYPE_LABELS[type];
   const canManage =
     me.data?.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") ?? false;
 
@@ -111,7 +115,7 @@ export function StudentActionsTab({ studentId }: { studentId: number }) {
             >
               {ACTION_TYPES.map((type) => (
                 <option key={type} value={type}>
-                  {ACTION_TYPE_LABELS[type]}
+                  {actionTypeLabel(type)}
                 </option>
               ))}
             </select>

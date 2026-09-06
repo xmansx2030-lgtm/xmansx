@@ -10,6 +10,7 @@ import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { ReferralsTable } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
+import { studentLabel } from "@/utils/roles";
 
 /** تبويب الإحالات داخل ملف الطالب — التحويل للمرشد للمدير/الوكيل (بند 45/118). */
 export function StudentReferralsTab({
@@ -77,6 +78,7 @@ export function StudentReferralsTab({
           selectedId={selected}
           emptyText={`لا توجد إحالات ${schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.`}
           testId="student-referrals-rows"
+          studentTitle={studentLabel(schoolType, true)}
         />
       )}
 

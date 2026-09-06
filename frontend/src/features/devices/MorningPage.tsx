@@ -15,6 +15,7 @@ import {
 } from "@/features/devices/api";
 import { StudentPicker } from "@/features/devices/StudentPicker";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 function todayIso(): string {
   const d = new Date();
@@ -29,6 +30,7 @@ export function MorningPage() {
   const me = useMe();
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [tab, setTab] = useState<Tab>("today");
   const [date, setDate] = useState(todayIso());
   const isToday = date === todayIso();
@@ -51,14 +53,14 @@ export function MorningPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ScanFace} eyebrow="الاستقبال الصباحي" title="الحضور الصباحي" description="مراقبة وصول الطلاب من أجهزة الحضور، ومعالجة الحالات اليدوية دون الخلط بينها وبين الغياب الرسمي." tone="operational" badge={isToday ? "تحديث مباشر" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="morning-date" /></label>} />
+      <PageHeader icon={ScanFace} eyebrow="الاستقبال الصباحي" title="الحضور الصباحي" description={`مراقبة وصول ${studentPluralLabel(schoolType)} من أجهزة الحضور، ومعالجة الحالات اليدوية دون الخلط بينها وبين الغياب الرسمي.`} tone="operational" badge={isToday ? "تحديث مباشر" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="morning-date" /></label>} />
       <section className="rounded-2xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
         <div className="mt-3 flex gap-1 border-b border-slate-100" role="tablist">
           {(
             [
               ["today", "اليوم"],
-              ["late", "المتأخرون"],
-              ["history", "سجل طالب"],
+              ["late", schoolType === "GIRLS" ? "المتأخرات" : "المتأخرون"],
+              ["history", `سجل ${studentLabel(schoolType)}`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -110,7 +112,7 @@ export function MorningPage() {
             </section>
           )}
           <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-sm">
-            عدم وجود بصمة لا يعني غياب الطالب (جهاز معطل/بوابة أخرى/مزامنة متأخرة) —
+            عدم وجود بصمة لا يعني غياب {studentLabel(schoolType, true)} (جهاز معطل/بوابة أخرى/مزامنة متأخرة) —
             الغياب الرسمي من تحضير الحصص فقط.
           </p>
           <ManualArrivalCard date={date} onDone={refresh} />
@@ -124,6 +126,7 @@ export function MorningPage() {
 }
 
 function ManualArrivalCard({ date, onDone }: { date: string; onDone: () => void }) {
+  const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [student, setStudent] = useState<{ id: number; name: string } | null>(null);
   const [time, setTime] = useState("07:10");
   const [reason, setReason] = useState("");
@@ -134,11 +137,11 @@ function ManualArrivalCard({ date, onDone }: { date: string; onDone: () => void 
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="font-bold text-slate-800">تسجيل وصول يدوي</h3>
       <p className="text-xs text-slate-500">
-        لطالب دخل من بوابة أخرى أو تعطل الجهاز — التأخر يحسب خادميًا من إعدادات الدوام.
+        {schoolType === "GIRLS" ? "لطالبة دخلت" : "لطالب دخل"} من بوابة أخرى أو تعطل الجهاز — التأخر يحسب خادميًا من إعدادات الدوام.
       </p>
       {student ? (
         <p className="text-sm">
-          الطالب: <span className="font-medium">{student.name}</span>{" "}
+          {studentLabel(schoolType, true)}: <span className="font-medium">{student.name}</span>{" "}
           <button type="button" className="text-blue-700 underline" onClick={() => setStudent(null)}>
             تغيير
           </button>
@@ -211,6 +214,7 @@ function LateTab({
   schoolId: number;
   onChanged: () => void;
 }) {
+  const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [correcting, setCorrecting] = useState<number | null>(null);
@@ -234,13 +238,13 @@ function LateTab({
             setSearch(e.target.value);
             setPage(1);
           }}
-          placeholder="بحث باسم الطالب"
-          aria-label="بحث باسم الطالب"
+          placeholder={`بحث باسم ${studentLabel(schoolType, true)}`}
+          aria-label={`بحث باسم ${studentLabel(schoolType, true)}`}
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
         />
         {lateQuery.isSuccess && (
           <span className="text-sm text-slate-600" data-testid="late-total">
-            {lateQuery.data.total_late} طالبًا متأخرًا
+            {lateQuery.data.total_late} {studentCountLabel(schoolType)} {schoolType === "GIRLS" ? "متأخرة" : "متأخرًا"}
           </span>
         )}
       </section>
@@ -351,6 +355,7 @@ function LateTab({
 }
 
 function HistoryTab({ schoolId }: { schoolId: number }) {
+  const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [student, setStudent] = useState<{ id: number; name: string } | null>(null);
   const year = new Date().getFullYear();
   const [from, setFrom] = useState(`${year}-08-01`);
@@ -374,7 +379,7 @@ function HistoryTab({ schoolId }: { schoolId: number }) {
       <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         {student ? (
           <p className="text-sm">
-            الطالب: <span className="font-medium">{student.name}</span>{" "}
+            {studentLabel(schoolType, true)}: <span className="font-medium">{student.name}</span>{" "}
             <button type="button" className="text-blue-700 underline" onClick={() => setStudent(null)}>
               تغيير
             </button>

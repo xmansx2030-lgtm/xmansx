@@ -57,7 +57,7 @@ import {
 } from "@/features/counseling/api";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import { localIsoDate } from "@/utils/dates";
-import { roleGenitivePluralLabel, roleLabel } from "@/utils/roles";
+import { roleGenitivePluralLabel, roleLabel, studentLabel } from "@/utils/roles";
 
 type Tab = "overview" | "sessions" | "plan" | "requests" | "timeline";
 
@@ -206,7 +206,7 @@ export function CaseDetailPage() {
         tone="counselor"
         badge={<span data-testid="case-status">{data.status_label}</span>}
         meta={<><span>فُتح في {data.opened_at.slice(0, 10)}</span><span className="text-white/30">•</span><span>المرشد: {data.counselor_name ?? "—"}</span></>}
-        actions={<><Link to="/counselor" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-bold text-white transition hover:bg-white/10">العودة للوحة</Link><Link to={`/students/${data.student_id}/attendance`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><BookOpenCheck aria-hidden size={17} /> ملف الطالب</Link></>}
+        actions={<><Link to="/counselor" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-bold text-white transition hover:bg-white/10">العودة للوحة</Link><Link to={`/students/${data.student_id}/attendance`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><BookOpenCheck aria-hidden size={17} /> ملف {studentLabel(schoolType, true)}</Link></>}
       />
 
       {error != null && <ErrorState error={error} />}

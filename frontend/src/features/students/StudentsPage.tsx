@@ -117,10 +117,10 @@ export function StudentsPage() {
         icon={UsersRound}
         eyebrow={schoolType === "GIRLS" ? "سجل الطالبات" : "السجل الطلابي"}
         title={`${studentsLabel} ${schoolType === "GIRLS" ? "النشطات" : "النشطون"}`}
-        description={`الوصول السريع إلى ملف ${student} ومواظبته وإجراءاته، مع أدوات استيراد وإدارة آمنة لفريق المدرسة.`}
+        description={`الوصول السريع إلى ملف ${student} و${schoolType === "GIRLS" ? "مواظبتها وإجراءاتها" : "مواظبته وإجراءاته"}، مع أدوات استيراد وإدارة آمنة لفريق المدرسة.`}
         tone="operational"
         badge={`${students.data?.count ?? 0} ${studentCountLabel(schoolType)}`}
-        actions={<div className="flex flex-wrap items-center gap-2"><Link to="/students/inactive" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"><Archive aria-hidden size={17} /> غير النشطين</Link>
+        actions={<div className="flex flex-wrap items-center gap-2"><Link to="/students/inactive" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"><Archive aria-hidden size={17} /> {schoolType === "GIRLS" ? "غير النشطات" : "غير النشطين"}</Link>
           {canImport && (
             <><Link to="/students/import"><Button variant="headerGhost"><Upload aria-hidden size={17} /> استيراد</Button></Link><Button variant="header" onClick={() => setManualOpen(true)}><Plus aria-hidden size={17} /> إدخال يدوي</Button></>
           )}</div>}
@@ -130,13 +130,13 @@ export function StudentsPage() {
 
       {canImport && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <span className="text-sm text-slate-600">تخريج دفعة — المحددون: {selected.size}</span>
+          <span className="text-sm text-slate-600">تخريج دفعة — {schoolType === "GIRLS" ? "المحددات" : "المحددون"}: {selected.size}</span>
           <Button
             variant="secondary"
             disabled={selected.size === 0 || graduateMutation.isPending}
             onClick={() => graduateMutation.mutate([...selected])}
           >
-            تعيين المحددين كخريجين
+            تعيين {schoolType === "GIRLS" ? "المحددات كخريجات" : "المحددين كخريجين"}
           </Button>
           {bulkError && (
             <span role="alert" className="text-sm text-red-700">

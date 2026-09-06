@@ -20,6 +20,7 @@ import {
 } from "@/features/documents/api";
 import { getStudentWarnings } from "@/features/warnings/api";
 import { localIsoDate } from "@/utils/dates";
+import { studentLabel } from "@/utils/roles";
 
 const CREATABLE: DocumentType[] = [
   "ATTENDANCE_COMMITMENT",
@@ -57,6 +58,9 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const documentTypeLabel = (type: DocumentType) => type === "STUDENT_ATTENDANCE_REPORT"
+    ? `تقرير مواظبة ${studentLabel(schoolType, true)}`
+    : DOCUMENT_TYPE_LABELS[type];
   const canManage =
     me.data?.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") ?? false;
   const canVoid = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
@@ -175,12 +179,12 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
             >
               {CREATABLE.map((type) => (
                 <option key={type} value={type}>
-                  {DOCUMENT_TYPE_LABELS[type]}
+                  {documentTypeLabel(type)}
                 </option>
               ))}
               {warningTypes.map((warning) => (
                 <option key={warning.id} value={warning.documentType}>
-                  {DOCUMENT_TYPE_LABELS[warning.documentType]}
+                  {documentTypeLabel(warning.documentType)}
                 </option>
               ))}
             </select>
