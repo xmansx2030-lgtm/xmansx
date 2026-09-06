@@ -66,7 +66,7 @@ export function SchoolSwitcher() {
                 <span className="text-sm font-medium text-slate-800">
                   {membership.school.name}
                 </span>
-                <span className="text-xs text-slate-500">{roleLabels(membership.roles)}</span>
+                <span className="text-xs text-slate-500">{roleLabels(membership.roles, membership.school.school_type)}</span>
               </button>
             </li>
           ))}

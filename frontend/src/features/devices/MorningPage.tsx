@@ -40,10 +40,14 @@ export function MorningPage() {
     refetchInterval: isToday ? 30_000 : false, // البصمات تتدفق أثناء الصباح
   });
 
-  const refresh = () =>
+  const refresh = () => Promise.all([
     queryClient.invalidateQueries({
-      predicate: (q) => JSON.stringify(q.queryKey).includes('"morning"'),
-    });
+      queryKey: schoolScopedKey(schoolId, "morning"),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "dashboard"),
+    }),
+  ]);
 
   return (
     <div className="space-y-5">

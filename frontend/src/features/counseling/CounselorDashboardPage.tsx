@@ -12,6 +12,7 @@ import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getCases, getCounselorDashboard } from "@/features/counseling/api";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 const KPI_CARDS: { key: keyof import("@/features/counseling/api").DashboardKpis; label: string; icon: LucideIcon; tone: "teal" | "blue" | "amber" | "red" | "violet" | "neutral" }[] = [
   { key: "new_referrals", label: "إحالات جديدة", icon: Inbox, tone: "blue" },
@@ -50,6 +51,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 export function CounselorDashboardPage() {
   const schoolId = useActiveSchoolId();
   const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [status, setStatus] = useState("live");
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState("recent");
@@ -85,12 +87,12 @@ export function CounselorDashboardPage() {
     <div className="space-y-5">
       <PageHeader
         icon={BriefcaseBusiness}
-        eyebrow="مساحة المرشد الطلابي"
+        eyebrow={`مساحة ${roleLabel("COUNSELOR", schoolType)}`}
         title="لوحة الإرشاد الطلابي"
         description="صندوق عمل موحّد للإحالات والحالات وخطط المتابعة، مرتب حسب ما يحتاج إلى تدخل أولًا."
         tone="counselor"
-        badge={me.data?.active_school?.name ?? "المرشد الطلابي"}
-        meta={`${kpis.data?.due_activities ?? 0} إجراءات مستحقة · ${kpis.data?.waiting_teacher_response ?? 0} بانتظار رد معلم`}
+        badge={me.data?.active_school?.name ?? roleLabel("COUNSELOR", schoolType)}
+        meta={`${kpis.data?.due_activities ?? 0} إجراءات مستحقة · ${kpis.data?.waiting_teacher_response ?? 0} بانتظار رد ${roleLabel("TEACHER", schoolType)}`}
         actions={<Link to="/referrals" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><Inbox aria-hidden size={18} /> صندوق الإحالات</Link>}
         testId="counselor-workspace-header"
       />
@@ -99,7 +101,7 @@ export function CounselorDashboardPage() {
         {KPI_CARDS.map((card) => (
           <MetricCard
             key={card.key}
-            label={card.label}
+            label={card.key === "waiting_teacher_response" ? `بانتظار رد ${roleLabel("TEACHER", schoolType)}` : card.label}
             value={kpis.data?.[card.key] ?? 0}
             icon={card.icon}
             tone={card.tone}

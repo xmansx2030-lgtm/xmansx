@@ -31,7 +31,7 @@ from devices.models import AttendanceDevice
 from documents.models import GeneratedDocument
 from excuses.models import AbsenceExcuseAttachment
 from memberships.models import MembershipStatus, SchoolMembership, SchoolRole
-from schools.models import School, SchoolStatus
+from schools.models import School, SchoolStatus, SchoolType
 from students.models import Student, StudentStatus
 from subscriptions.access import effective_status, live_subscription, subscription_state
 from subscriptions.entitlements import get_school_entitlements
@@ -286,6 +286,7 @@ def _school_row(school: School) -> dict:
         "id": school.id,
         "name": school.name,
         "slug": school.slug,
+        "school_type": school.school_type,
         "school_status": school.status,
         "subscription_status": status_value,
         "plan": subscription.plan.code if subscription else None,
@@ -303,6 +304,7 @@ def _school_row(school: School) -> dict:
 class SchoolListView(PlatformAPIView):
     class InputSerializer(serializers.Serializer):
         school_name = serializers.CharField(max_length=200)
+        school_type = serializers.ChoiceField(choices=SchoolType.choices)
         manager_name = serializers.CharField(max_length=150)
         manager_mobile = serializers.CharField(max_length=20)
         plan_id = serializers.IntegerField(required=False, allow_null=True)
@@ -382,6 +384,7 @@ class SchoolDetailView(PlatformAPIView):
         school_status = serializers.ChoiceField(
             choices=SchoolStatus.choices, required=False
         )
+        school_type = serializers.ChoiceField(choices=SchoolType.choices, required=False)
 
         def validate_name(self, value):
             value = value.strip()

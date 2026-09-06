@@ -11,6 +11,7 @@ import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections, getCurrentPeriod } from "@/features/attendance/api";
 import { QrScanner } from "@/features/attendance/QrScanner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { roleLabel, studentCountLabel } from "@/utils/roles";
 
 interface TeacherHomeProps {
   activeSchoolId: number;
@@ -20,13 +21,15 @@ interface TeacherHomeProps {
 export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
   const navigate = useNavigate();
   const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [scanning, setScanning] = useState(false);
   const [sectionSearch, setSectionSearch] = useState("");
 
   const periodQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "current-period"),
     queryFn: ({ signal }) => getCurrentPeriod(signal),
-    refetchInterval: 60_000, // الحصة تتغير مع الوقت
+    refetchInterval: 5_000, // يلتقط تعديل توقيت الجدول على أجهزة المعلمين سريعًا
+    refetchIntervalInBackground: true,
   });
 
   const sectionsQuery = useQuery({
@@ -52,11 +55,11 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
     <div className="space-y-5">
       <PageHeader
         icon={BookOpenCheck}
-        eyebrow="مساحة المعلم اليومية"
+        eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)} اليومية`}
         title={`مرحبًا ${me.data?.name ?? "بك"}`}
         description="ابدأ التحضير بسرعة عبر مسح رمز الفصل، أو اختر الفصل يدويًا عند الحاجة."
         tone="teacher"
-        badge={me.data?.active_school?.name ?? "المعلم"}
+        badge={me.data?.active_school?.name ?? roleLabel("TEACHER", schoolType)}
         meta={period ? <><Clock3 aria-hidden size={14} /> {period.name} · <span dir="ltr">{period.start_time} – {period.end_time}</span></> : "تظهر الحصة الحالية تلقائيًا حسب جدول المدرسة"}
         actions={
           <Button
@@ -170,7 +173,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
                   onClick={() => navigate(`/attendance/section/${section.id}`)}
                   data-testid={`section-${section.id}`}
                 >
-                  <span><span className="block font-black text-slate-900">{section.name}</span><span className="mt-1 block text-xs text-slate-500">{section.grade_name} · {section.students_count} طالبًا</span></span>
+                  <span><span className="block font-black text-slate-900">{section.name}</span><span className="mt-1 block text-xs text-slate-500">{section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}</span></span>
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-teal-600 group-hover:text-white"><ArrowLeft aria-hidden size={17} /></span>
                 </button>
               </li>

@@ -62,7 +62,7 @@ export function SettingsPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <span className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-500"><ShieldCheck aria-hidden size={23} /></span>
         <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض الإعدادات</h2>
-        <p className="text-slate-600">إعدادات المدرسة متاحة لمدير المدرسة فقط.</p>
+        <p className="text-slate-600">إعدادات المدرسة متاحة {me.data.active_school?.school_type === "GIRLS" ? "لمديرة المدرسة" : "لمدير المدرسة"} فقط.</p>
       </section>
     );
   }

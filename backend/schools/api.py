@@ -8,7 +8,7 @@ from rest_framework.response import Response
 
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import MembershipStatus, SchoolMembership, SchoolRole
-from schools.models import EducationStage
+from schools.models import EducationStage, SchoolType
 from schools.services import settings as settings_service
 
 
@@ -16,6 +16,7 @@ class SchoolInfoPatchSerializer(serializers.Serializer):
     """حقول التعديل المسموحة فقط — school/logo/status ليست هنا (منع mass assignment)."""
 
     name = serializers.CharField(max_length=200, required=False)
+    school_type = serializers.ChoiceField(choices=SchoolType.choices, required=False)
     ministry_school_number = serializers.CharField(
         max_length=30, required=False, allow_blank=True
     )
@@ -70,7 +71,12 @@ def serialize_settings(school, settings_obj, request) -> dict:
     if settings_obj.logo:
         logo_url = request.build_absolute_uri(settings_obj.logo.url)
     return {
-        "school": {"id": school.id, "name": school.name, "slug": school.slug},
+        "school": {
+            "id": school.id,
+            "name": school.name,
+            "slug": school.slug,
+            "school_type": school.school_type,
+        },
         "ministry_school_number": settings_obj.ministry_school_number,
         "education_stage": settings_obj.education_stage,
         "city": settings_obj.city,

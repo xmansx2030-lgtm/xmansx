@@ -27,6 +27,8 @@ import {
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { STAGE_LABELS } from "@/features/settings/api";
 import { useSettingsQuery } from "@/features/settings/hooks";
+import type { SchoolType } from "@/types/auth";
+import { studentCountLabel, studentPluralLabel } from "@/utils/roles";
 
 export function sectionDisplayName(name: string): string {
   return /^\s*فصل\s+/u.test(name) ? name.trim() : `الفصل ${name.trim()}`;
@@ -39,6 +41,7 @@ export function SectionQrPage() {
   const settingsQuery = useSettingsQuery();
   const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
@@ -153,7 +156,7 @@ export function SectionQrPage() {
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
             <GraduationCap aria-hidden size={30} className="mx-auto text-slate-400" />
             <p className="mt-3 font-bold text-slate-800">لا توجد فصول متاحة بعد</p>
-            <p className="mt-1 text-sm text-slate-500">أضف الطلاب والفصول أولًا، ثم عُد لطباعة الرموز.</p>
+            <p className="mt-1 text-sm text-slate-500">أضف {studentPluralLabel(schoolType)} والفصول أولًا، ثم عُد لطباعة الرموز.</p>
           </div>
         )}
         {sectionsQuery.isSuccess && sectionsQuery.data.length > 0 && (
@@ -191,6 +194,7 @@ export function SectionQrPage() {
                   <li key={section.id}>
                     <SectionChoice
                       section={section}
+                      schoolType={schoolType}
                       selected={selectedId === section.id}
                       onSelect={() => {
                         setSelectedId(section.id);
@@ -225,6 +229,7 @@ export function SectionQrPage() {
                 logoUrl={logoUrl}
                 stageLabel={stageLabel}
                 section={selectedSection}
+                schoolType={schoolType}
               />
 
               <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
@@ -266,7 +271,7 @@ export function SectionQrPage() {
   );
 }
 
-function SectionChoice({ section, selected, onSelect }: { section: AttendanceSection; selected: boolean; onSelect: () => void }) {
+function SectionChoice({ section, schoolType, selected, onSelect }: { section: AttendanceSection; schoolType: SchoolType; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -285,7 +290,7 @@ function SectionChoice({ section, selected, onSelect }: { section: AttendanceSec
       <span className="min-w-0 flex-1">
         <span className="block truncate font-black text-slate-900">{sectionDisplayName(section.name)}</span>
         <span className="mt-1 block truncate text-xs text-slate-500">{section.grade_name}</span>
-        <span className="mt-1 flex items-center gap-1 text-[11px] font-bold text-slate-400"><UsersRound aria-hidden size={12} /> {section.students_count} طالبًا</span>
+        <span className="mt-1 flex items-center gap-1 text-[11px] font-bold text-slate-400"><UsersRound aria-hidden size={12} /> {section.students_count} {studentCountLabel(schoolType)}</span>
       </span>
       {selected && <CheckCircle2 aria-label="محدد" size={19} className="shrink-0 text-teal-700" />}
     </button>
@@ -298,12 +303,14 @@ function QrPrintSheet({
   logoUrl,
   stageLabel,
   section,
+  schoolType,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   schoolName: string;
   logoUrl: string | null;
   stageLabel: string | null;
   section: AttendanceSection;
+  schoolType: SchoolType;
 }) {
   return (
     <article className="qr-print-sheet relative mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-950/5 sm:p-9" data-testid="qr-print-sheet">
@@ -317,7 +324,7 @@ function QrPrintSheet({
             <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-slate-950 text-white shadow-sm"><GraduationCap aria-hidden size={31} /></span>
           )}
           <div className="min-w-0">
-            <p className="text-[11px] font-black tracking-wide text-teal-700">منصة المواظبة والمتابعة الطلابية</p>
+            <p className="text-[11px] font-black tracking-wide text-teal-700">منصة مواظبة ومتابعة {studentPluralLabel(schoolType)}</p>
             <h2 className="mt-1 truncate text-xl font-black text-slate-950 sm:text-2xl" data-testid="qr-school-name">{schoolName}</h2>
             {stageLabel && <p className="mt-1 text-xs font-bold text-slate-500">المرحلة: {stageLabel}</p>}
           </div>
@@ -328,7 +335,7 @@ function QrPrintSheet({
       <div className="relative py-7 text-center">
         <p className="text-sm font-black text-teal-700">{section.grade_name}</p>
         <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl" data-testid="qr-section-title">{sectionDisplayName(section.name)}</h1>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">امسح الرمز من داخل المنصة لفتح قائمة طلاب هذا الفصل والبدء في التحضير مباشرة.</p>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">امسح الرمز من داخل المنصة لفتح قائمة {studentPluralLabel(schoolType)} هذا الفصل والبدء في التحضير مباشرة.</p>
 
         <div className="mx-auto mt-6 w-fit rounded-[2rem] border-2 border-slate-900 bg-white p-3 shadow-sm ring-8 ring-slate-100">
           <canvas
@@ -344,7 +351,7 @@ function QrPrintSheet({
       <div className="relative grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-3">
         <Instruction icon={Smartphone} number="1" text="افتح ماسح QR من المنصة" />
         <Instruction icon={QrCode} number="2" text="وجّه الكاميرا نحو الرمز" />
-        <Instruction icon={CheckCircle2} number="3" text="راجع الطلاب وابدأ التحضير" />
+        <Instruction icon={CheckCircle2} number="3" text={`راجع ${studentPluralLabel(schoolType)} وابدأ التحضير`} />
       </div>
       <div className="relative mt-5 flex flex-col justify-between gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-xs text-slate-300 sm:flex-row sm:items-center">
         <span className="inline-flex items-center gap-2 font-bold text-white"><ShieldCheck aria-hidden size={15} className="text-emerald-300" /> يلزم تسجيل الدخول والصلاحية المدرسية</span>

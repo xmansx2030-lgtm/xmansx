@@ -4,6 +4,7 @@ import { useState } from "react";
 import { apiRequest } from "@/api/client";
 import { Button } from "@/components/Button";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { studentLabel } from "@/utils/roles";
 
 interface SearchResult {
   results: { id: number; full_name: string; national_id_masked: string }[];
@@ -19,6 +20,7 @@ export function StudentPicker({
 }) {
   const me = useMe();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [term, setTerm] = useState("");
 
   const searchQuery = useQuery({
@@ -37,8 +39,8 @@ export function StudentPicker({
         <input
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="ابحث باسم الطالب"
-          aria-label="بحث عن طالب"
+          placeholder={`ابحث باسم ${studentLabel(schoolType, true)}`}
+          aria-label={`بحث عن ${studentLabel(schoolType)}`}
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
         />
         {onCancel && (

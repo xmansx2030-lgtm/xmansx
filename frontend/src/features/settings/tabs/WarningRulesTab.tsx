@@ -14,6 +14,7 @@ import {
   getWarningRules,
   patchWarningRules,
 } from "@/features/warnings/api";
+import { roleLabel } from "@/utils/roles";
 
 const TYPES: WarningType[] = ["UNEXCUSED_FULL_DAY_ABSENCE", "MORNING_LATE_OCCURRENCES"];
 
@@ -147,7 +148,7 @@ export function WarningRulesTab() {
       )}
       {!canEdit && (
         <p className="text-sm text-slate-500">
-          إعدادات الإنذارات يعدّلها مدير المدرسة؛ العرض متاح للوكيل.
+          إعدادات الإنذارات تعدّلها {roleLabel("SCHOOL_MANAGER", me.data?.active_school?.school_type)}؛ العرض متاح {me.data?.active_school?.school_type === "GIRLS" ? "للوكيلة" : "للوكيل"}.
         </p>
       )}
     </div>

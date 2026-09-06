@@ -8,9 +8,9 @@ import { TextField } from "@/components/TextField";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { CounselorSectionPicker } from "@/features/staff/CounselorSectionPicker";
 import { createStaff, type ManualStaffResult } from "@/features/staff/api";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import { getSections } from "@/features/students/api";
-import { ROLE_LABELS } from "@/utils/roles";
+import { roleLabel } from "@/utils/roles";
 
 const ROLES = ["TEACHER", "COUNSELOR", "VICE_PRINCIPAL", "SCHOOL_MANAGER"] as const;
 const ROLE_DESCRIPTIONS: Record<(typeof ROLES)[number], string> = {
@@ -22,6 +22,7 @@ const ROLE_DESCRIPTIONS: Record<(typeof ROLES)[number], string> = {
 
 export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void; onClose: () => void }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const [displayName, setDisplayName] = useState("");
   const [mobile, setMobile] = useState("");
   const [employeeNumber, setEmployeeNumber] = useState("");
@@ -114,7 +115,7 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
           <TextField label="اسم الموظف الكامل *" value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus />
           <TextField label="رقم الجوال *" value={mobile} onChange={(e) => setMobile(e.target.value)} type="tel" inputMode="tel" dir="ltr" placeholder="05XXXXXXXX" />
           <TextField label="الرقم الوظيفي" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} dir="ltr" placeholder="اختياري" />
-          <TextField label="المسمى الوظيفي" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="مثال: معلم رياضيات" />
+          <TextField label="المسمى الوظيفي" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder={`مثال: ${roleLabel("TEACHER", schoolType)} رياضيات`} />
         </div>
       </div>
 
@@ -123,7 +124,7 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
         <div className="flex flex-col gap-1">
           <label htmlFor="manual-staff-role" className="text-sm font-bold text-slate-700">الدور الأول في المنصة *</label>
           <select id="manual-staff-role" value={role} onChange={(e) => { setRole(e.target.value as (typeof ROLES)[number]); setSectionConflicts([]); }} className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm">
-            {ROLES.map((value) => <option key={value} value={value}>{ROLE_LABELS[value]}</option>)}
+            {ROLES.map((value) => <option key={value} value={value}>{roleLabel(value, schoolType)}</option>)}
           </select>
           <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Info aria-hidden size={14} className="mt-0.5 shrink-0" />{ROLE_DESCRIPTIONS[role]} ويمكن تعديل الأدوار لاحقًا من إدارة الموظف.</p>
         </div>

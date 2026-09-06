@@ -46,6 +46,59 @@ def test_create_schedule_with_valid_periods(role_client):
 
 
 @pytest.mark.django_db
+def test_period_edit_refreshes_pristine_today_context_and_dashboard_cache(
+    role_client, django_capture_on_commit_callbacks
+):
+    """تعديل التوقيت يصل فورًا لقراءات اليوم ما دام التحضير لم يبدأ."""
+    from attendance.services.day_context import get_or_create_attendance_day_context
+    from attendance.services.periods import _PY_TO_SCHOOL_WEEKDAY, school_now
+    from school_dashboard.cache import build_key
+
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    schedule = _create_schedule(client).json()
+    _put_periods(
+        client, schedule["id"], [_period(1, "الحصة الأولى", "07:00", "07:45")]
+    )
+    today = school_now(school).date()
+    weekday = _PY_TO_SCHOOL_WEEKDAY[today.weekday()]
+    client.put(
+        WEEK_DAYS_URL,
+        {
+            "days": [
+                {
+                    "weekday": weekday,
+                    "is_school_day": True,
+                    "bell_schedule_id": schedule["id"],
+                }
+            ]
+        },
+        content_type="application/json",
+    )
+    context = get_or_create_attendance_day_context(
+        school=school, attendance_date=today
+    )
+    assert context.attendance_periods[0]["start_time"] == "07:00"
+    old_dashboard_key = build_key(
+        school_id=school.id, section="today", parts={"roles": ["SCHOOL_MANAGER"]}
+    )
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = _put_periods(
+            client,
+            schedule["id"],
+            [_period(1, "الحصة الأولى", "08:10", "08:55")],
+        )
+
+    assert response.status_code == 200
+    context.refresh_from_db()
+    assert context.attendance_periods[0]["start_time"] == "08:10"
+    assert context.attendance_periods[0]["end_time"] == "08:55"
+    assert build_key(
+        school_id=school.id, section="today", parts={"roles": ["SCHOOL_MANAGER"]}
+    ) != old_dashboard_key
+
+
+@pytest.mark.django_db
 def test_period_end_before_start_rejected(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])
     schedule = _create_schedule(client).json()

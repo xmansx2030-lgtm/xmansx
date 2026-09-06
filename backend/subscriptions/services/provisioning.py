@@ -16,7 +16,8 @@ from memberships.models import (
     SchoolMembershipRole,
     SchoolRole,
 )
-from schools.models import School
+from schools.models import School, SchoolType
+from schools.role_labels import school_role_label
 from subscriptions.services import subscriptions as subscription_service
 from subscriptions.services.school_accounts import generate_temporary_password
 
@@ -36,6 +37,7 @@ def create_school(
     *,
     actor,
     school_name: str,
+    school_type: str,
     manager_name: str,
     manager_mobile: str,
     plan_id: int | None = None,
@@ -47,16 +49,21 @@ def create_school(
     """مدرسة + مدير + اشتراك في معاملة واحدة — أي فشل يلغي الكل."""
     if not (school_name or "").strip():
         raise ApiError("VALIDATION_ERROR", "اسم المدرسة مطلوب.")
+    if school_type not in SchoolType.values:
+        raise ApiError("VALIDATION_ERROR", "نوع المدرسة غير صحيح.")
+    manager_label = school_role_label(SchoolRole.SCHOOL_MANAGER, school_type)
     if not (manager_name or "").strip():
-        raise ApiError("VALIDATION_ERROR", "اسم مدير المدرسة مطلوب.")
+        raise ApiError("VALIDATION_ERROR", f"اسم {manager_label} مطلوب.")
 
     try:
         mobile = normalize_mobile(manager_mobile)
     except Exception as exc:  # noqa: BLE001 — رسالة عربية موحدة بدل خطأ التحقق الخام
-        raise ApiError("VALIDATION_ERROR", "رقم جوال المدير غير صالح.") from exc
+        raise ApiError("VALIDATION_ERROR", f"رقم جوال {manager_label} غير صالح.") from exc
 
     school = School.objects.create(
-        name=school_name.strip(), slug=_unique_slug(school_name)
+        name=school_name.strip(),
+        slug=_unique_slug(school_name),
+        school_type=school_type,
     )
 
     temporary_password = None
@@ -103,7 +110,11 @@ def create_school(
         AuditAction.PLATFORM_SCHOOL_CREATED,
         request=request, actor=actor, school=school,
         target_type="School", target_id=school.id,
-        metadata={"slug": school.slug, "has_subscription": subscription is not None},
+        metadata={
+            "slug": school.slug,
+            "school_type": school.school_type,
+            "has_subscription": subscription is not None,
+        },
     )
     return {
         "school": school,

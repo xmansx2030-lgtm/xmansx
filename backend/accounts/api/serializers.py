@@ -23,7 +23,12 @@ class ActiveSchoolSerializer(serializers.Serializer):
 
 
 def serialize_school(school) -> dict:
-    return {"id": school.id, "name": school.name, "slug": school.slug}
+    return {
+        "id": school.id,
+        "name": school.name,
+        "slug": school.slug,
+        "school_type": school.school_type,
+    }
 
 
 def serialize_membership(membership: SchoolMembership) -> dict:

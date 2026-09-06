@@ -32,6 +32,7 @@ import {
   type SchoolRow,
   type Usage,
 } from "@/features/platform/api";
+import type { SchoolType } from "@/types/auth";
 
 const LIMIT_KEYS = ["MAX_STUDENTS", "MAX_STAFF", "MAX_DEVICES", "MAX_STORAGE_GB"] as const;
 const LIMIT_FORM_KEYS = {
@@ -122,10 +123,12 @@ const formatDate = (value: string | null | undefined) =>
 function CredentialNotice({
   mobile,
   password,
+  managerLabel,
   onClose,
 }: {
   mobile: string;
   password: string | null;
+  managerLabel: "المدير" | "المديرة";
   onClose: () => void;
 }) {
   return (
@@ -137,7 +140,7 @@ function CredentialNotice({
           {password ? (
             <>
               <p>كلمة المرور المؤقتة: <b dir="ltr">{password}</b></p>
-              <p className="mt-1 text-xs">تظهر مرة واحدة، وسيُطلب من المدير تغييرها بعد الدخول.</p>
+              <p className="mt-1 text-xs">تظهر مرة واحدة، وسيُطلب من {managerLabel} تغييرها بعد الدخول.</p>
             </>
           ) : (
             <p className="mt-1 text-xs">الحساب موجود مسبقًا ويستخدم كلمة مروره الحالية.</p>
@@ -162,9 +165,11 @@ function CredentialNotice({
 function ManagerAccountCard({
   schoolId,
   manager,
+  schoolType,
 }: {
   schoolId: number;
   manager: SchoolManagerAccount;
+  schoolType: SchoolType;
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(manager.name);
@@ -193,6 +198,7 @@ function ManagerAccountCard({
     },
   });
   const active = manager.membership_status === "ACTIVE";
+  const managerLabel = schoolType === "GIRLS" ? "المديرة" : "المدير";
 
   return (
     <article className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -209,12 +215,12 @@ function ManagerAccountCard({
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-semibold text-slate-600">
-          اسم المدير
-          <input aria-label={`اسم المدير ${manager.membership_id}`} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" value={name} onChange={(event) => setName(event.target.value)} />
+          اسم {managerLabel}
+          <input aria-label={`اسم ${managerLabel} ${manager.membership_id}`} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <label className="text-xs font-semibold text-slate-600">
           رقم الجوال للدخول
-          <input aria-label={`جوال المدير ${manager.membership_id}`} dir="ltr" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-left" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+          <input aria-label={`جوال ${managerLabel} ${manager.membership_id}`} dir="ltr" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-left" value={mobile} onChange={(event) => setMobile(event.target.value)} />
         </label>
       </div>
       {manager.shared_with_other_schools && <p className="mt-2 text-xs text-blue-700">هذا الحساب مرتبط بمدارس أخرى؛ تعديل الجوال يغيّر معرف دخوله إليها أيضًا.</p>}
@@ -222,14 +228,14 @@ function ManagerAccountCard({
         <Button type="button" className="px-3 py-1.5" disabled={save.isPending} onClick={() => save.mutate()}>حفظ بيانات الحساب</Button>
         <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("reset-password")}>إعادة ضبط كلمة المرور</Button>
         {active ? (
-          <Button type="button" variant="danger" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("suspend")}>إيقاف المدير</Button>
+          <Button type="button" variant="danger" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("suspend")}>إيقاف {managerLabel}</Button>
         ) : (
-          <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => accountAction.mutate("reactivate")}>إعادة تفعيل المدير</Button>
+          <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => accountAction.mutate("reactivate")}>إعادة تفعيل {managerLabel}</Button>
         )}
       </div>
       {confirmation && (
         <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-          <p>{confirmation === "reset-password" ? "سيتم إبطال كلمة المرور الحالية وإصدار كلمة مؤقتة جديدة." : "سيتوقف وصول هذا المدير إلى المدرسة. لا يمكن إيقاف المدير الوحيد."}</p>
+          <p>{confirmation === "reset-password" ? "سيتم إبطال كلمة المرور الحالية وإصدار كلمة مؤقتة جديدة." : `سيتوقف وصول ${managerLabel} إلى المدرسة. لا يمكن إيقاف الحساب الإداري الوحيد.`}</p>
           <div className="mt-2 flex gap-2">
             <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => accountAction.mutate(confirmation)}>تأكيد</Button>
             <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setConfirmation(null)}>تراجع</Button>
@@ -237,7 +243,7 @@ function ManagerAccountCard({
         </div>
       )}
       <div className="mt-2"><ErrorLine error={save.error ?? accountAction.error} /></div>
-      {credentials && <div className="mt-3"><CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} onClose={() => setCredentials(null)} /></div>}
+      {credentials && <div className="mt-3"><CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} managerLabel={managerLabel} onClose={() => setCredentials(null)} /></div>}
     </article>
   );
 }
@@ -246,8 +252,10 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
   const queryClient = useQueryClient();
   const [schoolName, setSchoolName] = useState(detail.name);
   const [schoolStatus, setSchoolStatus] = useState(detail.school_status);
+  const [schoolType, setSchoolType] = useState<SchoolType>(detail.school_type ?? "BOYS");
   const [newManager, setNewManager] = useState({ name: "", mobile: "" });
   const [credentials, setCredentials] = useState<ManagerCredentialResponse | null>(null);
+  const managerNoun = schoolType === "GIRLS" ? "مديرة" : "مدير";
 
   const refresh = async () => {
     await Promise.all([
@@ -257,7 +265,7 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
     ]);
   };
   const saveSchool = useMutation({
-    mutationFn: () => updatePlatformSchool(detail.id, { name: schoolName, school_status: schoolStatus }),
+    mutationFn: () => updatePlatformSchool(detail.id, { name: schoolName, school_status: schoolStatus, school_type: schoolType }),
     onSuccess: refresh,
   });
   const addManager = useMutation({
@@ -275,10 +283,17 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
         <h3 className="font-bold text-slate-900">بيانات المدرسة والدخول</h3>
         <p className="text-xs text-slate-500">المعرف: {detail.slug} · أضيفت {formatDate(detail.created_at)}</p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
+      <div className="grid gap-2 sm:grid-cols-[1fr_130px_150px]">
         <label className="text-xs font-semibold text-slate-600">
           اسم المدرسة
           <input aria-label="اسم المدرسة المسجلة" className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">
+          نوع المدرسة
+          <select aria-label="نوع المدرسة المسجلة" className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" value={schoolType} onChange={(event) => setSchoolType(event.target.value as SchoolType)}>
+            <option value="BOYS">بنين</option>
+            <option value="GIRLS">بنات</option>
+          </select>
         </label>
         <label className="text-xs font-semibold text-slate-600">
           حالة المدرسة
@@ -294,24 +309,24 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
       <ErrorLine error={saveSchool.error} />
 
       <div className="border-t border-slate-200 pt-3">
-        <h4 className="font-bold text-slate-900">حسابات مديري المدرسة</h4>
+        <h4 className="font-bold text-slate-900">حسابات {schoolType === "GIRLS" ? "مديرات المدرسة" : "مديري المدرسة"}</h4>
         <p className="mb-3 text-xs text-slate-500">إدارة معرفات الدخول دون الاطلاع على كلمة المرور الحالية.</p>
         <div className="space-y-3">
-          {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} />)}
-          {(detail.managers ?? []).length === 0 && <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">لا يوجد مدير مرتبط بهذه المدرسة.</p>}
+          {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} schoolType={schoolType} />)}
+          {(detail.managers ?? []).length === 0 && <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">لا يوجد {managerNoun} مرتبط بهذه المدرسة.</p>}
         </div>
       </div>
 
       <form className="border-t border-slate-200 pt-3" onSubmit={(event) => { event.preventDefault(); addManager.mutate(); }}>
-        <h4 className="mb-2 font-bold text-slate-900">إضافة مدير آخر</h4>
+        <h4 className="mb-2 font-bold text-slate-900">إضافة {managerNoun} {schoolType === "GIRLS" ? "أخرى" : "آخر"}</h4>
         <div className="grid gap-2 sm:grid-cols-2">
-          <input aria-label="اسم المدير الجديد" className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="اسم المدير" value={newManager.name} onChange={(event) => setNewManager({ ...newManager, name: event.target.value })} />
-          <input aria-label="جوال المدير الجديد" dir="ltr" className="rounded border border-slate-300 px-3 py-2 text-left text-sm" placeholder="05XXXXXXXX" value={newManager.mobile} onChange={(event) => setNewManager({ ...newManager, mobile: event.target.value })} />
+          <input aria-label={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"}`} value={newManager.name} onChange={(event) => setNewManager({ ...newManager, name: event.target.value })} />
+          <input aria-label={`جوال ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} dir="ltr" className="rounded border border-slate-300 px-3 py-2 text-left text-sm" placeholder="05XXXXXXXX" value={newManager.mobile} onChange={(event) => setNewManager({ ...newManager, mobile: event.target.value })} />
         </div>
-        <Button type="submit" className="mt-2 px-3 py-1.5" disabled={addManager.isPending}>إضافة مدير</Button>
+        <Button type="submit" className="mt-2 px-3 py-1.5" disabled={addManager.isPending}>إضافة {managerNoun}</Button>
         <div className="mt-2"><ErrorLine error={addManager.error} /></div>
       </form>
-      {credentials && <CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} onClose={() => setCredentials(null)} />}
+      {credentials && <CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} managerLabel={schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCredentials(null)} />}
     </div>
   );
 }
@@ -442,7 +457,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   const detail = useQuery({ queryKey: ["platform", "school", selected?.id], queryFn: ({ signal }) => getSchoolDetail(selected!.id, signal), enabled: Boolean(selected) });
   const history = useQuery({ queryKey: ["platform", "subscription", selected?.id], queryFn: ({ signal }) => getSubscriptionHistory(selected!.id, signal), enabled: Boolean(selected) });
   const events = useQuery({ queryKey: ["platform", "events", selected?.id], queryFn: ({ signal }) => getSubscriptionEvents(selected!.id, signal), enabled: Boolean(selected) });
-  const [createForm, setCreateForm] = useState({ school_name: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" as "TRIAL" | "ACTIVE" });
+  const [createForm, setCreateForm] = useState({ school_name: "", school_type: "" as SchoolType | "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" as "TRIAL" | "ACTIVE" });
   const [actionPlanId, setActionPlanId] = useState("");
   const [actionDays, setActionDays] = useState(30);
   const preview = useQuery({
@@ -450,13 +465,21 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
     queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
     enabled: Boolean(selected && actionPlanId),
   });
-  const [createdCredentials, setCreatedCredentials] = useState<{ mobile: string; password: string | null } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    mobile: string;
+    password: string | null;
+    schoolType: SchoolType;
+  } | null>(null);
   const createSchool = useMutation({
-    mutationFn: () => createPlatformSchool({ ...createForm, plan_id: createForm.plan_id ? Number(createForm.plan_id) : undefined }),
+    mutationFn: () => createPlatformSchool({ ...createForm, school_type: createForm.school_type as SchoolType, plan_id: createForm.plan_id ? Number(createForm.plan_id) : undefined }),
     onSuccess: async (row) => {
-      setCreatedCredentials({ mobile: createForm.manager_mobile, password: row.temporary_password });
+      setCreatedCredentials({
+        mobile: createForm.manager_mobile,
+        password: row.temporary_password,
+        schoolType: row.school_type,
+      });
       setSelected(row);
-      setCreateForm({ school_name: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" });
+      setCreateForm({ school_name: "", school_type: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" });
       await queryClient.invalidateQueries({ queryKey: ["platform", "schools"] });
     },
   });
@@ -476,18 +499,23 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
       <div className="space-y-3">
-        <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
+        <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-6">
           <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدرسة" value={createForm.school_name} onChange={(e) => setCreateForm({ ...createForm, school_name: e.target.value })} />
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدير" value={createForm.manager_name} onChange={(e) => setCreateForm({ ...createForm, manager_name: e.target.value })} />
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder="جوال المدير" value={createForm.manager_mobile} onChange={(e) => setCreateForm({ ...createForm, manager_mobile: e.target.value })} />
+          <select aria-label="نوع المدرسة الجديدة" required className="rounded border border-slate-300 px-3 py-2" value={createForm.school_type} onChange={(e) => setCreateForm({ ...createForm, school_type: e.target.value as SchoolType })}>
+            <option value="" disabled>نوع المدرسة</option>
+            <option value="BOYS">بنين</option>
+            <option value="GIRLS">بنات</option>
+          </select>
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder={createForm.school_type === "GIRLS" ? "اسم المديرة" : createForm.school_type === "BOYS" ? "اسم المدير" : "اسم المدير/المديرة"} value={createForm.manager_name} onChange={(e) => setCreateForm({ ...createForm, manager_name: e.target.value })} />
+          <input className="rounded border border-slate-300 px-3 py-2" placeholder={createForm.school_type === "GIRLS" ? "جوال المديرة" : createForm.school_type === "BOYS" ? "جوال المدير" : "جوال المدير/المديرة"} value={createForm.manager_mobile} onChange={(e) => setCreateForm({ ...createForm, manager_mobile: e.target.value })} />
           <select className="rounded border border-slate-300 px-3 py-2" value={createForm.plan_id} onChange={(e) => setCreateForm({ ...createForm, plan_id: e.target.value })}>
             <option value="">بدون باقة</option>
             {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
           </select>
-          <Button type="submit" disabled={createSchool.isPending}>إنشاء</Button>
-          <div className="md:col-span-5 space-y-2">
+          <Button type="submit" disabled={createSchool.isPending || !createForm.school_type}>إنشاء</Button>
+          <div className="md:col-span-6 space-y-2">
             <ErrorLine error={createSchool.error} />
-            {createdCredentials && <CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} onClose={() => setCreatedCredentials(null)} />}
+            {createdCredentials && <CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} managerLabel={createdCredentials.schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCreatedCredentials(null)} />}
           </div>
         </form>
         <div className="grid gap-2 md:grid-cols-5">

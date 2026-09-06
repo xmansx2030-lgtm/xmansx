@@ -269,6 +269,9 @@ def submit_session(
             "late": validated_count - absent,
         },
     )
+    from school_dashboard.cache import invalidate_school
+
+    invalidate_school(school.id)
     return session
 
 
@@ -431,4 +434,7 @@ def edit_session(
         recalculate_daily_attendance_for_section(
             school=school, section=session.section, attendance_date=session.attendance_date
         )
+        from school_dashboard.cache import invalidate_school
+
+        invalidate_school(school.id)
     return session

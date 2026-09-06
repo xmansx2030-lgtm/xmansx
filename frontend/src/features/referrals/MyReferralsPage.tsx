@@ -6,11 +6,12 @@ import { Link } from "react-router-dom";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
-import { schoolScopedKey } from "@/features/auth/useMe";
+import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getMyReferrals } from "@/features/referrals/api";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { ReferralsTable } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 /** «إحالاتي» — ما أنشأه المستخدم أو ساهم فيه فقط (بند 42).
  *
@@ -18,6 +19,8 @@ import { useActiveSchoolId } from "@/features/settings/hooks";
  */
 export function MyReferralsPage() {
   const schoolId = useActiveSchoolId();
+  const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -37,7 +40,7 @@ export function MyReferralsPage() {
     <div className="space-y-5">
       <PageHeader
         icon={Send}
-        eyebrow="مساحة المعلم"
+        eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)}`}
         title="إحالاتي"
         description="تابع الإحالات التي أنشأتها أو أضفت إليها ملاحظة، واعرف حالتها لدى المرشد دون كشف ملفات لا تخصك."
         tone="teacher"
@@ -54,7 +57,7 @@ export function MyReferralsPage() {
         <Spinner />
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-3" aria-label="ملخص إحالات المعلم">
+          <section className="grid gap-3 sm:grid-cols-3" aria-label={`ملخص إحالات ${roleLabel("TEACHER", schoolType)}`}>
             <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
               <Clock3 aria-hidden size={20} className="mb-3 text-blue-600" />
               <p className="text-2xl font-black text-slate-900">{activeCount}</p>

@@ -18,6 +18,8 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 
+from .live_schedule import publish_live_schedule_change
+
 
 def create_schedule(
     *, school, actor, name: str, valid_from=None, valid_to=None, request=None
@@ -56,6 +58,7 @@ def update_schedule(*, schedule: BellSchedule, actor, data: dict, request=None) 
             target_id=schedule.id,
             metadata={"changed": changed},
         )
+        publish_live_schedule_change(school_id=schedule.school_id)
     return schedule
 
 
@@ -75,6 +78,7 @@ def archive_schedule(*, schedule: BellSchedule, actor, request=None) -> BellSche
         target_type="BellSchedule",
         target_id=schedule.id,
     )
+    publish_live_schedule_change(school_id=schedule.school_id)
     return schedule
 
 
@@ -132,4 +136,5 @@ def replace_schedule_periods(
         target_id=schedule.id,
         metadata={"periods_count": len(created)},
     )
+    publish_live_schedule_change(school_id=schedule.school_id)
     return created

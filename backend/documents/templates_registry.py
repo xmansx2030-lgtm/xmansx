@@ -115,7 +115,7 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         key="student_attendance_report",
         version="v1",
         document_type=DocumentType.STUDENT_ATTENDANCE_REPORT,
-        title="تقرير مواظبة الطالب",
+        title="تقرير مواظبة الطالب/الطالبة",
         template_name="documents/attendance_report.html",
     ),
 )

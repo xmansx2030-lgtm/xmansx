@@ -165,3 +165,29 @@ def test_cancelled_status_is_persisted_with_actor_and_time(env):
     assert leave.cancelled_by_membership_id == env["membership"].id
     assert leave.cancelled_at is not None
     assert AuditLog.objects.filter(action=AuditAction.STUDENT_LEAVE_CANCELLED).exists()
+
+
+def test_leave_create_and_cancel_invalidate_dashboard_cache(
+    env, django_capture_on_commit_callbacks
+):
+    from school_dashboard.cache import build_key
+
+    def dashboard_key():
+        return build_key(
+            school_id=env["school"].id, section="today", parts={"roles": ["VP"]}
+        )
+
+    before = dashboard_key()
+    with django_capture_on_commit_callbacks(execute=True):
+        created = create_leave(env["client"], env["students"][0])
+    after_create = dashboard_key()
+    assert after_create != before
+
+    with django_capture_on_commit_callbacks(execute=True):
+        cancelled = env["client"].post(
+            f"{BASE}{created.json()['id']}/cancel/",
+            {"reason": "لم يغادر الطالب المدرسة"},
+            content_type="application/json",
+        )
+    assert cancelled.status_code == 200
+    assert dashboard_key() != after_create

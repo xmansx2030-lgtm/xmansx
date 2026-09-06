@@ -1,9 +1,10 @@
 import { apiRequest, getCookie } from "@/api/client";
+import type { SchoolType } from "@/types/auth";
 
 // ---- الأنواع ----
 
 export interface SchoolSettingsPayload {
-  school: { id: number; name: string; slug: string };
+  school: { id: number; name: string; slug: string; school_type: SchoolType };
   ministry_school_number: string;
   education_stage: "ELEMENTARY" | "MIDDLE" | "SECONDARY" | "MULTI_STAGE";
   city: string;

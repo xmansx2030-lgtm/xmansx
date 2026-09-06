@@ -21,11 +21,16 @@ TTL_TREND = 180
 _NAMESPACE = "dash"
 
 
+def _version_key(school_id: int) -> str:
+    return f"{_NAMESPACE}:{school_id}:version"
+
+
 def build_key(*, school_id: int, section: str, parts: dict) -> str:
     """مفتاح مستقر: المدرسة أولًا ثم بصمة بقية المعاملات."""
     payload = json.dumps(parts, sort_keys=True, ensure_ascii=False, default=str)
     digest = hashlib.sha256(payload.encode()).hexdigest()[:20]
-    return f"{_NAMESPACE}:{school_id}:{section}:{digest}"
+    version = cache.get(_version_key(school_id), 0)
+    return f"{_NAMESPACE}:{school_id}:{section}:v{version}:{digest}"
 
 
 def cached(*, key: str, ttl: int, builder):
@@ -41,5 +46,16 @@ def cached(*, key: str, ttl: int, builder):
 
 
 def invalidate_school(school_id: int) -> None:
-    """لا مسح انتقائي: الآجال القصيرة تكفي، والدالة موجودة للتوثيق والاختبار."""
-    return None
+    """يبطل كاش المدرسة فورًا بعد أي تغيير تشغيلي مؤثر في اللوحة.
+
+    تغيير النسخة يتجنب مسحًا عامًا غير مدعوم في كل محركات الكاش، ويبقي مفاتيح
+    المدارس الأخرى سليمة. المفاتيح القديمة تنتهي تلقائيًا وفق آجالها القصيرة.
+    """
+    key = _version_key(school_id)
+    if cache.add(key, 1, timeout=None):
+        return
+    try:
+        cache.incr(key)
+    except ValueError:
+        # قد ينتهي المفتاح بين add وincr في محرك كاش خارجي؛ أعد إنشاءه بأمان.
+        cache.set(key, 1, timeout=None)

@@ -217,7 +217,7 @@ describe("StaffImportWizard", () => {
     await user.click(screen.getByRole("button", { name: "متابعة إلى التأكيد" }));
 
     expect(await screen.findByTestId("staff-confirm-summary")).toHaveTextContent(
-      "حسابات معلمين جديدة: 1",
+      "حسابات معلمين جدد: 1",
     );
     await user.click(screen.getByRole("button", { name: "اعتماد الاستيراد" }));
 

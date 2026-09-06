@@ -20,6 +20,8 @@ import {
 } from "@/features/devices/api";
 import { StudentPicker } from "@/features/devices/StudentPicker";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import type { SchoolType } from "@/types/auth";
+import { studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const DEVICE_STATUS_LABELS: Record<string, string> = {
   ONLINE: "متصل",
@@ -34,6 +36,7 @@ export function DevicesSettingsPage() {
   const me = useMe();
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [credential, setCredential] = useState<BridgeCredential | null>(null);
   const [bridgeName, setBridgeName] = useState("");
   const [deviceForm, setDeviceForm] = useState({ name: "", vendor: "", local_ip: "" });
@@ -80,7 +83,7 @@ export function DevicesSettingsPage() {
         icon={Fingerprint}
         eyebrow="التكاملات التشغيلية"
         title="أجهزة الحضور"
-        description="إدارة جسور الاتصال والأجهزة ومطابقة معرفات الطلاب من مساحة واحدة آمنة. الاتصال يبدأ من داخل شبكة المدرسة ولا تُخزن بيانات بيومترية في المنصة."
+        description={`إدارة جسور الاتصال والأجهزة ومطابقة معرفات ${studentPluralLabel(schoolType)} من مساحة واحدة آمنة. الاتصال يبدأ من داخل شبكة المدرسة ولا تُخزن بيانات بيومترية في المنصة.`}
         tone="operational"
         badge={devicesQuery.data ? `${devicesQuery.data.filter((device) => device.status === "ONLINE").length} متصل من ${devicesQuery.data.length}` : "جارٍ التحقق"}
         meta={<><span className="inline-flex items-center gap-1"><ShieldCheck aria-hidden size={14} /> اتصال خارجي آمن</span><span aria-hidden>•</span><span>لا حاجة لفتح منافذ واردة</span></>}
@@ -223,7 +226,7 @@ export function DevicesSettingsPage() {
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UsersRound aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">مطابقة مستخدمي الأجهزة</h2><p className="text-xs text-slate-500">اربط معرف الجهاز بسجل الطالب الصحيح</p></div></div>
+        <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UsersRound aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">مطابقة مستخدمي الأجهزة</h2><p className="text-xs text-slate-500">اربط معرف الجهاز بسجل {studentLabel(schoolType, true)} الصحيح</p></div></div>
         <div className="mb-3 flex gap-1" role="tablist">
           {(
             [
@@ -259,6 +262,7 @@ export function DevicesSettingsPage() {
               <IdentityRowView
                 key={identity.id}
                 identity={identity}
+                schoolType={schoolType}
                 onMap={(studentId) => run(() => mapIdentity(identity.id, studentId))}
                 onUnmap={() => run(() => unmapIdentity(identity.id))}
               />
@@ -272,10 +276,12 @@ export function DevicesSettingsPage() {
 
 function IdentityRowView({
   identity,
+  schoolType,
   onMap,
   onUnmap,
 }: {
   identity: IdentityRow;
+  schoolType: SchoolType;
   onMap: (studentId: number) => Promise<void> | void;
   onUnmap: () => Promise<void> | void;
 }) {
@@ -311,7 +317,7 @@ function IdentityRowView({
         />
       ) : (
         <Button onClick={() => setPicking(true)} data-testid={`map-identity-${identity.id}`}>
-          ربط بطالب
+          ربط {schoolType === "GIRLS" ? "بطالبة" : "بطالب"}
         </Button>
       )}
     </li>

@@ -17,6 +17,8 @@ import {
   postMultiPeriodAnalytics,
 } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import type { SchoolType } from "@/types/auth";
+import { studentCountLabel, studentPluralLabel } from "@/utils/roles";
 
 const POLL_MS = 20_000; // اليوم الحالي فقط — التواريخ الماضية لا تتغير
 
@@ -30,6 +32,11 @@ const STATUS_BADGE: Record<string, string> = {
   LATE: "متأخر",
   PRESENT: "حاضر",
 };
+const FEMININE_STATUS_BADGE: Record<string, string> = {
+  ABSENT: "غائبة",
+  LATE: "متأخرة",
+  PRESENT: "حاضرة",
+};
 
 type Tab = "period" | "multi" | "daily";
 
@@ -37,6 +44,7 @@ type Tab = "period" | "multi" | "daily";
 export function AnalyticsPage() {
   const me = useMe();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [tab, setTab] = useState<Tab>("period");
   const [date, setDate] = useState(todayIso());
   const isToday = date === todayIso();
@@ -65,7 +73,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={BarChart3} eyebrow="التحليل التشغيلي" title="الغياب والحضور" description="حلّل الحضور حسب الحصة أو عبر عدة حصص، ثم انتقل من المؤشر إلى قائمة الطلاب القابلة للإجراء." tone="executive" badge={isToday ? "بيانات اليوم المباشرة" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="analytics-date" /></label>} />
+      <PageHeader icon={BarChart3} eyebrow="التحليل التشغيلي" title="الغياب والحضور" description={`حلّل الحضور حسب الحصة أو عبر عدة حصص، ثم انتقل من المؤشر إلى قائمة ${studentPluralLabel(schoolType)} القابلة للإجراء.`} tone="executive" badge={isToday ? "بيانات اليوم المباشرة" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="analytics-date" /></label>} />
       <section className="rounded-2xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
         <div className="mt-3 flex gap-1 border-b border-slate-100" role="tablist">
           {(
@@ -117,6 +125,7 @@ export function AnalyticsPage() {
           activeSchoolId={activeSchoolId}
           dayPeriods={dayPeriods}
           grades={grades}
+          schoolType={schoolType}
         />
       )}
 
@@ -126,6 +135,7 @@ export function AnalyticsPage() {
           activeSchoolId={activeSchoolId}
           data={dailyQuery.data}
           grades={grades}
+          schoolType={schoolType}
         />
       )}
     </div>
@@ -139,6 +149,7 @@ interface PeriodsReportProps {
   activeSchoolId: number;
   dayPeriods: { sequence: number; name: string }[];
   grades: [number, string][];
+  schoolType: SchoolType;
 }
 
 /** تبويبا «حسب الحصة» و«عدة حصص» — نفس محرك التقرير، يختلف المحدد فقط. */
@@ -149,6 +160,7 @@ function PeriodsReport({
   activeSchoolId,
   dayPeriods,
   grades,
+  schoolType,
 }: PeriodsReportProps) {
   const [selected, setSelected] = useState<number[]>([]);
   const [match, setMatch] = useState<MatchMode>("ALL_ABSENT");
@@ -277,6 +289,7 @@ function PeriodsReport({
           data={reportQuery.data}
           page={page}
           onPage={(next) => run(next)}
+          schoolType={schoolType}
         />
       )}
     </div>
@@ -287,10 +300,12 @@ function ReportResults({
   data,
   page,
   onPage,
+  schoolType,
 }: {
   data: MultiPeriodResponse;
   page: number;
   onPage: (page: number) => void;
+  schoolType: SchoolType;
 }) {
   const totalPages = Math.max(Math.ceil(data.total_students / data.page_size), 1);
   return (
@@ -300,8 +315,8 @@ function ReportResults({
         data-testid="report-summary"
       >
         <span className="font-bold text-slate-800">
-          {data.summary.matching_students} طالبًا{" "}
-          {data.match === "ALL_ABSENT" ? "غائبًا في جميع الحصص المحددة" : "غائبًا في حصة محددة على الأقل"}
+          {data.summary.matching_students} {studentCountLabel(schoolType)}{" "}
+          {data.match === "ALL_ABSENT" ? (schoolType === "GIRLS" ? "غائبة في جميع الحصص المحددة" : "غائبًا في جميع الحصص المحددة") : (schoolType === "GIRLS" ? "غائبة في حصة محددة على الأقل" : "غائبًا في حصة محددة على الأقل")}
         </span>
         <span className="text-slate-600">
           فصول مكتملة البيانات: {data.summary.complete_sections}
@@ -317,7 +332,7 @@ function ReportResults({
           data-testid="incomplete-warning"
         >
           <p className="mb-1 font-medium">
-            ⚠️ فصول استبعد طلابها من النتيجة لعدم اكتمال تحضير الحصص المحددة:
+            ⚠️ فصول استبعد {schoolType === "GIRLS" ? "طالباتها" : "طلابها"} من النتيجة لعدم اكتمال تحضير الحصص المحددة:
           </p>
           <ul className="list-inside list-disc">
             {data.incomplete_sections.map((s) => (
@@ -332,7 +347,7 @@ function ReportResults({
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         {data.students.length === 0 ? (
           <p className="p-6 text-slate-600" data-testid="no-matching-students">
-            لا يوجد طلاب مطابقون لهذا الاختيار.
+            لا يوجد {studentPluralLabel(schoolType)} {schoolType === "GIRLS" ? "مطابقات" : "مطابقون"} لهذا الاختيار.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100" data-testid="analytics-students">
@@ -362,7 +377,7 @@ function ReportResults({
                               : "bg-green-100 text-green-800"
                         }`}
                       >
-                        {label}: {STATUS_BADGE[ps.status]}
+                        {label}: {(schoolType === "GIRLS" ? FEMININE_STATUS_BADGE : STATUS_BADGE)[ps.status]}
                       </span>
                     );
                   })}
@@ -406,13 +421,16 @@ function DailyTab({
   activeSchoolId,
   data,
   grades,
+  schoolType,
 }: {
   date: string;
   activeSchoolId: number;
   data: import("@/features/attendance/api").DailyAnalyticsResponse;
   grades: [number, string][];
+  schoolType: SchoolType;
 }) {
   const [status, setStatus] = useState("");
+  const studentsLabel = studentPluralLabel(schoolType);
   const [gradeId, setGradeId] = useState<number | "">("");
   const listQuery = useQuery({
     queryKey: schoolScopedKey(
@@ -424,11 +442,11 @@ function DailyTab({
 
   const s = data.summary;
   const cards: [string, string, number][] = [
-    ["daily-total", "إجمالي الطلاب", s.total_students],
+    ["daily-total", `إجمالي ${studentsLabel}`, s.total_students],
     ["daily-full", "غياب يوم كامل", s.full_absent],
     ["daily-partial", "غياب جزئي", s.partial_absent],
     ["daily-incomplete", "بيانات غير مكتملة", s.incomplete_students],
-    ["daily-late-students", "طلاب متأخرون", s.late_students],
+    ["daily-late-students", schoolType === "GIRLS" ? "طالبات متأخرات" : "طلاب متأخرون", s.late_students],
     ["daily-late-occurrences", "مرات التأخر", s.late_occurrences],
     ["daily-late-minutes", "دقائق التأخر", s.late_minutes],
   ];
@@ -455,7 +473,7 @@ function DailyTab({
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <label className="text-sm text-slate-600">
-          عرض الطلاب حسب الحالة{" "}
+          عرض {studentsLabel} حسب الحالة{" "}
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -490,7 +508,7 @@ function DailyTab({
         {listQuery.isSuccess && status !== "" && (
           <ul className="mt-3 divide-y divide-slate-100" data-testid="daily-students">
             {listQuery.data.students.length === 0 && (
-              <li className="p-3 text-slate-600">لا يوجد طلاب في هذه الحالة.</li>
+              <li className="p-3 text-slate-600">لا يوجد {studentsLabel} في هذه الحالة.</li>
             )}
             {listQuery.data.students.map((student) => (
               <li

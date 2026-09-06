@@ -55,8 +55,9 @@ import {
   requestTeacherFollowUp,
   updateGoalStatus,
 } from "@/features/counseling/api";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import { localIsoDate } from "@/utils/dates";
+import { roleGenitivePluralLabel, roleLabel } from "@/utils/roles";
 
 type Tab = "overview" | "sessions" | "plan" | "requests" | "timeline";
 
@@ -79,6 +80,20 @@ const METRIC_LABELS: Record<string, string> = {
   actions_count: "الإجراءات",
 };
 
+function sessionTypeLabel(type: SessionType, schoolType: "BOYS" | "GIRLS"): string {
+  if (type === "TEACHER_CONSULTATION") {
+    return `تشاور مع ${roleLabel("TEACHER", schoolType)}`;
+  }
+  return SESSION_TYPE_LABELS[type];
+}
+
+function activityTypeLabel(type: ActivityType, schoolType: "BOYS" | "GIRLS"): string {
+  if (type === "TEACHER_OBSERVATION") {
+    return `طلب ملاحظة ${roleLabel("TEACHER", schoolType)}`;
+  }
+  return ACTIVITY_TYPE_LABELS[type];
+}
+
 function metricValue(source: Record<string, unknown>, key: string): string {
   const value = source[key];
   return value === undefined || value === null ? "—" : String(value);
@@ -89,6 +104,7 @@ export function CaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const id = Number(caseId);
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
   const [error, setError] = useState<unknown>(null);
@@ -226,7 +242,7 @@ export function CaseDetailPage() {
                 : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
             }`}
           >
-            {label}
+            {value === "requests" ? `طلبات ${roleGenitivePluralLabel("TEACHER", schoolType)}` : label}
           </button>
         ))}
       </div>
@@ -236,7 +252,7 @@ export function CaseDetailPage() {
           <section className="grid gap-3 sm:grid-cols-3">
             <button type="button" onClick={() => setTab("sessions")} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700"><MessageSquareReply aria-hidden size={18} /></span><span><span className="block text-sm font-black text-slate-900">{canManage ? "وثّق جلسة" : "سجل الجلسات"}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{canManage ? "سجّل ما تم في اللقاء أو الاتصال." : "راجع اللقاءات والاتصالات الموثقة دون تعديل."}</span></span></button>
             <button type="button" onClick={() => setTab("plan")} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700"><ClipboardList aria-hidden size={18} /></span><span><span className="block text-sm font-black text-slate-900">{canManage ? "خطة وإجراءات" : "خطة المتابعة"}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{canManage ? "حوّل المتابعة إلى أهداف ومواعيد واضحة." : "اطّلع على الأهداف والإجراءات ومواعيدها."}</span></span></button>
-            <button type="button" onClick={() => setTab("requests")} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700"><FileText aria-hidden size={18} /></span><span><span className="block text-sm font-black text-slate-900">{canManage ? "اطلب متابعة" : "طلبات المعلمين"}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{canManage ? "اطلب ملاحظة مهنية من المعلم." : "تابع الطلبات والردود المسجلة في الملف."}</span></span></button>
+            <button type="button" onClick={() => setTab("requests")} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700"><FileText aria-hidden size={18} /></span><span><span className="block text-sm font-black text-slate-900">{canManage ? "اطلب متابعة" : `طلبات ${roleGenitivePluralLabel("TEACHER", schoolType)}`}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{canManage ? `اطلب ملاحظة مهنية من ${roleLabel("TEACHER", schoolType)}.` : "تابع الطلبات والردود المسجلة في الملف."}</span></span></button>
           </section>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -387,7 +403,7 @@ export function CaseDetailPage() {
                 >
                   {SESSION_TYPES.map((type) => (
                     <option key={type} value={type}>
-                      {SESSION_TYPE_LABELS[type]}
+                      {sessionTypeLabel(type, schoolType)}
                     </option>
                   ))}
                 </select>
@@ -676,7 +692,7 @@ export function CaseDetailPage() {
                         >
                           {ACTIVITY_TYPES.map((type) => (
                             <option key={type} value={type}>
-                              {ACTIVITY_TYPE_LABELS[type]}
+                              {activityTypeLabel(type, schoolType)}
                             </option>
                           ))}
                         </select>
@@ -733,23 +749,23 @@ export function CaseDetailPage() {
         <div className="space-y-4" data-testid="case-requests">
           {canManage && (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-start gap-3 border-b border-amber-100 bg-gradient-to-l from-amber-50 to-white p-4 sm:p-5"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><UserRound aria-hidden size={18} /></span><div><h2 className="font-black text-slate-900">طلب متابعة من معلم</h2><p className="mt-1 text-xs leading-5 text-slate-500">أرسل سؤالًا محددًا مع موعد رد واضح؛ لا تظهر للمعلم تفاصيل ملف الحالة.</p></div></div>
+              <div className="flex items-start gap-3 border-b border-amber-100 bg-gradient-to-l from-amber-50 to-white p-4 sm:p-5"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><UserRound aria-hidden size={18} /></span><div><h2 className="font-black text-slate-900">طلب متابعة من {roleLabel("TEACHER", schoolType)}</h2><p className="mt-1 text-xs leading-5 text-slate-500">أرسل سؤالًا محددًا مع موعد رد واضح؛ لا تظهر تفاصيل ملف الحالة لصاحب الطلب.</p></div></div>
               <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-2">
               {(teachers.data ?? []).length > 8 && (
                 <label className="relative flex flex-col gap-1 text-sm font-bold text-slate-700 lg:col-span-2">
-                  البحث عن معلم
-                  <span className="relative"><Search aria-hidden size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="search" data-testid="teacher-search" value={teacherSearch} onChange={(event) => setTeacherSearch(event.target.value)} placeholder="اكتب اسم المعلم لتقليص القائمة" className="min-h-11 w-full rounded-xl border border-slate-300 px-3 pe-10 font-normal outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10" /></span>
+                  البحث عن {roleLabel("TEACHER", schoolType)}
+                  <span className="relative"><Search aria-hidden size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="search" data-testid="teacher-search" value={teacherSearch} onChange={(event) => setTeacherSearch(event.target.value)} placeholder={`اكتب اسم ${roleLabel("TEACHER", schoolType)} لتقليص القائمة`} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 pe-10 font-normal outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10" /></span>
                 </label>
               )}
               <label className="flex flex-col gap-1 text-sm font-bold text-slate-700">
-                المعلم
+                {roleLabel("TEACHER", schoolType)}
                 <select
                   data-testid="request-teacher"
                   value={teacherId}
                   onChange={(event) => setTeacherId(event.target.value)}
                   className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
                 >
-                  <option value="">اختر المعلم</option>
+                  <option value="">اختر {roleLabel("TEACHER", schoolType)}</option>
                   {teacherOptions.map((teacher) => (
                     <option key={teacher.membership_id} value={teacher.membership_id}>
                       {teacher.name}
@@ -778,7 +794,7 @@ export function CaseDetailPage() {
                   data-testid="request-question"
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="اكتب سؤالًا محددًا يمكن للمعلم الإجابة عنه"
+                  placeholder={`اكتب سؤالًا محددًا يمكن ${schoolType === "GIRLS" ? "للمعلمة" : "للمعلم"} الإجابة عنه`}
                   className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
                 />
               </label>
@@ -832,7 +848,7 @@ export function CaseDetailPage() {
                   <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-800">{row.question}</p>
                   {row.response && (
                     <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm" data-testid={`req-response-${row.id}`}>
-                      <p className="text-xs font-bold text-emerald-700">رد المعلم</p>
+                      <p className="text-xs font-bold text-emerald-700">رد {roleLabel("TEACHER", schoolType)}</p>
                       <p className="mt-1 leading-6 text-slate-800">{row.response.observation}</p>
                       <p className="mt-2 text-xs font-bold text-slate-600">
                         التقييم: {row.response.improvement_status_label}

@@ -18,7 +18,8 @@ import {
   getReferral,
 } from "@/features/referrals/api";
 import { ReferralStatusBadge } from "@/features/referrals/ReferralsPage";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 const METRIC_LABELS: Array<[keyof ReferralMetrics, string]> = [
   ["full_absence_days", "أيام غياب كامل"],
@@ -39,6 +40,7 @@ export function ReferralDetailCard({
   onClose: () => void;
 }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const me = useMe();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -166,7 +168,7 @@ export function ReferralDetailCard({
       <p className="text-sm text-slate-600">
         المُحيل: {referral.created_by_name ?? "—"} ({referral.source_type_label})
         <span className="mx-2">•</span>
-        المرشد: {referral.assigned_counselor_name ?? "غير معيّن"}
+        {roleLabel("COUNSELOR", schoolType)}: {referral.assigned_counselor_name ?? "غير معيّن"}
       </p>
 
       {referral.source_warning && (
@@ -268,14 +270,14 @@ export function ReferralDetailCard({
           {canManage && (
             <>
               <label className="flex flex-col gap-1 text-sm">
-                المرشد
+                {roleLabel("COUNSELOR", schoolType)}
                 <select
                   data-testid="assign-counselor"
                   value={counselorId}
                   onChange={(event) => setCounselorId(event.target.value)}
                   className="rounded-lg border border-slate-300 px-3 py-2"
                 >
-                  <option value="">اختر المرشد</option>
+                  <option value="">اختر {roleLabel("COUNSELOR", schoolType)}</option>
                   {(counselors.data?.counselors ?? []).map((counselor) => (
                     <option key={counselor.id} value={counselor.id}>
                       {counselor.name}

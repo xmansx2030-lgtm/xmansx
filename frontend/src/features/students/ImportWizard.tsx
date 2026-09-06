@@ -7,7 +7,7 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import {
   CATEGORY_LABELS,
   commitImportJob,
@@ -19,6 +19,7 @@ import {
   type ImportJob,
   type MappingField,
 } from "@/features/students/api";
+import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const STEPS = ["رفع الملف", "مطابقة الأعمدة", "المعاينة", "التأكيد", "النتيجة"] as const;
 
@@ -27,6 +28,8 @@ const STEPS = ["رفع الملف", "مطابقة الأعمدة", "المعاي
  *  فيسقط سياق الـ Wizard القديم تلقائيًا. */
 export function ImportWizard() {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
+  const studentsLabel = studentPluralLabel(schoolType);
   const queryClient = useQueryClient();
   const [job, setJob] = useState<ImportJob | null>(null);
   const [step, setStep] = useState(0);
@@ -100,10 +103,10 @@ export function ImportWizard() {
       <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-blue-950 p-5 text-white shadow-xl shadow-slate-900/10 sm:p-7">
         <div aria-hidden className="absolute -left-10 -top-16 size-48 rounded-full bg-blue-400/15 blur-3xl" />
         <div className="relative">
-          <Link to="/students" className="mb-5 inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white"><ArrowRight aria-hidden size={15} /> العودة إلى الطلاب</Link>
+          <Link to="/students" className="mb-5 inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white"><ArrowRight aria-hidden size={15} /> العودة إلى {studentsLabel}</Link>
           <div className="flex items-start gap-4">
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-blue-200 ring-1 ring-white/15"><FileSpreadsheet aria-hidden size={24} /></span>
-            <div><p className="text-xs font-bold text-blue-200">تحديث جماعي موثوق</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">استيراد الطلاب من نور</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">ارفع ملف نور، راجع مطابقة الأعمدة والتغييرات المقترحة، ثم اعتمدها بعد التحقق النهائي.</p></div>
+            <div><p className="text-xs font-bold text-blue-200">تحديث جماعي موثوق</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">استيراد {studentsLabel} من نور</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">ارفع ملف نور، راجع مطابقة الأعمدة والتغييرات المقترحة، ثم اعتمدها بعد التحقق النهائي.</p></div>
           </div>
         </div>
       </header>
@@ -170,6 +173,7 @@ function UploadStep({
   pending: boolean;
   onUpload: (file: File) => void;
 }) {
+  const schoolType = useActiveSchoolType();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -201,7 +205,7 @@ function UploadStep({
           اسحب ملف نور هنا أو اضغط للاختيار
         </p>
         <p className="max-w-xl text-sm leading-6 text-slate-500">
-          ارفع تقرير الطلاب بصيغته المصدرة من نور؛ سيتعرف النظام تلقائيًا على صف
+          ارفع تقرير {studentPluralLabel(schoolType)} بصيغته المصدرة من نور؛ سيتعرف النظام تلقائيًا على صف
           العناوين وترتيب الأعمدة حتى عند وجود بيانات المدرسة قبله. ملف ‎.xlsx بحد أقصى 10MB.
         </p>
         <input
@@ -240,6 +244,8 @@ function MappingStep({
   pending: boolean;
   onConfirm: (mapping: Partial<Record<MappingField, number>>) => void;
 }) {
+  const schoolType = useActiveSchoolType();
+  const student = studentLabel(schoolType, true);
   const [mapping, setMapping] = useState<Partial<Record<MappingField, number | "">>>(() => {
     const initial: Partial<Record<MappingField, number | "">> = {};
     const suggested = job.suggested_mapping ?? {};
@@ -254,7 +260,7 @@ function MappingStep({
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-1 font-bold">مطابقة الأعمدة</h3>
       <p className="mb-4 text-sm text-slate-500">
-        تحقق من ربط أعمدة الملف بحقول النظام — الحقول: اسم الطالب والصف والفصل مطلوبة،
+        تحقق من ربط أعمدة الملف بحقول النظام — الحقول: اسم {student} والصف والفصل مطلوبة،
         ورقم الهوية مطلوب للمطابقة الموثوقة.
       </p>
 
@@ -265,7 +271,7 @@ function MappingStep({
         >
           <p className="font-bold">تم التعرف على تقرير نور الرسمي بنجاح</p>
           <p className="mt-1 leading-6">
-            جُمعت {job.source_sheet_count ?? 1} ورقة، واكتُشف {job.detected_rows ?? 0} طالبًا.
+            جُمعت {job.source_sheet_count ?? 1} ورقة، واكتُشف {job.detected_rows ?? 0} {studentCountLabel(schoolType)}.
             سيُستخرج الصف والفصل من رأس كل صفحة تلقائيًا، وتظهر السجلات التي تحتاج
             مراجعة في خطوة المعاينة.
           </p>
@@ -284,10 +290,10 @@ function MappingStep({
         {(Object.keys(MAPPING_LABELS) as MappingField[]).map((field) => (
           <div key={field} className="flex flex-wrap items-center gap-3">
             <span className="w-36 text-sm font-medium text-slate-700">
-              {MAPPING_LABELS[field]}
+              {field === "full_name" ? `اسم ${student}` : field === "student_number" ? `رقم ${student}` : MAPPING_LABELS[field]}
             </span>
             <select
-              aria-label={`عمود ${MAPPING_LABELS[field]}`}
+              aria-label={`عمود ${field === "full_name" ? `اسم ${student}` : field === "student_number" ? `رقم ${student}` : MAPPING_LABELS[field]}`}
               value={mapping[field] ?? ""}
               onChange={(e) =>
                 setMapping((prev) => ({
@@ -334,6 +340,7 @@ function PreviewStep({
   onBack: () => void;
 }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
 
@@ -383,14 +390,14 @@ function PreviewStep({
 
       {(summary.missing_from_file ?? 0) > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          {summary.missing_from_file} طالبًا موجودون في النظام وغير موجودين في الملف الجديد —
+          {summary.missing_from_file} {studentCountLabel(schoolType)} {schoolType === "GIRLS" ? "موجودات" : "موجودون"} في النظام وغير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف الجديد —
           لن يتغيروا تلقائيًا، وستتمكن من مراجعتهم وتصنيفهم بعد اعتماد الاستيراد.
         </p>
       )}
 
       {summary.student_capacity?.over_limit && (
         <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
-          يتجاوز الاستيراد حد الباقة: {summary.student_capacity.projected} / {summary.student_capacity.limit} طالبًا.
+          يتجاوز الاستيراد حد الباقة: {summary.student_capacity.projected} / {summary.student_capacity.limit} {studentCountLabel(schoolType)}.
           يمكنك مراجعة المعاينة، لكن الاعتماد يتطلب ترقية الباقة.
         </p>
       )}
@@ -411,7 +418,7 @@ function PreviewStep({
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            {label} ({counts[key] ?? 0})
+            {key === "NEW" && schoolType === "GIRLS" ? "طالبات جديدات" : label} ({counts[key] ?? 0})
           </button>
         ))}
       </div>
@@ -512,17 +519,19 @@ function ConfirmStep({
   onBack: () => void;
 }) {
   const summary = job.summary;
+  const schoolType = useActiveSchoolType();
+  const countLabel = studentCountLabel(schoolType);
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-3 font-bold">ملخص التغييرات</h3>
       <ul className="mb-4 space-y-1 text-sm" data-testid="confirm-summary">
-        <li>سيتم إنشاء {summary.new ?? 0} طالبًا جديدًا.</li>
-        <li>سيتم تحديث بيانات {summary.updated ?? 0} طالبًا.</li>
+        <li>سيتم إنشاء {summary.new ?? 0} {countLabel} {schoolType === "GIRLS" ? "جديدة" : "جديدًا"}.</li>
+        <li>سيتم تحديث بيانات {summary.updated ?? 0} {countLabel}.</li>
         <li>
-          سيتم نقل {(summary.section_changed ?? 0) + (summary.grade_changed ?? 0)} طالبًا إلى
+          سيتم نقل {(summary.section_changed ?? 0) + (summary.grade_changed ?? 0)} {countLabel} إلى
           فصول/صفوف جديدة.
         </li>
-        <li>{summary.unchanged ?? 0} طالبًا بلا تغيير.</li>
+        <li>{summary.unchanged ?? 0} {countLabel} بلا تغيير.</li>
         {(summary.will_create_grades?.length ?? 0) > 0 && (
           <li>سيتم إنشاء الصفوف: {summary.will_create_grades!.join("، ")}</li>
         )}
@@ -531,7 +540,7 @@ function ConfirmStep({
         )}
         {(summary.missing_from_file ?? 0) > 0 && (
           <li className="text-amber-700">
-            {summary.missing_from_file} طالبًا غير موجودين في الملف — لن يتغيروا تلقائيًا،
+            {summary.missing_from_file} {countLabel} غير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف — لن {schoolType === "GIRLS" ? "يتغيرن" : "يتغيروا"} تلقائيًا،
             وستظهر مراجعتهم بعد الاعتماد.
           </li>
         )}
@@ -550,30 +559,32 @@ function ConfirmStep({
 
 function ResultStep({ job }: { job: ImportJob }) {
   const summary = job.summary;
+  const schoolType = useActiveSchoolType();
+  const studentsLabel = studentPluralLabel(schoolType);
   const missingCount = summary.missing_from_file ?? 0;
   return (
     <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
       <h3 className="mb-3 font-bold text-emerald-800">تم استيراد البيانات بنجاح</h3>
       <ul className="mb-4 space-y-1 text-sm text-emerald-900" data-testid="import-result">
-        <li>طلاب جدد: {summary.created ?? 0}</li>
-        <li>طلاب محدثون: {summary.updated ?? 0}</li>
+        <li>{schoolType === "GIRLS" ? "طالبات جديدات" : "طلاب جدد"}: {summary.created ?? 0}</li>
+        <li>{schoolType === "GIRLS" ? "طالبات محدثات" : "طلاب محدثون"}: {summary.updated ?? 0}</li>
         <li>تغييرات فصول: {summary.enrollment_changes ?? 0}</li>
         <li>بدون تغيير: {summary.unchanged ?? 0}</li>
       </ul>
       {missingCount > 0 && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-          <p className="font-bold">يلزم إجراء على {missingCount} طالبًا غير موجودين في الملف</p>
+          <p className="font-bold">يلزم إجراء على {missingCount} {studentCountLabel(schoolType)} غير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف</p>
           <p className="mt-1 text-sm">
             راجعهم ثم صنّف من غادر المدرسة كمنتقل أو متخرج. بعد التصنيف يمكنك حذفه
             نهائيًا إذا لم تعد بحاجة إلى سجلاته.
           </p>
           <Link to="/students/inactive?filter=missing" className="mt-3 inline-block">
-            <Button variant="secondary">مراجعة الطلاب غير الموجودين</Button>
+            <Button variant="secondary">مراجعة {studentsLabel} غير {schoolType === "GIRLS" ? "الموجودات" : "الموجودين"}</Button>
           </Link>
         </div>
       )}
       <Link to="/students">
-        <Button>عرض جميع الطلاب</Button>
+        <Button>عرض جميع {studentsLabel}</Button>
       </Link>
     </section>
   );

@@ -507,7 +507,7 @@ def test_device_limit_denies_third_device_without_removing_two_existing(
 
 @pytest.mark.django_db
 def test_generated_document_storage_limit_marks_attempt_failed(
-    make_school, make_user, make_membership, platform_admin
+    make_school, make_user, make_membership, platform_admin, monkeypatch
 ):
     from schools.models import SchoolSettings
 
@@ -528,6 +528,7 @@ def test_generated_document_storage_limit_marks_attempt_failed(
     )
     plan = make_plan(platform_admin, code="storage-zero", storage=0)
     subscription_service.activate(school=school, plan_id=plan.id, actor=platform_admin)
+    monkeypatch.setattr("documents.services.generation._render", lambda **_kwargs: b"pdf")
 
     with pytest.raises(ApiError) as exc:
         generate_document(
@@ -640,6 +641,7 @@ def test_school_provisioning_password_and_transactionality(client, platform_admi
     result = provisioning_service.create_school(
         actor=platform_admin,
         school_name="مدرسة الإصدار",
+        school_type="GIRLS",
         manager_name="مدير الإصدار",
         manager_mobile="0550001620",
         plan_id=plan.id,
@@ -651,6 +653,7 @@ def test_school_provisioning_password_and_transactionality(client, platform_admi
     assert manager.password != password
     assert manager.must_change_password is True
     assert result["subscription"].status == SubscriptionStatus.TRIAL
+    assert result["school"].school_type == "GIRLS"
 
     login = client.post(
         "/api/v1/auth/login/",
@@ -666,6 +669,7 @@ def test_school_provisioning_password_and_transactionality(client, platform_admi
         provisioning_service.create_school(
             actor=platform_admin,
             school_name="مدرسة لا تكتمل",
+            school_type="BOYS",
             manager_name="مدير",
             manager_mobile="0550001621",
             plan_id=blocked_plan.id,

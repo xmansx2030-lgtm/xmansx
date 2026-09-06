@@ -20,6 +20,7 @@ export function StudentActionsTab({ studentId }: { studentId: number }) {
   const me = useMe();
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const canManage =
     me.data?.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") ?? false;
 
@@ -157,7 +158,7 @@ export function StudentActionsTab({ studentId }: { studentId: number }) {
 
       {rows.length === 0 ? (
         <p className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-          لا توجد إجراءات مسجلة لهذا الطالب.
+          لا توجد إجراءات مسجلة {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">

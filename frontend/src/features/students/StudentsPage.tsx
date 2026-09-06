@@ -19,6 +19,7 @@ import {
   getStudents,
 } from "@/features/students/api";
 import { ManualStudentForm } from "@/features/students/ManualStudentForm";
+import { roleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "منتظم",
@@ -33,6 +34,9 @@ const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 export function StudentsPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const student = studentLabel(schoolType, true);
+  const studentsLabel = studentPluralLabel(schoolType);
   const canImport = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const canRead = me.data?.roles.some((r) => READ_ROLES.includes(r)) ?? true;
 
@@ -101,8 +105,8 @@ export function StudentsPage() {
   if (me.isSuccess && !canRead) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض قائمة الطلاب</h2>
-        <p className="text-slate-600">وصول المعلم لطلاب فصله يأتي مع شاشة التحضير.</p>
+        <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض قائمة {studentsLabel}</h2>
+        <p className="text-slate-600">وصول {roleLabel("TEACHER", schoolType)} {schoolType === "GIRLS" ? "لطالبات فصلها" : "لطلاب فصله"} يأتي مع شاشة التحضير.</p>
       </section>
     );
   }
@@ -111,11 +115,11 @@ export function StudentsPage() {
     <div className="space-y-5">
       <PageHeader
         icon={UsersRound}
-        eyebrow="السجل الطلابي"
-        title="الطلاب النشطون"
-        description="الوصول السريع إلى ملف الطالب ومواظبته وإجراءاته، مع أدوات استيراد وإدارة آمنة لفريق المدرسة."
+        eyebrow={schoolType === "GIRLS" ? "سجل الطالبات" : "السجل الطلابي"}
+        title={`${studentsLabel} ${schoolType === "GIRLS" ? "النشطات" : "النشطون"}`}
+        description={`الوصول السريع إلى ملف ${student} ومواظبته وإجراءاته، مع أدوات استيراد وإدارة آمنة لفريق المدرسة.`}
         tone="operational"
-        badge={`${students.data?.count ?? 0} طالبًا`}
+        badge={`${students.data?.count ?? 0} ${studentCountLabel(schoolType)}`}
         actions={<div className="flex flex-wrap items-center gap-2"><Link to="/students/inactive" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"><Archive aria-hidden size={17} /> غير النشطين</Link>
           {canImport && (
             <><Link to="/students/import"><Button variant="headerGhost"><Upload aria-hidden size={17} /> استيراد</Button></Link><Button variant="header" onClick={() => setManualOpen(true)}><Plus aria-hidden size={17} /> إدخال يدوي</Button></>
@@ -158,7 +162,7 @@ export function StudentsPage() {
               setPage(1);
             }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="اسم الطالب"
+            placeholder={`اسم ${student}`}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -294,7 +298,7 @@ export function StudentsPage() {
                 {students.data.results.length === 0 && (
                   <tr>
                     <td colSpan={canImport ? 6 : 5} className="p-6 text-center text-slate-400">
-                      <EmptyState title="لا يوجد طلاب مطابقون" description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
+                      <EmptyState title={`لا يوجد ${studentsLabel} ${schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}`} description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
                     </td>
                   </tr>
                 )}
@@ -304,7 +308,7 @@ export function StudentsPage() {
 
           <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
             <span className="text-slate-500">
-              الإجمالي: {students.data.count} طالبًا — صفحة {page} من {totalPages}
+              الإجمالي: {students.data.count} {studentCountLabel(schoolType)} — صفحة {page} من {totalPages}
             </span>
             <div className="flex gap-2">
               <Button
@@ -327,13 +331,13 @@ export function StudentsPage() {
       )}
 
       {manualOpen && (
-        <Modal title="إضافة طالب يدويًا" description="أدخل بيانات الطالب وحدد فصله في العام الدراسي الحالي." onClose={() => setManualOpen(false)}>
+        <Modal title={`إضافة ${studentLabel(schoolType)} يدويًا`} description={`أدخل بيانات ${student} وحدد فصله في العام الدراسي الحالي.`} onClose={() => setManualOpen(false)}>
           <ManualStudentForm
             sections={sections.data ?? []}
             onCancel={() => setManualOpen(false)}
             onCreated={(student) => {
               setManualOpen(false);
-              setNotice(`تمت إضافة الطالب ${student.full_name} بنجاح.`);
+              setNotice(`تمت إضافة ${studentLabel(schoolType, true)} ${student.full_name} بنجاح.`);
               setPage(1);
               void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "students") });
             }}

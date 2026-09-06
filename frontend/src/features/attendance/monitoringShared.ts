@@ -1,9 +1,8 @@
 import type { MonitoringSection } from "@/features/attendance/api";
 import { schoolScopedKey } from "@/features/auth/useMe";
 
-/** ‏20 ثانية: توازن بين حداثة اللوحة وحمل الخادم (~0.05 طلب/ثانية للمستخدم) —
- *  الاستطلاع يتوقف تلقائيًا والصفحة في الخلفية، ويحدث فورًا عند العودة (TanStack). */
-export const MONITORING_POLL_MS = 20_000;
+/** نافذة قصيرة لالتقاط تعديل توقيت الجدول والتحضير على شاشات الإدارة. */
+export const MONITORING_POLL_MS = 5_000;
 
 export const monitoringKey = (activeSchoolId: number) =>
   schoolScopedKey(activeSchoolId, "attendance", "monitoring");

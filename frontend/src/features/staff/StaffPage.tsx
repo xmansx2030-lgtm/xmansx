@@ -29,7 +29,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
-import { useActiveSchoolId, useInvalidateSchoolData } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType, useInvalidateSchoolData } from "@/features/settings/hooks";
 import { ManualStaffForm } from "@/features/staff/ManualStaffForm";
 import { CounselorSectionPicker } from "@/features/staff/CounselorSectionPicker";
 import {
@@ -46,14 +46,16 @@ import {
   type StaffMember,
 } from "@/features/staff/api";
 import { getSections } from "@/features/students/api";
-import { ROLE_LABELS } from "@/utils/roles";
+import type { SchoolRole, SchoolType } from "@/types/auth";
+import { roleLabel } from "@/utils/roles";
 
-const MANAGEABLE_ROLES = ["TEACHER", "COUNSELOR", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
+const MANAGEABLE_ROLES: SchoolRole[] = ["TEACHER", "COUNSELOR", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
 const STATUS_OPTIONS = ["ACTIVE", "SUSPENDED", "INVITED", "DECLINED"];
 
 export function StaffPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const isManager = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const canRead =
     me.data?.roles.some((role) => ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(role)) ?? true;
@@ -91,7 +93,7 @@ export function StaffPage() {
           <ShieldCheck aria-hidden size={26} />
         </span>
         <h2 className="mt-4 text-xl font-black text-slate-900">لا تملك صلاحية عرض دليل الموظفين</h2>
-        <p className="mt-2 text-sm text-slate-500">يمكن لمدير المدرسة والوكيل فقط الاطلاع على هذا القسم.</p>
+        <p className="mt-2 text-sm text-slate-500">يمكن {schoolType === "GIRLS" ? "لمديرة المدرسة والوكيلة" : "لمدير المدرسة والوكيل"} فقط الاطلاع على هذا القسم.</p>
       </section>
     );
   }
@@ -167,7 +169,7 @@ export function StaffPage() {
             <label htmlFor="staff-role" className="sr-only">تصفية حسب الدور</label>
             <select id="staff-role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700">
               <option value="">جميع الأدوار</option>
-              {MANAGEABLE_ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role as keyof typeof ROLE_LABELS]}</option>)}
+              {MANAGEABLE_ROLES.map((role) => <option key={role} value={role}>{roleLabel(role, schoolType)}</option>)}
             </select>
           </div>
           <div>
@@ -201,7 +203,7 @@ export function StaffPage() {
           </div>
           <ul className="divide-y divide-slate-100">
             {staff.data.results.map((member) => (
-              <StaffRow key={member.id} member={member} isManager={isManager} onError={setActionError} />
+              <StaffRow key={member.id} member={member} isManager={isManager} schoolType={schoolType} onError={setActionError} />
             ))}
             {staff.data.results.length === 0 && (
               <li className="px-5 py-14 text-center">
@@ -235,7 +237,7 @@ export function StaffPage() {
 
 type ConfirmAction = "suspend" | "delete" | "reset-password" | null;
 
-function StaffRow({ member, isManager, onError }: { member: StaffMember; isManager: boolean; onError: (message: string | null) => void }) {
+function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMember; isManager: boolean; schoolType: SchoolType; onError: (message: string | null) => void }) {
   const invalidate = useInvalidateSchoolData();
   const [expanded, setExpanded] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
@@ -308,7 +310,7 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {member.roles.map((role) => (
             <span key={role} className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">
-              {ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}
+              {roleLabel(role as SchoolRole, schoolType)}
             </span>
           ))}
           {member.roles.includes("COUNSELOR") && (
@@ -348,7 +350,7 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
                       onChange={() => mutation.mutate(() => hasRole ? removeStaffRole(member.id, role) : addStaffRole(member.id, role))}
                       className="size-4 accent-blue-600"
                     />
-                    {ROLE_LABELS[role as keyof typeof ROLE_LABELS]}
+                    {roleLabel(role, schoolType)}
                   </label>
                 );
               })}
@@ -394,9 +396,9 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
           {temporaryPassword && (
             <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 lg:col-span-2">
               <p className="font-black">تمت إعادة ضبط كلمة المرور بنجاح.</p>
-              <p className="mt-1">كلمة المرور المؤقتة هي رقم جوال المعلم:</p>
+              <p className="mt-1">{`كلمة المرور المؤقتة هي رقم جوال ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"}:`}</p>
               <code dir="ltr" className="mt-2 inline-block rounded-lg bg-white px-3 py-2 font-mono text-base font-black ring-1 ring-emerald-200">{temporaryPassword}</code>
-              <p className="mt-2 text-xs">سيُطلب من المعلم تغييرها فور تسجيل الدخول، وتظهر هنا مرة واحدة فقط.</p>
+              <p className="mt-2 text-xs">{`سيُطلب من ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"} تغييرها فور تسجيل الدخول، وتظهر هنا مرة واحدة فقط.`}</p>
             </div>
           )}
         </div>
@@ -405,7 +407,7 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
       {confirmAction === "reset-password" && (
         <Modal title={`إعادة ضبط كلمة مرور ${member.display_name}`} description="سيُلغى عمل كلمة المرور الحالية فورًا." onClose={closeConfirmation}>
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-            <p className="font-black">ستصبح كلمة المرور المؤقتة هي رقم جوال المعلم.</p>
+            <p className="font-black">{`ستصبح كلمة المرور المؤقتة هي رقم جوال ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"}.`}</p>
             <p className="mt-1">عند دخوله بها سيُلزم باختيار كلمة مرور جديدة قبل استخدام النظام.</p>
           </div>
           {rowError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{rowError}</p>}
@@ -422,7 +424,7 @@ function StaffRow({ member, isManager, onError }: { member: StaffMember; isManag
         <Modal title={`تعطيل ${member.display_name}`} description="يمكن إعادة تفعيل الموظف لاحقًا دون فقد بياناته." onClose={closeConfirmation}>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <p className="font-bold text-amber-900">سيتوقف وصول الموظف إلى المدرسة فورًا.</p>
-            <p className="mt-1 text-sm leading-6 text-amber-800">ستبقى بياناته وأدواره محفوظة، ويمكن لمدير المدرسة إعادة تفعيله في أي وقت.</p>
+            <p className="mt-1 text-sm leading-6 text-amber-800">ستبقى بيانات الحساب وأدواره محفوظة، ويمكن {schoolType === "GIRLS" ? "لمديرة المدرسة" : "لمدير المدرسة"} إعادة تفعيله في أي وقت.</p>
           </div>
           {rowError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{rowError}</p>}
           <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">

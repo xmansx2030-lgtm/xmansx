@@ -26,6 +26,13 @@ from devices.models import (
 from schools.services.settings import get_or_create_settings
 
 
+def _invalidate_dashboard_on_commit(school_id: int) -> None:
+    """اجعل تغير الوصول ظاهرًا لكل شاشات الإدارة بعد نجاح المعاملة فقط."""
+    from school_dashboard.cache import invalidate_school
+
+    transaction.on_commit(lambda: invalidate_school(school_id))
+
+
 def compute_lateness(*, settings_obj, arrival_at: datetime, attendance_date) -> dict:
     tz = ZoneInfo(settings_obj.timezone)
     start = datetime.combine(attendance_date, settings_obj.school_day_start_time, tzinfo=tz)
@@ -62,6 +69,7 @@ def apply_arrival_events_bulk(*, school, items: list[tuple]) -> None:
     dates = {key[1] for key in earliest}
     student_ids = {key[0] for key in earliest}
     with transaction.atomic():
+        changed = False
         existing = {
             (a.student_id, a.attendance_date): a
             for a in SchoolArrival.objects.select_for_update().filter(
@@ -96,8 +104,12 @@ def apply_arrival_events_bulk(*, school, items: list[tuple]) -> None:
                 for field_name, value in fields.items():
                     setattr(arrival, field_name, value)
                 arrival.save()
+                changed = True
         if to_create:
             SchoolArrival.objects.bulk_create(to_create, ignore_conflicts=True)
+            changed = True
+        if changed:
+            _invalidate_dashboard_on_commit(school.id)
 
 
 def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=None):
@@ -117,7 +129,7 @@ def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=
                 settings_obj=settings_obj, arrival_at=local, attendance_date=attendance_date
             )
             try:
-                return SchoolArrival.objects.create(
+                arrival = SchoolArrival.objects.create(
                     school=school,
                     student=student,
                     attendance_date=attendance_date,
@@ -126,6 +138,8 @@ def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=
                     device_event=device_event,
                     **fields,
                 )
+                _invalidate_dashboard_on_commit(school.id)
+                return arrival
             except IntegrityError:
                 arrival = SchoolArrival.objects.select_for_update().get(
                     school=school, student=student, attendance_date=attendance_date
@@ -141,6 +155,7 @@ def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=
             for key, value in fields.items():
                 setattr(arrival, key, value)
             arrival.save()
+            _invalidate_dashboard_on_commit(school.id)
         return arrival
 
 
@@ -180,6 +195,7 @@ def create_manual_arrival(
         target_id=arrival.id,
         metadata={"date": str(attendance_date), "reason": reason[:100]},  # لا اسم/هوية
     )
+    _invalidate_dashboard_on_commit(school.id)
     return arrival
 
 
@@ -210,6 +226,7 @@ def correct_arrival(*, arrival, membership, new_time, reason: str, request=None)
         for key, value in fields.items():
             setattr(arrival, key, value)
         arrival.save()
+        _invalidate_dashboard_on_commit(arrival.school_id)
     record_event(
         AuditAction.MORNING_ARRIVAL_CORRECTED,
         request=request,

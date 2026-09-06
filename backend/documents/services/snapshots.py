@@ -73,8 +73,16 @@ def _membership_name(membership) -> str:
 def school_header(school) -> dict:
     """ترويسة الطباعة من إعدادات المدرسة — لا من المستخدم الحالي (البند 80)."""
     settings_row = getattr(school, "settings", None)
+    girls_school = school.school_type == "GIRLS"
     return {
         "name": school.name,
+        "school_type": school.school_type,
+        "principal_role_label": (
+            "مديرة المدرسة" if girls_school else "مدير المدرسة"
+        ),
+        "student_label": "طالبة" if girls_school else "طالب",
+        "student_definite_label": "الطالبة" if girls_school else "الطالب",
+        "students_label": "الطالبات" if girls_school else "الطلاب",
         "ministry_school_number": getattr(settings_row, "ministry_school_number", "") or "",
         "city": getattr(settings_row, "city", "") or "",
         "principal_name": getattr(settings_row, "official_principal_name", "") or "",
@@ -439,7 +447,7 @@ def attendance_report_snapshot(
         school=school,
         student=student,
         membership=membership,
-        title="تقرير مواظبة الطالب",
+        title=f"تقرير مواظبة {'الطالبة' if school.school_type == 'GIRLS' else 'الطالب'}",
         extra={
             "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
             "summary": {

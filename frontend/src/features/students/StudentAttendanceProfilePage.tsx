@@ -29,6 +29,8 @@ import {
   getMorningAttendance,
 } from "@/features/students/api";
 import { localIsoDate } from "@/utils/dates";
+import { studentLabel, studentPluralLabel } from "@/utils/roles";
+import type { SchoolType } from "@/types/auth";
 
 const DAY_LABELS: Record<string, string> = {
   FULL: "غياب يوم كامل",
@@ -86,6 +88,8 @@ export function StudentAttendanceProfilePage() {
   const { studentId } = useParams<{ studentId: string }>();
   const schoolId = useActiveSchoolId();
   const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const studentLabelText = studentLabel(schoolType, true);
   const id = Number(studentId);
   const today = isoDate(new Date());
   const [fromDate, setFromDate] = useState(today);
@@ -187,14 +191,14 @@ export function StudentAttendanceProfilePage() {
     <div className="space-y-5">
       <PageHeader
         icon={GraduationCap}
-        eyebrow="ملف الطالب الموحد"
+        eyebrow={`ملف ${studentLabelText} الموحد`}
         title={student.full_name}
         description={`${student.grade?.name ?? "لا يوجد صف حالي"} / ${student.section?.name ?? "لا يوجد فصل حالي"}`}
         tone="executive"
         badge={STATUS_LABELS[student.status] ?? student.status}
         meta={(
           <>
-            <span>رقم الطالب: {student.student_number ?? "غير متوفر"}</span>
+            <span>رقم {studentLabelText}: {student.student_number ?? "غير متوفر"}</span>
             <span className="text-white/30">•</span>
             <span>الهوية: <bdi>{student.national_id_masked}</bdi></span>
           </>
@@ -205,7 +209,7 @@ export function StudentAttendanceProfilePage() {
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <ArrowRight aria-hidden size={17} />
-            العودة إلى الطلاب
+            العودة إلى {studentPluralLabel(schoolType)}
           </Link>
         )}
         testId="student-profile-header"
@@ -314,6 +318,7 @@ export function StudentAttendanceProfilePage() {
           )}
           <ExcusesTab
             rows={excuses.data?.results ?? []}
+            schoolType={schoolType}
             onSelect={(excuseId) =>
               setSelectedExcuse(selectedExcuse === excuseId ? null : excuseId)
             }
@@ -338,9 +343,11 @@ export function StudentAttendanceProfilePage() {
 
 function ExcusesTab({
   rows,
+  schoolType,
   onSelect,
 }: {
   rows: Awaited<ReturnType<typeof getExcuses>>["results"];
+  schoolType: SchoolType;
   onSelect: (excuseId: number) => void;
 }) {
   return (
@@ -392,7 +399,7 @@ function ExcusesTab({
       </table>
       {rows.length === 0 && (
         <p className="p-6 text-sm text-slate-500" data-testid="no-student-excuses">
-          لا توجد أعذار مسجلة لهذا الطالب.
+          لا توجد أعذار مسجلة {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.
         </p>
       )}
     </div>

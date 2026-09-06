@@ -1,9 +1,11 @@
 export type SchoolRole = "SCHOOL_MANAGER" | "VICE_PRINCIPAL" | "COUNSELOR" | "TEACHER";
+export type SchoolType = "BOYS" | "GIRLS";
 
 export interface SchoolSummary {
   id: number;
   name: string;
   slug: string;
+  school_type?: SchoolType;
 }
 
 export interface MembershipSummary {

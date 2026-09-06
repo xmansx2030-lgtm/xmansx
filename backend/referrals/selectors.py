@@ -17,6 +17,7 @@ from referrals.models import (
 MANAGE_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
 
 _LIST_RELATIONS = (
+    "school",
     "student",
     "created_by_membership__user",
     "created_by_membership__staff_profile",

@@ -80,6 +80,7 @@ describe("morning attendance UI (Phase 8.5)", () => {
   });
 
   it("records a manual arrival with server-computed lateness", async () => {
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/morning/summary/": { body: SUMMARY },
@@ -111,6 +112,9 @@ describe("morning attendance UI (Phase 8.5)", () => {
     const body = parseBody(post?.init);
     expect(body.student_id).toBe(5);
     expect(body).not.toHaveProperty("late_minutes"); // الحساب خادمي حصرًا
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["school", 10, "dashboard"],
+    });
   });
 
   it("lists late students by date and corrects an arrival with reason", async () => {

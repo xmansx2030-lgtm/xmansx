@@ -79,7 +79,7 @@ export function SelectSchoolPage() {
                   <p className="font-bold text-slate-800">{invitation.school.name}</p>
                   <p className="mb-3 text-sm text-slate-600">
                     تدعو حسابك للانضمام{" "}
-                    {invitation.roles.length > 0 ? `(${roleLabels(invitation.roles)})` : ""}
+                    {invitation.roles.length > 0 ? `(${roleLabels(invitation.roles, invitation.school.school_type)})` : ""}
                   </p>
                   {invitationMutation.error instanceof ApiError && (
                     <p role="alert" className="mb-2 text-sm text-red-700">
@@ -117,7 +117,7 @@ export function SelectSchoolPage() {
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md">
                 <div>
                   <p className="font-bold text-slate-800">{membership.school.name}</p>
-                  <p className="text-sm text-slate-500">{roleLabels(membership.roles)}</p>
+                  <p className="text-sm text-slate-500">{roleLabels(membership.roles, membership.school.school_type)}</p>
                 </div>
                 <Button
                   onClick={() => {

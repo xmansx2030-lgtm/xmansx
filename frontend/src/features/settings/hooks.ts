@@ -7,11 +7,17 @@ import {
   getWeekDays,
   getYears,
 } from "@/features/settings/api";
+import type { SchoolType } from "@/types/auth";
 
 /** كل مفاتيح الإعدادات tenant-aware — تتضمن معرف المدرسة النشطة (منع تسرب cache). */
 export function useActiveSchoolId(): number {
   const me = useMe();
   return me.data?.active_school?.id ?? 0;
+}
+
+export function useActiveSchoolType(): SchoolType {
+  const me = useMe();
+  return me.data?.active_school?.school_type ?? "BOYS";
 }
 
 export function useSettingsQuery() {

@@ -15,6 +15,7 @@ import {
   statusPresentation,
 } from "@/features/attendance/monitoringShared";
 import { useMe } from "@/features/auth/useMe";
+import { studentCountLabel } from "@/utils/roles";
 
 type StatusFilter =
   | "ALL"
@@ -51,6 +52,7 @@ function matchesFilter(section: MonitoringSection, filter: StatusFilter): boolea
 export function MonitoringPage() {
   const me = useMe();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [gradeFilter, setGradeFilter] = useState<number | "">("");
   const [search, setSearch] = useState("");
@@ -60,6 +62,7 @@ export function MonitoringPage() {
     queryFn: ({ signal }) => getMonitoring(signal),
     enabled: activeSchoolId > 0,
     refetchInterval: MONITORING_POLL_MS,
+    refetchIntervalInBackground: true,
   });
 
   const data = query.data;
@@ -212,7 +215,7 @@ export function MonitoringPage() {
                       <div className="min-w-28">
                         <p className="font-medium text-slate-800">{section.section_name}</p>
                         <p className="text-xs text-slate-500">
-                          {section.grade_name} · {section.students_count} طالبًا
+                          {section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}
                         </p>
                       </div>
                       <span

@@ -133,7 +133,7 @@
 
   <table class="student-grid">
     <tr>
-      <td class="label">اسم الطالب</td><td colspan="3">{{ data.student.name }}</td>
+      <td class="label">اسم {{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</td><td colspan="3">{{ data.student.name }}</td>
       <td class="label">الهوية</td><td>{{ data.student.national_id_masked|default:"-" }}</td>
     </tr>
     <tr>
@@ -145,10 +145,10 @@
 
   {% if data.warning.type == "UNEXCUSED_FULL_DAY_ABSENCE" %}
     <p class="formal-copy">
-      سعادة ولي أمر الطالب/ة <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل المواظبة
-      رصد غياب الطالب/ة عن <strong>{{ data.warning.metric_value_at_issue }} يوم دراسي كامل بدون عذر</strong>،
+      سعادة ولي أمر {{ data.school.student_definite_label|default:"الطالب/الطالبة" }} <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل المواظبة
+      رصد غياب {{ data.school.student_definite_label|default:"الطالب/الطالبة" }} عن <strong>{{ data.warning.metric_value_at_issue }} يوم دراسي كامل بدون عذر</strong>،
       وقد بلغ بذلك الحد المقرر لإصدار {{ data.warning.level_label }} وهو
-      {{ data.warning.threshold_at_issue }} أيام. نأمل منكم متابعة انتظام الطالب/ة والحضور إلى المدرسة عند الحاجة.
+      {{ data.warning.threshold_at_issue }} أيام. نأمل منكم متابعة انتظام {{ data.school.student_definite_label|default:"الطالب/الطالبة" }} والحضور إلى المدرسة عند الحاجة.
     </p>
     <div class="summary-box">
       إجمالي أيام الغياب الكامل بدون عذر عند الإصدار:
@@ -169,7 +169,7 @@
     {% endif %}
   {% elif data.warning.type == "MORNING_LATE_OCCURRENCES" %}
     <p class="formal-copy">
-      سعادة ولي أمر الطالب/ة <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل الحضور الصباحي
+      سعادة ولي أمر {{ data.school.student_definite_label|default:"الطالب/الطالبة" }} <strong>{{ data.student.name }}</strong>، نفيدكم بأن سجل الحضور الصباحي
       رصد <strong>{{ data.warning.metric_value_at_issue }} حالات تأخر عن بداية الدوام الصباحي</strong>،
       وقد بلغ بذلك الحد المقرر لإصدار {{ data.warning.level_label }} وهو
       {{ data.warning.threshold_at_issue }} حالات. نأمل منكم التأكيد على الحضور في الوقت المحدد.
@@ -205,7 +205,7 @@
   <table class="signatures">
     <tr>
       <td>
-        <div class="role">الطالب/ة</div>
+        <div class="role">{{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</div>
         <div class="person">الاسم: {{ data.student.name }}</div>
         <div class="signature-line">التوقيع</div>
       </td>
@@ -215,7 +215,7 @@
         <div class="signature-line">التوقيع</div>
       </td>
       <td>
-        <div class="role">مدير المدرسة</div>
+        <div class="role">{{ data.school.principal_role_label|default:"مدير المدرسة" }}</div>
         <div class="person">الاسم: {{ data.school.principal_name|default:"...................................." }}</div>
         <div class="signature-line">التوقيع والختم</div>
       </td>

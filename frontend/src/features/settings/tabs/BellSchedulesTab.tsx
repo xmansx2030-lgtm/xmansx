@@ -104,6 +104,9 @@ export function BellSchedulesTab({ canWrite }: { canWrite: boolean }) {
           onChanged={() => {
             void invalidate("bell-schedules");
             void invalidate("week-days");
+            void invalidate("attendance", "current-period");
+            void invalidate("attendance", "monitoring");
+            void invalidate("dashboard");
           }}
         />
       ))}

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/api/client";
+import type { SchoolType } from "@/types/auth";
 
 export type SubscriptionStatus =
   | "TRIAL"
@@ -62,6 +63,7 @@ export interface SchoolRow {
   id: number;
   name: string;
   slug: string;
+  school_type: SchoolType;
   school_status: string;
   subscription_status: SubscriptionStatus | null;
   plan: string | null;
@@ -171,6 +173,7 @@ export interface PlanChangePreview {
 
 export interface CreateSchoolInput {
   school_name: string;
+  school_type: SchoolType;
   manager_name: string;
   manager_mobile: string;
   plan_id?: number;
@@ -220,7 +223,7 @@ export const getSchoolDetail = (schoolId: number, signal?: AbortSignal) =>
 
 export const updatePlatformSchool = (
   schoolId: number,
-  body: { name?: string; school_status?: string },
+  body: { name?: string; school_status?: string; school_type?: SchoolType },
 ) => apiRequest<SchoolDetail>(`/platform/schools/${schoolId}/`, { method: "PATCH", body });
 
 export const addSchoolManager = (

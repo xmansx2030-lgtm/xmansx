@@ -18,6 +18,7 @@ import {
   retryRosterJob,
   type RosterItem,
 } from "@/features/devices/api";
+import { studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const ACTION_LABELS: Record<string, string> = {
   MATCHED: "متطابق",
@@ -48,6 +49,7 @@ const JOB_STATUS_LABELS: Record<string, string> = {
 export function DeviceRosterSyncPage() {
   const schoolId = useActiveSchoolId();
   const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const queryClient = useQueryClient();
   const [deviceId, setDeviceId] = useState<number | "">("");
   const [jobId, setJobId] = useState<number | null>(null);
@@ -100,11 +102,11 @@ export function DeviceRosterSyncPage() {
       <PageHeader
         icon={RefreshCw}
         eyebrow="سلامة بيانات الأجهزة"
-        title="مزامنة طلاب أجهزة الحضور"
+        title={`مزامنة ${schoolType === "GIRLS" ? "طالبات" : "طلاب"} أجهزة الحضور`}
         description="افحص الفروقات أولًا، راجع الإضافات والتحديثات والإزالات، ثم اعتمد التنفيذ بقرار واضح."
         tone="operational"
         badge={`${activeDevices.length} أجهزة متاحة`}
-        meta={<><span className="inline-flex items-center gap-1"><ShieldCheck aria-hidden size={14} /> لا تنفيذ قبل الاعتماد</span><span aria-hidden>•</span><span>المصدر: الطلاب النشطون في العام الحالي</span></>}
+        meta={<><span className="inline-flex items-center gap-1"><ShieldCheck aria-hidden size={14} /> لا تنفيذ قبل الاعتماد</span><span aria-hidden>•</span><span>المصدر: {studentPluralLabel(schoolType)} {schoolType === "GIRLS" ? "النشطات" : "النشطون"} في العام الحالي</span></>}
       >
         <ol className="grid gap-2 text-xs font-bold text-slate-200 sm:grid-cols-3"><li className="rounded-xl bg-white/5 px-3 py-2">1. اختر الجهاز وافحص</li><li className="rounded-xl bg-white/5 px-3 py-2">2. راجع الفروقات</li><li className="rounded-xl bg-white/5 px-3 py-2">3. اعتمد التنفيذ</li></ol>
       </PageHeader>
@@ -128,7 +130,7 @@ export function DeviceRosterSyncPage() {
           <div className="flex flex-wrap gap-2">
               {ACTION_FILTERS.map(([value, label]) => <button key={value} type="button" onClick={() => setAction(value)} className={`rounded-lg border px-3 py-1.5 text-sm ${action === value ? "border-blue-700 bg-blue-50 text-blue-700" : "border-slate-300"}`}>{label}</button>)}
           </div>
-          <RosterItems items={items.data ?? []} />
+          <RosterItems items={items.data ?? []} studentTitle={studentLabel(schoolType, true)} />
         </div>
       )}
     </div>
@@ -143,6 +145,6 @@ function Count({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl bg-slate-50 p-3"><span className="block text-xs font-bold text-slate-500">{label}</span><strong className="text-xl text-slate-950">{value}</strong></div>;
 }
 
-function RosterItems({ items }: { items: RosterItem[] }) {
-  return <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full text-sm"><thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 text-start">الطالب</th><th className="p-3 text-start">معرف الجهاز</th><th className="p-3 text-start">الإجراء</th><th className="p-3 text-start">السبب</th></tr></thead><tbody>{items.map((item) => <tr key={item.id} className="border-b"><td className="p-3">{item.student_name ?? "مستخدم غير معروف"}</td><td className="p-3" dir="ltr">{item.external_user_id}</td><td className="p-3">{ACTION_LABELS[item.action]}</td><td className="p-3 text-slate-600">{item.reason || "لا يوجد"}</td></tr>)}{items.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-500">لا توجد فروقات ضمن هذا التصنيف.</td></tr>}</tbody></table></div>;
+function RosterItems({ items, studentTitle }: { items: RosterItem[]; studentTitle: string }) {
+  return <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full text-sm"><thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 text-start">{studentTitle}</th><th className="p-3 text-start">معرف الجهاز</th><th className="p-3 text-start">الإجراء</th><th className="p-3 text-start">السبب</th></tr></thead><tbody>{items.map((item) => <tr key={item.id} className="border-b"><td className="p-3">{item.student_name ?? "مستخدم غير معروف"}</td><td className="p-3" dir="ltr">{item.external_user_id}</td><td className="p-3">{ACTION_LABELS[item.action]}</td><td className="p-3 text-slate-600">{item.reason || "لا يوجد"}</td></tr>)}{items.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-500">لا توجد فروقات ضمن هذا التصنيف.</td></tr>}</tbody></table></div>;
 }

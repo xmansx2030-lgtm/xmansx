@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/Button";
 import { StudentPicker } from "@/features/devices/StudentPicker";
 import { type ReasonType, REASON_LABELS, createExcuse } from "@/features/excuses/api";
+import { useActiveSchoolType } from "@/features/settings/hooks";
 import { localIsoDate } from "@/utils/dates";
+import { studentLabel } from "@/utils/roles";
 
 type Scope = "FULL_DAY" | "PERIODS";
 
@@ -23,6 +25,7 @@ export function ExcuseCreateCard({
   fixedPeriod?: number;
 }) {
   const today = localIsoDate();
+  const schoolType = useActiveSchoolType();
   const [student, setStudent] = useState<{ id: number; name: string } | null>(
     fixedStudent ?? null,
   );
@@ -77,7 +80,7 @@ export function ExcuseCreateCard({
       ) : (
         <div className="flex items-center gap-2 text-sm">
           <span>
-            الطالب: <strong data-testid="selected-student">{student.name}</strong>
+            {studentLabel(schoolType, true)}: <strong data-testid="selected-student">{student.name}</strong>
           </span>
           {!fixedStudent && (
             <Button variant="secondary" onClick={() => setStudent(null)}>

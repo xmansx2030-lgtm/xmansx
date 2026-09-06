@@ -17,6 +17,7 @@ import {
 } from "@/features/referrals/api";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
@@ -110,6 +111,7 @@ export function ReferralsTable({
 export function ReferralsPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ReferralFilters>({ page: 1 });
   const [selected, setSelected] = useState<number | null>(null);
@@ -142,7 +144,7 @@ export function ReferralsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض الإحالات</h2>
         <p className="text-slate-600">
-          صندوق الإحالات متاح للمرشد ومدير المدرسة والوكيل. المعلم يرى إحالاته من
+          صندوق الإحالات متاح لكل من {roleLabel("COUNSELOR", schoolType)} و{roleLabel("SCHOOL_MANAGER", schoolType)} و{roleLabel("VICE_PRINCIPAL", schoolType)}. {roleLabel("TEACHER", schoolType)} يرى إحالاته من
           صفحة «إحالاتي».
         </p>
       </section>
@@ -161,7 +163,7 @@ export function ReferralsPage() {
         title="الإحالات"
         description="متابعة الإحالات الواردة وتعيينها للمرشد وتوثيق مسار التعامل معها حتى الإغلاق."
         tone={me.data?.roles.includes("COUNSELOR") ? "counselor" : "operational"}
-        badge={me.data?.roles.includes("COUNSELOR") ? "المرشد الطلابي" : "فريق الإدارة"}
+        badge={me.data?.roles.includes("COUNSELOR") ? roleLabel("COUNSELOR", schoolType) : "فريق الإدارة"}
       />
 
       <div className="grid grid-cols-3 gap-2" data-testid="referral-kpis">
@@ -211,9 +213,9 @@ export function ReferralsPage() {
             className="rounded-lg border border-slate-300 px-3 py-2"
           >
             <option value="">الكل</option>
-            <option value="TEACHER">معلم</option>
-            <option value="VICE_PRINCIPAL">وكيل</option>
-            <option value="SCHOOL_MANAGER">مدير المدرسة</option>
+            <option value="TEACHER">{roleLabel("TEACHER", schoolType)}</option>
+            <option value="VICE_PRINCIPAL">{roleLabel("VICE_PRINCIPAL", schoolType)}</option>
+            <option value="SCHOOL_MANAGER">{roleLabel("SCHOOL_MANAGER", schoolType)}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">

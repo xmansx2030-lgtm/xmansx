@@ -13,6 +13,7 @@ from referrals.models import (
     ReferralStatus,
     StudentReferral,
 )
+from schools.role_labels import school_role_label
 
 # ---- الإدخال ----
 
@@ -92,7 +93,9 @@ def serialize_referral_row(referral: StudentReferral) -> dict:
         "id": referral.id,
         "student": serialize_student_brief(referral.student),
         "source_type": referral.source_type,
-        "source_type_label": referral.get_source_type_display(),
+        "source_type_label": school_role_label(
+            referral.source_type, referral.school.school_type
+        ),
         "category": referral.category,
         "category_label": referral.get_category_display(),
         "reason_code": referral.reason_code,

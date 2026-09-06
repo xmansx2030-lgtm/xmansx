@@ -12,6 +12,8 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 
+from .live_schedule import publish_live_schedule_change
+
 DEFAULT_SCHOOL_DAYS = {
     Weekday.SUNDAY,
     Weekday.MONDAY,
@@ -89,6 +91,7 @@ def update_week_days(*, school, actor, items: list[dict], request=None) -> list[
             school=school,
             metadata={"changed": changed},
         )
+        publish_live_schedule_change(school_id=school.id)
     return list(
         SchoolWeekDay.objects.filter(school=school)
         .select_related("bell_schedule")

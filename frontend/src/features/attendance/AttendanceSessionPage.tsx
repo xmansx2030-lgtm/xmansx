@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardCheck, Search, UserRoundPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -17,6 +17,7 @@ import type {
 import { editSession, startSession, submitSession } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
+import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 /** حالة الطالب محليًا — «حاضر» هو الافتراضي ولا يرسل للخادم (استثناءات فقط). */
 type LocalStatus = "PRESENT" | MarkStatus;
@@ -30,6 +31,12 @@ const STATUS_LABELS: Record<LocalStatus, string> = {
   PRESENT: "حاضر",
   ABSENT: "غائب",
   LATE: "متأخر",
+};
+
+const FEMININE_STATUS_LABELS: Record<LocalStatus, string> = {
+  PRESENT: "حاضرة",
+  ABSENT: "غائبة",
+  LATE: "متأخرة",
 };
 
 export function currentTimeInZone(timezone: string, now = new Date()): string {
@@ -66,7 +73,11 @@ function buildPayload(marks: Record<number, LocalMark>, roster: RosterStudent[])
 export function AttendanceSessionPage() {
   const { sectionId } = useParams();
   const me = useMe();
+  const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const studentsLabel = studentPluralLabel(schoolType);
+  const statusLabels = schoolType === "GIRLS" ? FEMININE_STATUS_LABELS : STATUS_LABELS;
 
   const startQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-start", sectionId),
@@ -175,6 +186,11 @@ export function AttendanceSessionPage() {
       setMarks(marksFromSession(updated));
       setEditing(false);
       setReason("");
+      // إن كانت لوحة الإدارة مفتوحة في نفس التطبيق فتُحدّث فورًا؛ أما الأجهزة
+      // الأخرى فتلتقط النتيجة عبر الاستعلام الحي القصير.
+      await queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(activeSchoolId, "dashboard"),
+      });
     } catch (error) {
       if (error instanceof ApiError && error.code === "ATTENDANCE_ROSTER_CHANGED") {
         // الخادم حدّث بصمة القائمة — نعيد فتح الجلسة لقائمة محدثة ونبقي العلامات الصالحة
@@ -203,7 +219,7 @@ export function AttendanceSessionPage() {
         icon={ClipboardCheck}
         eyebrow="جلسة التحضير"
         title={<span data-testid="session-section-name">{session.section.name} — {session.section.grade_name}</span>}
-        description="سجّل الاستثناءات فقط؛ جميع الطلاب حاضرون افتراضيًا حتى تختار غائبًا أو متأخرًا."
+        description={`سجّل الاستثناءات فقط؛ جميع ${studentsLabel} ${schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} افتراضيًا حتى تختار ${schoolType === "GIRLS" ? "غائبة أو متأخرة" : "غائبًا أو متأخرًا"}.`}
         tone="teacher"
         badge={session.status === "SUBMITTED" && !editing ? "تم الاعتماد" : editing ? "تعديل معتمد" : "قيد التحضير"}
         meta={<><span>{session.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{session.period.start_time} – {session.period.end_time}</span><span className="text-white/30">•</span><span>{session.attendance_date}</span></>}
@@ -218,9 +234,9 @@ export function AttendanceSessionPage() {
         )}
       >
         <div className="flex flex-wrap gap-2 text-sm" data-testid="live-summary">
-          <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-100 ring-1 ring-emerald-300/20">حاضر {summary.present}</span>
-          <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">غائب {summary.absent}</span>
-          <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">متأخر {summary.late}</span>
+          <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-100 ring-1 ring-emerald-300/20">{statusLabels.PRESENT} {summary.present}</span>
+          <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">{statusLabels.ABSENT} {summary.absent}</span>
+          <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">{statusLabels.LATE} {summary.late}</span>
         </div>
       </PageHeader>
 
@@ -286,9 +302,9 @@ export function AttendanceSessionPage() {
         <div className="border-b border-slate-100 bg-gradient-to-l from-slate-50 to-white p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-slate-900">قائمة الطلاب</h2>
+              <h2 className="font-bold text-slate-900">قائمة {studentsLabel}</h2>
               <p className="mt-1 text-xs text-slate-500">
-                يظهر {displayedRoster.length} من أصل {roster.length} طالبًا
+                يظهر {displayedRoster.length} من أصل {roster.length} {studentCountLabel(schoolType)}
               </p>
             </div>
             <button
@@ -306,7 +322,7 @@ export function AttendanceSessionPage() {
             </button>
           </div>
           <label className="relative mt-4 block">
-            <span className="sr-only">البحث في قائمة الطلاب</span>
+            <span className="sr-only">البحث في قائمة {studentsLabel}</span>
             <Search
               aria-hidden
               size={18}
@@ -316,7 +332,7 @@ export function AttendanceSessionPage() {
               type="search"
               value={rosterSearch}
               onChange={(event) => setRosterSearch(event.target.value)}
-              placeholder="ابحث باسم الطالب أو رقم الهوية المخفي"
+              placeholder={`ابحث باسم ${studentLabel(schoolType, true)} أو رقم الهوية المخفي`}
               className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pe-10 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10"
               data-testid="roster-search"
             />
@@ -378,7 +394,7 @@ export function AttendanceSessionPage() {
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
-                        {STATUS_LABELS[option]}
+                        {statusLabels[option]}
                       </button>
                     ))}
                     {status === "LATE" && (
@@ -401,7 +417,7 @@ export function AttendanceSessionPage() {
                           : "bg-amber-100 text-amber-800"
                     }`}
                   >
-                    {STATUS_LABELS[status]}
+                    {statusLabels[status]}
                     {status === "LATE" &&
                       session.marks.find((m) => m.student_id === student.student_id)
                         ?.late_minutes != null &&
@@ -414,9 +430,9 @@ export function AttendanceSessionPage() {
         </ul>
         {displayedRoster.length === 0 && (
           <div className="px-5 py-10 text-center" data-testid="no-roster-results">
-            <p className="font-bold text-slate-700">لا يوجد طالب مطابق</p>
+            <p className="font-bold text-slate-700">لا يوجد {studentLabel(schoolType)} {schoolType === "GIRLS" ? "مطابقة" : "مطابق"}</p>
             <p className="mt-1 text-sm text-slate-500">
-              غيّر البحث أو اعرض جميع الطلاب للمتابعة.
+              غيّر البحث أو اعرض جميع {studentsLabel} للمتابعة.
             </p>
             <button
               type="button"
@@ -426,7 +442,7 @@ export function AttendanceSessionPage() {
               }}
               className="mt-3 text-sm font-bold text-blue-700 hover:text-blue-800"
             >
-              عرض جميع الطلاب
+              عرض جميع {studentsLabel}
             </button>
           </div>
         )}
@@ -450,7 +466,7 @@ export function AttendanceSessionPage() {
           {actionError != null && <ErrorState error={actionError} />}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500">
-              سيُرسل {summary.absent + summary.late} استثناء، والبقية حاضرون تلقائيًا.
+              سيُرسل {summary.absent + summary.late} استثناء، والبقية {schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} تلقائيًا.
             </p>
             <div className="flex gap-2">
               <Button

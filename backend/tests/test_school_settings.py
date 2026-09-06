@@ -14,6 +14,7 @@ def test_get_settings_creates_defaults(role_client):
     assert response.status_code == 200
     body = response.json()
     assert body["school"]["name"] == school.name
+    assert body["school"]["school_type"] == "BOYS"
     assert body["attendance_edit_window_minutes"] == 15
     assert body["unprepared_period_alert_minutes"] == 25
     assert body["timezone"] == "Asia/Riyadh"
@@ -46,6 +47,29 @@ def test_manager_can_patch_settings_with_audit(role_client):
     assert "SCHOOL_SETTINGS_UPDATED" in actions
     log = AuditLog.objects.get(action="SCHOOL_SETTINGS_UPDATED")
     assert "city" in log.metadata["changed"]
+
+
+@pytest.mark.django_db
+def test_manager_can_change_school_type_with_audit(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    response = client.patch(URL, {"school_type": "GIRLS"}, content_type="application/json")
+
+    assert response.status_code == 200
+    assert response.json()["school"]["school_type"] == "GIRLS"
+    school.refresh_from_db()
+    assert school.school_type == "GIRLS"
+    log = AuditLog.objects.get(action="SCHOOL_SETTINGS_UPDATED")
+    assert log.metadata["changed"]["school_type"] == {"from": "BOYS", "to": "GIRLS"}
+
+
+@pytest.mark.django_db
+def test_invalid_school_type_is_rejected(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    response = client.patch(URL, {"school_type": "MIXED"}, content_type="application/json")
+
+    assert response.status_code == 400
+    school.refresh_from_db()
+    assert school.school_type == "BOYS"
 
 
 @pytest.mark.django_db

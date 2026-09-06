@@ -11,6 +11,8 @@
 """
 
 from datetime import date as date_cls
+from datetime import datetime as datetime_cls
+from datetime import time as time_cls
 from datetime import timedelta
 
 from django.db.models import Count, Q, Sum
@@ -341,6 +343,7 @@ def today_operations(*, school) -> dict:
             school=school,
             attendance_date=date_cls.fromisoformat(monitoring["date"]),
             current_period_sequence=period["sequence"] if period else None,
+            current_time=datetime_cls.fromisoformat(monitoring["school_time"]).time(),
         ),
         # لا حصة جارية: قبل الدوام أو فسحة أو يوم غير دراسي — ليست حالة خطأ
         "has_active_period": period is not None,
@@ -348,14 +351,21 @@ def today_operations(*, school) -> dict:
 
 
 def live_attendance_snapshot(
-    *, school, attendance_date: date_cls, current_period_sequence: int | None
+    *,
+    school,
+    attendance_date: date_cls,
+    current_period_sequence: int | None,
+    current_time: time_cls | None = None,
 ) -> dict:
-    """حالة طلاب المدرسة في هذه اللحظة، وليست ملخصًا نهائيًا لليوم.
+    """حالة الحصة الجارية مع مؤشر مستقل للغياب المتتابع اليومي.
 
-    لا يدخل الطالب في حاضر/غائب/متأخر إلا إذا اعتمد فصله جميع الحصص من بداية
-    اليوم حتى الحصة الحالية. لذلك تظل بيانات الفصل غير المعتمد في ``pending``
-    ولا تتحول الغياب الضمني إلى حضور أو غياب. «غائب الآن» يعني غائبًا في كل
-    الحصص المتتابعة المعتمدة، بينما الحاضر/المتأخر هما حالة الحصة الأحدث.
+    حاضر/غائب/مستأذن/متأخر تصف **الحصة الحالية فقط**؛ لذلك يكفي اعتماد جلسة
+    الحصة الحالية للفصل حتى يدخل طلابه في الأرقام. أما ``daily_absent_students``
+    فلا يصنّف الطالب غائبًا اليوم حتى تكتمل جلسات فصله من أول حصة إلى الحالية
+    ويكون غائبًا في جميعها دون حضور أو تأخر في أي حصة.
+
+    «مستأذن» مشتق من سجل استئذان ساري حان وقت خروجه؛ وهو حالة تشغيلية مستقلة
+    لا تحول سجل الحضور الخام إلى عذر غياب ولا تعدله.
     """
     empty = {
         "status": "NO_ACTIVE_PERIOD",
@@ -364,10 +374,15 @@ def live_attendance_snapshot(
         "pending_students": 0,
         "present_students": 0,
         "absent_students": 0,
+        "leave_students": 0,
         "late_students": 0,
+        "morning_late_students": 0,
+        "daily_absent_students": 0,
+        "daily_covered_students": 0,
+        "daily_pending_sections": 0,
         "covered_sections": 0,
         "pending_sections": 0,
-        "period_sequences": [],
+        "current_period_sequence": None,
     }
     if current_period_sequence is None:
         return empty
@@ -413,6 +428,7 @@ def live_attendance_snapshot(
     for student_id, section_id in enrollments:
         students_by_section.setdefault(section_id, set()).add(student_id)
     total_students = len({student_id for student_id, _ in enrollments})
+    all_student_ids = {student_id for student_id, _ in enrollments}
 
     sessions = list(
         AttendanceSession.objects.filter(
@@ -429,33 +445,87 @@ def live_attendance_snapshot(
         submitted_by_section.setdefault(session.section_id, set()).add(session.period_sequence)
         session_id_by_section_period[(session.section_id, session.period_sequence)] = session.id
 
-    required_sequences = set(sequences)
+    # أرقام الحصة الجارية لا تعتمد على اكتمال الحصص السابقة.
     covered_section_ids = {
         section_id
         for section_id, submitted_sequences in submitted_by_section.items()
-        if required_sequences <= submitted_sequences
+        if current_period_sequence in submitted_sequences
     }
     covered_student_ids = {
         student_id
         for section_id in covered_section_ids
         for student_id in students_by_section.get(section_id, set())
     }
-    covered_session_ids = [
-        session_id_by_section_period[(section_id, sequence)]
-        for section_id in covered_section_ids
-        for sequence in sequences
-    ]
-    latest_session_ids = [
+    current_session_ids = [
         session_id_by_section_period[(section_id, current_period_sequence)]
         for section_id in covered_section_ids
     ]
+    current_absent_ids = set(
+        AttendanceMark.objects.filter(
+            session_id__in=current_session_ids,
+            student_id__in=covered_student_ids,
+            status=AttendanceMarkStatus.ABSENT,
+        ).values_list("student_id", flat=True)
+    )
+    late_ids = set(
+        AttendanceMark.objects.filter(
+            session_id__in=current_session_ids,
+            student_id__in=covered_student_ids,
+            status=AttendanceMarkStatus.LATE,
+        ).values_list("student_id", flat=True)
+    )
 
-    absent_ids = {
+    from student_leaves.models import StudentLeavePermission, StudentLeaveStatus
+
+    leave_ids = set(
+        StudentLeavePermission.objects.filter(
+            school=school,
+            leave_date=attendance_date,
+            leave_time__lte=current_time or time_cls.max,
+            status=StudentLeaveStatus.ACTIVE,
+            student_id__in=covered_student_ids,
+        ).values_list("student_id", flat=True)
+    )
+    # الاستئذان حالة تشغيلية آنية تتقدم في العرض على علامة الحصة، من دون تغييرها.
+    absent_ids = current_absent_ids - leave_ids
+    # القيود تمنع الجمع بين غائب ومتأخر، والاستبعاد دفاعي للبيانات التاريخية.
+    late_ids -= current_absent_ids | leave_ids
+    present_students = len(
+        covered_student_ids - absent_ids - leave_ids - late_ids
+    )
+    # التأخر الصباحي مصدره الوصول من البوابة فقط، ويظل عدادًا مستقلًا عن
+    # «متأخر في الحصة» وعن الاستئذان والغياب بعذر.
+    morning_late_students = SchoolArrival.objects.filter(
+        school=school,
+        attendance_date=attendance_date,
+        student_id__in=all_student_ids,
+        status=ArrivalStatus.LATE,
+    ).values("student_id").distinct().count()
+
+    # الغياب اليومي المتتابع يحتاج اكتمال كل الحصص حتى الحالية، بخلاف أرقام
+    # الحصة أعلاه. المتأخر حضر، لذلك لا يمكن أن يكون ضمن هذا العداد.
+    required_sequences = set(sequences)
+    daily_covered_section_ids = {
+        section_id
+        for section_id, submitted_sequences in submitted_by_section.items()
+        if required_sequences <= submitted_sequences
+    }
+    daily_covered_student_ids = {
+        student_id
+        for section_id in daily_covered_section_ids
+        for student_id in students_by_section.get(section_id, set())
+    }
+    daily_session_ids = [
+        session_id_by_section_period[(section_id, sequence)]
+        for section_id in daily_covered_section_ids
+        for sequence in sequences
+    ]
+    daily_absent_ids = {
         row["student_id"]
         for row in (
             AttendanceMark.objects.filter(
-                session_id__in=covered_session_ids,
-                student_id__in=covered_student_ids,
+                session_id__in=daily_session_ids,
+                student_id__in=daily_covered_student_ids,
                 status=AttendanceMarkStatus.ABSENT,
             )
             .values("student_id")
@@ -463,17 +533,6 @@ def live_attendance_snapshot(
         )
         if row["periods"] == len(sequences)
     }
-    late_ids = set(
-        AttendanceMark.objects.filter(
-            session_id__in=latest_session_ids,
-            student_id__in=covered_student_ids,
-            status=AttendanceMarkStatus.LATE,
-        ).values_list("student_id", flat=True)
-    )
-    # حالة الجلسة الأخيرة: الغائب المتتابع لا يمكن أن يكون متأخرًا فيها، لكن
-    # نستبعد التقاطع دفاعيًا إذا وجدت بيانات تالفة قديمة.
-    late_ids -= absent_ids
-    present_students = len(covered_student_ids - absent_ids - late_ids)
     covered_students = len(covered_student_ids)
     return {
         "status": "AVAILABLE",
@@ -482,10 +541,17 @@ def live_attendance_snapshot(
         "pending_students": max(total_students - covered_students, 0),
         "present_students": present_students,
         "absent_students": len(absent_ids),
+        "leave_students": len(leave_ids),
         "late_students": len(late_ids),
+        "morning_late_students": morning_late_students,
+        "daily_absent_students": len(daily_absent_ids),
+        "daily_covered_students": len(daily_covered_student_ids),
+        "daily_pending_sections": max(
+            len(sections) - len(daily_covered_section_ids), 0
+        ),
         "covered_sections": len(covered_section_ids),
         "pending_sections": max(len(sections) - len(covered_section_ids), 0),
-        "period_sequences": sequences,
+        "current_period_sequence": current_period_sequence,
     }
 
 

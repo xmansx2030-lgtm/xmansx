@@ -40,7 +40,7 @@
   <table class="signatures">
     <tr>
       <td><div class="line">وكيل المدرسة</div></td>
-      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+      <td><div class="line">{{ data.school.principal_role_label|default:"مدير المدرسة" }}{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
     </tr>
   </table>
 {% endblock %}

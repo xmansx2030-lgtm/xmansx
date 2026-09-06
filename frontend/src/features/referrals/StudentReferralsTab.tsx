@@ -9,7 +9,7 @@ import { getStudentReferrals } from "@/features/referrals/api";
 import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
 import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { ReferralsTable } from "@/features/referrals/ReferralsPage";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 
 /** تبويب الإحالات داخل ملف الطالب — التحويل للمرشد للمدير/الوكيل (بند 45/118). */
 export function StudentReferralsTab({
@@ -20,6 +20,7 @@ export function StudentReferralsTab({
   studentName: string;
 }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const me = useMe();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -74,7 +75,7 @@ export function StudentReferralsTab({
           rows={list.data?.results ?? []}
           onSelect={(id) => setSelected(selected === id ? null : id)}
           selectedId={selected}
-          emptyText="لا توجد إحالات لهذا الطالب."
+          emptyText={`لا توجد إحالات ${schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.`}
           testId="student-referrals-rows"
         />
       )}

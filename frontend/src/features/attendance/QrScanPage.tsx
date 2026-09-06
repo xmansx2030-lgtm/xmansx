@@ -17,6 +17,7 @@ import { Spinner } from "@/components/Spinner";
 import { resolveQr } from "@/features/attendance/api";
 import { safeReturnTo, withReturnTo } from "@/features/auth/returnTo";
 import { useMe } from "@/features/auth/useMe";
+import { roleLabel } from "@/utils/roles";
 
 interface AccessCardProps {
   icon: ReactNode;
@@ -142,7 +143,7 @@ export function QrScanPage() {
         <AccessCard
           icon={<LockKeyhole aria-hidden size={30} />}
           eyebrow="وصول داخلي مقيد"
-          title="هذا الرمز مخصص للمعلمين المصرح لهم"
+          title="هذا الرمز مخصص للهيئة التعليمية المصرح لها"
           description="لم يتم عرض أي بيانات مدرسية. سجّل الدخول بحساب الموظف المعتمد، وسيُعاد التحقق من الرمز تلقائيًا."
           action={
             <Link
@@ -212,7 +213,7 @@ export function QrScanPage() {
         icon={<UserRoundX aria-hidden size={30} />}
         eyebrow="صلاحية غير متاحة"
         title="هذا الحساب غير مخول بفتح التحضير"
-        description="رموز الفصول مخصصة للمعلمين فقط. لم يتم إرسال الرمز للتحقق، ولم يتم عرض أي بيانات طلابية أو مدرسية."
+        description={`رموز الفصول مخصصة ${me.data.active_school.school_type === "GIRLS" ? "للمعلمة" : "للمعلم"} فقط. لم يتم إرسال الرمز للتحقق، ولم يتم عرض أي بيانات طلابية أو مدرسية.`}
         action={
           <Link
             to="/"
@@ -238,7 +239,7 @@ export function QrScanPage() {
       title={error == null ? "جارٍ فتح الفصل بأمان" : "لم يتم فتح بيانات الفصل"}
       description={
         error == null
-          ? "تم التحقق من صفة المعلم، ويجري الآن التحقق من الرمز داخل المدرسة النشطة."
+          ? `تم التحقق من صفة ${roleLabel("TEACHER", me.data.active_school.school_type)}، ويجري الآن التحقق من الرمز داخل المدرسة النشطة.`
           : "بقيت بيانات الطلاب محمية. قد يكون الرمز قديمًا أو تابعًا لمدرسة أخرى."
       }
       action={

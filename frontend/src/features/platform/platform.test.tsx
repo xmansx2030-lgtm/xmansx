@@ -100,6 +100,38 @@ describe("platform and subscription UI", () => {
     expect(screen.queryByRole("heading", { name: "إدارة المنصة" })).not.toBeInTheDocument();
   });
 
+  it("requires the school type during creation and uses feminine manager labels", async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true }) },
+      "/platform/overview/": {
+        body: { schools_total: 0, subscriptions: {}, usage_totals: {}, expiring_soon: [] },
+      },
+      "/platform/plans/": { body: [] },
+      "/platform/schools/": (init) => init?.method === "POST"
+        ? { status: 400, body: { code: "TEST", message: "test", details: {} } }
+        : { body: { count: 0, next: null, previous: null, results: [] } },
+    });
+
+    renderApp("/platform");
+    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    const createButton = screen.getByRole("button", { name: "إنشاء" });
+    expect(createButton).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("نوع المدرسة الجديدة"), "GIRLS");
+    expect(screen.getByPlaceholderText("اسم المديرة")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("جوال المديرة")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("اسم المدرسة"), "ثانوية البنات");
+    await user.type(screen.getByPlaceholderText("اسم المديرة"), "نورة");
+    await user.type(screen.getByPlaceholderText("جوال المديرة"), "0550000000");
+    await user.click(createButton);
+
+    await waitFor(() => {
+      const request = calls.find((call) => call.url.includes("/platform/schools/") && call.init?.method === "POST");
+      expect(JSON.parse(String(request?.init?.body))).toMatchObject({ school_type: "GIRLS" });
+    });
+  });
+
   it("shows expired subscription state and over-limit usage to school managers", async () => {
     mockApi({
       "/auth/me/": {

@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Building2, ImagePlus, RotateCcw, UsersRound } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 
@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { TextField } from "@/components/TextField";
+import { ME_QUERY_KEY } from "@/features/auth/useMe";
 import {
   patchSettings,
   STAGE_LABELS,
@@ -14,6 +15,7 @@ import {
   type SchoolSettingsPayload,
 } from "@/features/settings/api";
 import { useInvalidateSchoolData, useSettingsQuery } from "@/features/settings/hooks";
+import { roleLabel, rolePluralLabel } from "@/utils/roles";
 
 interface TabProps {
   canWrite: boolean;
@@ -42,10 +44,12 @@ function SchoolInfoForm({
   canWrite: boolean;
 }) {
   const invalidate = useInvalidateSchoolData();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initialForm = {
     name: initial.school.name,
+    school_type: initial.school.school_type,
     ministry_school_number: initial.ministry_school_number,
     education_stage: initial.education_stage as string,
     city: initial.city,
@@ -60,6 +64,7 @@ function SchoolInfoForm({
     onSuccess: () => {
       setSavedForm(form);
       void invalidate("settings");
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
     },
   });
 
@@ -93,6 +98,22 @@ function SchoolInfoForm({
           disabled={!canWrite}
           className="mb-3"
         />
+        <div className="mb-3 flex flex-col gap-1">
+          <label htmlFor="school-type-select" className="text-sm font-bold text-slate-700">
+            نوع المدرسة
+          </label>
+          <select
+            id="school-type-select"
+            value={form.school_type}
+            onChange={(e) => setForm({ ...form, school_type: e.target.value as "BOYS" | "GIRLS" })}
+            disabled={!canWrite}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="BOYS">بنين</option>
+            <option value="GIRLS">بنات</option>
+          </select>
+          <p className="text-xs text-slate-500">يحدد صيغة مسميات الأدوار في واجهات المدرسة وتقاريرها.</p>
+        </div>
         <TextField
           label="الرقم الوزاري (اختياري)"
           value={form.ministry_school_number}
@@ -126,7 +147,7 @@ function SchoolInfoForm({
           className="mb-3"
         />
         <TextField
-          label="اسم المدير الرسمي (للطباعة — اختياري)"
+          label={`اسم ${roleLabel("SCHOOL_MANAGER", form.school_type)} الرسمي (للطباعة — اختياري)`}
           value={form.official_principal_name}
           onChange={(e) => setForm({ ...form, official_principal_name: e.target.value })}
           disabled={!canWrite}
@@ -195,15 +216,15 @@ function SchoolInfoForm({
           <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600"><UsersRound aria-hidden size={20} /></span><div><h3 className="font-bold">الطاقم الإداري</h3><p className="text-xs text-slate-500">للعرض فقط، ويُدار من صفحة الموظفين.</p></div></div>
           <dl className="space-y-2 text-sm">
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="font-medium text-slate-500">مدير المدرسة</dt>
+              <dt className="font-medium text-slate-500">{roleLabel("SCHOOL_MANAGER", form.school_type)}</dt>
               <dd>{staff.managers.join("، ") || "—"}</dd>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="font-medium text-slate-500">الوكلاء</dt>
+              <dt className="font-medium text-slate-500">{rolePluralLabel("VICE_PRINCIPAL", form.school_type)}</dt>
               <dd>{staff.vice_principals.join("، ") || "—"}</dd>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="font-medium text-slate-500">المرشدون الطلابيون</dt>
+              <dt className="font-medium text-slate-500">{rolePluralLabel("COUNSELOR", form.school_type)}</dt>
               <dd>{staff.counselors.join("، ") || "—"}</dd>
             </div>
           </dl>

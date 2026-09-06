@@ -75,7 +75,7 @@
 
   <table class="info-grid">
     <tr>
-      <td class="label">اسم الطالب</td><td>{{ data.student.name }}</td>
+      <td class="label">اسم {{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</td><td>{{ data.student.name }}</td>
       <td class="label">الصف</td><td>{{ data.student.grade|default:"—" }}</td>
     </tr>
     <tr>
@@ -89,9 +89,9 @@
   {% block signatures %}
   <table class="signatures">
     <tr>
-      <td><div class="line">توقيع الطالب</div></td>
+      <td><div class="line">توقيع {{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</div></td>
       <td><div class="line">توقيع ولي الأمر</div></td>
-      <td><div class="line">مدير المدرسة{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+      <td><div class="line">{{ data.school.principal_role_label|default:"مدير المدرسة" }}{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
     </tr>
   </table>
   {% endblock %}

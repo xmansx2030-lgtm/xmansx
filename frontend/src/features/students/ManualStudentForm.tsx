@@ -5,6 +5,8 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { createStudent, type SectionItem, type StudentRow } from "@/features/students/api";
+import { useActiveSchoolType } from "@/features/settings/hooks";
+import { studentLabel } from "@/utils/roles";
 
 export function ManualStudentForm({
   sections,
@@ -15,6 +17,8 @@ export function ManualStudentForm({
   onCreated: (student: StudentRow) => void;
   onCancel: () => void;
 }) {
+  const schoolType = useActiveSchoolType();
+  const student = studentLabel(schoolType, true);
   const [fullName, setFullName] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
@@ -47,7 +51,7 @@ export function ManualStudentForm({
     event.preventDefault();
     setValidationError(null);
     if (fullName.trim().length < 2 || !nationalId.trim() || !sectionId) {
-      setValidationError("أكمل اسم الطالب ورقم الهوية والصف والفصل.");
+      setValidationError(`أكمل اسم ${student} ورقم الهوية والصف والفصل.`);
       return;
     }
     mutation.mutate();
@@ -58,9 +62,9 @@ export function ManualStudentForm({
   return (
     <form onSubmit={submit} noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="اسم الطالب الكامل *" value={fullName} onChange={(e) => setFullName(e.target.value)} autoFocus />
+        <TextField label={`اسم ${student} الكامل *`} value={fullName} onChange={(e) => setFullName(e.target.value)} autoFocus />
         <TextField label="رقم الهوية أو الإقامة *" value={nationalId} onChange={(e) => setNationalId(e.target.value)} inputMode="numeric" dir="ltr" placeholder="1XXXXXXXXX" />
-        <TextField label="رقم الطالب" value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} dir="ltr" />
+        <TextField label={`رقم ${student}`} value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} dir="ltr" />
         <TextField label="اسم ولي الأمر" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
         <TextField label="جوال ولي الأمر" value={guardianMobile} onChange={(e) => setGuardianMobile(e.target.value)} type="tel" inputMode="tel" dir="ltr" placeholder="05XXXXXXXX" />
         <div className="flex flex-col gap-1">
@@ -84,7 +88,7 @@ export function ManualStudentForm({
 
       <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
         <Button variant="secondary" onClick={onCancel}>إلغاء</Button>
-        <Button type="submit" disabled={mutation.isPending || sections.length === 0}>{mutation.isPending ? "جارٍ الإضافة..." : "إضافة الطالب"}</Button>
+        <Button type="submit" disabled={mutation.isPending || sections.length === 0}>{mutation.isPending ? "جارٍ الإضافة..." : `إضافة ${student}`}</Button>
       </div>
     </form>
   );

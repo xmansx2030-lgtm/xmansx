@@ -17,6 +17,7 @@ export function StudentWarningsTab({ studentId }: { studentId: number }) {
   const me = useMe();
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const canVoid = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const [openId, setOpenId] = useState<number | null>(null);
   const [voidReason, setVoidReason] = useState("");
@@ -54,7 +55,7 @@ export function StudentWarningsTab({ studentId }: { studentId: number }) {
 
       {rows.length === 0 ? (
         <p className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-          لا توجد إنذارات صادرة لهذا الطالب.
+          لا توجد إنذارات صادرة {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">

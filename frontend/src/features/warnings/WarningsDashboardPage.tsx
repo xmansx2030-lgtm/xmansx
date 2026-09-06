@@ -22,6 +22,7 @@ import type {
   WarningRow,
   WarningType,
 } from "@/features/warnings/api";
+import { roleLabel } from "@/utils/roles";
 import {
   LEVEL_LABELS,
   WARNING_TYPE_LABELS,
@@ -38,6 +39,7 @@ export function WarningsDashboardPage() {
   const me = useMe();
   const queryClient = useQueryClient();
   const schoolId = me.data?.active_school?.id ?? 0;
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const [type, setType] = useState<WarningType | "">("");
   const [grade, setGrade] = useState<number | "">("");
   const [status, setStatus] = useState<"due" | "issued" | "all">("due");
@@ -136,9 +138,9 @@ export function WarningsDashboardPage() {
         icon={BellRing}
         eyebrow="الحوكمة والانضباط"
         title="الإنذارات المستحقة"
-        description="اكتشاف تلقائي للطلاب الذين بلغوا الحدود المعتمدة، مع إصدار رسمي ونسخة طباعة محفوظة لكل إنذار."
+        description={`اكتشاف تلقائي ${schoolType === "GIRLS" ? "للطالبات اللاتي بلغن" : "للطلاب الذين بلغوا"} الحدود المعتمدة، مع إصدار رسمي ونسخة طباعة محفوظة لكل إنذار.`}
         tone="operational"
-        badge={me.data?.roles.includes("SCHOOL_MANAGER") ? "مدير المدرسة" : "وكيل المدرسة"}
+        badge={roleLabel(me.data?.roles.includes("SCHOOL_MANAGER") ? "SCHOOL_MANAGER" : "VICE_PRINCIPAL", me.data?.active_school?.school_type)}
         meta={<><CalendarDays aria-hidden size={14} /> العام الدراسي {data.academic_year.name}</>}
         testId="warnings-workspace-header"
       />
@@ -148,7 +150,7 @@ export function WarningsDashboardPage() {
           <MetricCard
             key={current}
             testId={`kpi-${current}`}
-            label={`بلغوا حد ${WARNING_TYPE_LABELS[current]}`}
+            label={`${schoolType === "GIRLS" ? "بلغن" : "بلغوا"} حد ${WARNING_TYPE_LABELS[current]}`}
             value={data.summary[current]?.due_students ?? 0}
             hint={`صدرت لهم إنذارات: ${data.summary[current]?.issued_students ?? 0}`}
             icon={current === "UNEXCUSED_FULL_DAY_ABSENCE" ? ShieldAlert : BellRing}
@@ -230,7 +232,7 @@ export function WarningsDashboardPage() {
             </span>
             <div>
               <p className="font-bold">
-                صدر {issuedResult.warning.level_label} للطالب {issuedResult.warning.student_name}
+                صدر {issuedResult.warning.level_label} {schoolType === "GIRLS" ? "للطالبة" : "للطالب"} {issuedResult.warning.student_name}
               </p>
               <p className="mt-0.5 text-xs text-emerald-800">
                 عند {issuedResult.warning.metric_value_at_issue} — النسخة الرسمية محفوظة من بيانات لحظة الإصدار.

@@ -17,7 +17,8 @@ import {
 } from "@/features/excuses/api";
 import { ExcuseCreateCard } from "@/features/excuses/ExcuseCreateCard";
 import { ExcuseDetailCard } from "@/features/excuses/ExcuseDetailCard";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
+import { studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 const MANAGE_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
@@ -31,6 +32,7 @@ export function formatDate(value: string) {
 export function ExcusesPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ExcuseFilters>({ page: 1 });
   const [creating, setCreating] = useState(false);
@@ -59,7 +61,7 @@ export function ExcusesPage() {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <h2 className="mb-2 text-lg font-bold">لا تملك صلاحية عرض الأعذار</h2>
-        <p className="text-slate-600">إدارة الأعذار متاحة لمدير المدرسة والوكيل.</p>
+        <p className="text-slate-600">إدارة الأعذار متاحة {me.data.active_school?.school_type === "GIRLS" ? "لمديرة المدرسة والوكيلة" : "لمدير المدرسة والوكيل"}.</p>
       </section>
     );
   }
@@ -77,7 +79,7 @@ export function ExcusesPage() {
         icon={FileCheck2}
         eyebrow="السجل الإداري"
         title="الأعذار"
-        description="استقبال أعذار الطلاب ومراجعتها واعتماد أثرها على سجل المواظبة من مساحة واضحة وقابلة للتتبع."
+        description={`استقبال أعذار ${studentPluralLabel(schoolType)} ومراجعتها واعتماد أثرها على سجل المواظبة من مساحة واضحة وقابلة للتتبع.`}
         tone="operational"
         badge={canManage ? "صلاحية الاعتماد" : "عرض السجل"}
         actions={canManage ? <Button variant="header" onClick={() => setCreating((value) => !value)} data-testid="new-excuse"><Plus aria-hidden size={18} />{creating ? "إغلاق النموذج" : "إضافة عذر"}</Button> : undefined}
@@ -161,7 +163,7 @@ export function ExcusesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-slate-500">
-                <th className="p-3 text-start">الطالب</th>
+                <th className="p-3 text-start">{studentLabel(schoolType, true)}</th>
                 <th className="p-3 text-start">الفترة</th>
                 <th className="p-3 text-start">نوع العذر</th>
                 <th className="p-3 text-start">الحالة</th>
@@ -206,7 +208,7 @@ export function ExcusesPage() {
               ))}
             </tbody>
           </table>
-          {(list.data?.results.length ?? 0) === 0 && <div className="p-4"><EmptyState title="لا توجد أعذار مطابقة" description="غيّر معايير البحث أو أضف عذرًا جديدًا للطالب عند توفر المستند المؤيد." testId="no-excuses" compact /></div>}
+          {(list.data?.results.length ?? 0) === 0 && <div className="p-4"><EmptyState title="لا توجد أعذار مطابقة" description={`غيّر معايير البحث أو أضف عذرًا جديدًا ${schoolType === "GIRLS" ? "للطالبة" : "للطالب"} عند توفر المستند المؤيد.`} testId="no-excuses" compact /></div>}
           <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
             <span className="text-slate-500">
               صفحة {page} من {totalPages}

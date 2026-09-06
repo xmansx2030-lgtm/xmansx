@@ -49,6 +49,19 @@ def update_school_info(*, school: School, actor, data: dict, request=None) -> Sc
             metadata={"changed": {"name": changed["name"]}},
         )
 
+    new_school_type = data.get("school_type")
+    if new_school_type is not None and new_school_type != school.school_type:
+        school_type_change = {"from": school.school_type, "to": new_school_type}
+        school.school_type = new_school_type
+        school.save(update_fields=["school_type", "updated_at"])
+        record_event(
+            AuditAction.SCHOOL_SETTINGS_UPDATED,
+            request=request,
+            actor=actor,
+            school=school,
+            metadata={"changed": {"school_type": school_type_change}},
+        )
+
     settings_changed: dict[str, dict] = {}
     for field in SETTINGS_EDITABLE_FIELDS:
         if field in data:

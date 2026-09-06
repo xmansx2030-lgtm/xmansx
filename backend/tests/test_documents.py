@@ -200,6 +200,26 @@ def test_warning_v2_renders_morning_late_details_only(env):
     assert "غياب يوم دراسي كامل بدون عذر" not in html
 
 
+def test_girls_school_document_uses_feminine_principal_and_student_labels(env):
+    school = env["school"]
+    school.school_type = "GIRLS"
+    school.save(update_fields=["school_type"])
+    warning = make_warning(env, env["students"][0])
+
+    snapshot = snapshot_service.warning_snapshot(
+        school=school, warning=warning, membership=env["vice"], title="إشعار"
+    )
+    html = render_to_string(
+        "documents/warning_v2.html", {"data": snapshot, "assets": render_assets()}
+    )
+
+    assert snapshot["school"]["principal_role_label"] == "مديرة المدرسة"
+    assert snapshot["school"]["student_definite_label"] == "الطالبة"
+    assert "مديرة المدرسة" in html
+    assert "ولي أمر الطالبة" in html
+    assert "الطالب/ة" not in html
+
+
 @requires_pdf
 def test_warning_pdf_contains_issue_time_values_in_arabic(env):
     student = env["students"][0]

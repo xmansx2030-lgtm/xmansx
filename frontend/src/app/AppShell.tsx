@@ -9,7 +9,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
 import { useLogout, useMe } from "@/features/auth/useMe";
-import { roleLabels } from "@/utils/roles";
+import { roleLabels, studentPluralLabel } from "@/utils/roles";
 
 type Role = "SCHOOL_MANAGER" | "VICE_PRINCIPAL" | "COUNSELOR" | "TEACHER";
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -70,14 +70,14 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function NavigationLinks({ items, onNavigate }: { items: NavigationItem[]; onNavigate?: () => void }) {
+function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void }) {
   const groups = (Object.keys(GROUP_LABELS) as NavigationGroup[]).filter((group) =>
     items.some((item) => item.group === group),
   );
 
   return groups.map((group) => (
     <div key={group} className="mb-5 last:mb-0">
-      <p className="mb-2 px-3 text-[11px] font-bold tracking-wide text-slate-500">{GROUP_LABELS[group]}</p>
+      <p className="mb-2 px-3 text-[11px] font-bold tracking-wide text-slate-500">{group === "students" ? `${studentPluralLabel(schoolType)} والمتابعة` : GROUP_LABELS[group]}</p>
       <div className="space-y-1">
         {items.filter((item) => item.group === group).map((item) => {
           const Icon = item.icon;
@@ -92,7 +92,7 @@ function NavigationLinks({ items, onNavigate }: { items: NavigationItem[]; onNav
               {({ isActive }) => (
                 <>
                   <Icon aria-hidden size={18} className={isActive ? "text-teal-300" : "text-slate-500 transition-colors group-hover:text-teal-300"} />
-                  <span>{item.label}</span>
+                  <span>{item.to === "/students" ? studentPluralLabel(schoolType) : item.to === "/devices/roster-sync" ? `مزامنة أجهزة ${studentPluralLabel(schoolType)}` : item.label}</span>
                 </>
               )}
             </NavLink>
@@ -113,7 +113,7 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
       </span>
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm font-bold ${mobile ? "text-slate-900" : "text-white"}`} data-testid={mobile ? "user-name-mobile" : "user-name"}>{me.data.name}</p>
-        <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles)}</p>
+        <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles, me.data.active_school?.school_type)}</p>
       </div>
       <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" title="تسجيل الخروج" className={`grid size-9 shrink-0 place-items-center rounded-lg transition-colors focus-visible:outline-2 ${mobile ? "text-slate-500 hover:bg-slate-100 hover:text-red-700" : "text-slate-400 hover:bg-white/10 hover:text-white"}`}>
         <LogOut aria-hidden size={17} />
@@ -128,6 +128,7 @@ export function AppShell() {
   const me = useMe();
   const doLogout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const schoolType = me.data?.active_school?.school_type;
   const items = me.isSuccess ? NAVIGATION.filter((item) => item.roles.some((role) => me.data.roles.includes(role))) : [];
   const handleLogout = () => { void doLogout().then(() => navigate("/login", { replace: true })); };
 
@@ -136,7 +137,7 @@ export function AppShell() {
       <a className="skip-link" href="#main-content">الانتقال إلى المحتوى</a>
       <aside className="hidden h-dvh w-70 shrink-0 flex-col overflow-hidden bg-slate-950 lg:sticky lg:top-0 lg:flex">
         <div className="border-b border-white/10 p-5"><Brand /></div>
-        <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto px-3 py-5"><NavigationLinks items={items} /></nav>
+        <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto px-3 py-5"><NavigationLinks items={items} schoolType={schoolType} /></nav>
         <UserPanel onLogout={handleLogout} />
       </aside>
 
@@ -154,7 +155,7 @@ export function AppShell() {
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-30 bg-slate-950/35 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
             <nav id="mobile-navigation" aria-label="التنقل الرئيسي" className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden bg-slate-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-              <div className="flex-1 overflow-y-auto px-4 py-5"><NavigationLinks items={items} onNavigate={() => setMobileMenuOpen(false)} /></div>
+              <div className="flex-1 overflow-y-auto px-4 py-5"><NavigationLinks items={items} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} /></div>
               <div className="bg-white"><UserPanel onLogout={handleLogout} mobile /></div>
             </nav>
           </div>

@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
-import { schoolScopedKey } from "@/features/auth/useMe";
+import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
   IMPROVEMENT_LABELS,
   type TeacherImprovement,
@@ -23,6 +23,7 @@ import {
   respondToFollowUp,
 } from "@/features/counseling/api";
 import { useActiveSchoolId } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 const IMPROVEMENTS = Object.keys(IMPROVEMENT_LABELS) as TeacherImprovement[];
 
@@ -30,6 +31,8 @@ const IMPROVEMENTS = Object.keys(IMPROVEMENT_LABELS) as TeacherImprovement[];
  *  لا يعرض الحالة ولا جلساتها ولا ردود الزملاء (البنود 68-71). */
 export function TeacherFollowUpPage() {
   const schoolId = useActiveSchoolId();
+  const me = useMe();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<number | null>(null);
   const [observation, setObservation] = useState("");
@@ -82,7 +85,7 @@ export function TeacherFollowUpPage() {
 
   return (
     <div className="space-y-5" data-testid="teacher-follow-ups">
-      <PageHeader icon={MessageSquareReply} eyebrow="مساحة المعلم" title="طلبات المتابعة" description="طلبات ملاحظة عن طلابك من المرشد الطلابي؛ ملاحظتك المهنية تصل إلى ملف المتابعة مباشرة." tone="teacher" badge={`${pendingCount} بانتظار ردك`} />
+      <PageHeader icon={MessageSquareReply} eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)}`} title="طلبات المتابعة" description={`طلبات ملاحظة عن ${schoolType === "GIRLS" ? "طالباتك" : "طلابك"} من ${roleLabel("COUNSELOR", schoolType)}؛ ملاحظتك المهنية تصل إلى ملف المتابعة مباشرة.`} tone="teacher" badge={`${pendingCount} بانتظار ردك`} />
 
       {error != null && <ErrorState error={error} />}
 
@@ -119,7 +122,7 @@ export function TeacherFollowUpPage() {
                       </span>
                       <div>
                         <p className="font-bold text-slate-900">{row.student_name}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">طلب من {row.requested_by_name ?? "المرشد الطلابي"}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">طلب من {row.requested_by_name ?? roleLabel("COUNSELOR", schoolType)}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs">

@@ -16,6 +16,7 @@ from memberships.models import (
     SchoolMembershipRole,
     SchoolRole,
 )
+from schools.role_labels import school_role_label
 from subscriptions.entitlements import lock_school_capacity, require_capacity
 from subscriptions.models import EntitlementKey
 from subscriptions.usage import count_active_staff
@@ -61,7 +62,8 @@ def get_manager(school, membership_id: int) -> SchoolMembership:
     try:
         return manager_memberships(school).get(id=membership_id)
     except SchoolMembership.DoesNotExist as exc:
-        raise ApiError("NOT_FOUND", "حساب مدير المدرسة غير موجود.", 404) from exc
+        label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
+        raise ApiError("NOT_FOUND", f"حساب {label} غير موجود.", 404) from exc
 
 
 @transaction.atomic
@@ -69,7 +71,8 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
     normalized = normalize_mobile(mobile)
     clean_name = name.strip()
     if len(clean_name) < 2:
-        raise ApiError("VALIDATION_ERROR", "أدخل اسم المدير كاملًا.")
+        label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
+        raise ApiError("VALIDATION_ERROR", f"أدخل اسم {label} كاملًا.")
 
     lock_school_capacity(school)
     user = User.objects.select_for_update().filter(mobile=normalized).first()
@@ -81,7 +84,8 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
         else None
     )
     if membership and membership.roles.filter(role=SchoolRole.SCHOOL_MANAGER).exists():
-        raise ApiError("MANAGER_ALREADY_EXISTS", "هذا الحساب مدير في المدرسة بالفعل.", 409)
+        label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
+        raise ApiError("MANAGER_ALREADY_EXISTS", f"هذا الحساب {label} بالفعل.", 409)
 
     if membership is None or membership.status != MembershipStatus.ACTIVE:
         require_capacity(
@@ -139,7 +143,10 @@ def update_manager(
     if name is not None:
         clean_name = name.strip()
         if len(clean_name) < 2:
-            raise ApiError("VALIDATION_ERROR", "أدخل اسم المدير كاملًا.")
+            label = school_role_label(
+                SchoolRole.SCHOOL_MANAGER, membership.school.school_type
+            )
+            raise ApiError("VALIDATION_ERROR", f"أدخل اسم {label} كاملًا.")
         if user.display_name != clean_name:
             user.first_name = clean_name[:150]
             user.last_name = ""

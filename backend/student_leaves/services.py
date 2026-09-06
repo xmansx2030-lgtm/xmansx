@@ -10,6 +10,12 @@ from student_leaves.models import StudentLeavePermission, StudentLeaveStatus
 from students.models import EnrollmentStatus, StudentEnrollment, StudentStatus
 
 
+def _invalidate_dashboard_on_commit(school_id: int) -> None:
+    from school_dashboard.cache import invalidate_school
+
+    transaction.on_commit(lambda: invalidate_school(school_id))
+
+
 @transaction.atomic
 def record_student_leave(
     *, school, membership, student, leave_date, leave_time, reason: str, request=None
@@ -67,6 +73,7 @@ def record_student_leave(
         target_id=leave.id,
         metadata={"student_id": student.id, "leave_date": leave_date.isoformat()},
     )
+    _invalidate_dashboard_on_commit(school.id)
     return leave
 
 
@@ -107,4 +114,5 @@ def cancel_student_leave(
         target_id=locked.id,
         metadata={"student_id": locked.student_id},
     )
+    _invalidate_dashboard_on_commit(school.id)
     return locked

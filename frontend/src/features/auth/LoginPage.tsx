@@ -90,7 +90,7 @@ export function LoginPage() {
           <p className="mb-3 text-sm font-bold text-teal-200">منصة مدرسية متكاملة</p>
           <h1 className="text-xl font-black">منصة المواظبة</h1>
           <h2 className="mt-4 max-w-lg text-4xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
-          <p className="mt-5 max-w-lg text-base leading-8 text-slate-300">مساحة عمل موحدة تساعد الإدارة والمعلمين والمرشدين على متابعة الطالب واتخاذ الإجراء المناسب بثقة.</p>
+          <p className="mt-5 max-w-lg text-base leading-8 text-slate-300">مساحة عمل موحدة تساعد الإدارة والهيئة التعليمية والإرشادية على متابعة الطالب أو الطالبة واتخاذ الإجراء المناسب بثقة.</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
             <span className="flex items-center gap-2"><CheckCircle2 size={17} className="text-teal-300" /> متابعة لحظية</span>
             <span className="flex items-center gap-2"><ShieldCheck size={17} className="text-teal-300" /> بيانات آمنة</span>

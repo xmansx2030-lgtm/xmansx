@@ -242,8 +242,14 @@ def test_undetermined_never_counted_as_absence(env):
 
 @pytest.mark.django_db
 def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(env):
-    """المؤشر الحي: غائب متتابع، حالة أحدث حصة، وفصل لم يعتمد لا يخمّن."""
-    continuously_absent, absent_then_present, late_now, absent_then_late, present = env["students"]
+    """الحصة مستقلة، والاستئذان ليس عذر غياب، والتأخر الصباحي عداد منفصل."""
+    from excuses.services.coverage import approve_excuse, resolve_coverage_plan
+    from excuses.services.excuses import create_excuse
+    from student_leaves.models import StudentLeavePermission
+
+    continuously_absent, absent_then_present, late_now, absent_then_late, leave_now = (
+        env["students"]
+    )
     for seq in (1, 2):
         session = make_session(env, seq)
         mark(env, session, continuously_absent, "ABSENT")
@@ -253,26 +259,58 @@ def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(e
         else:
             mark(env, session, late_now, "LATE", minutes=8)
             mark(env, session, absent_then_late, "LATE", minutes=11)
+            mark(env, session, leave_now, "ABSENT")
 
-    # فصل نشط آخر: لا يعتمد الحصة الثانية، لذلك طالبه لا يصنف في أي فئة حية.
+    StudentLeavePermission.objects.create(
+        school=env["school"], student=leave_now, leave_date=DAY,
+        leave_time=time(8, 15), reason="موعد رسمي",
+        recorded_by_membership=env["vice"],
+    )
+    # عذر غياب معتمد للحصة الحالية يبقى في «غائب في الحصة»، ولا يتحول إلى
+    # «مستأذن الآن»؛ فالاستئذان سجل خروج مستقل تمامًا.
+    excuse = create_excuse(
+        school=env["school"], membership=env["vice"], student=continuously_absent,
+        reason_type="MEDICAL_REPORT", notes="",
+        targets=[{"attendance_date": DAY, "period_sequence": 2}],
+    )
+    plan = resolve_coverage_plan(excuse)
+    approve_excuse(
+        excuse_id=excuse.id, school=env["school"], membership=env["vice"],
+        preview_hash=plan["preview_hash"],
+    )
+    arrival(env, absent_then_present, late_minutes=7)
+    StudentLeavePermission.objects.create(
+        school=env["school"], student=absent_then_present, leave_date=DAY,
+        leave_time=time(9, 0), reason="خروج لاحق",
+        recorded_by_membership=env["vice"],
+    )
+
+    # فصل نشط آخر اعتمد الحصة الحالية فقط: يدخل في أرقام الحصة فورًا، لكنه لا
+    # يدخل في «غائب اليوم» حتى يكتمل تحضيره من بداية اليوم.
     make_students(env["school"], env["section_b"], env["year"], 1, prefix="90400")
-    make_session(env, 1, section=env["section_b"])
+    make_session(env, 2, section=env["section_b"])
 
     snapshot = attendance_selectors.live_attendance_snapshot(
-        school=env["school"], attendance_date=DAY, current_period_sequence=2
+        school=env["school"], attendance_date=DAY, current_period_sequence=2,
+        current_time=time(8, 30),
     )
 
     assert snapshot == {
         "status": "AVAILABLE",
         "total_students": 6,
-        "covered_students": 5,
-        "pending_students": 1,
+        "covered_students": 6,
+        "pending_students": 0,
         "present_students": 2,
         "absent_students": 1,
+        "leave_students": 1,
         "late_students": 2,
-        "covered_sections": 1,
-        "pending_sections": 1,
-        "period_sequences": [1, 2],
+        "morning_late_students": 1,
+        "daily_absent_students": 1,
+        "daily_covered_students": 5,
+        "daily_pending_sections": 1,
+        "covered_sections": 2,
+        "pending_sections": 0,
+        "current_period_sequence": 2,
     }
 
 

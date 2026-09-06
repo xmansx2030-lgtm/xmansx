@@ -20,6 +20,7 @@ import {
   type PurgeJob,
   type PurgePreview,
 } from "@/features/students/api";
+import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const FILTERS = [
   { key: "", label: "الكل" },
@@ -34,6 +35,9 @@ const FILTERS = [
 export function InactiveStudentsPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = me.data?.active_school?.school_type ?? "BOYS";
+  const student = studentLabel(schoolType, true);
+  const studentsLabel = studentPluralLabel(schoolType);
   const queryClient = useQueryClient();
   const isManager = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -128,7 +132,7 @@ export function InactiveStudentsPage() {
     selected.size > 0 &&
     selectedRows.length === selected.size &&
     selectedRows.every((row) => row.status !== "ACTIVE");
-  const expectedConfirm = preview ? `حذف ${preview.summary.students} طالبًا` : "";
+  const expectedConfirm = preview ? `حذف ${preview.summary.students} ${studentCountLabel(schoolType)}` : "";
   const jobData = purgeJob.data;
   const jobDone =
     jobData && ["COMPLETED", "PARTIALLY_FAILED", "FAILED"].includes(jobData.status);
@@ -138,10 +142,10 @@ export function InactiveStudentsPage() {
       <PageHeader
         icon={Archive}
         eyebrow="السجل الأكاديمي"
-        title={filter === "missing" ? "مراجعة الطلاب غير الموجودين في آخر ملف نور" : "الطلاب غير النشطين"}
+        title={filter === "missing" ? `مراجعة ${studentsLabel} ${schoolType === "GIRLS" ? "غير الموجودات" : "غير الموجودين"} في آخر ملف نور` : `${studentsLabel} ${schoolType === "GIRLS" ? "غير النشطات" : "غير النشطين"}`}
         description={isManager
           ? "راجع حالات الخريجين والمنقولين والمنسحبين، واتخذ الإجراءات الجماعية بعد التحقق."
-          : "اطّلع على حالات الطلاب خارج القيد النشط وسجل انتقالهم أو تخرجهم دون تعديل البيانات."}
+          : `اطّلع على حالات ${studentsLabel} خارج القيد النشط وسجل انتقالهم أو تخرجهم دون تعديل البيانات.`}
         tone="operational"
         badge={isManager ? "إدارة السجل" : "عرض فقط"}
         meta={<span>{students.data ? `${students.data.count} سجلًا` : "جارٍ تحميل السجلات"}</span>}
@@ -151,7 +155,7 @@ export function InactiveStudentsPage() {
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <ArrowRight aria-hidden size={17} />
-            الطلاب النشطون
+            {studentsLabel} {schoolType === "GIRLS" ? "النشطات" : "النشطون"}
           </Link>
         )}
         testId="inactive-students-header"
@@ -226,7 +230,7 @@ export function InactiveStudentsPage() {
         >
           <p className="mb-1 font-bold">
             {jobData.status === "RUNNING" || jobData.status === "PENDING"
-              ? "جارٍ حذف بيانات الطلاب..."
+              ? `جارٍ حذف بيانات ${studentsLabel}...`
               : jobData.status === "COMPLETED"
                 ? "اكتمل الحذف النهائي"
                 : jobData.status === "PARTIALLY_FAILED"
@@ -275,7 +279,7 @@ export function InactiveStudentsPage() {
                 onClick={() => previewMutation.mutate([...selected])}
                 title={
                   selected.size > 0 && !selectedArePurgeable
-                    ? "صنّف الطلاب كمنتقلين أو متخرجين أولًا"
+                    ? `صنّف ${studentsLabel} ${schoolType === "GIRLS" ? "كمنتقلات أو خريجات" : "كمنتقلين أو متخرجين"} أولًا`
                     : undefined
                 }
               >
@@ -283,7 +287,7 @@ export function InactiveStudentsPage() {
               </Button>
               {selected.size > 0 && !selectedArePurgeable && (
                 <span className="text-xs text-amber-800">
-                  الحذف النهائي يتاح بعد تصنيف الطالب وإغلاق قيده النشط.
+                  الحذف النهائي يتاح بعد تصنيف {student} وإغلاق قيده النشط.
                 </span>
               )}
             </>
@@ -373,7 +377,7 @@ export function InactiveStudentsPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={isManager ? 5 : 4} className="p-6 text-center text-slate-400">
-                      لا يوجد طلاب مطابقون.
+                      لا يوجد {studentsLabel} {schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}.
                     </td>
                   </tr>
                 )}
@@ -398,7 +402,7 @@ export function InactiveStudentsPage() {
           <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
             <h3 className="mb-2 text-lg font-bold text-red-700">حذف نهائي</h3>
             <p className="mb-3 text-sm text-slate-700">
-              سيتم حذف بيانات {preview.summary.students} طالبًا نهائيًا.
+              سيتم حذف بيانات {preview.summary.students} {studentCountLabel(schoolType)} نهائيًا.
             </p>
             <ul className="mb-3 space-y-1 text-sm text-slate-600" data-testid="purge-summary">
               {Object.entries(preview.summary)

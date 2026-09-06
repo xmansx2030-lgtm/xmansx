@@ -6,12 +6,13 @@ import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { CASE_IMPROVEMENT_LABELS, getStudentCounseling } from "@/features/counseling/api";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 
 /** «الإرشاد والمتابعة» في ملف الطالب — ملخص بلا أي نص إرشادي (البنود 83-85).
  *  المعلم لا يصل إلى هذا التبويب أصلًا (الخادم يرد 403 والتبويب مخفي). */
 export function StudentCounselingTab({ studentId }: { studentId: number }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const me = useMe();
   const canOpenCase =
     me.data?.roles.some(
@@ -45,7 +46,7 @@ export function StudentCounselingTab({ studentId }: { studentId: number }) {
             <div>
               <h2 className="font-black">ملفات الإرشاد والمتابعة</h2>
               <p className="mt-1 text-xs leading-5 text-slate-300">
-                نظرة موجزة على مسار الطالب دون إظهار الملاحظات المهنية الحساسة.
+                نظرة موجزة على مسار {schoolType === "GIRLS" ? "الطالبة" : "الطالب"} دون إظهار الملاحظات المهنية الحساسة.
               </p>
             </div>
           </div>
@@ -70,7 +71,7 @@ export function StudentCounselingTab({ studentId }: { studentId: number }) {
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-500">
             <FolderOpen aria-hidden size={22} />
           </span>
-          <p className="mt-3 font-bold text-slate-800">لا توجد ملفات متابعة إرشادية لهذا الطالب.</p>
+          <p className="mt-3 font-bold text-slate-800">لا توجد ملفات متابعة إرشادية {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.</p>
           <p className="mt-1 text-xs text-slate-500">ستظهر الحالات هنا بعد فتحها من صندوق الإحالات.</p>
         </div>
       ) : (

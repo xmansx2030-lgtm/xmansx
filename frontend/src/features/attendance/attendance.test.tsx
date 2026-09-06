@@ -167,6 +167,8 @@ describe("attendance", () => {
   });
 
   it("submits exceptions only: absent + late with arrival time, never late_minutes", async () => {
+    const dashboardKey = ["school", 10, "dashboard", "today"] as const;
+    queryClient.setQueryData(dashboardKey, { present_students: 3 });
     const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
@@ -198,6 +200,9 @@ describe("attendance", () => {
 
     await user.click(screen.getByTestId("submit-attendance"));
     expect(await screen.findByTestId("submitted-banner")).toHaveTextContent("أحمد المعلم");
+    await waitFor(() => {
+      expect(queryClient.getQueryState(dashboardKey)?.isInvalidated).toBe(true);
+    });
 
     const submitCall = calls.find((c) => c.url.includes("/submit/"));
     const body = parseBody(submitCall?.init);
@@ -332,7 +337,7 @@ describe("attendance", () => {
     renderApp("/qr/private-token-123");
 
     expect(
-      await screen.findByRole("heading", { name: "هذا الرمز مخصص للمعلمين المصرح لهم" }),
+      await screen.findByRole("heading", { name: "هذا الرمز مخصص للهيئة التعليمية المصرح لها" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("qr-access-gate")).toHaveTextContent("لم يتم عرض أي بيانات مدرسية");
     expect(screen.getByRole("link", { name: "دخول الموظفين المصرح لهم" })).toHaveAttribute(

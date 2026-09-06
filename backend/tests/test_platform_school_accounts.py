@@ -11,6 +11,28 @@ def platform_admin(make_user):
 
 
 @pytest.mark.django_db
+def test_platform_school_creation_requires_and_persists_school_type(client, platform_admin):
+    client.force_login(platform_admin)
+    payload = {
+        "school_name": "ثانوية البنات",
+        "manager_name": "نورة القحطاني",
+        "manager_mobile": "0550099010",
+    }
+
+    missing = client.post("/api/v1/platform/schools/", payload, content_type="application/json")
+    assert missing.status_code == 400
+
+    created = client.post(
+        "/api/v1/platform/schools/",
+        {**payload, "school_type": "GIRLS"},
+        content_type="application/json",
+    )
+    assert created.status_code == 201
+    assert created.json()["school_type"] == "GIRLS"
+    assert created.json()["manager_membership_id"]
+
+
+@pytest.mark.django_db
 def test_platform_school_detail_exposes_and_updates_operational_account_data(
     client, make_school, make_user, make_membership, platform_admin
 ):

@@ -107,16 +107,21 @@ def test_late_calculation_and_grace_boundary(env):
 
 
 @pytest.mark.django_db
-def test_ingest_creates_single_arrival_from_first_event(env, client):
+def test_ingest_creates_single_arrival_from_first_event(
+    env, client, monkeypatch, django_capture_on_commit_callbacks
+):
+    invalidated = []
+    monkeypatch.setattr("school_dashboard.cache.invalidate_school", invalidated.append)
     map_student(env, env["students"][0])
-    response = post_batch(
-        client, env["token"],
-        [
-            event(env, at(7, 12), external_event_id="e1"),
-            event(env, at(7, 14), external_event_id="e2"),
-            event(env, at(9, 0), external_event_id="e3"),
-        ],
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        response = post_batch(
+            client, env["token"],
+            [
+                event(env, at(7, 12), external_event_id="e1"),
+                event(env, at(7, 14), external_event_id="e2"),
+                event(env, at(9, 0), external_event_id="e3"),
+            ],
+        )
     assert response.status_code == 200
     assert [r["result"] for r in response.json()["results"]] == ["accepted"] * 3
     assert DeviceEvent.objects.count() == 3  # الأحداث كلها تحفظ
@@ -126,6 +131,7 @@ def test_ingest_creates_single_arrival_from_first_event(env, client):
     assert arrival.counted_late_minutes == 7
     assert arrival.status == "LATE"
     assert arrival.source == "BIOMETRIC"
+    assert invalidated == [env["school"].id]
 
 
 @pytest.mark.django_db
@@ -162,7 +168,9 @@ def test_older_event_arriving_later_corrects_first_arrival(env, client):
 
 
 @pytest.mark.django_db
-def test_unmatched_event_kept_then_reprocessed_after_mapping(env, client, role_client):
+def test_unmatched_event_kept_then_reprocessed_after_mapping(
+    env, client, role_client, monkeypatch, django_capture_on_commit_callbacks
+):
     """حدث غير مربوط لا يحذف؛ وبعد المطابقة يعاد معالجته فيظهر الوصول (123-124)."""
     response = post_batch(
         client, env["token"], [event(env, at(7, 20), external_user_id="9999")]
@@ -174,17 +182,21 @@ def test_unmatched_event_kept_then_reprocessed_after_mapping(env, client, role_c
     identity = StudentDeviceIdentity.objects.get(external_user_id="9999")
     assert identity.status == IdentityStatus.UNMATCHED
 
+    invalidated = []
+    monkeypatch.setattr("school_dashboard.cache.invalidate_school", invalidated.append)
     manager, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
-    map_response = manager.post(
-        f"/api/v1/device-identities/{identity.id}/map/",
-        {"student_id": env["students"][1].id},
-        content_type="application/json",
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        map_response = manager.post(
+            f"/api/v1/device-identities/{identity.id}/map/",
+            {"student_id": env["students"][1].id},
+            content_type="application/json",
+        )
     assert map_response.status_code == 200
     row.refresh_from_db()
     assert row.processing_status == "PROCESSED"
     arrival = SchoolArrival.objects.get(student=env["students"][1])
     assert arrival.counted_late_minutes == 15
+    assert invalidated == [env["school"].id]
 
 
 @pytest.mark.django_db
@@ -230,7 +242,11 @@ def test_bridge_credentials(env, client, make_school):
 
 
 @pytest.mark.django_db
-def test_manual_arrival_and_duplicate_guard(env, role_client):
+def test_manual_arrival_and_duplicate_guard(
+    env, role_client, monkeypatch, django_capture_on_commit_callbacks
+):
+    invalidated = []
+    monkeypatch.setattr("school_dashboard.cache.invalidate_school", invalidated.append)
     vice, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
     payload = {
         "student_id": env["students"][0].id,
@@ -238,13 +254,15 @@ def test_manual_arrival_and_duplicate_guard(env, role_client):
         "arrival_time": "07:10",
         "reason": "دخل من البوابة الخلفية",
     }
-    response = vice.post(
-        "/api/v1/morning/arrivals/", payload, content_type="application/json"
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        response = vice.post(
+            "/api/v1/morning/arrivals/", payload, content_type="application/json"
+        )
     assert response.status_code == 201
     body = response.json()
     assert body["source"] == "MANUAL"
     assert body["status"] == "LATE" and body["counted_late_minutes"] == 5
+    assert invalidated == [env["school"].id]
     duplicate = vice.post(
         "/api/v1/morning/arrivals/", payload, content_type="application/json"
     )
@@ -253,18 +271,23 @@ def test_manual_arrival_and_duplicate_guard(env, role_client):
 
 
 @pytest.mark.django_db
-def test_correction_updates_current_and_keeps_history(env, client, role_client):
+def test_correction_updates_current_and_keeps_history(
+    env, client, role_client, monkeypatch, django_capture_on_commit_callbacks
+):
     map_student(env, env["students"][0])
     post_batch(client, env["token"], [event(env, at(7, 22), external_event_id="x")])
     arrival = SchoolArrival.objects.get()
     assert arrival.counted_late_minutes == 17
 
+    invalidated = []
+    monkeypatch.setattr("school_dashboard.cache.invalidate_school", invalidated.append)
     vice, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
-    response = vice.post(
-        f"/api/v1/morning/arrivals/{arrival.id}/correct/",
-        {"arrival_time": "07:05", "reason": "البصمة سجلت متأخرة"},
-        content_type="application/json",
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        response = vice.post(
+            f"/api/v1/morning/arrivals/{arrival.id}/correct/",
+            {"arrival_time": "07:05", "reason": "البصمة سجلت متأخرة"},
+            content_type="application/json",
+        )
     assert response.status_code == 200
     arrival.refresh_from_db()
     assert arrival.status == "ON_TIME" and arrival.counted_late_minutes == 0
@@ -272,6 +295,7 @@ def test_correction_updates_current_and_keeps_history(env, client, role_client):
     assert change.previous_counted_late_minutes == 17
     assert change.new_counted_late_minutes == 0
     assert change.previous_arrival_time == at(7, 22)
+    assert invalidated == [env["school"].id]
 
 
 # ---------- التقارير (البنود 60-66، 105-109) ----------

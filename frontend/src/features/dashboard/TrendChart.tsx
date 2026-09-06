@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 
 import type { TrendPoint } from "@/features/dashboard/api";
+import type { SchoolType } from "@/types/auth";
 
 const WIDTH = 720;
 const HEIGHT = 220;
@@ -38,6 +39,7 @@ function niceMax(value: number): number {
 interface TrendChartProps {
   points: TrendPoint[];
   granularity: "DAY" | "WEEK";
+  schoolType: SchoolType;
 }
 
 /**
@@ -45,7 +47,7 @@ interface TrendChartProps {
  * لأربع سلاسل لا يبرر حجمها. المحور الزمني يسير **يمينًا ← يسارًا** كاتجاه القراءة،
  * ويرافق المخطط جدول مكافئ لقارئ الشاشة (الرسم وحده ليس بيانًا مقروءًا).
  */
-export function TrendChart({ points, granularity }: TrendChartProps) {
+export function TrendChart({ points, granularity, schoolType }: TrendChartProps) {
   const titleId = useId();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
@@ -90,7 +92,7 @@ export function TrendChart({ points, granularity }: TrendChartProps) {
         data-granularity={granularity}
         data-points={points.length}
       >
-        <title id={titleId}>{`اتجاه الغياب ${unitLabel} — أيام-طالب`}</title>
+        <title id={titleId}>{`اتجاه الغياب ${unitLabel} — أيام-${schoolType === "GIRLS" ? "طالبة" : "طالب"}`}</title>
 
         {gridValues.map((value) => (
           <g key={value}>

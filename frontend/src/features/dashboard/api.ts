@@ -85,10 +85,15 @@ export interface TodayOperations {
     pending_students: number;
     present_students: number;
     absent_students: number;
+    leave_students: number;
     late_students: number;
+    morning_late_students: number;
+    daily_absent_students: number;
+    daily_covered_students: number;
+    daily_pending_sections: number;
     covered_sections: number;
     pending_sections: number;
-    period_sequences: number[];
+    current_period_sequence: number | null;
   };
 }
 

@@ -27,9 +27,10 @@ import {
   type StudentLeaveRow,
   type StudentLeaveStatus,
 } from "@/features/leaves/api";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import { getStudents, type StudentRow } from "@/features/students/api";
 import { localIsoDate } from "@/utils/dates";
+import { roleLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 function currentTime() {
   const now = new Date();
@@ -53,6 +54,9 @@ function weekdayLabel(value: string) {
 export function StudentLeavesPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
+  const student = studentLabel(schoolType, true);
+  const students = studentPluralLabel(schoolType);
   const queryClient = useQueryClient();
   const today = localIsoDate(new Date());
   const canManage = me.data?.roles.some(
@@ -72,9 +76,14 @@ export function StudentLeavesPage() {
     placeholderData: (previous) => previous,
   });
 
-  const refresh = () => queryClient.invalidateQueries({
-    queryKey: schoolScopedKey(schoolId, "student-leaves"),
-  });
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "student-leaves"),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "dashboard"),
+    }),
+  ]);
 
   if (me.isSuccess && !canManage) return null;
 
@@ -85,11 +94,11 @@ export function StudentLeavesPage() {
     <div className="space-y-5" data-testid="student-leaves-page">
       <PageHeader
         icon={DoorOpen}
-        eyebrow="شؤون الطلاب"
-        title="استئذانات الطلاب"
-        description="تسجيل خروج الطالب بدقة وحفظ السبب والوقت والتاريخ داخل سجله الموحد."
+        eyebrow={`شؤون ${students}`}
+        title={`استئذانات ${students}`}
+        description={`تسجيل خروج ${student} بدقة وحفظ السبب والوقت والتاريخ داخل ${schoolType === "GIRLS" ? "سجلها" : "سجله"} الموحد.`}
         tone="executive"
-        badge={me.data?.roles.includes("VICE_PRINCIPAL") ? "مساحة الوكيل" : "إشراف الإدارة"}
+        badge={me.data?.roles.includes("VICE_PRINCIPAL") ? `مساحة ${roleLabel("VICE_PRINCIPAL", me.data.active_school?.school_type)}` : "إشراف الإدارة"}
         actions={(
           <Button variant="header" onClick={() => { setCreated(null); setFormOpen(true); }}>
             <UserRoundCheck aria-hidden size={17} /> تسجيل استئذان
@@ -98,14 +107,14 @@ export function StudentLeavesPage() {
       >
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-300">
           <span className="inline-flex items-center gap-1.5"><ShieldCheck aria-hidden size={14} /> كل عملية مرتبطة بالموظف المنفذ</span>
-          <span className="inline-flex items-center gap-1.5"><FileText aria-hidden size={14} /> محفوظة تلقائيًا في ملف الطالب</span>
+          <span className="inline-flex items-center gap-1.5"><FileText aria-hidden size={14} /> محفوظة تلقائيًا في ملف {student}</span>
         </div>
       </PageHeader>
 
       {created && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
           <span className="inline-flex items-center gap-2 font-bold"><CheckCircle2 aria-hidden size={19} /> تم تسجيل استئذان {created.student.full_name} وحفظه في ملفه.</span>
-          <Link className="font-bold text-emerald-800 underline" to={`/students/${created.student.id}/attendance`}>فتح ملف الطالب</Link>
+          <Link className="font-bold text-emerald-800 underline" to={`/students/${created.student.id}/attendance`}>فتح ملف {student}</Link>
         </div>
       )}
 
@@ -120,7 +129,7 @@ export function StudentLeavesPage() {
           <label className="text-sm font-bold text-slate-700">التاريخ
             <input type="date" value={date} onChange={(event) => { setDate(event.target.value); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3" />
           </label>
-          <label className="text-sm font-bold text-slate-700">بحث عن طالب
+          <label className="text-sm font-bold text-slate-700">بحث عن {studentLabel(schoolType)}
             <span className="relative mt-1 block">
               <Search aria-hidden size={17} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="الاسم أو الرقم الطلابي" className="h-11 w-full rounded-xl border border-slate-300 pr-10 pl-3" />
@@ -163,6 +172,7 @@ export function StudentLeavesPage() {
       {formOpen && (
         <LeaveForm
           today={today}
+          schoolType={schoolType}
           onClose={() => setFormOpen(false)}
           onCreated={(leave) => { setCreated(leave); setFormOpen(false); setDate(leave.leave_date); void refresh(); }}
         />
@@ -171,7 +181,7 @@ export function StudentLeavesPage() {
   );
 }
 
-function LeaveForm({ today, onClose, onCreated }: { today: string; onClose: () => void; onCreated: (leave: StudentLeaveRow) => void }) {
+function LeaveForm({ today, schoolType, onClose, onCreated }: { today: string; schoolType: "BOYS" | "GIRLS"; onClose: () => void; onCreated: (leave: StudentLeaveRow) => void }) {
   const [student, setStudent] = useState<StudentRow | null>(null);
   const [leaveDate, setLeaveDate] = useState(today);
   const [leaveTime, setLeaveTime] = useState(currentTime);
@@ -185,27 +195,27 @@ function LeaveForm({ today, onClose, onCreated }: { today: string; onClose: () =
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!student) { setError("اختر الطالب أولًا."); return; }
+    if (!student) { setError(`اختر ${studentLabel(schoolType, true)} أولًا.`); return; }
     if (!leaveDate || !leaveTime || reason.trim().length < 3) { setError("أكمل التاريخ والوقت وسبب الاستئذان."); return; }
     setError(null);
     create.mutate();
   }
 
   return (
-    <Modal title="تسجيل استئذان طالب" description="ستُحفظ البيانات فورًا داخل ملف الطالب." onClose={onClose}>
+    <Modal title={`تسجيل استئذان ${studentLabel(schoolType)}`} description={`ستُحفظ البيانات فورًا داخل ملف ${studentLabel(schoolType, true)}.`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-5" noValidate>
-        <StudentSearch selected={student} onSelect={setStudent} onClear={() => setStudent(null)} />
+        <StudentSearch schoolType={schoolType} selected={student} onSelect={setStudent} onClear={() => setStudent(null)} />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-bold text-slate-700">تاريخ الاستئذان *
             <input aria-label="تاريخ الاستئذان" type="date" max={today} value={leaveDate} onChange={(event) => setLeaveDate(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3" />
             <span className="mt-1 block text-xs font-medium text-blue-700">اليوم: {weekdayLabel(leaveDate)}</span>
           </label>
-          <label className="text-sm font-bold text-slate-700">وقت خروج الطالب *
-            <input aria-label="وقت خروج الطالب" type="time" value={leaveTime} onChange={(event) => setLeaveTime(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3" />
+          <label className="text-sm font-bold text-slate-700">وقت خروج {studentLabel(schoolType, true)} *
+            <input aria-label={`وقت خروج ${studentLabel(schoolType, true)}`} type="time" value={leaveTime} onChange={(event) => setLeaveTime(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3" />
           </label>
         </div>
         <label className="block text-sm font-bold text-slate-700">سبب الاستئذان *
-          <textarea aria-label="سبب الاستئذان" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={4} placeholder="اكتب السبب بوضوح ليظهر في سجل الطالب..." className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal leading-6" />
+          <textarea aria-label="سبب الاستئذان" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={4} placeholder={`اكتب السبب بوضوح ليظهر في سجل ${studentLabel(schoolType, true)}...`} className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal leading-6" />
           <span className="mt-1 block text-end text-xs font-medium text-slate-400">{reason.length}/500</span>
         </label>
         {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -215,7 +225,7 @@ function LeaveForm({ today, onClose, onCreated }: { today: string; onClose: () =
   );
 }
 
-function StudentSearch({ selected, onSelect, onClear }: { selected: StudentRow | null; onSelect: (student: StudentRow) => void; onClear: () => void }) {
+function StudentSearch({ schoolType, selected, onSelect, onClear }: { schoolType: "BOYS" | "GIRLS"; selected: StudentRow | null; onSelect: (student: StudentRow) => void; onClear: () => void }) {
   const schoolId = useActiveSchoolId();
   const [term, setTerm] = useState("");
   const students = useQuery({
@@ -223,8 +233,8 @@ function StudentSearch({ selected, onSelect, onClear }: { selected: StudentRow |
     queryFn: ({ signal }) => getStudents({ search: term, status: "ACTIVE" }, signal),
     enabled: !selected && term.trim().length >= 2,
   });
-  if (selected) return <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4"><div><p className="text-xs font-bold text-blue-700">الطالب المختار</p><p className="mt-1 font-black text-slate-900">{selected.full_name}</p><p className="mt-1 text-xs text-slate-500">{selected.grade?.name ?? "—"} / {selected.section?.name ?? "—"}</p></div><Button variant="secondary" onClick={onClear}>تغيير الطالب</Button></div>;
-  return <div><label className="text-sm font-bold text-slate-700">الطالب *<span className="relative mt-1 block"><Search aria-hidden size={17} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /><input aria-label="بحث عن الطالب" value={term} onChange={(event) => setTerm(event.target.value)} autoFocus placeholder="اكتب حرفين على الأقل من اسم الطالب" className="h-11 w-full rounded-xl border border-slate-300 pr-10 pl-3 font-normal" /></span></label>{students.isFetching && <p className="mt-2 text-xs text-slate-500">جارٍ البحث...</p>}{students.data && <ul className="mt-2 max-h-52 divide-y overflow-y-auto rounded-xl border border-slate-200">{students.data.results.map((row) => <li key={row.id}><button type="button" data-testid={`leave-pick-student-${row.id}`} onClick={() => onSelect(row)} className="flex w-full items-center justify-between gap-3 p-3 text-start hover:bg-blue-50"><span><strong className="block text-sm text-slate-900">{row.full_name}</strong><span className="mt-1 block text-xs text-slate-500">{row.grade?.name ?? "—"} / {row.section?.name ?? "—"}</span></span><span dir="ltr" className="text-xs text-slate-400">{row.student_number ?? row.national_id_masked}</span></button></li>)}{students.data.results.length === 0 && <li className="p-4 text-center text-sm text-slate-500">لا يوجد طالب مطابق.</li>}</ul>}</div>;
+  if (selected) return <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4"><div><p className="text-xs font-bold text-blue-700">{studentLabel(schoolType, true)} {schoolType === "GIRLS" ? "المختارة" : "المختار"}</p><p className="mt-1 font-black text-slate-900">{selected.full_name}</p><p className="mt-1 text-xs text-slate-500">{selected.grade?.name ?? "—"} / {selected.section?.name ?? "—"}</p></div><Button variant="secondary" onClick={onClear}>تغيير {studentLabel(schoolType, true)}</Button></div>;
+  return <div><label className="text-sm font-bold text-slate-700">{studentLabel(schoolType, true)} *<span className="relative mt-1 block"><Search aria-hidden size={17} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /><input aria-label={`بحث عن ${studentLabel(schoolType, true)}`} value={term} onChange={(event) => setTerm(event.target.value)} autoFocus placeholder={`اكتب حرفين على الأقل من اسم ${studentLabel(schoolType, true)}`} className="h-11 w-full rounded-xl border border-slate-300 pr-10 pl-3 font-normal" /></span></label>{students.isFetching && <p className="mt-2 text-xs text-slate-500">جارٍ البحث...</p>}{students.data && <ul className="mt-2 max-h-52 divide-y overflow-y-auto rounded-xl border border-slate-200">{students.data.results.map((row) => <li key={row.id}><button type="button" data-testid={`leave-pick-student-${row.id}`} onClick={() => onSelect(row)} className="flex w-full items-center justify-between gap-3 p-3 text-start hover:bg-blue-50"><span><strong className="block text-sm text-slate-900">{row.full_name}</strong><span className="mt-1 block text-xs text-slate-500">{row.grade?.name ?? "—"} / {row.section?.name ?? "—"}</span></span><span dir="ltr" className="text-xs text-slate-400">{row.student_number ?? row.national_id_masked}</span></button></li>)}{students.data.results.length === 0 && <li className="p-4 text-center text-sm text-slate-500">لا توجد {studentLabel(schoolType)} مطابقة.</li>}</ul>}</div>;
 }
 
 function LeaveRow({ leave, onChanged }: { leave: StudentLeaveRow; onChanged: () => Promise<unknown> }) {

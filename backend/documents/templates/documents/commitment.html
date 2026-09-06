@@ -5,7 +5,7 @@
 {% endcomment %}
 {% block content %}
   <p class="body-text">
-    أتعهد أنا الطالب/ة <strong>{{ data.student.name }}</strong>
+    أتعهد أنا {{ data.school.student_definite_label|default:"الطالب/الطالبة" }} <strong>{{ data.student.name }}</strong>
     {% if data.student.grade %}بالصف {{ data.student.grade }}{% endif %}
     {% if data.student.section %}({{ data.student.section }}){% endif %}
     بالانتظام في الحضور والمواظبة على الدوام المدرسي، وعدم الغياب أو التأخر بغير عذر

@@ -286,3 +286,19 @@ def test_cache_key_includes_school(api_env):
     assert key_a.startswith("dash:1:overview:")
     assert key_b.startswith("dash:2:overview:")
     assert key_a != key_b
+
+
+@pytest.mark.django_db
+def test_dashboard_cache_is_invalidated_per_school(api_env):
+    """تغيير التحضير يبدل نسخة كاش المدرسة بلا التأثير على مدرسة أخرى."""
+    from school_dashboard.cache import build_key, invalidate_school
+
+    before = build_key(school_id=api_env["school"].id, section="today", parts={})
+    other_before = build_key(school_id=999999, section="today", parts={})
+
+    invalidate_school(api_env["school"].id)
+
+    after = build_key(school_id=api_env["school"].id, section="today", parts={})
+    other_after = build_key(school_id=999999, section="today", parts={})
+    assert after != before
+    assert other_after == other_before

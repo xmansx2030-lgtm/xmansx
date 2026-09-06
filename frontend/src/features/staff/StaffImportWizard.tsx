@@ -7,7 +7,7 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import {
   commitStaffImportJob,
   getStaffImportJob,
@@ -18,8 +18,20 @@ import {
   uploadStaffImportFile,
   type StaffImportJob,
 } from "@/features/staff/api";
+import type { SchoolType } from "@/types/auth";
 
 const STEPS = ["رفع الملف", "مطابقة الأعمدة", "المعاينة", "التأكيد", "النتيجة"] as const;
+
+function mappingLabel(field: string, fallback: string, schoolType: SchoolType): string {
+  return field === "full_name" && schoolType === "GIRLS" ? "اسم المعلمة" : fallback;
+}
+
+function categoryLabel(key: string, fallback: string, schoolType: SchoolType): string {
+  if (schoolType !== "GIRLS") return fallback;
+  if (key === "NEW") return "معلمات جديدات";
+  if (key === "ADD_TEACHER_ROLE") return "إضافة دور معلمة";
+  return fallback;
+}
 
 /** معالج استيراد المعلمين — النتيجة تعرض بيانات الحسابات الجديدة مرة واحدة فقط. */
 export function StaffImportWizard() {
@@ -152,11 +164,12 @@ function UploadStep({
   onUpload: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const schoolType = useActiveSchoolType();
   const [selected, setSelected] = useState<File | null>(null);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-      <div className="mb-5"><h2 className="text-lg font-black text-slate-900">اختر ملف الموظفين</h2><p className="mt-1 text-sm text-slate-500">يدعم ملفات XLSX البسيطة وتقارير معلمي المدرسة المصدّرة من وزارة التعليم، مع اكتشاف صف الترويسات تلقائيًا.</p></div>
+      <div className="mb-5"><h2 className="text-lg font-black text-slate-900">اختر ملف الموظفين</h2><p className="mt-1 text-sm text-slate-500">يدعم ملفات XLSX البسيطة وتقارير {schoolType === "GIRLS" ? "معلمات" : "معلمي"} المدرسة المصدّرة من وزارة التعليم، مع اكتشاف صف الترويسات تلقائيًا.</p></div>
       <div
         role="button"
         tabIndex={0}
@@ -172,9 +185,9 @@ function UploadStep({
       >
         <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"><UploadCloud aria-hidden size={23} /></span>
         <p className="mb-1 font-bold text-slate-800">
-          اسحب ملف المعلمين هنا أو اضغط للاختيار
+          اسحب ملف {schoolType === "GIRLS" ? "المعلمات" : "المعلمين"} هنا أو اضغط للاختيار
         </p>
-        <p className="text-sm text-slate-500">الأعمدة الأساسية: اسم المعلم ورقم الجوال</p>
+        <p className="text-sm text-slate-500">الأعمدة الأساسية: اسم {schoolType === "GIRLS" ? "المعلمة" : "المعلم"} ورقم الجوال</p>
         <input
           ref={inputRef}
           type="file"
@@ -206,6 +219,7 @@ function MappingStep({
   pending: boolean;
   onConfirm: (mapping: Partial<Record<string, number>>) => void;
 }) {
+  const schoolType = useActiveSchoolType();
   const [mapping, setMapping] = useState<Partial<Record<string, number | "">>>(() => {
     const initial: Partial<Record<string, number | "">> = {};
     const suggested = job.suggested_mapping ?? {};
@@ -227,9 +241,9 @@ function MappingStep({
       <div className="mb-4 space-y-3">
         {Object.entries(STAFF_MAPPING_LABELS).map(([field, label]) => (
           <div key={field} className="flex flex-wrap items-center gap-3">
-            <span className="w-36 text-sm font-medium text-slate-700">{label}</span>
+            <span className="w-36 text-sm font-medium text-slate-700">{mappingLabel(field, label, schoolType)}</span>
             <select
-              aria-label={`عمود ${label}`}
+              aria-label={`عمود ${mappingLabel(field, label, schoolType)}`}
               value={mapping[field] ?? ""}
               onChange={(e) =>
                 setMapping((prev) => ({
@@ -275,6 +289,7 @@ function PreviewStep({
   onBack: () => void;
 }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
 
@@ -335,7 +350,7 @@ function PreviewStep({
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            {label} ({counts[key] ?? 0})
+            {categoryLabel(key, label, schoolType)} ({counts[key] ?? 0})
           </button>
         ))}
       </div>
@@ -364,7 +379,11 @@ function PreviewStep({
                     {row.error_message ? (
                       <span className="text-red-700">❌ {row.error_message}</span>
                     ) : (
-                      (STAFF_CATEGORY_LABELS[row.status] ?? row.status)
+                      categoryLabel(
+                        row.status,
+                        STAFF_CATEGORY_LABELS[row.status] ?? row.status,
+                        schoolType,
+                      )
                     )}
                   </td>
                 </tr>
@@ -397,14 +416,15 @@ function ConfirmStep({
   onCommit: () => void;
   onBack: () => void;
 }) {
+  const schoolType = useActiveSchoolType();
   const summary = job.summary;
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-3 font-bold">ملخص التغييرات</h3>
       <ul className="mb-4 space-y-1 text-sm" data-testid="staff-confirm-summary">
-        <li>حسابات معلمين جديدة: {summary.new ?? 0} (كلمة الدخول الأولى هي رقم الجوال)</li>
+        <li>حسابات {schoolType === "GIRLS" ? "معلمات جديدة" : "معلمين جدد"}: {summary.new ?? 0} (كلمة الدخول الأولى هي رقم الجوال)</li>
         <li>حسابات موجودة ستدعى للانضمام: {summary.invite ?? 0}</li>
-        <li>أعضاء سيضاف لهم دور معلم: {summary.add_role ?? 0}</li>
+        <li>أعضاء سيضاف لهم دور {schoolType === "GIRLS" ? "معلمة" : "معلم"}: {summary.add_role ?? 0}</li>
         <li>تحديث بيانات: {summary.profile_update ?? 0}</li>
         <li>بلا تغيير: {summary.unchanged ?? 0}</li>
       </ul>
@@ -421,6 +441,7 @@ function ConfirmStep({
 }
 
 function ResultStep({ job }: { job: StaffImportJob }) {
+  const schoolType = useActiveSchoolType();
   const summary = job.summary;
   const credentials = job.new_credentials ?? [];
   return (
@@ -430,7 +451,7 @@ function ResultStep({ job }: { job: StaffImportJob }) {
         <ul className="space-y-1 text-sm text-emerald-900" data-testid="staff-import-result">
           <li>حسابات جديدة: {summary.created ?? 0}</li>
           <li>دعوات أرسلت: {summary.invited ?? 0}</li>
-          <li>أدوار معلم أضيفت: {summary.roles_added ?? 0}</li>
+          <li>أدوار {schoolType === "GIRLS" ? "معلمة" : "معلم"} أضيفت: {summary.roles_added ?? 0}</li>
           <li>بيانات محدثة: {summary.profiles_updated ?? 0}</li>
         </ul>
       </section>
@@ -442,7 +463,7 @@ function ResultStep({ job }: { job: StaffImportJob }) {
         >
           <h3 className="mb-1 font-bold text-amber-900">حسابات جديدة — بيانات الدخول</h3>
           <p className="mb-3 text-sm font-medium leading-6 text-amber-800">
-            تظهر هذه التفاصيل مرة واحدة فقط. كلمة المرور الأولية لكل معلم هي رقم جواله بصيغة 05XXXXXXXX، وسيُطلب منه تعيين كلمة مرور جديدة فور أول دخول قبل استخدام المنصة.
+            تظهر هذه التفاصيل مرة واحدة فقط. كلمة المرور الأولية لكل {schoolType === "GIRLS" ? "معلمة" : "معلم"} هي رقم الجوال بصيغة 05XXXXXXXX، ويجب تغييرها فور أول دخول قبل استخدام المنصة.
           </p>
           <ul className="space-y-2">
             {credentials.map((c, index) => (

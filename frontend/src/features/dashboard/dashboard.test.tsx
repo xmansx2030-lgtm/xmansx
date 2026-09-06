@@ -44,10 +44,15 @@ const OVERVIEW = {
       pending_students: 40,
       present_students: 250,
       absent_students: 18,
+      leave_students: 5,
       late_students: 12,
+      morning_late_students: 7,
+      daily_absent_students: 9,
+      daily_covered_students: 260,
+      daily_pending_sections: 3,
       covered_sections: 10,
       pending_sections: 2,
-      period_sequences: [1, 2, 3],
+      current_period_sequence: 3,
     },
   },
   attendance: {
@@ -383,13 +388,17 @@ describe("لوحة إدارة المدرسة", () => {
     renderApp("/dashboard");
 
     const card = await screen.findByTestId("live-school-attendance");
-    expect(card).toHaveTextContent("من الحصة 1 إلى 3");
+    expect(card).toHaveTextContent("الآن: الحصة الثالثة");
     expect(screen.getByTestId("live-attendance-slate")).toHaveTextContent("320");
     expect(screen.getByTestId("live-attendance-green")).toHaveTextContent("250");
     expect(screen.getByTestId("live-attendance-red")).toHaveTextContent("18");
+    expect(screen.getByTestId("live-attendance-blue")).toHaveTextContent("5");
     expect(screen.getByTestId("live-attendance-amber")).toHaveTextContent("12");
+    expect(screen.getByTestId("live-attendance-violet")).toHaveTextContent("7");
+    expect(card).toHaveTextContent("متأخر صباحيًا");
     expect(screen.getByTestId("live-attendance-coverage")).toHaveTextContent("بانتظار تحضير 2 فصل");
     expect(card).toHaveTextContent("40 طالبًا بانتظار اعتماد تحضير فصلهم");
+    expect(screen.getByTestId("daily-absence-summary")).toHaveTextContent("الغائب اليوم حتى الآن: 9");
   });
 
   it("تعطي المدير مساحة إشراف، والوكيل محطة تشغيل مختلفة", async () => {

@@ -3,13 +3,18 @@ from django.db import models
 from common.models import TimestampedModel
 from schools.settings_models import EducationStage, SchoolSettings
 
-__all__ = ["School", "SchoolStatus", "SchoolSettings", "EducationStage"]
+__all__ = ["School", "SchoolStatus", "SchoolType", "SchoolSettings", "EducationStage"]
 
 
 class SchoolStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "نشطة"
     SUSPENDED = "SUSPENDED", "موقوفة"
     ARCHIVED = "ARCHIVED", "مؤرشفة"
+
+
+class SchoolType(models.TextChoices):
+    BOYS = "BOYS", "بنين"
+    GIRLS = "GIRLS", "بنات"
 
 
 class School(TimestampedModel):
@@ -22,6 +27,12 @@ class School(TimestampedModel):
         max_length=20,
         choices=SchoolStatus.choices,
         default=SchoolStatus.ACTIVE,
+    )
+    school_type = models.CharField(
+        "نوع المدرسة",
+        max_length=10,
+        choices=SchoolType.choices,
+        default=SchoolType.BOYS,
     )
 
     class Meta:

@@ -10,7 +10,8 @@ import {
   createReferral,
   getReferralOptions,
 } from "@/features/referrals/api";
-import { useActiveSchoolId } from "@/features/settings/hooks";
+import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
+import { roleLabel } from "@/utils/roles";
 
 /** نموذج الإحالة: الفئات والأسباب تأتي من الخادم حسب دور المستخدم (بند 120/121).
  *
@@ -31,6 +32,7 @@ export function ReferralCreateCard({
   onCancel: () => void;
 }) {
   const schoolId = useActiveSchoolId();
+  const schoolType = useActiveSchoolType();
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
@@ -102,9 +104,9 @@ export function ReferralCreateCard({
         className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
         data-testid="referral-duplicate"
       >
-        <h2 className="font-bold">يوجد للطالب ملف متابعة مفتوح في نفس الفئة</h2>
+        <h2 className="font-bold">يوجد {schoolType === "GIRLS" ? "للطالبة" : "للطالب"} ملف متابعة مفتوح في نفس الفئة</h2>
         <p className="text-sm text-slate-700">
-          الأفضل إضافة ملاحظتك إلى الحالة القائمة بدل فتح حالة جديدة، ليجدها المرشد
+          الأفضل إضافة ملاحظتك إلى الحالة القائمة بدل فتح حالة جديدة، {schoolType === "GIRLS" ? "لتجدها" : "ليجدها"} {roleLabel("COUNSELOR", schoolType)}
           مجتمعة.
         </p>
         <label className="flex flex-col gap-1 text-sm">
@@ -155,9 +157,9 @@ export function ReferralCreateCard({
       className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="referral-create"
     >
-      <h2 className="font-bold">تحويل الطالب إلى المرشد</h2>
+      <h2 className="font-bold">تحويل {schoolType === "GIRLS" ? "الطالبة" : "الطالب"} إلى {roleLabel("COUNSELOR", schoolType)}</h2>
       <p className="text-sm text-slate-600">
-        الطالب: <strong data-testid="referral-student">{student.name}</strong>
+        {schoolType === "GIRLS" ? "الطالبة" : "الطالب"}: <strong data-testid="referral-student">{student.name}</strong>
       </p>
       <p className="text-xs text-slate-500">
         اكتب ملاحظة واقعية قابلة للملاحظة (مثال: «نام داخل الحصة ثلاث مرات هذا
