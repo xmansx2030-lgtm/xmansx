@@ -8,6 +8,18 @@ urlpatterns = [
     path("platform/plans/<int:plan_id>/", views.PlanDetailView.as_view()),
     path("platform/schools/", views.SchoolListView.as_view()),
     path("platform/schools/<int:school_id>/", views.SchoolDetailView.as_view()),
+    path(
+        "platform/schools/<int:school_id>/managers/",
+        views.SchoolManagersView.as_view(),
+    ),
+    path(
+        "platform/schools/<int:school_id>/managers/<int:membership_id>/",
+        views.SchoolManagerDetailView.as_view(),
+    ),
+    path(
+        "platform/schools/<int:school_id>/managers/<int:membership_id>/<str:action>/",
+        views.SchoolManagerActionView.as_view(),
+    ),
     path("platform/schools/<int:school_id>/usage/", views.SchoolUsageView.as_view()),
     path("platform/schools/<int:school_id>/subscription/", views.SubscriptionView.as_view()),
     path(

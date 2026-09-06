@@ -108,6 +108,13 @@ class AuditAction(models.TextChoices):
     INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
     # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
     PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"
+    PLATFORM_SCHOOL_UPDATED = "PLATFORM_SCHOOL_UPDATED", "تحديث مدرسة من المنصة"
+    PLATFORM_MANAGER_ADDED = "PLATFORM_MANAGER_ADDED", "إضافة مدير مدرسة من المنصة"
+    PLATFORM_MANAGER_UPDATED = "PLATFORM_MANAGER_UPDATED", "تحديث مدير مدرسة من المنصة"
+    PLATFORM_MANAGER_PASSWORD_RESET = (
+        "PLATFORM_MANAGER_PASSWORD_RESET",
+        "إعادة ضبط كلمة مرور مدير مدرسة من المنصة",
+    )
     PLAN_CREATED = "PLAN_CREATED", "إنشاء باقة"
     PLAN_UPDATED = "PLAN_UPDATED", "تعديل باقة"
     PLAN_DISABLED = "PLAN_DISABLED", "تعطيل باقة"

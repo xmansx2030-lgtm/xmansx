@@ -4,6 +4,7 @@
 يُرفضون جميعًا (بند 124).
 """
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import (
     BigIntegerField,
     Count,
@@ -22,12 +23,15 @@ from rest_framework import serializers, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from accounts.mobile import normalize_mobile
+from audit.models import AuditAction
+from audit.services import record_event
 from common.pagination import DefaultPagination
 from devices.models import AttendanceDevice
 from documents.models import GeneratedDocument
 from excuses.models import AbsenceExcuseAttachment
 from memberships.models import MembershipStatus, SchoolMembership, SchoolRole
-from schools.models import School
+from schools.models import School, SchoolStatus
 from students.models import Student, StudentStatus
 from subscriptions.access import effective_status, live_subscription, subscription_state
 from subscriptions.entitlements import get_school_entitlements
@@ -40,6 +44,7 @@ from subscriptions.models import (
 from subscriptions.permissions import PlatformAPIView
 from subscriptions.services import plans as plan_service
 from subscriptions.services import provisioning as provisioning_service
+from subscriptions.services import school_accounts as school_account_service
 from subscriptions.services import subscriptions as subscription_service
 from subscriptions.usage import get_school_usage
 
@@ -372,18 +377,158 @@ class SchoolListView(PlatformAPIView):
 
 
 class SchoolDetailView(PlatformAPIView):
+    class PatchSerializer(serializers.Serializer):
+        name = serializers.CharField(max_length=200, required=False)
+        school_status = serializers.ChoiceField(
+            choices=SchoolStatus.choices, required=False
+        )
+
+        def validate_name(self, value):
+            value = value.strip()
+            if len(value) < 2:
+                raise serializers.ValidationError("أدخل اسم المدرسة كاملًا.")
+            return value
+
     def get(self, request: Request, school_id: int) -> Response:
-        """بيانات تعريفية وتشغيلية فقط — لا قائمة طلاب ولا أي PII (بند 98)."""
+        """بيانات تشغيلية وحسابات المديرين فقط — لا بيانات طلاب (بند 98)."""
         school = get_object_or_404(_platform_school_queryset(), id=school_id)
         row = _school_row(school)
         row.pop("_access_ends_at", None)
         return Response(
             {
                 **row,
+                "created_at": school.created_at.isoformat(),
+                "updated_at": school.updated_at.isoformat(),
+                "managers": [
+                    school_account_service.manager_payload(membership)
+                    for membership in school_account_service.manager_memberships(school)
+                ],
                 "subscription": subscription_state(school),
                 "usage": row["usage"],
                 "entitlements": get_school_entitlements(school),
             }
+        )
+
+    def patch(self, request: Request, school_id: int) -> Response:
+        school = get_object_or_404(School, id=school_id)
+        serializer = self.PatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        changed = []
+        for field, value in serializer.validated_data.items():
+            model_field = "status" if field == "school_status" else field
+            if getattr(school, model_field) != value:
+                setattr(school, model_field, value)
+                changed.append(field)
+        if changed:
+            school.save()
+            record_event(
+                AuditAction.PLATFORM_SCHOOL_UPDATED,
+                request=request,
+                actor=request.user,
+                school=school,
+                target_type="School",
+                target_id=school.id,
+                metadata={"changed_fields": changed},
+            )
+        return self.get(request, school_id)
+
+
+class SchoolManagersView(PlatformAPIView):
+    class InputSerializer(serializers.Serializer):
+        name = serializers.CharField(max_length=150)
+        mobile = serializers.CharField(max_length=20)
+
+        def validate_mobile(self, value):
+            try:
+                return normalize_mobile(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def get(self, request: Request, school_id: int) -> Response:
+        school = get_object_or_404(School, id=school_id)
+        return Response(
+            [
+                school_account_service.manager_payload(membership)
+                for membership in school_account_service.manager_memberships(school)
+            ]
+        )
+
+    def post(self, request: Request, school_id: int) -> Response:
+        school = get_object_or_404(School, id=school_id)
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = school_account_service.add_manager(
+            school=school,
+            actor=request.user,
+            request=request,
+            **serializer.validated_data,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class SchoolManagerDetailView(PlatformAPIView):
+    class PatchSerializer(serializers.Serializer):
+        name = serializers.CharField(max_length=150, required=False)
+        mobile = serializers.CharField(max_length=20, required=False)
+
+        def validate_mobile(self, value):
+            try:
+                return normalize_mobile(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.messages[0]) from exc
+
+        def validate(self, attrs):
+            if not attrs:
+                raise serializers.ValidationError("أرسل حقلًا واحدًا على الأقل.")
+            return attrs
+
+    def patch(self, request: Request, school_id: int, membership_id: int) -> Response:
+        school = get_object_or_404(School, id=school_id)
+        membership = school_account_service.get_manager(school, membership_id)
+        serializer = self.PatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        membership = school_account_service.update_manager(
+            membership=membership,
+            actor=request.user,
+            request=request,
+            name=serializer.validated_data.get("name"),
+            mobile=serializer.validated_data.get("mobile"),
+        )
+        return Response(school_account_service.manager_payload(membership))
+
+
+class SchoolManagerActionView(PlatformAPIView):
+    def post(
+        self, request: Request, school_id: int, membership_id: int, action: str
+    ) -> Response:
+        school = get_object_or_404(School, id=school_id)
+        membership = school_account_service.get_manager(school, membership_id)
+        if action == "reset-password":
+            return Response(
+                school_account_service.reset_manager_password(
+                    membership=membership, actor=request.user, request=request
+                )
+            )
+
+        from staff.services import management as staff_management
+
+        if action == "suspend":
+            staff_management.suspend(
+                membership=membership, actor=request.user, request=request
+            )
+        elif action == "reactivate":
+            staff_management.reactivate(
+                membership=membership, actor=request.user, request=request
+            )
+        else:
+            return Response(
+                {"code": "NOT_FOUND", "message": "إجراء غير معروف."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(
+            school_account_service.manager_payload(
+                school_account_service.get_manager(school, membership.id)
+            )
         )
 
 

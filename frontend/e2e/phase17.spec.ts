@@ -214,4 +214,11 @@ test("VP tablet, counselor tablet, manager desktop, and platform admin remain us
   await expect(page.getByRole("heading", { name: "إدارة المنصة" })).toBeVisible();
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "platform-admin-desktop.png");
+  await page.getByRole("button", { name: "المدارس" }).click();
+  await page.getByRole("button", { name: /ثانوية الأندلس/ }).click();
+  await expect(page.getByRole("heading", { name: "بيانات المدرسة والدخول" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "حسابات مديري المدرسة" })).toBeVisible();
+  await expect(page.getByText("بيانات الاشتراك")).toBeVisible();
+  await assertNoPageOverflow(page);
+  await screenshot(page, testInfo, "platform-school-account-management.png");
 });

@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { useLogout } from "@/features/auth/useMe";
 import {
+  addSchoolManager,
   createPlan,
   createPlatformSchool,
   disablePlan,
@@ -19,9 +20,15 @@ import {
   getSubscriptionEvents,
   getSubscriptionHistory,
   runSubscriptionAction,
+  runSchoolManagerAction,
+  updatePlatformSchool,
   updatePlan,
+  updateSchoolManager,
+  type ManagerCredentialResponse,
   type Plan,
   type PlanInput,
+  type SchoolDetail,
+  type SchoolManagerAccount,
   type SchoolRow,
   type Usage,
 } from "@/features/platform/api";
@@ -94,7 +101,7 @@ function UsageGrid({ usage }: { usage: Usage }) {
     ["التخزين", { ...usage.storage, used: usage.storage.used_gb, limit: usage.storage.limit_gb }],
   ] as const;
   return (
-    <div className="grid gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3">
       {rows.map(([label, row]) => (
         <div key={label} className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-xs text-slate-500">{label}</p>
@@ -105,6 +112,206 @@ function UsageGrid({ usage }: { usage: Usage }) {
           {!row.over_limit && row.near_limit && <p className="mt-1 text-xs font-semibold text-amber-700">قريب من الحد</p>}
         </div>
       ))}
+    </div>
+  );
+}
+
+const formatDate = (value: string | null | undefined) =>
+  value ? new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(new Date(value)) : "—";
+
+function CredentialNotice({
+  mobile,
+  password,
+  onClose,
+}: {
+  mobile: string;
+  password: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-bold">بيانات الدخول</p>
+          <p className="mt-1">رقم الجوال: <b dir="ltr">{mobile}</b></p>
+          {password ? (
+            <>
+              <p>كلمة المرور المؤقتة: <b dir="ltr">{password}</b></p>
+              <p className="mt-1 text-xs">تظهر مرة واحدة، وسيُطلب من المدير تغييرها بعد الدخول.</p>
+            </>
+          ) : (
+            <p className="mt-1 text-xs">الحساب موجود مسبقًا ويستخدم كلمة مروره الحالية.</p>
+          )}
+        </div>
+        <button type="button" className="text-xs font-bold text-amber-900" onClick={onClose}>إخفاء</button>
+      </div>
+      {password && (
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-2 px-3 py-1.5"
+          onClick={() => void navigator.clipboard.writeText(`رقم الجوال: ${mobile}\nكلمة المرور المؤقتة: ${password}`)}
+        >
+          نسخ بيانات الدخول
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ManagerAccountCard({
+  schoolId,
+  manager,
+}: {
+  schoolId: number;
+  manager: SchoolManagerAccount;
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(manager.name);
+  const [mobile, setMobile] = useState(manager.mobile);
+  const [confirmation, setConfirmation] = useState<"reset-password" | "suspend" | null>(null);
+  const [credentials, setCredentials] = useState<ManagerCredentialResponse | null>(null);
+
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["platform", "school", schoolId] }),
+      queryClient.invalidateQueries({ queryKey: ["platform", "schools"] }),
+      queryClient.invalidateQueries({ queryKey: ["platform", "overview"] }),
+    ]);
+  };
+  const save = useMutation({
+    mutationFn: () => updateSchoolManager(schoolId, manager.membership_id, { name, mobile }),
+    onSuccess: refresh,
+  });
+  const accountAction = useMutation({
+    mutationFn: (action: "reset-password" | "suspend" | "reactivate") =>
+      runSchoolManagerAction(schoolId, manager.membership_id, action),
+    onSuccess: async (result) => {
+      if ("temporary_password" in result) setCredentials(result);
+      setConfirmation(null);
+      await refresh();
+    },
+  });
+  const active = manager.membership_status === "ACTIVE";
+
+  return (
+    <article className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-bold text-slate-900">{manager.name}</p>
+          <p className="text-xs text-slate-500">
+            {active ? "عضوية فعالة" : "عضوية موقوفة"} · آخر دخول {formatDate(manager.last_login)}
+          </p>
+        </div>
+        <span className={`rounded px-2 py-1 text-xs ${manager.must_change_password ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+          {manager.must_change_password ? "بانتظار تغيير كلمة المرور" : "بيانات الدخول مفعلة"}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-slate-600">
+          اسم المدير
+          <input aria-label={`اسم المدير ${manager.membership_id}`} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">
+          رقم الجوال للدخول
+          <input aria-label={`جوال المدير ${manager.membership_id}`} dir="ltr" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-left" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+        </label>
+      </div>
+      {manager.shared_with_other_schools && <p className="mt-2 text-xs text-blue-700">هذا الحساب مرتبط بمدارس أخرى؛ تعديل الجوال يغيّر معرف دخوله إليها أيضًا.</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" className="px-3 py-1.5" disabled={save.isPending} onClick={() => save.mutate()}>حفظ بيانات الحساب</Button>
+        <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("reset-password")}>إعادة ضبط كلمة المرور</Button>
+        {active ? (
+          <Button type="button" variant="danger" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("suspend")}>إيقاف المدير</Button>
+        ) : (
+          <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => accountAction.mutate("reactivate")}>إعادة تفعيل المدير</Button>
+        )}
+      </div>
+      {confirmation && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <p>{confirmation === "reset-password" ? "سيتم إبطال كلمة المرور الحالية وإصدار كلمة مؤقتة جديدة." : "سيتوقف وصول هذا المدير إلى المدرسة. لا يمكن إيقاف المدير الوحيد."}</p>
+          <div className="mt-2 flex gap-2">
+            <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => accountAction.mutate(confirmation)}>تأكيد</Button>
+            <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setConfirmation(null)}>تراجع</Button>
+          </div>
+        </div>
+      )}
+      <div className="mt-2"><ErrorLine error={save.error ?? accountAction.error} /></div>
+      {credentials && <div className="mt-3"><CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} onClose={() => setCredentials(null)} /></div>}
+    </article>
+  );
+}
+
+function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
+  const queryClient = useQueryClient();
+  const [schoolName, setSchoolName] = useState(detail.name);
+  const [schoolStatus, setSchoolStatus] = useState(detail.school_status);
+  const [newManager, setNewManager] = useState({ name: "", mobile: "" });
+  const [credentials, setCredentials] = useState<ManagerCredentialResponse | null>(null);
+
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["platform", "school", detail.id] }),
+      queryClient.invalidateQueries({ queryKey: ["platform", "schools"] }),
+      queryClient.invalidateQueries({ queryKey: ["platform", "overview"] }),
+    ]);
+  };
+  const saveSchool = useMutation({
+    mutationFn: () => updatePlatformSchool(detail.id, { name: schoolName, school_status: schoolStatus }),
+    onSuccess: refresh,
+  });
+  const addManager = useMutation({
+    mutationFn: () => addSchoolManager(detail.id, newManager),
+    onSuccess: async (result) => {
+      setCredentials(result);
+      setNewManager({ name: "", mobile: "" });
+      await refresh();
+    },
+  });
+
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div>
+        <h3 className="font-bold text-slate-900">بيانات المدرسة والدخول</h3>
+        <p className="text-xs text-slate-500">المعرف: {detail.slug} · أضيفت {formatDate(detail.created_at)}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
+        <label className="text-xs font-semibold text-slate-600">
+          اسم المدرسة
+          <input aria-label="اسم المدرسة المسجلة" className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} />
+        </label>
+        <label className="text-xs font-semibold text-slate-600">
+          حالة المدرسة
+          <select aria-label="حالة المدرسة التشغيلية" className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" value={schoolStatus} onChange={(event) => setSchoolStatus(event.target.value)}>
+            <option value="ACTIVE">نشطة</option>
+            <option value="SUSPENDED">موقوفة</option>
+            <option value="ARCHIVED">مؤرشفة</option>
+          </select>
+        </label>
+      </div>
+      <p className="text-xs text-slate-500">إيقاف المدرسة يمنع جميع حساباتها من الدخول حتى إعادة تفعيلها.</p>
+      <Button type="button" className="px-3 py-1.5" disabled={saveSchool.isPending} onClick={() => saveSchool.mutate()}>حفظ بيانات المدرسة</Button>
+      <ErrorLine error={saveSchool.error} />
+
+      <div className="border-t border-slate-200 pt-3">
+        <h4 className="font-bold text-slate-900">حسابات مديري المدرسة</h4>
+        <p className="mb-3 text-xs text-slate-500">إدارة معرفات الدخول دون الاطلاع على كلمة المرور الحالية.</p>
+        <div className="space-y-3">
+          {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} />)}
+          {(detail.managers ?? []).length === 0 && <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">لا يوجد مدير مرتبط بهذه المدرسة.</p>}
+        </div>
+      </div>
+
+      <form className="border-t border-slate-200 pt-3" onSubmit={(event) => { event.preventDefault(); addManager.mutate(); }}>
+        <h4 className="mb-2 font-bold text-slate-900">إضافة مدير آخر</h4>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input aria-label="اسم المدير الجديد" className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="اسم المدير" value={newManager.name} onChange={(event) => setNewManager({ ...newManager, name: event.target.value })} />
+          <input aria-label="جوال المدير الجديد" dir="ltr" className="rounded border border-slate-300 px-3 py-2 text-left text-sm" placeholder="05XXXXXXXX" value={newManager.mobile} onChange={(event) => setNewManager({ ...newManager, mobile: event.target.value })} />
+        </div>
+        <Button type="submit" className="mt-2 px-3 py-1.5" disabled={addManager.isPending}>إضافة مدير</Button>
+        <div className="mt-2"><ErrorLine error={addManager.error} /></div>
+      </form>
+      {credentials && <CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} onClose={() => setCredentials(null)} />}
     </div>
   );
 }
@@ -243,11 +450,13 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
     queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
     enabled: Boolean(selected && actionPlanId),
   });
-  const [lastPassword, setLastPassword] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ mobile: string; password: string | null } | null>(null);
   const createSchool = useMutation({
     mutationFn: () => createPlatformSchool({ ...createForm, plan_id: createForm.plan_id ? Number(createForm.plan_id) : undefined }),
     onSuccess: async (row) => {
-      setLastPassword(row.temporary_password);
+      setCreatedCredentials({ mobile: createForm.manager_mobile, password: row.temporary_password });
+      setSelected(row);
+      setCreateForm({ school_name: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" });
       await queryClient.invalidateQueries({ queryKey: ["platform", "schools"] });
     },
   });
@@ -265,7 +474,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   });
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
       <div className="space-y-3">
         <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
           <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدرسة" value={createForm.school_name} onChange={(e) => setCreateForm({ ...createForm, school_name: e.target.value })} />
@@ -276,7 +485,10 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
             {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
           </select>
           <Button type="submit" disabled={createSchool.isPending}>إنشاء</Button>
-          <div className="md:col-span-5"><ErrorLine error={createSchool.error} />{lastPassword && <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">كلمة المرور المؤقتة: <b>{lastPassword}</b></p>}</div>
+          <div className="md:col-span-5 space-y-2">
+            <ErrorLine error={createSchool.error} />
+            {createdCredentials && <CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} onClose={() => setCreatedCredentials(null)} />}
+          </div>
         </form>
         <div className="grid gap-2 md:grid-cols-5">
           <input className="rounded border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -306,9 +518,18 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
         {!selected && <div className="rounded-lg border border-slate-200 bg-white p-4 text-slate-600">اختر مدرسة لعرض الاشتراك والاستخدام.</div>}
         {detail.data && (
           <>
+            <SchoolAccountManagement key={detail.data.id} detail={detail.data} />
             <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="font-bold text-slate-900">{detail.data.name}</h3>
+              <h3 className="font-bold text-slate-900">بيانات الاشتراك</h3>
               <p className="text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {statusLabel(detail.data.subscription.status)}</p>
+              <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+                <div><dt className="text-slate-500">بداية الاشتراك</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.starts_at)}</dd></div>
+                <div><dt className="text-slate-500">نهاية الاشتراك</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.ends_at)}</dd></div>
+                <div><dt className="text-slate-500">نهاية التجربة</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.trial_ends_at)}</dd></div>
+                <div><dt className="text-slate-500">نهاية السماح</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.grace_ends_at)}</dd></div>
+                <div><dt className="text-slate-500">الأيام المتبقية</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.days_remaining ?? "—"}</dd></div>
+                <div><dt className="text-slate-500">صلاحية الاستخدام</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.access_mode === "FULL" ? "كاملة" : detail.data.subscription.access_mode === "READ_ONLY" ? "قراءة فقط" : "محجوبة"}</dd></div>
+              </dl>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <select aria-label="الباقة الجديدة" className="rounded border border-slate-300 px-2 py-2 text-sm" value={actionPlanId} onChange={(e) => setActionPlanId(e.target.value)}>
                   <option value="">اختر باقة</option>
@@ -335,7 +556,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                   ["reactivate", "إعادة تفعيل"],
                   ["cancel", "إلغاء"],
                 ] as [string, string][]).map(([name, label]) => (
-                  <Button key={name} variant={name === "suspend" || name === "cancel" ? "danger" : "secondary"} className="px-3 py-1.5" onClick={() => {
+                  <Button key={name} variant={name === "suspend" || name === "cancel" ? "danger" : "secondary"} className="px-3 py-1.5" disabled={action.isPending || (["start-trial", "activate", "change-plan"].includes(name) && !actionPlanId) || (["start-trial", "extend"].includes(name) && actionDays < 1)} onClick={() => {
                     action.mutate({ name, body: { plan_id: Number(actionPlanId), days: actionDays, trial_days: actionDays, months: 12, reason: "إجراء من إدارة المنصة" } });
                   }}>{label}</Button>
                 ))}

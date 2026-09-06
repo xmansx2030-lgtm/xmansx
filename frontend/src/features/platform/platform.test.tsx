@@ -239,6 +239,95 @@ describe("platform and subscription UI", () => {
     });
   });
 
+  it("manages school profile, manager login credentials, and one-time password reset", async () => {
+    const user = userEvent.setup();
+    const manager = {
+      membership_id: 41,
+      user_id: 51,
+      name: "مدير النور",
+      mobile: "+966550123456",
+      membership_status: "ACTIVE",
+      account_active: true,
+      must_change_password: false,
+      last_login: "2026-09-01T10:00:00Z",
+      joined_at: "2026-01-01T00:00:00Z",
+      shared_with_other_schools: false,
+    };
+    const row = {
+      id: SCHOOL.id,
+      name: SCHOOL.name,
+      slug: SCHOOL.slug,
+      school_status: "ACTIVE",
+      subscription_status: "ACTIVE",
+      plan: PLAN.code,
+      plan_name: PLAN.name_ar,
+      starts_at: "2026-01-01T00:00:00Z",
+      ends_at: "2027-01-01T00:00:00Z",
+      manager: { id: manager.membership_id, name: manager.name },
+      usage: USAGE,
+    };
+    const detail = {
+      ...row,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      managers: [manager],
+      subscription: {
+        has_subscription: true,
+        status: "ACTIVE",
+        access_mode: "FULL",
+        plan: { code: "basic", name: "الأساسية", billing_period: "ANNUAL" },
+        starts_at: row.starts_at,
+        ends_at: row.ends_at,
+        days_remaining: 100,
+        grace_ends_at: null,
+        trial_ends_at: null,
+      },
+      entitlements: {},
+    };
+    const resetResult = {
+      manager: { ...manager, must_change_password: true },
+      temporary_password: "Xm-Reset-Once",
+    };
+    const addedResult = {
+      manager: { ...manager, membership_id: 42, user_id: 52, name: "المدير الثاني", mobile: "+966550654321", must_change_password: true },
+      temporary_password: "Xm-New-Once",
+    };
+    const { calls } = mockApi({
+      "/platform/schools/7/managers/41/reset-password/": { body: resetResult },
+      "/platform/schools/7/managers/": { body: addedResult },
+      "/platform/schools/7/subscription/events/": { body: [] },
+      "/platform/schools/7/subscription/": { body: { current: null, history: [] } },
+      "/platform/schools/7/": { body: detail },
+      "/platform/schools/": { body: { count: 1, next: null, previous: null, results: [row] } },
+      "/platform/overview/": { body: { schools_total: 1, subscriptions: {}, usage_totals: {}, expiring_soon: [] } },
+      "/platform/plans/": { body: [PLAN] },
+      "/auth/me/": { body: buildMe({ is_platform_admin: true }) },
+    });
+
+    renderApp("/platform");
+    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
+
+    expect(await screen.findByRole("heading", { name: "بيانات المدرسة والدخول" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("+966550123456")).toBeInTheDocument();
+    expect(screen.getByText("بيانات الدخول مفعلة")).toBeInTheDocument();
+    expect(screen.getByText("بيانات الاشتراك")).toBeInTheDocument();
+    expect(screen.getByText("صلاحية الاستخدام")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "حفظ بيانات المدرسة" }));
+    await waitFor(() => expect(calls.some(({ url, init }) => url.includes("/platform/schools/7/") && init?.method === "PATCH")).toBe(true));
+
+    await user.click(screen.getByRole("button", { name: "إعادة ضبط كلمة المرور" }));
+    await user.click(screen.getByRole("button", { name: "تأكيد" }));
+    expect(await screen.findByText("Xm-Reset-Once")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("اسم المدير الجديد"), "المدير الثاني");
+    await user.type(screen.getByLabelText("جوال المدير الجديد"), "0550654321");
+    await user.click(screen.getByRole("button", { name: "إضافة مدير" }));
+    expect(await screen.findByText("Xm-New-Once")).toBeInTheDocument();
+    expect(calls.some(({ url, init }) => url.includes("/platform/schools/7/managers/") && init?.method === "POST")).toBe(true);
+  });
+
   it("edits plan limits through the plan editor", async () => {
     const user = userEvent.setup();
     const { calls } = mockApi({

@@ -80,9 +80,30 @@ export interface Paginated<T> {
 }
 
 export interface SchoolDetail extends SchoolRow {
+  created_at: string;
+  updated_at: string;
+  managers: SchoolManagerAccount[];
   subscription: SubscriptionState;
   usage: Usage;
   entitlements: Entitlements;
+}
+
+export interface SchoolManagerAccount {
+  membership_id: number;
+  user_id: number;
+  name: string;
+  mobile: string;
+  membership_status: "ACTIVE" | "INVITED" | "DECLINED" | "SUSPENDED" | "LEFT";
+  account_active: boolean;
+  must_change_password: boolean;
+  last_login: string | null;
+  joined_at: string;
+  shared_with_other_schools: boolean;
+}
+
+export interface ManagerCredentialResponse {
+  manager: SchoolManagerAccount;
+  temporary_password: string | null;
 }
 
 export interface SubscriptionRow {
@@ -196,6 +217,40 @@ export const createPlatformSchool = (body: CreateSchoolInput) =>
 
 export const getSchoolDetail = (schoolId: number, signal?: AbortSignal) =>
   apiRequest<SchoolDetail>(`/platform/schools/${schoolId}/`, { signal });
+
+export const updatePlatformSchool = (
+  schoolId: number,
+  body: { name?: string; school_status?: string },
+) => apiRequest<SchoolDetail>(`/platform/schools/${schoolId}/`, { method: "PATCH", body });
+
+export const addSchoolManager = (
+  schoolId: number,
+  body: { name: string; mobile: string },
+) =>
+  apiRequest<ManagerCredentialResponse>(`/platform/schools/${schoolId}/managers/`, {
+    method: "POST",
+    body,
+  });
+
+export const updateSchoolManager = (
+  schoolId: number,
+  membershipId: number,
+  body: { name?: string; mobile?: string },
+) =>
+  apiRequest<SchoolManagerAccount>(
+    `/platform/schools/${schoolId}/managers/${membershipId}/`,
+    { method: "PATCH", body },
+  );
+
+export const runSchoolManagerAction = (
+  schoolId: number,
+  membershipId: number,
+  action: "reset-password" | "suspend" | "reactivate",
+) =>
+  apiRequest<SchoolManagerAccount | ManagerCredentialResponse>(
+    `/platform/schools/${schoolId}/managers/${membershipId}/${action}/`,
+    { method: "POST" },
+  );
 
 export const getSubscriptionHistory = (schoolId: number, signal?: AbortSignal) =>
   apiRequest<SubscriptionHistory>(`/platform/schools/${schoolId}/subscription/`, { signal });

@@ -1,6 +1,5 @@
 """إنشاء مدرسة كاملة من لوحة المنصة — معاملة واحدة لا تترك نصف مستأجر (بند 55)."""
 
-import secrets
 from datetime import timedelta
 
 from django.db import transaction
@@ -19,6 +18,7 @@ from memberships.models import (
 )
 from schools.models import School
 from subscriptions.services import subscriptions as subscription_service
+from subscriptions.services.school_accounts import generate_temporary_password
 
 
 def _unique_slug(name: str) -> str:
@@ -29,11 +29,6 @@ def _unique_slug(name: str) -> str:
         slug = f"{base}-{index}"
         index += 1
     return slug
-
-
-def _temporary_password() -> str:
-    """كلمة مرور مؤقتة تُعرض مرة واحدة ثم تُجبر على التغيير (نمط م5)."""
-    return f"Xm{secrets.token_urlsafe(9)}"
 
 
 @transaction.atomic
@@ -68,7 +63,7 @@ def create_school(
     user = User.objects.filter(mobile=mobile).first()
     if user is None:
         # حساب جديد: كلمة مرور مؤقتة تُعاد في الاستجابة فقط ولا تُخزن نصًا
-        temporary_password = _temporary_password()
+        temporary_password = generate_temporary_password()
         user = User.objects.create_user(mobile=mobile, password=temporary_password)
         user.first_name = manager_name.strip()[:150]
         user.must_change_password = True
