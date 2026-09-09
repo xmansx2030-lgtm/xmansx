@@ -163,7 +163,8 @@ def test_device_limit_after_downgrade_preserves_existing_devices(
             "name": "جهاز جديد",
             "vendor": "ZKTeco",
             "serial_number": "SN-new",
-            "connection_type": "LAN",
+            "connection_type": "TCP",
+            "local_ip": "192.168.1.50",
         },
         content_type="application/json",
     )

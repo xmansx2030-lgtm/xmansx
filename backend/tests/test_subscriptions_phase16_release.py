@@ -497,7 +497,13 @@ def test_device_limit_denies_third_device_without_removing_two_existing(
         )
     response = client.post(
         "/api/v1/devices/",
-        {"name": "الثالث", "vendor": "ZKTeco", "serial_number": "LIMIT-3"},
+        {
+            "name": "الثالث",
+            "vendor": "ZKTeco",
+            "serial_number": "LIMIT-3",
+            "connection_type": "TCP",
+            "local_ip": "192.168.1.50",
+        },
         content_type="application/json",
     )
     assert response.status_code == 409
