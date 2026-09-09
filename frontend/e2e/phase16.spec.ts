@@ -180,6 +180,7 @@ call_command('process_subscription_transitions')
     name: "جهاز أثناء الانتهاء",
     vendor: "ZKTeco",
     serial_number: `EXPIRED-${unique}`,
+    local_ip: "192.168.1.49",
   });
   expect(expiredWrite.status()).toBe(403);
   expect(((await expiredWrite.json()) as ApiErrorBody).code).toBe("SUBSCRIPTION_EXPIRED");
@@ -199,6 +200,7 @@ call_command('process_subscription_transitions')
     name: "الجهاز الأول",
     vendor: "ZKTeco",
     serial_number: `DEVICE-1-${unique}`,
+    local_ip: "192.168.1.50",
   });
   expect(firstDeviceResponse.status()).toBe(201);
   const firstDevice = (await firstDeviceResponse.json()) as { id: number };
@@ -206,6 +208,7 @@ call_command('process_subscription_transitions')
     name: "الجهاز الثاني",
     vendor: "ZKTeco",
     serial_number: `DEVICE-2-${unique}`,
+    local_ip: "192.168.1.51",
   });
   expect(secondDenied.status()).toBe(409);
   expect(((await secondDenied.json()) as ApiErrorBody).code).toBe("DEVICE_LIMIT_EXCEEDED");
@@ -239,6 +242,7 @@ call_command('process_subscription_transitions')
     name: "الجهاز الثاني",
     vendor: "ZKTeco",
     serial_number: `DEVICE-2-${unique}`,
+    local_ip: "192.168.1.51",
   });
   expect(secondDeviceResponse.status()).toBe(201);
   const downgraded = await post(
