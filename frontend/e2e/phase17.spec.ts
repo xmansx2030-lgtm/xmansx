@@ -126,8 +126,10 @@ test("teacher mobile attendance is responsive and logout cannot reopen cached da
   await page.getByTestId("start-attendance").click();
   const rows = page.locator('[data-testid^="roster-student-"]');
   await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0).getByRole("button", { name: "حاضر" })).toBeVisible();
+  await expect(rows.nth(0).getByRole("button", { name: "غائب" })).toBeVisible();
+  await expect(rows.nth(0).getByRole("button", { name: "متأخر" })).toHaveCount(0);
   await rows.nth(0).getByRole("button", { name: "غائب" }).click();
-  await rows.nth(1).getByRole("button", { name: "متأخر" }).click();
   await page.getByTestId("submit-attendance").click();
   await expect(page.getByTestId("submitted-banner")).toBeVisible({ timeout: 20_000 });
   await assertNoPageOverflow(page);
