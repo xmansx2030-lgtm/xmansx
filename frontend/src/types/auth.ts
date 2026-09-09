@@ -1,4 +1,9 @@
-export type SchoolRole = "SCHOOL_MANAGER" | "VICE_PRINCIPAL" | "COUNSELOR" | "TEACHER";
+export type SchoolRole =
+  | "SCHOOL_MANAGER"
+  | "VICE_PRINCIPAL"
+  | "COUNSELOR"
+  | "TEACHER"
+  | "GATE_GUARD";
 export type SchoolType = "BOYS" | "GIRLS";
 
 export interface SchoolSummary {

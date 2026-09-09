@@ -315,12 +315,114 @@ def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(e
 
 
 @pytest.mark.django_db
+def test_dashboard_keeps_daily_presence_continuous_absence_and_leave_distinct(env):
+    """نموذج مصغر: حضر سابقًا ثم استأذن لا يضيع من حضور اليوم ولا يصبح غائبًا."""
+    from student_leaves.models import StudentLeavePermission
+
+    _present_one, _present_two, left_after_attending, absent_one, absent_two = env["students"]
+    first = make_session(env, 1)
+    second = make_session(env, 2)
+    for student in (absent_one, absent_two):
+        mark(env, first, student, "ABSENT")
+        mark(env, second, student, "ABSENT")
+    mark(env, second, left_after_attending, "ABSENT")
+    StudentLeavePermission.objects.create(
+        school=env["school"], student=left_after_attending, leave_date=DAY,
+        leave_time=time(8, 15), reason="خروج أثناء اليوم",
+        recorded_by_membership=env["vice"],
+    )
+    recalc(env)
+
+    daily = attendance_selectors.daily_attendance_snapshot(
+        school=env["school"], attendance_date=DAY
+    )
+    live = attendance_selectors.live_attendance_snapshot(
+        school=env["school"], attendance_date=DAY, current_period_sequence=2,
+        current_time=time(8, 30),
+    )
+
+    assert daily["total_students"] == 5
+    assert daily["present_students"] == 3
+    assert live["daily_absent_students"] == 2
+    assert live["leave_students"] == 1
+    assert live["present_students"] == 2
+    assert live["absent_students"] == 2
+
+
+@pytest.mark.django_db
 def test_live_attendance_snapshot_has_no_status_outside_an_active_period(env):
     snapshot = attendance_selectors.live_attendance_snapshot(
         school=env["school"], attendance_date=DAY, current_period_sequence=None
     )
     assert snapshot["status"] == "NO_ACTIVE_PERIOD"
     assert snapshot["total_students"] == 0
+
+
+@pytest.mark.django_db
+def test_daily_attendance_counts_proven_presence_not_every_prepared_student(env):
+    """الحضور إثبات حضور فعلي، وليس كل من شملهم التحضير ومنهم الغائب."""
+    always_absent, *_ = env["students"]
+    session = make_session(env, 1)
+    mark(env, session, always_absent, "ABSENT")
+    recalc(env)
+    # فصل بلا أي جلسة لا يُعد حاضرًا ولا غائبًا.
+    make_students(env["school"], env["section_b"], env["year"], 1, prefix="90500")
+
+    snapshot = attendance_selectors.daily_attendance_snapshot(
+        school=env["school"], attendance_date=DAY
+    )
+
+    assert snapshot == {
+        "total_students": 6,
+        "present_students": 4,
+        "absent_students": 1,
+        "unrecorded_students": 1,
+    }
+
+    # تصحيح الغائب إلى حاضر يحدث ملخص اليوم فورًا، بلا اعتماد على حصة جارية.
+    from attendance.services.sessions import edit_session
+    from school_dashboard.cache import build_key
+
+    cache_parts = {"roles": ["VICE_PRINCIPAL"]}
+    before_cache_key = build_key(
+        school_id=env["school"].id, section="today", parts=cache_parts
+    )
+
+    edit_session(
+        session_id=session.id,
+        school=env["school"],
+        membership=env["vice"],
+        roles=["VICE_PRINCIPAL"],
+        marks=[],
+        reason="تصحيح حالة الطالب",
+    )
+    corrected = attendance_selectors.daily_attendance_snapshot(
+        school=env["school"], attendance_date=DAY
+    )
+    assert corrected["present_students"] == 5
+    assert corrected["absent_students"] == 0
+    assert build_key(
+        school_id=env["school"].id, section="today", parts=cache_parts
+    ) != before_cache_key
+
+
+@pytest.mark.django_db
+def test_daily_attendance_accepts_morning_arrival_as_presence_proof(env):
+    student = make_students(
+        env["school"], env["section_b"], env["year"], 1, prefix="90600"
+    )[0]
+    arrival(env, student, late_minutes=0)
+
+    snapshot = attendance_selectors.daily_attendance_snapshot(
+        school=env["school"], attendance_date=DAY
+    )
+
+    assert snapshot == {
+        "total_students": 6,
+        "present_students": 1,
+        "absent_students": 0,
+        "unrecorded_students": 5,
+    }
 
 
 # ---------- الاتجاه والفصول ----------
@@ -572,6 +674,77 @@ def test_attention_queue_collects_operational_items(env):
         assert item["target_url"]
         assert item["entity_type"] in {"SECTION", "STUDENT", "EXCUSE", "REFERRAL", "CASE"}
         assert item["priority"] in {"HIGH", "NORMAL"}
+
+
+def test_submitted_late_section_is_history_not_an_open_attention_item(monkeypatch):
+    monkeypatch.setattr(
+        attention_selectors,
+        "get_current_section_attendance_statuses",
+        lambda **_kwargs: {
+            "sections": [
+                {
+                    "section_id": 1,
+                    "grade_name": "الأول الثانوي",
+                    "section_name": "أ",
+                    "attendance_status": "SUBMITTED",
+                    "timeliness_status": "OVERDUE",
+                    "minutes_overdue": 4,
+                },
+                {
+                    "section_id": 2,
+                    "grade_name": "الأول الثانوي",
+                    "section_name": "ب",
+                    "attendance_status": "NOT_STARTED",
+                    "timeliness_status": "OVERDUE",
+                    "minutes_overdue": 4,
+                },
+            ]
+        },
+    )
+
+    items = attention_selectors.overdue_sections(school=object())
+
+    assert [item["entity_id"] for item in items] == [2]
+    assert items[0]["reason_code"] == "SECTION_NOT_SUBMITTED"
+
+
+@pytest.mark.django_db
+def test_today_operations_is_on_track_when_all_sections_submitted_late(env, monkeypatch):
+    from attendance.selectors import monitoring as monitoring_selectors
+
+    monkeypatch.setattr(
+        monitoring_selectors,
+        "get_current_section_attendance_statuses",
+        lambda **_kwargs: {
+            "school_time": "2026-08-16T09:15:00+03:00",
+            "date": DAY.isoformat(),
+            "period": {
+                "sequence": 3,
+                "name": "الحصة الثالثة",
+                "start_time": "09:00",
+                "end_time": "09:45",
+                "timezone": "Asia/Riyadh",
+            },
+            "alert": {"minutes": 5, "alert_at": "09:05"},
+            "summary": {
+                "total": 2,
+                "submitted": 2,
+                "in_progress": 0,
+                "not_started": 0,
+                "overdue_total": 1,
+                "overdue_submitted": 1,
+                "overdue_in_progress": 0,
+                "overdue_not_started": 0,
+            },
+            "sections": [],
+        },
+    )
+
+    result = attendance_selectors.today_operations(school=env["school"])
+
+    assert result["operational_state"] == "ON_TRACK"
+    assert "اكتمل تحضير جميع فصول" in result["headline"]
+    assert "اعتمد 1 فصل متأخرًا" in result["headline"]
 
 
 # ---------- النطاقات والمقارنة ----------

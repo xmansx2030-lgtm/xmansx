@@ -95,6 +95,7 @@ test("teacher manual journey: mark → live summary → submit → reload persis
   await expect(page.getByTestId("current-period-name")).toBeVisible();
   const section8 = await sectionIdByName(page, m.attendance_section_manual);
   await page.goto(`/attendance/section/${section8}`);
+  await page.getByTestId("start-attendance").click();
 
   // القائمة الكاملة والافتراضي «حاضر»
   for (const name of m.attendance_students) {
@@ -145,6 +146,7 @@ test("teacher QR journey: scan URL opens section 9 roster and submits", async ({
 
   // الرمز الصحيح → قائمة الفصل 9 مباشرة
   await page.goto(`/qr/${qrToken}`);
+  await page.getByTestId("start-attendance").click();
   for (const name of m.attendance_qr_students) {
     await expect(studentRow(page, name)).toBeVisible({ timeout: 15_000 });
   }

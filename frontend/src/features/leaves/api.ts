@@ -10,6 +10,9 @@ export interface StudentLeaveRow {
   leave_time: string;
   weekday_label: string;
   reason: string;
+  recipient_name: string;
+  recipient_relationship: string;
+  recipient_id_last4: string;
   grade_name: string;
   section_name: string;
   status: StudentLeaveStatus;
@@ -19,6 +22,7 @@ export interface StudentLeaveRow {
   cancelled_by_name: string | null;
   cancelled_at: string | null;
   cancellation_reason: string;
+  gate_release: { released_at: string; released_by_name: string | null } | null;
 }
 
 export interface StudentLeavePage extends Paginated<StudentLeaveRow> {
@@ -30,6 +34,9 @@ export interface CreateStudentLeaveInput {
   leave_date: string;
   leave_time: string;
   reason: string;
+  recipient_name?: string;
+  recipient_relationship?: string;
+  recipient_id_last4?: string;
 }
 
 export function getStudentLeaves(

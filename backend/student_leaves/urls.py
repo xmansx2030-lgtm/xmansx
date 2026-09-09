@@ -8,4 +8,9 @@ urlpatterns = [
         "student-leaves/<int:leave_id>/cancel/",
         views.StudentLeaveCancelView.as_view(),
     ),
+    path("gate/student-leaves/", views.GateStudentLeaveListView.as_view()),
+    path(
+        "gate/student-leaves/<int:leave_id>/release/",
+        views.GateStudentLeaveReleaseView.as_view(),
+    ),
 ]

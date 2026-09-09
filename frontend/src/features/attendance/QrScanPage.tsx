@@ -111,7 +111,10 @@ export function QrScanPage() {
     setError(null);
     resolveQr(token)
       .then((section) => {
-        navigate(`/attendance/section/${section.id}`, { replace: true });
+        navigate(`/attendance/section/${section.id}`, {
+          replace: true,
+          state: { attendanceSource: "QR" },
+        });
       })
       .catch((err: unknown) => setError(err));
   }, [canResolve, token, navigate]);

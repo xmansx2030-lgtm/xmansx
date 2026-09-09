@@ -6,7 +6,11 @@ import pytest
 from django.utils import timezone
 
 from audit.models import AuditAction, AuditLog
-from student_leaves.models import StudentLeavePermission, StudentLeaveStatus
+from student_leaves.models import (
+    StudentGateRelease,
+    StudentLeavePermission,
+    StudentLeaveStatus,
+)
 from students.models import StudentStatus
 from students.services.purge import purge_student
 from tests.excuse_env import build_env
@@ -14,6 +18,7 @@ from tests.excuse_env import build_env
 pytestmark = pytest.mark.django_db
 
 BASE = "/api/v1/student-leaves/"
+GATE_BASE = "/api/v1/gate/student-leaves/"
 
 
 @pytest.fixture
@@ -22,9 +27,7 @@ def env(role_client, make_user, make_membership):
     membership = user.memberships.get(school=school)
     data = build_env(
         school=school,
-        teacher_membership=make_membership(
-            make_user("0550018100"), school, ["TEACHER"]
-        ),
+        teacher_membership=make_membership(make_user("0550018100"), school, ["TEACHER"]),
         vice_membership=membership,
         prefix="51810",
     )
@@ -32,15 +35,24 @@ def env(role_client, make_user, make_membership):
     return data
 
 
-def create_leave(client, student, *, leave_date=None, reason="موعد طبي لدى المستشفى"):
+def create_leave(
+    client,
+    student,
+    *,
+    leave_date=None,
+    reason="موعد طبي لدى المستشفى",
+    recipient=None,
+):
+    payload = {
+        "student_id": student.id,
+        "leave_date": (leave_date or timezone.localdate()).isoformat(),
+        "leave_time": "10:35",
+        "reason": reason,
+    }
+    payload.update(recipient or {})
     return client.post(
         BASE,
-        {
-            "student_id": student.id,
-            "leave_date": (leave_date or timezone.localdate()).isoformat(),
-            "leave_time": "10:35",
-            "reason": reason,
-        },
+        payload,
         content_type="application/json",
     )
 
@@ -109,9 +121,7 @@ def test_leave_rejects_future_date_and_inactive_student(env):
     assert inactive.json()["code"] == "ACTIVE_STUDENT_REQUIRED"
 
 
-def test_manager_and_vice_allowed_other_roles_denied(
-    env, role_client, make_school
-):
+def test_manager_and_vice_allowed_other_roles_denied(env, role_client, make_school):
     manager, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
     assert create_leave(manager, env["students"][0]).status_code == 201
 
@@ -129,9 +139,7 @@ def test_tenant_isolation_hides_foreign_students_and_leaves(
     other_client, other_school, other_user = role_client(["VICE_PRINCIPAL"])
     other_env = build_env(
         school=other_school,
-        teacher_membership=make_membership(
-            make_user("0550018200"), other_school, ["TEACHER"]
-        ),
+        teacher_membership=make_membership(make_user("0550018200"), other_school, ["TEACHER"]),
         vice_membership=other_user.memberships.get(school=other_school),
         prefix="51820",
     )
@@ -173,9 +181,7 @@ def test_leave_create_and_cancel_invalidate_dashboard_cache(
     from school_dashboard.cache import build_key
 
     def dashboard_key():
-        return build_key(
-            school_id=env["school"].id, section="today", parts={"roles": ["VP"]}
-        )
+        return build_key(school_id=env["school"].id, section="today", parts={"roles": ["VP"]})
 
     before = dashboard_key()
     with django_capture_on_commit_callbacks(execute=True):
@@ -191,3 +197,96 @@ def test_leave_create_and_cancel_invalidate_dashboard_cache(
         )
     assert cancelled.status_code == 200
     assert dashboard_key() != after_create
+
+
+def test_all_gate_guards_share_today_queue_and_first_confirmation_wins(env, role_client):
+    created = create_leave(
+        env["client"],
+        env["students"][0],
+        recipient={
+            "recipient_name": "أحمد عبدالله",
+            "recipient_relationship": "والد",
+            "recipient_id_last4": "4321",
+        },
+    )
+    leave_id = created.json()["id"]
+    first_guard, _, _ = role_client(["GATE_GUARD"], school=env["school"])
+    second_guard, _, _ = role_client(["GATE_GUARD"], school=env["school"])
+
+    queue = first_guard.get(GATE_BASE)
+    assert queue.status_code == 200
+    body = queue.json()
+    assert body["summary"] == {"total": 1, "pending": 1, "released": 0}
+    row = body["results"][0]
+    assert row["student"]["student_number"] == env["students"][0].student_number
+    assert row["grade_name"] == "الأول الثانوي"
+    assert row["section_name"] == "1"
+    assert row["recipient_name"] == "أحمد عبدالله"
+    assert row["recipient_relationship"] == "والد"
+    assert row["recipient_id_last4"] == "4321"
+    assert "reason" not in row
+    assert "national_id_masked" not in row["student"]
+
+    confirmed = first_guard.post(f"{GATE_BASE}{leave_id}/release/")
+    assert confirmed.status_code == 201
+    assert confirmed.json()["gate_release"]["released_at"]
+    assert StudentGateRelease.objects.filter(leave_permission_id=leave_id).count() == 1
+
+    shared = second_guard.get(GATE_BASE).json()
+    assert shared["summary"] == {"total": 1, "pending": 0, "released": 1}
+    assert shared["results"][0]["gate_release"]["released_by_name"]
+
+    duplicate = second_guard.post(f"{GATE_BASE}{leave_id}/release/")
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "STUDENT_ALREADY_RELEASED"
+    assert StudentGateRelease.objects.filter(leave_permission_id=leave_id).count() == 1
+    assert AuditLog.objects.filter(
+        action=AuditAction.STUDENT_GATE_RELEASE_CONFIRMED,
+        target_id=str(StudentGateRelease.objects.get(leave_permission_id=leave_id).id),
+    ).exists()
+
+
+def test_gate_scope_permissions_search_and_tenant_isolation(env, role_client):
+    env["students"][0].student_number = "GATE-1001"
+    env["students"][0].save(update_fields=["student_number", "updated_at"])
+    create_leave(env["client"], env["students"][0])
+    guard, _, _ = role_client(["GATE_GUARD"], school=env["school"])
+    teacher, _, _ = role_client(["TEACHER"], school=env["school"])
+    foreign_guard, _, _ = role_client(["GATE_GUARD"])
+
+    assert (
+        guard.get(f"{GATE_BASE}?search={env['students'][0].student_number}").json()["summary"][
+            "total"
+        ]
+        == 1
+    )
+    assert guard.get(f"{GATE_BASE}?search=غير-موجود").json()["results"] == []
+    assert teacher.get(GATE_BASE).status_code == 403
+    assert teacher.post(f"{GATE_BASE}1/release/").status_code == 403
+    assert foreign_guard.get(GATE_BASE).json()["results"] == []
+
+
+def test_recipient_last_four_validation_and_release_prevents_cancellation(env, role_client):
+    invalid = create_leave(
+        env["client"],
+        env["students"][0],
+        recipient={"recipient_id_last4": "12A"},
+    )
+    assert invalid.status_code == 400
+
+    created = create_leave(
+        env["client"],
+        env["students"][0],
+        recipient={"recipient_id_last4": "٠١٢٣"},
+    )
+    assert created.json()["recipient_id_last4"] == "0123"
+    guard, _, _ = role_client(["GATE_GUARD"], school=env["school"])
+    assert guard.post(f"{GATE_BASE}{created.json()['id']}/release/").status_code == 201
+
+    cancelled = env["client"].post(
+        f"{BASE}{created.json()['id']}/cancel/",
+        {"reason": "محاولة إلغاء بعد الخروج"},
+        content_type="application/json",
+    )
+    assert cancelled.status_code == 409
+    assert cancelled.json()["code"] == "STUDENT_LEAVE_ALREADY_RELEASED"

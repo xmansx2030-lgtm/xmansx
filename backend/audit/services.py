@@ -36,9 +36,11 @@ def record_event(
 
     ip = None
     user_agent = ""
+    request_id = ""
     if request is not None:
         ip = client_ip(request)
         user_agent = request.META.get("HTTP_USER_AGENT", "")[:256]
+        request_id = getattr(request, "request_id", "")[:64]
         if actor is None and getattr(request, "user", None) is not None:
             if request.user.is_authenticated:
                 actor = request.user
@@ -50,6 +52,7 @@ def record_event(
         target_type=target_type,
         target_id=str(target_id),
         metadata=metadata,
+        request_id=request_id,
         ip_address=ip,
         user_agent=user_agent,
     )

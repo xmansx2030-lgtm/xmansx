@@ -87,6 +87,10 @@ class AuditAction(models.TextChoices):
     STUDENT_ACTION_CANCELLED = "STUDENT_ACTION_CANCELLED", "إلغاء إجراء طلابي"
     STUDENT_LEAVE_RECORDED = "STUDENT_LEAVE_RECORDED", "تسجيل استئذان طالب"
     STUDENT_LEAVE_CANCELLED = "STUDENT_LEAVE_CANCELLED", "إلغاء استئذان طالب"
+    STUDENT_GATE_RELEASE_CONFIRMED = (
+        "STUDENT_GATE_RELEASE_CONFIRMED",
+        "تأكيد خروج طالب من البوابة",
+    )
     DOCUMENT_GENERATION_REQUESTED = "DOCUMENT_GENERATION_REQUESTED", "طلب إنشاء مستند"
     DOCUMENT_GENERATED = "DOCUMENT_GENERATED", "إنشاء مستند"
     DOCUMENT_GENERATION_FAILED = "DOCUMENT_GENERATION_FAILED", "فشل إنشاء مستند"
@@ -156,6 +160,7 @@ class AuditLog(models.Model):
     target_type = models.CharField(max_length=50, blank=True, default="")
     target_id = models.CharField(max_length=64, blank=True, default="")
     metadata = models.JSONField(default=dict, blank=True)
+    request_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=256, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)

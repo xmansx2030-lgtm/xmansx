@@ -1,4 +1,4 @@
-"""اختبارات تدفق التحضير: البدء، الاعتماد، الاستثناء فقط، التأخر، التعديل، العزل، Purge."""
+"""اختبارات تدفق التحضير: البدء، الاعتماد، حاضر/غائب، التعديل، العزل، Purge."""
 
 from datetime import time, timedelta
 
@@ -10,6 +10,7 @@ from attendance.models import (
     AttendanceMark,
     AttendanceSession,
 )
+from audit.models import AuditAction, AuditLog
 from tests.attendance_helpers import setup_attendance_env
 
 START_URL = "/api/v1/attendance/sessions/start/"
@@ -41,8 +42,49 @@ def _edit(client, session_id, marks, reason=""):
 def teacher_env(role_client):
     client, school, user = role_client(["TEACHER"])
     env = setup_attendance_env(school)
-    env.update({"client": client, "school": school, "user": user})
+    env.update(
+        {
+            "client": client,
+            "school": school,
+            "user": user,
+            "membership": user.memberships.get(school=school),
+        }
+    )
     return env
+
+
+@pytest.mark.django_db
+def test_preview_is_read_only_until_explicit_start(teacher_env):
+    preview_url = (
+        f"/api/v1/attendance/sections/{teacher_env['section'].id}/preview/"
+    )
+
+    preview = teacher_env["client"].get(preview_url)
+
+    assert preview.status_code == 200
+    assert preview.json()["section"]["name"] == teacher_env["section"].name
+    assert preview.json()["session"] is None
+    assert AttendanceSession.objects.filter(school=teacher_env["school"]).count() == 0
+    assert not AuditLog.objects.filter(action=AuditAction.ATTENDANCE_STARTED).exists()
+
+
+@pytest.mark.django_db
+def test_explicit_start_audits_source_and_request_id(teacher_env):
+    response = teacher_env["client"].post(
+        START_URL,
+        {"section_id": teacher_env["section"].id, "source": "SECTION_LIST"},
+        content_type="application/json",
+        HTTP_X_REQUEST_ID="attendance-start-req-123",
+    )
+
+    assert response.status_code == 201
+    event = AuditLog.objects.get(action=AuditAction.ATTENDANCE_STARTED)
+    assert event.request_id == "attendance-start-req-123"
+    assert event.metadata == {
+        "section_id": teacher_env["section"].id,
+        "period": teacher_env["period"].sequence,
+        "source": "SECTION_LIST",
+    }
 
 
 @pytest.mark.django_db
@@ -89,7 +131,7 @@ def test_duplicate_session_single_row(teacher_env, role_client):
 
 @pytest.mark.django_db
 def test_submit_exception_only_storage(teacher_env):
-    """30 طالبًا: غائبان ومتأخر → 3 Marks فقط والبقية حاضرون استنتاجًا."""
+    """30 طالبًا: غائبان → سجلان فقط والبقية حاضرون استنتاجًا."""
     from tests.attendance_helpers import make_students
 
     make_students(
@@ -100,28 +142,18 @@ def test_submit_exception_only_storage(teacher_env):
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
     assert len(session["roster"]) == 30
 
-    from datetime import date as date_cls
-    from datetime import datetime, timedelta
-
-    # +17 دقيقة بعد البداية (الجمع الفعلي — replace(minute) هش حسب ساعة التشغيل)
-    arrival = (
-        datetime.combine(date_cls(2026, 1, 1), teacher_env["period"].start_time)
-        + timedelta(minutes=17)
-    ).time()
     response = _submit(
         teacher_env["client"], session["id"],
         [
             {"student_id": students[0].id, "status": "ABSENT"},
             {"student_id": students[1].id, "status": "ABSENT"},
-            {"student_id": students[2].id, "status": "LATE",
-             "arrival_time": arrival.strftime("%H:%M")},
         ],
     )
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "SUBMITTED"
-    assert len(body["marks"]) == 3  # لا سجلات للحاضرين الـ 27
-    assert AttendanceMark.objects.filter(session_id=session["id"]).count() == 3
+    assert len(body["marks"]) == 2  # لا سجلات للحاضرين الـ 28
+    assert AttendanceMark.objects.filter(session_id=session["id"]).count() == 2
 
 
 @pytest.mark.django_db
@@ -134,61 +166,46 @@ def test_no_session_means_nothing(teacher_env):
 
 
 @pytest.mark.django_db
-def test_late_minutes_server_calculated_ignores_client(teacher_env):
-    """البداية بالـ snapshot + 17 دقيقة — أي late_minutes من العميل يتجاهل."""
+def test_period_late_status_is_rejected(teacher_env):
+    """لا تستطيع أي عميلة API إعادة خيار التأخر المحذوف من الواجهة."""
     students = teacher_env["students"]
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
-    start_str = session["period"]["start_time"]
-    hour, minute = map(int, start_str.split(":"))
-    arrival = time(hour, minute + 17) if minute + 17 < 60 else time(hour + 1, minute + 17 - 60)
-
     response = _submit(
         teacher_env["client"], session["id"],
         [{"student_id": students[0].id, "status": "LATE",
-          "arrival_time": arrival.strftime("%H:%M"), "late_minutes": 1}],  # قيمة خبيثة
+          "arrival_time": "08:15", "late_minutes": 1}],
     )
-    assert response.status_code == 200
-    mark = AttendanceMark.objects.get(session_id=session["id"])
-    assert mark.late_minutes == 17
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_ERROR"
+    assert "حاضر أو غائب فقط" in str(response.json()["details"])
+    assert not AttendanceMark.objects.filter(session_id=session["id"]).exists()
 
 
 @pytest.mark.django_db
-def test_arrival_before_start_rejected(teacher_env):
+def test_absent_never_stores_arrival_or_late_minutes(teacher_env):
     students = teacher_env["students"]
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
-    start_str = session["period"]["start_time"]
-    hour, minute = map(int, start_str.split(":"))
-    if hour == 0 and minute == 0:
-        session_row = AttendanceSession.objects.get(id=session["id"])
-        session_row.bell_period_snapshot = {
-            **session_row.bell_period_snapshot,
-            "start_time": "00:01",
-        }
-        session_row.save(update_fields=["bell_period_snapshot", "updated_at"])
-        minute = 1
-    early_minutes = hour * 60 + minute - 1
-    early = time(early_minutes // 60, early_minutes % 60)
     response = _submit(
         teacher_env["client"], session["id"],
-        [{"student_id": students[0].id, "status": "LATE",
-          "arrival_time": early.strftime("%H:%M")}],
+        [{"student_id": students[0].id, "status": "ABSENT",
+          "arrival_time": "08:15", "late_minutes": 9}],
     )
-    assert response.status_code == 400
-    assert response.json()["code"] == "INVALID_ARRIVAL_TIME"
+    assert response.status_code == 200
+    mark = AttendanceMark.objects.get(session_id=session["id"])
+    assert mark.status == "ABSENT"
+    assert mark.arrival_time is None
+    assert mark.late_minutes is None
 
 
 @pytest.mark.django_db
 def test_snapshot_immune_to_schedule_change(teacher_env):
-    """تعديل الجدول بعد الاعتماد لا يغير snapshot ولا دقائق التأخر (البند 59)."""
+    """تعديل الجدول بعد الاعتماد لا يغير snapshot التاريخي."""
     students = teacher_env["students"]
     session_body = _start(teacher_env["client"], teacher_env["section"].id).json()
     original_start = session_body["period"]["start_time"]
-    hour, minute = map(int, original_start.split(":"))
-    arrival = time(hour, minute + 10) if minute + 10 < 60 else time(hour + 1, (minute + 10) % 60)
     _submit(
         teacher_env["client"], session_body["id"],
-        [{"student_id": students[0].id, "status": "LATE",
-          "arrival_time": arrival.strftime("%H:%M")}],
+        [{"student_id": students[0].id, "status": "ABSENT"}],
     )
 
     # المدرسة تعدل وقت الحصة لاحقًا (بداية ونهاية صالحتين)
@@ -199,7 +216,7 @@ def test_snapshot_immune_to_schedule_change(teacher_env):
 
     session = AttendanceSession.objects.get(id=session_body["id"])
     assert session.bell_period_snapshot["start_time"] == original_start  # لم يتغير
-    assert AttendanceMark.objects.get(session=session).late_minutes == 10
+    assert AttendanceMark.objects.get(session=session).status == "ABSENT"
 
 
 @pytest.mark.django_db
@@ -286,7 +303,7 @@ def test_roster_changed_between_start_and_submit(teacher_env):
 
 @pytest.mark.django_db
 def test_teacher_edit_within_window_and_history(teacher_env):
-    """تعديل داخل النافذة + سجل التغيير يشمل ABSENT→PRESENT وPRESENT→LATE."""
+    """تعديل داخل النافذة يسجل انتقالات حاضر/غائب فقط."""
     students = teacher_env["students"]
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
     _submit(
@@ -294,13 +311,9 @@ def test_teacher_edit_within_window_and_history(teacher_env):
         [{"student_id": students[0].id, "status": "ABSENT"}],
     )
 
-    start_str = session["period"]["start_time"]
-    hour, minute = map(int, start_str.split(":"))
-    arrival = time(hour, minute + 5) if minute + 5 < 60 else time(hour + 1, (minute + 5) % 60)
     response = _edit(
         teacher_env["client"], session["id"],
-        [{"student_id": students[1].id, "status": "LATE",
-          "arrival_time": arrival.strftime("%H:%M")}],
+        [{"student_id": students[1].id, "status": "ABSENT"}],
         reason="تصحيح خطأ",
     )
     assert response.status_code == 200
@@ -313,9 +326,9 @@ def test_teacher_edit_within_window_and_history(teacher_env):
         for c in AttendanceChange.objects.filter(session_id=session["id"])
     }
     assert ("ABSENT", "PRESENT") in changes  # الطالب 0 عاد حاضرًا
-    assert ("PRESENT", "LATE") in changes  # الطالب 1 صار متأخرًا
-    change = AttendanceChange.objects.get(previous_status="PRESENT", new_status="LATE")
-    assert change.new_late_minutes == 5
+    assert ("PRESENT", "ABSENT") in changes  # الطالب 1 صار غائبًا
+    change = AttendanceChange.objects.get(previous_status="PRESENT", new_status="ABSENT")
+    assert change.new_late_minutes is None
     assert change.reason == "تصحيح خطأ"
 
 

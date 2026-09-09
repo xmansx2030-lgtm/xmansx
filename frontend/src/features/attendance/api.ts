@@ -29,11 +29,12 @@ export interface RosterStudent {
   national_id_masked: string;
 }
 
-export type MarkStatus = "ABSENT" | "LATE";
+/** حالات محفوظة سابقًا؛ LATE للقراءة التاريخية فقط. */
+export type SessionMarkStatus = "ABSENT" | "LATE";
 
 export interface SessionMark {
   student_id: number;
-  status: MarkStatus;
+  status: SessionMarkStatus;
   arrival_time: string | null;
   late_minutes: number | null;
 }
@@ -51,11 +52,19 @@ export interface AttendanceSessionData {
   marks: SessionMark[];
 }
 
-/** إدخال علامة — لا يوجد late_minutes: يحسبه الخادم حصرًا من بداية الحصة. */
+export interface AttendancePreview {
+  attendance_date: string;
+  section: AttendanceSection;
+  period: CurrentPeriod;
+  session: AttendanceSessionData | null;
+}
+
+export type AttendanceStartSource = "SECTION_LIST" | "QR" | "DIRECT_LINK";
+
+/** الحاضر ضمني، لذلك الغائب هو العلامة الوحيدة التي يرسلها التحضير. */
 export interface MarkInput {
   student_id: number;
-  status: MarkStatus;
-  arrival_time?: string | null;
+  status: "ABSENT";
 }
 
 export interface QrInfo {
@@ -74,10 +83,13 @@ export const getCurrentPeriod = (signal?: AbortSignal) =>
 export const getAttendanceSections = (signal?: AbortSignal) =>
   apiRequest<AttendanceSection[]>("/attendance/sections/", { signal });
 
-export const startSession = (sectionId: number) =>
+export const getAttendancePreview = (sectionId: number, signal?: AbortSignal) =>
+  apiRequest<AttendancePreview>(`/attendance/sections/${sectionId}/preview/`, { signal });
+
+export const startSession = (sectionId: number, source: AttendanceStartSource) =>
   apiRequest<AttendanceSessionData>("/attendance/sessions/start/", {
     method: "POST",
-    body: { section_id: sectionId },
+    body: { section_id: sectionId, source },
   });
 
 export const getSession = (sessionId: number, signal?: AbortSignal) =>

@@ -28,6 +28,7 @@ import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
+import { TextField } from "@/components/TextField";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { useActiveSchoolId, useActiveSchoolType, useInvalidateSchoolData } from "@/features/settings/hooks";
 import { ManualStaffForm } from "@/features/staff/ManualStaffForm";
@@ -42,6 +43,7 @@ import {
   resetStaffPassword,
   removeStaffRole,
   suspendStaff,
+  updateStaff,
   updateCounselorSections,
   type StaffMember,
 } from "@/features/staff/api";
@@ -49,7 +51,7 @@ import { getSections } from "@/features/students/api";
 import type { SchoolRole, SchoolType } from "@/types/auth";
 import { roleLabel } from "@/utils/roles";
 
-const MANAGEABLE_ROLES: SchoolRole[] = ["TEACHER", "COUNSELOR", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
+const MANAGEABLE_ROLES: SchoolRole[] = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
 const STATUS_OPTIONS = ["ACTIVE", "SUSPENDED", "INVITED", "DECLINED"];
 
 export function StaffPage() {
@@ -263,6 +265,9 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
 
   const initials = member.display_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
   const isActive = member.membership_status === "ACTIVE";
+  const resetSubject = member.roles.includes("GATE_GUARD") && !member.roles.includes("TEACHER")
+    ? (schoolType === "GIRLS" ? "الحارسة" : "الحارس")
+    : (schoolType === "GIRLS" ? "المعلمة" : "المعلم");
 
   const resetPassword = useMutation({
     mutationFn: () => resetStaffPassword(member.id),
@@ -334,6 +339,7 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
       {isManager && expanded && (
         <div className="mt-5 grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_18rem]">
           <section aria-label={`أدوار ${member.display_name}`}>
+            <StaffProfileEditor member={member} onError={(message) => { setRowError(message); onError(message); }} />
             <div className="mb-3">
               <h4 className="text-sm font-black text-slate-900">الصلاحيات والأدوار</h4>
               <p className="mt-1 text-xs text-slate-500">يمكن إسناد أكثر من دور للموظف حسب مسؤولياته.</p>
@@ -379,7 +385,7 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
                   <CheckCircle2 aria-hidden size={16} /> إعادة إرسال الدعوة
                 </Button>
               )}
-              {isActive && member.roles.includes("TEACHER") && (
+              {isActive && (member.roles.includes("TEACHER") || member.roles.includes("GATE_GUARD")) && (
                 <Button variant="secondary" className="w-full justify-start border-blue-200 text-blue-800 hover:bg-blue-50" disabled={mutation.isPending || resetPassword.isPending || member.is_current_user} onClick={() => { setTemporaryPassword(null); setConfirmAction("reset-password"); }}>
                   <KeyRound aria-hidden size={16} /> إعادة ضبط كلمة المرور
                 </Button>
@@ -396,9 +402,9 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
           {temporaryPassword && (
             <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 lg:col-span-2">
               <p className="font-black">تمت إعادة ضبط كلمة المرور بنجاح.</p>
-              <p className="mt-1">{`كلمة المرور المؤقتة هي رقم جوال ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"}:`}</p>
+              <p className="mt-1">{`كلمة المرور المؤقتة هي رقم جوال ${resetSubject}:`}</p>
               <code dir="ltr" className="mt-2 inline-block rounded-lg bg-white px-3 py-2 font-mono text-base font-black ring-1 ring-emerald-200">{temporaryPassword}</code>
-              <p className="mt-2 text-xs">{`سيُطلب من ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"} تغييرها فور تسجيل الدخول، وتظهر هنا مرة واحدة فقط.`}</p>
+              <p className="mt-2 text-xs">{`سيُطلب من ${resetSubject} تغييرها فور تسجيل الدخول، وتظهر هنا مرة واحدة فقط.`}</p>
             </div>
           )}
         </div>
@@ -407,8 +413,8 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
       {confirmAction === "reset-password" && (
         <Modal title={`إعادة ضبط كلمة مرور ${member.display_name}`} description="سيُلغى عمل كلمة المرور الحالية فورًا." onClose={closeConfirmation}>
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-            <p className="font-black">{`ستصبح كلمة المرور المؤقتة هي رقم جوال ${schoolType === "GIRLS" ? "المعلمة" : "المعلم"}.`}</p>
-            <p className="mt-1">عند دخوله بها سيُلزم باختيار كلمة مرور جديدة قبل استخدام النظام.</p>
+            <p className="font-black">{`ستصبح كلمة المرور المؤقتة هي رقم جوال ${resetSubject}.`}</p>
+            <p className="mt-1">عند تسجيل الدخول بها سيُلزم الحساب باختيار كلمة مرور جديدة قبل استخدام النظام.</p>
           </div>
           {rowError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{rowError}</p>}
           <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
@@ -464,6 +470,58 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
         </Modal>
       )}
     </li>
+  );
+}
+
+function StaffProfileEditor({ member, onError }: { member: StaffMember; onError: (message: string | null) => void }) {
+  const invalidate = useInvalidateSchoolData();
+  const [editing, setEditing] = useState(false);
+  const [displayName, setDisplayName] = useState(member.display_name);
+  const [employeeNumber, setEmployeeNumber] = useState(member.employee_number ?? "");
+  const [jobTitle, setJobTitle] = useState(member.job_title);
+
+  const mutation = useMutation({
+    mutationFn: () => updateStaff(member.id, {
+      display_name: displayName.trim(),
+      employee_number: employeeNumber.trim(),
+      job_title: jobTitle.trim(),
+    }),
+    onSuccess: () => {
+      setEditing(false);
+      onError(null);
+      void invalidate("staff");
+    },
+    onError: (error) => onError(
+      error instanceof ApiError ? error.message : "تعذر تحديث بيانات الموظف.",
+    ),
+  });
+
+  if (!editing) {
+    return (
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div>
+          <h4 className="text-sm font-black text-slate-900">البيانات الوظيفية</h4>
+          <p className="mt-1 text-xs text-slate-500">الاسم والرقم الوظيفي والمسمى. رقم الجوال هو هوية الدخول ولا يغيّر من هنا.</p>
+        </div>
+        <Button variant="secondary" onClick={() => setEditing(true)}>تعديل البيانات</Button>
+      </div>
+    );
+  }
+
+  return (
+    <form className="mb-5 rounded-2xl border border-blue-200 bg-blue-50/40 p-4" onSubmit={(event) => { event.preventDefault(); if (displayName.trim().length >= 2) mutation.mutate(); }} data-testid={`staff-edit-form-${member.id}`}>
+      <h4 className="text-sm font-black text-slate-900">تعديل البيانات الوظيفية</h4>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <TextField label="الاسم الكامل *" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+        <TextField label="الرقم الوظيفي" value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value)} dir="ltr" />
+        <TextField label="المسمى الوظيفي" value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} />
+      </div>
+      {displayName.trim().length < 2 && <p role="alert" className="mt-3 text-sm text-red-700">أدخل اسم الموظف كاملًا.</p>}
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => { setEditing(false); setDisplayName(member.display_name); setEmployeeNumber(member.employee_number ?? ""); setJobTitle(member.job_title); }} disabled={mutation.isPending}>إلغاء</Button>
+        <Button type="submit" disabled={mutation.isPending || displayName.trim().length < 2}>{mutation.isPending ? "جارٍ الحفظ..." : "حفظ البيانات"}</Button>
+      </div>
+    </form>
   );
 }
 

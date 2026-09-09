@@ -99,6 +99,9 @@ function sectionRow(page: Page, name: string) {
 async function teacherOpenSection(page: Page, sectionName: string, submit: boolean) {
   const id = await sectionIdByName(page, sectionName);
   await page.goto(`/attendance/section/${id}`);
+  const startButton = page.getByTestId("start-attendance");
+  await expect(startButton.or(page.getByTestId("roster-list"))).toBeVisible();
+  if (await startButton.isVisible()) await startButton.click();
   await expect(page.getByTestId("roster-list")).toBeVisible();
   if (submit) {
     await page.getByTestId("submit-attendance").click();

@@ -102,6 +102,49 @@ class StudentCreateSerializer(serializers.Serializer):
         return value.strip()
 
 
+class StudentPatchSerializer(serializers.Serializer):
+    """تصحيح يدوي؛ رقم الهوية اختياري ولا يعاد كشف القيمة الحالية."""
+
+    full_name = serializers.CharField(max_length=200, required=False)
+    national_id = serializers.CharField(max_length=30, required=False, write_only=True)
+    student_number = serializers.CharField(
+        max_length=30, required=False, allow_blank=True
+    )
+    guardian_name = serializers.CharField(
+        max_length=150, required=False, allow_blank=True
+    )
+    guardian_mobile = serializers.CharField(
+        max_length=30, required=False, allow_blank=True
+    )
+    section_id = serializers.IntegerField(min_value=1, required=False)
+
+    def validate_full_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("أدخل اسم الطالب كاملًا.")
+        return value
+
+    def validate_national_id(self, value):
+        try:
+            return normalize_national_id(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def validate_guardian_mobile(self, value):
+        if not value.strip():
+            return ""
+        try:
+            return normalize_mobile(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+
+    def validate_student_number(self, value):
+        return value.strip()
+
+    def validate_guardian_name(self, value):
+        return value.strip()
+
+
 class StudentListView(SchoolScopedAPIView):
     def get(self, request: Request) -> Response:
         queryset = students_queryset(
@@ -160,12 +203,53 @@ class StudentSearchView(StudentListView):
 
 
 class StudentDetailView(SchoolScopedAPIView):
+    write_roles = SETTINGS_WRITE_ROLES
+
     def get(self, request: Request, student_id: int) -> Response:
         queryset = students_queryset(
             school=request.school, academic_year=_active_year(request.school)
         )
         student = get_object_or_404(queryset, id=student_id)
         return Response(_serialize_student(student))
+
+    def patch(self, request: Request, student_id: int) -> Response:
+        serializer = StudentPatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        year = _active_year(request.school)
+        # 404 معزول بدل تسريب وجود طالب من مدرسة أخرى أو تحويله إلى خطأ 500.
+        get_object_or_404(
+            students_queryset(school=request.school, academic_year=year),
+            id=student_id,
+        )
+        section = None
+        if "section_id" in data:
+            if year is None:
+                raise ApiError(
+                    "ACTIVE_ACADEMIC_YEAR_REQUIRED",
+                    "يجب تفعيل عام دراسي قبل تعديل فصل الطالب.",
+                    status_code=409,
+                )
+            section = get_object_or_404(
+                Section.objects.select_related("grade"),
+                id=data.pop("section_id"),
+                school=request.school,
+                is_active=True,
+                grade__is_active=True,
+            )
+        student = manual_service.update_student(
+            school=request.school,
+            student_id=student_id,
+            academic_year=year,
+            section=section,
+            data=data,
+            actor=request.user,
+            request=request,
+        )
+        updated = students_queryset(
+            school=request.school, academic_year=year
+        ).get(id=student.id)
+        return Response(_serialize_student(updated))
 
 
 class GradeListView(SchoolScopedAPIView):

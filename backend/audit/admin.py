@@ -7,9 +7,9 @@ from audit.models import AuditLog
 class AuditLogAdmin(admin.ModelAdmin):
     """سجل التدقيق للقراءة فقط — append-only حتى داخل Admin."""
 
-    list_display = ["action", "actor", "school", "ip_address", "created_at"]
+    list_display = ["action", "actor", "school", "request_id", "ip_address", "created_at"]
     list_filter = ["action"]
-    search_fields = ["actor__mobile", "school__name", "action"]
+    search_fields = ["actor__mobile", "school__name", "action", "request_id"]
     readonly_fields = [f.name for f in AuditLog._meta.fields]
 
     def has_add_permission(self, request):

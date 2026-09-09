@@ -78,6 +78,28 @@ def test_manager_creates_staff_manually_with_one_time_password(role_client):
 
 
 @pytest.mark.django_db
+def test_manager_creates_gate_guard_and_can_reset_guard_password(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    created = client.post(
+        STAFF_URL,
+        {
+            "display_name": "حارس البوابة الأولى",
+            "mobile": "0557771112",
+            "job_title": "حارس أمن",
+            "role": "GATE_GUARD",
+        },
+        content_type="application/json",
+    )
+
+    assert created.status_code == 201
+    assert created.json()["roles"] == ["GATE_GUARD"]
+    profile = StaffProfile.objects.get(school=school, membership__user__mobile="+966557771112")
+    reset = client.post(f"{STAFF_URL}{profile.id}/reset-password/")
+    assert reset.status_code == 200
+    assert reset.json()["temporary_password"] == "0557771112"
+
+
+@pytest.mark.django_db
 def test_manual_staff_invites_existing_account(role_client, make_user):
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     existing = make_user("0557772222")
@@ -123,6 +145,44 @@ def test_vice_reads_directory_but_no_detail_or_manage(role_client, make_user, ma
         f"{STAFF_URL}{profile.id}/roles/", {"role": "COUNSELOR"},
         content_type="application/json",
     ).status_code == 403
+
+
+@pytest.mark.django_db
+def test_manager_updates_staff_profile_and_vice_is_denied(role_client, make_user, make_school):
+    school = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    user = make_user("0558880094")
+    _, profile = _make_staff(school, user, ["TEACHER"], display_name="اسم قديم")
+
+    updated = manager.patch(
+        f"{STAFF_URL}{profile.id}/",
+        {
+            "display_name": "  اسم مصحح  ",
+            "employee_number": " T-22 ",
+            "job_title": " معلم علوم ",
+        },
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["display_name"] == "اسم مصحح"
+    assert updated.json()["employee_number"] == "T-22"
+    assert updated.json()["job_title"] == "معلم علوم"
+    audit = AuditLog.objects.filter(
+        action=AuditAction.STAFF_PROFILE_UPDATED, target_id=profile.membership_id
+    ).latest("id")
+    assert audit.metadata["changed_fields"] == [
+        "display_name",
+        "employee_number",
+        "job_title",
+    ]
+
+    denied = vice.patch(
+        f"{STAFF_URL}{profile.id}/",
+        {"display_name": "غير مسموح"},
+        content_type="application/json",
+    )
+    assert denied.status_code == 403
 
 
 @pytest.mark.django_db

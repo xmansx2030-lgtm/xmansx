@@ -6,6 +6,7 @@ export const ROLE_LABELS: Record<SchoolRole, string> = {
   VICE_PRINCIPAL: "الوكيل",
   COUNSELOR: "المرشد الطلابي",
   TEACHER: "معلم",
+  GATE_GUARD: "حارس البوابة",
 };
 
 export const FEMININE_ROLE_LABELS: Record<SchoolRole, string> = {
@@ -13,6 +14,7 @@ export const FEMININE_ROLE_LABELS: Record<SchoolRole, string> = {
   VICE_PRINCIPAL: "الوكيلة",
   COUNSELOR: "المرشدة الطلابية",
   TEACHER: "معلمة",
+  GATE_GUARD: "حارسة البوابة",
 };
 
 export const ROLE_PLURAL_LABELS: Record<SchoolType, Record<SchoolRole, string>> = {
@@ -21,12 +23,14 @@ export const ROLE_PLURAL_LABELS: Record<SchoolType, Record<SchoolRole, string>> 
     VICE_PRINCIPAL: "الوكلاء",
     COUNSELOR: "المرشدون الطلابيون",
     TEACHER: "المعلمون",
+    GATE_GUARD: "حراس البوابة",
   },
   GIRLS: {
     SCHOOL_MANAGER: "مديرات المدرسة",
     VICE_PRINCIPAL: "الوكيلات",
     COUNSELOR: "المرشدات الطلابيات",
     TEACHER: "المعلمات",
+    GATE_GUARD: "حارسات البوابة",
   },
 };
 
@@ -36,12 +40,14 @@ const ROLE_GENITIVE_PLURAL_LABELS: Record<SchoolType, Record<SchoolRole, string>
     VICE_PRINCIPAL: "الوكلاء",
     COUNSELOR: "المرشدين الطلابيين",
     TEACHER: "المعلمين",
+    GATE_GUARD: "حراس البوابة",
   },
   GIRLS: {
     SCHOOL_MANAGER: "مديرات المدرسة",
     VICE_PRINCIPAL: "الوكيلات",
     COUNSELOR: "المرشدات الطلابيات",
     TEACHER: "المعلمات",
+    GATE_GUARD: "حارسات البوابة",
   },
 };
 

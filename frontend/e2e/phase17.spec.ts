@@ -123,6 +123,7 @@ test("teacher mobile attendance is responsive and logout cannot reopen cached da
   consoleErrors.length = 0;
   const id = await sectionId(page, m.phase17_section);
   await page.goto(`/attendance/section/${id}`);
+  await page.getByTestId("start-attendance").click();
   const rows = page.locator('[data-testid^="roster-student-"]');
   await expect(rows).toHaveCount(3);
   await rows.nth(0).getByRole("button", { name: "غائب" }).click();

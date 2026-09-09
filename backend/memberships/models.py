@@ -22,6 +22,7 @@ class SchoolRole(models.TextChoices):
     VICE_PRINCIPAL = "VICE_PRINCIPAL", "الوكيل"
     COUNSELOR = "COUNSELOR", "المرشد الطلابي"
     TEACHER = "TEACHER", "معلم"
+    GATE_GUARD = "GATE_GUARD", "حارس البوابة"
 
 
 class SchoolMembership(TimestampedModel):

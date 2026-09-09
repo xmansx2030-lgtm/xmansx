@@ -28,6 +28,9 @@ const LEAVE = {
   leave_time: "10:35",
   weekday_label: "الأحد",
   reason: "موعد طبي لدى المستشفى",
+  recipient_name: "",
+  recipient_relationship: "",
+  recipient_id_last4: "",
   grade_name: "الأول الثانوي",
   section_name: "2",
   status: "ACTIVE",
@@ -37,6 +40,7 @@ const LEAVE = {
   cancelled_by_name: null,
   cancelled_at: null,
   cancellation_reason: "",
+  gate_release: null,
 };
 
 const EMPTY_PAGE = {
@@ -87,6 +91,9 @@ describe("StudentLeavesPage", () => {
     await user.click(await screen.findByTestId("leave-pick-student-5"));
     await user.clear(screen.getByLabelText("سبب الاستئذان"));
     await user.type(screen.getByLabelText("سبب الاستئذان"), "موعد طبي لدى المستشفى");
+    await user.type(screen.getByLabelText("اسم المستلم"), "أحمد عبدالله");
+    await user.type(screen.getByLabelText("صفة المستلم"), "والد");
+    await user.type(screen.getByLabelText("آخر أربعة أرقام من هوية المستلم"), "٤٣٢١");
     await user.click(screen.getByRole("button", { name: "اعتماد الاستئذان" }));
 
     expect(await screen.findByText(/تم تسجيل استئذان محمد أحمد/)).toBeInTheDocument();
@@ -97,6 +104,9 @@ describe("StudentLeavesPage", () => {
     expect(JSON.parse(String(post?.init?.body))).toMatchObject({
       student_id: 5,
       reason: "موعد طبي لدى المستشفى",
+      recipient_name: "أحمد عبدالله",
+      recipient_relationship: "والد",
+      recipient_id_last4: "4321",
     });
   });
 

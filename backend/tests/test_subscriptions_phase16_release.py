@@ -717,6 +717,7 @@ def test_multi_school_subscription_context_does_not_leak(
         SchoolRole.VICE_PRINCIPAL,
         SchoolRole.COUNSELOR,
         SchoolRole.TEACHER,
+        SchoolRole.GATE_GUARD,
     ],
 )
 def test_every_school_role_is_denied_platform_api(role, role_client):

@@ -6,7 +6,11 @@ from django.utils import timezone
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
-from student_leaves.models import StudentLeavePermission, StudentLeaveStatus
+from student_leaves.models import (
+    StudentGateRelease,
+    StudentLeavePermission,
+    StudentLeaveStatus,
+)
 from students.models import EnrollmentStatus, StudentEnrollment, StudentStatus
 
 
@@ -18,7 +22,17 @@ def _invalidate_dashboard_on_commit(school_id: int) -> None:
 
 @transaction.atomic
 def record_student_leave(
-    *, school, membership, student, leave_date, leave_time, reason: str, request=None
+    *,
+    school,
+    membership,
+    student,
+    leave_date,
+    leave_time,
+    reason: str,
+    recipient_name: str = "",
+    recipient_relationship: str = "",
+    recipient_id_last4: str = "",
+    request=None,
 ) -> StudentLeavePermission:
     if student.school_id != school.id:
         raise ApiError("NOT_FOUND", "المورد المطلوب غير موجود.", status_code=404)
@@ -53,6 +67,9 @@ def record_student_leave(
                 leave_date=leave_date,
                 leave_time=leave_time,
                 reason=reason.strip(),
+                recipient_name=recipient_name.strip(),
+                recipient_relationship=recipient_relationship.strip(),
+                recipient_id_last4=recipient_id_last4.strip(),
                 grade_name=enrollment.grade.name if enrollment else "",
                 section_name=enrollment.section.name if enrollment else "",
                 recorded_by_membership=membership,
@@ -81,15 +98,23 @@ def record_student_leave(
 def cancel_student_leave(
     *, school, membership, leave: StudentLeavePermission, reason: str, request=None
 ) -> StudentLeavePermission:
-    locked = StudentLeavePermission.objects.select_for_update().filter(
-        id=leave.id, school=school
-    ).first()
+    locked = (
+        StudentLeavePermission.objects.select_for_update()
+        .filter(id=leave.id, school=school)
+        .first()
+    )
     if locked is None:
         raise ApiError("STUDENT_LEAVE_NOT_FOUND", "الاستئذان غير موجود.", status_code=404)
     if locked.status == StudentLeaveStatus.CANCELLED:
         raise ApiError(
             "STUDENT_LEAVE_ALREADY_CANCELLED",
             "تم إلغاء هذا الاستئذان مسبقًا.",
+            status_code=409,
+        )
+    if StudentGateRelease.objects.filter(leave_permission=locked).exists():
+        raise ApiError(
+            "STUDENT_LEAVE_ALREADY_RELEASED",
+            "تم تسجيل خروج الطالب فعليًا، ولا يمكن إلغاء الاستئذان بعد الخروج.",
             status_code=409,
         )
     locked.status = StudentLeaveStatus.CANCELLED
@@ -116,3 +141,61 @@ def cancel_student_leave(
     )
     _invalidate_dashboard_on_commit(school.id)
     return locked
+
+
+@transaction.atomic
+def confirm_gate_release(
+    *, school, membership, leave: StudentLeavePermission, request=None
+) -> StudentGateRelease:
+    """يسجل أول تأكيد خروج فقط، ويمنع السباق بين أجهزة الحراس."""
+
+    locked = (
+        StudentLeavePermission.objects.select_for_update()
+        .filter(id=leave.id, school=school)
+        .first()
+    )
+    if locked is None:
+        raise ApiError("STUDENT_LEAVE_NOT_FOUND", "الاستئذان غير موجود.", status_code=404)
+    if locked.leave_date != timezone.localdate():
+        raise ApiError(
+            "GATE_RELEASE_TODAY_ONLY",
+            "لا يمكن تسجيل الخروج إلا لاستئذان اليوم.",
+            status_code=409,
+        )
+    if locked.status != StudentLeaveStatus.ACTIVE:
+        raise ApiError(
+            "STUDENT_LEAVE_NOT_ACTIVE",
+            "هذا الاستئذان لم يعد ساريًا.",
+            status_code=409,
+        )
+    if StudentGateRelease.objects.filter(leave_permission=locked).exists():
+        raise ApiError(
+            "STUDENT_ALREADY_RELEASED",
+            "تم تسجيل خروج الطالب مسبقًا.",
+            status_code=409,
+        )
+
+    try:
+        release = StudentGateRelease.objects.create(
+            school=school,
+            leave_permission=locked,
+            released_by_membership=membership,
+        )
+    except IntegrityError as exc:
+        raise ApiError(
+            "STUDENT_ALREADY_RELEASED",
+            "تم تسجيل خروج الطالب مسبقًا.",
+            status_code=409,
+        ) from exc
+
+    record_event(
+        AuditAction.STUDENT_GATE_RELEASE_CONFIRMED,
+        request=request,
+        actor=membership.user,
+        school=school,
+        target_type="StudentGateRelease",
+        target_id=release.id,
+        metadata={"student_id": locked.student_id, "leave_permission_id": locked.id},
+    )
+    _invalidate_dashboard_on_commit(school.id)
+    return release

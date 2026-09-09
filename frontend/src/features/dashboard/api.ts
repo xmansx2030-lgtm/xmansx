@@ -72,6 +72,9 @@ export interface TodayOperations {
     in_progress: number;
     not_started: number;
     overdue_total: number;
+    overdue_submitted?: number;
+    overdue_in_progress?: number;
+    overdue_not_started?: number;
   } | null;
   submission_completion_pct: number | null;
   has_active_period: boolean;
@@ -94,6 +97,12 @@ export interface TodayOperations {
     covered_sections: number;
     pending_sections: number;
     current_period_sequence: number | null;
+  };
+  daily_attendance?: {
+    total_students: number;
+    present_students: number;
+    absent_students: number;
+    unrecorded_students: number;
   };
 }
 

@@ -54,6 +54,12 @@ const OVERVIEW = {
       pending_sections: 2,
       current_period_sequence: 3,
     },
+    daily_attendance: {
+      total_students: 320,
+      present_students: 297,
+      absent_students: 23,
+      unrecorded_students: 0,
+    },
   },
   attendance: {
     unit: "STUDENT_DAYS",
@@ -383,42 +389,162 @@ describe("لوحة إدارة المدرسة", () => {
     );
   });
 
-  it("تعرض نبض المدرسة الحي بتغطية واضحة بدل دمج الطلاب غير المحضّرين", async () => {
+  it("تعرض حالة المدرسة والحصة بتغطية واضحة بدل دمج الطلاب غير المحضّرين", async () => {
     mockDashboard();
     renderApp("/dashboard");
 
-    const card = await screen.findByTestId("live-school-attendance");
-    expect(card).toHaveTextContent("الآن: الحصة الثالثة");
-    expect(screen.getByTestId("live-attendance-slate")).toHaveTextContent("320");
-    expect(screen.getByTestId("live-attendance-green")).toHaveTextContent("250");
-    expect(screen.getByTestId("live-attendance-red")).toHaveTextContent("18");
-    expect(screen.getByTestId("live-attendance-blue")).toHaveTextContent("5");
-    expect(screen.getByTestId("live-attendance-amber")).toHaveTextContent("12");
-    expect(screen.getByTestId("live-attendance-violet")).toHaveTextContent("7");
-    expect(card).toHaveTextContent("متأخر صباحيًا");
-    expect(screen.getByTestId("live-attendance-coverage")).toHaveTextContent("بانتظار تحضير 2 فصل");
-    expect(card).toHaveTextContent("40 طالبًا بانتظار اعتماد تحضير فصلهم");
-    expect(screen.getByTestId("daily-absence-summary")).toHaveTextContent("الغائب اليوم حتى الآن: 9");
+    const card = await screen.findByTestId("school-today-status-card");
+    expect(screen.getByTestId("school-daily-present")).toHaveTextContent("297");
+    expect(screen.getByTestId("school-continuous-absent")).toHaveTextContent("9");
+    expect(screen.getByTestId("school-current-leave")).toHaveTextContent("5");
+    expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("250 حاضرًا");
+    expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("18 غائبًا عن الحصة");
+    expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("12 متأخرًا");
+    expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("بانتظار تحضير 2 فصل");
+    expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("260 من 320 طالبًا");
+    expect(card).not.toHaveTextContent("الغياب اليوم");
   });
 
-  it("تعطي المدير مساحة إشراف، والوكيل محطة تشغيل مختلفة", async () => {
+  it("لا تعرض غياب حصة واحدة كأنه الغياب المتتابع لليوم", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    const card = await screen.findByTestId("school-today-status-card");
+    expect(screen.getByTestId("school-continuous-absent")).toHaveTextContent("9");
+    expect(card).not.toHaveTextContent("23");
+    expect(card).toHaveTextContent("الغياب المتتابع لا يشمل غياب حصة واحدة فقط");
+  });
+
+  it("لا تبقي الاعتماد المتأخر كمهمة مفتوحة بعد اكتمال كل الفصول", async () => {
+    const completedLate = {
+      ...OVERVIEW.today_operations,
+      operational_state: "ON_TRACK",
+      headline: "اكتمل تحضير جميع فصول الحصة الثالثة (اعتمد 1 فصل متأخرًا).",
+      submission_completion_pct: 100,
+      summary: {
+        total: 12,
+        submitted: 12,
+        in_progress: 0,
+        not_started: 0,
+        overdue_total: 1,
+        overdue_submitted: 1,
+        overdue_in_progress: 0,
+        overdue_not_started: 0,
+      },
+    };
+    mockDashboard({
+      "/dashboard/today/": { body: completedLate },
+      "/dashboard/overview/": { body: { ...OVERVIEW, today_operations: completedLate } },
+      "/dashboard/attention/": {
+        body: {
+          total: 0,
+          counts: { attendance_overdue: 0, warning_due: 0, excuse_pending: 0, referral_unassigned: 0, counseling: 0 },
+          items: [],
+          item_cap_per_kind: 10,
+        },
+      },
+    });
+    renderApp("/dashboard");
+
+    expect(await screen.findByTestId("today-card")).toHaveAttribute("data-state", "ON_TRACK");
+    expect(screen.getByTestId("overdue-total")).toHaveTextContent("0");
+    expect(screen.getByText(/اعتمد متأخرًا: 1 فصل/)).toBeInTheDocument();
+    expect(screen.getByText("التشغيل مكتمل")).toBeInTheDocument();
+  });
+
+  it("تعطي المدير لوحة مختصرة، والوكيل محطة تشغيل مختلفة", async () => {
     mockDashboard();
     const managerView = renderApp("/dashboard");
-    const managerWorkspace = await screen.findByTestId("role-workspace");
-    expect(managerWorkspace).toHaveAttribute("data-role", "SCHOOL_MANAGER");
-    expect(managerWorkspace).toHaveTextContent("مساحة المدير");
-    expect(within(managerWorkspace).getByRole("link", { name: "إدارة فريق المدرسة" })).toHaveAttribute("href", "/staff");
+    expect(await within(managerView.container).findByTestId("school-today-status-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("role-workspace")).not.toBeInTheDocument();
+    const managerQuickActions = screen.getByRole("navigation", { name: "إجراءات سريعة" });
+    expect(within(managerQuickActions).getAllByRole("link")).toHaveLength(3);
+    expect(within(managerQuickActions).getByRole("link", { name: "متابعة التحضير" })).toBeInTheDocument();
+    expect(within(managerQuickActions).getByRole("link", { name: "فريق المدرسة" })).toBeInTheDocument();
+    expect(within(managerQuickActions).getByRole("link", { name: "إعدادات المدرسة" })).toBeInTheDocument();
+    expect(screen.getByTestId("manager-analytics")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("additional-navigation")).not.toHaveAttribute("open");
     managerView.unmount();
 
     queryClient.clear();
-    mockDashboard({ "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) } });
+    const { calls } = mockDashboard({ "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) } });
     renderApp("/dashboard");
-    await screen.findByTestId("today-card");
+    await screen.findByTestId("school-today-status-card");
     const vicePrincipalWorkspace = await screen.findByTestId("role-workspace");
     expect(vicePrincipalWorkspace).toHaveAttribute("data-role", "VICE_PRINCIPAL");
     expect(vicePrincipalWorkspace).toHaveTextContent("محطة عمل الوكيل");
     expect(within(vicePrincipalWorkspace).getByRole("link", { name: /معالجة التحضير المتأخر/ })).toHaveAttribute("href", "/attendance/monitoring");
     expect(within(vicePrincipalWorkspace).getByRole("link", { name: "مراجعة الأعذار" })).toHaveAttribute("href", "/excuses");
+    expect(within(vicePrincipalWorkspace).getByRole("link", { name: "استئذان طالب" })).toHaveAttribute("href", "/student-leaves");
+
+    const additionalNavigation = screen.getByTestId("additional-navigation");
+    expect(additionalNavigation).not.toHaveAttribute("open");
+    await userEvent.click(within(additionalNavigation).getByText("أدوات إضافية"));
+    expect(within(additionalNavigation).getByRole("link", { name: "الموظفون" })).toHaveAttribute("href", "/staff");
+
+    expect(screen.queryByRole("navigation", { name: "إجراءات سريعة" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("role-workspace-metric")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("daily-attendance-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("live-school-attendance")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-preset")).not.toBeInTheDocument();
+    expect(screen.queryByText("اتجاه الغياب")).not.toBeInTheDocument();
+    expect(screen.queryByText("الفصول الأكثر احتياجًا للمتابعة")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ما يحتاج تدخلك" })).toBeInTheDocument();
+    expect(screen.queryByTestId("attention-count-excuse_pending")).not.toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/dashboard/overview/"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/dashboard/attendance-trend/"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/dashboard/sections/"))).toBe(false);
+  });
+
+  it("تعرض للمدير والوكيل الحضور اليومي والغياب المتتابع والاستئذان بالدلالة نفسها", async () => {
+    const scenario = {
+      ...OVERVIEW.today_operations,
+      summary: { total: 10, submitted: 10, in_progress: 0, not_started: 0, overdue_total: 0 },
+      submission_completion_pct: 100,
+      daily_attendance: {
+        total_students: 800,
+        present_students: 500,
+        // غاب بعض هؤلاء عن حصة واحدة فقط؛ لا ينبغي عرضه كغياب متتابع.
+        absent_students: 380,
+        unrecorded_students: 0,
+      },
+      live_attendance: {
+        ...OVERVIEW.today_operations.live_attendance,
+        total_students: 800,
+        covered_students: 800,
+        pending_students: 0,
+        present_students: 420,
+        absent_students: 330,
+        leave_students: 50,
+        late_students: 0,
+        daily_absent_students: 300,
+        daily_covered_students: 800,
+        daily_pending_sections: 0,
+        covered_sections: 10,
+        pending_sections: 0,
+      },
+    };
+    for (const role of ["SCHOOL_MANAGER", "VICE_PRINCIPAL"] as const) {
+      mockDashboard({
+        "/auth/me/": { body: roleMe([role]) },
+        "/dashboard/today/": { body: scenario },
+        "/dashboard/overview/": { body: { ...OVERVIEW, today_operations: scenario } },
+      });
+      const view = renderApp("/dashboard");
+
+      const card = await screen.findByTestId("school-today-status-card");
+      expect(within(card).getByTestId("school-daily-present")).toHaveTextContent("500");
+      expect(within(card).getByTestId("school-continuous-absent")).toHaveTextContent("300");
+      expect(within(card).getByTestId("school-current-leave")).toHaveTextContent("50");
+      expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("420 حاضرًا");
+      expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("330 غائبًا عن الحصة");
+      expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("50 مستأذنًا");
+      expect(within(card).getByTestId("school-coverage-line")).toHaveTextContent("مكتملة لجميع 800 طالبًا");
+      expect(card).not.toHaveTextContent("380");
+
+      view.unmount();
+      queryClient.clear();
+    }
   });
 
   it("ترسم الاتجاه بنقطة لكل يوم مع جدول مكافئ", async () => {

@@ -88,6 +88,59 @@ describe("StudentsPage", () => {
     expect(await screen.findByText("تمت إضافة الطالب سالم اليدوي بنجاح.")).toBeInTheDocument();
   });
 
+  it("lets the manager correct student data and national id without exposing the old id", async () => {
+    let patchBody: Record<string, unknown> | null = null;
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/1/": (init) => {
+        patchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return { body: { ...STUDENTS_PAGE.results[0], full_name: "أحمد المصحح", national_id_masked: "******5432" } };
+      },
+      "/students/": { body: STUDENTS_PAGE },
+      "/grades/": { body: [{ id: 1, name: "الأول الثانوي", code: "1" }] },
+      "/sections/": { body: [{ id: 1, name: "1", code: "A", grade: { id: 1, name: "الأول الثانوي" } }] },
+    });
+    renderApp("/students");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "تعديل البيانات" }))[0]!);
+    expect(screen.getByText(/الرقم الحالي:/)).toHaveTextContent("******5678");
+    const name = screen.getByLabelText("اسم الطالب الكامل *");
+    await user.clear(name);
+    await user.type(name, "أحمد المصحح");
+    await user.type(screen.getByLabelText("تصحيح رقم الهوية أو الإقامة"), "٢٠٩٨٧٦٥٤٣٢");
+    await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
+
+    expect(await screen.findByText("تم تحديث بيانات الطالب أحمد المصحح بنجاح.")).toBeInTheDocument();
+    expect(patchBody).toMatchObject({
+      full_name: "أحمد المصحح",
+      national_id: "٢٠٩٨٧٦٥٤٣٢",
+      section_id: 1,
+    });
+  });
+
+  it("shows the precise national id validation message", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/1/": {
+        status: 400,
+        body: {
+          code: "VALIDATION_ERROR",
+          message: "البيانات المدخلة غير صحيحة.",
+          details: { national_id: ["رقم الهوية/الإقامة غير صحيح. يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2."] },
+        },
+      },
+      "/students/": { body: STUDENTS_PAGE },
+      "/grades/": { body: [{ id: 1, name: "الأول الثانوي", code: "1" }] },
+      "/sections/": { body: [{ id: 1, name: "1", code: "A", grade: { id: 1, name: "الأول الثانوي" } }] },
+    });
+    renderApp("/students");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "تعديل البيانات" }))[0]!);
+    await user.type(screen.getByLabelText("تصحيح رقم الهوية أو الإقامة"), "123");
+    await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("10 أرقام ويبدأ بـ 1 أو 2");
+  });
+
   it("يعيد المعلم من رابط الطلاب إلى مساحة عمله ولا يعرض رابط الدليل", async () => {
     mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/students");

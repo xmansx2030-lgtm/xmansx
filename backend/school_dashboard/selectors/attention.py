@@ -6,6 +6,7 @@
 مشتقة بالكامل من الاستعلامات القائمة: لا جدول ولا Read Model مخزّن (بند 54).
 """
 
+from attendance.models import AttendanceSessionStatus
 from attendance.selectors.monitoring import (
     NOT_STARTED,
     OVERDUE,
@@ -41,6 +42,10 @@ def overdue_sections(*, school) -> list[dict]:
     items = []
     for row in monitoring.get("sections", []):
         if row["timeliness_status"] != OVERDUE:
+            continue
+        # الاعتماد المتأخر حقيقة تاريخية تعرض في شاشة المتابعة، لكنه لم يعد
+        # مهمة مفتوحة في طابور الإجراءات بعد اعتماد الفصل.
+        if row["attendance_status"] == AttendanceSessionStatus.SUBMITTED:
             continue
         not_started = row["attendance_status"] == NOT_STARTED
         items.append(

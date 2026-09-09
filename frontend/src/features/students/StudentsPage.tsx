@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Filter, Plus, Upload, UsersRound } from "lucide-react";
+import { Archive, Filter, Pencil, Plus, Upload, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -17,8 +17,10 @@ import {
   getGrades,
   getSections,
   getStudents,
+  type StudentRow,
 } from "@/features/students/api";
 import { ManualStudentForm } from "@/features/students/ManualStudentForm";
+import { StudentEditForm } from "@/features/students/StudentEditForm";
 import { roleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -49,6 +51,7 @@ export function StudentsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const graduateMutation = useMutation({
@@ -261,6 +264,7 @@ export function StudentsPage() {
                   <th className="p-3 text-start">الصف</th>
                   <th className="p-3 text-start">الفصل</th>
                   <th className="p-3 text-start">الحالة</th>
+                  {canImport && <th className="p-3 text-start">الإجراءات</th>}
                 </tr>
               </thead>
               <tbody data-testid="students-table-body">
@@ -293,11 +297,18 @@ export function StudentsPage() {
                     <td className="p-3">{student.grade?.name ?? "—"}</td>
                     <td className="p-3">{student.section?.name ?? "—"}</td>
                     <td className="p-3">{STATUS_LABELS[student.status] ?? student.status}</td>
+                    {canImport && (
+                      <td className="p-3">
+                        <Button variant="secondary" onClick={() => setEditingStudent(student)}>
+                          <Pencil aria-hidden size={15} /> تعديل البيانات
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {students.data.results.length === 0 && (
                   <tr>
-                    <td colSpan={canImport ? 6 : 5} className="p-6 text-center text-slate-400">
+                    <td colSpan={canImport ? 7 : 5} className="p-6 text-center text-slate-400">
                       <EmptyState title={`لا يوجد ${studentsLabel} ${schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}`} description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
                     </td>
                   </tr>
@@ -339,6 +350,21 @@ export function StudentsPage() {
               setManualOpen(false);
               setNotice(`تمت إضافة ${studentLabel(schoolType, true)} ${student.full_name} بنجاح.`);
               setPage(1);
+              void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "students") });
+            }}
+          />
+        </Modal>
+      )}
+
+      {editingStudent && (
+        <Modal title={`تعديل بيانات ${editingStudent.full_name}`} description="صحح البيانات أو رقم الهوية/الإقامة مع حفظ سجل التغيير." onClose={() => setEditingStudent(null)}>
+          <StudentEditForm
+            student={editingStudent}
+            sections={sections.data ?? []}
+            onCancel={() => setEditingStudent(null)}
+            onUpdated={(updated) => {
+              setEditingStudent(null);
+              setNotice(`تم تحديث بيانات ${studentLabel(schoolType, true)} ${updated.full_name} بنجاح.`);
               void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "students") });
             }}
           />

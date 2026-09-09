@@ -312,23 +312,35 @@ def today_operations(*, school) -> dict:
         completion = round((summary["submitted"] / summary["total"]) * 100, 1)
 
     period = monitoring["period"]
+    open_overdue = 0
+    if summary:
+        open_overdue = (
+            summary.get("overdue_not_started", 0)
+            + summary.get("overdue_in_progress", 0)
+        )
     if period is None:
         operational_state = "IDLE"
         headline = "لا توجد حصة جارية الآن — لا توجد متابعة تحضير مطلوبة."
-    elif summary and summary["overdue_total"] > 0:
-        operational_state = "ACTION_REQUIRED"
-        headline = (
-            f"{period['name']} جارية — {summary['overdue_total']} فصل يحتاج متابعة "
-            f"من أصل {summary['total']}."
-        )
     elif summary and summary["submitted"] == summary["total"]:
         operational_state = "ON_TRACK"
-        headline = f"اكتمل تحضير جميع فصول {period['name']}."
+        late_note = (
+            f" (اعتمد {summary.get('overdue_submitted', 0)} فصل متأخرًا)."
+            if summary.get("overdue_submitted", 0)
+            else "."
+        )
+        headline = f"اكتمل تحضير جميع فصول {period['name']}{late_note}"
+    elif summary and open_overdue > 0:
+        operational_state = "ACTION_REQUIRED"
+        headline = (
+            f"{period['name']} جارية — {open_overdue} فصل يحتاج متابعة "
+            f"من أصل {summary['total']}."
+        )
     else:
         operational_state = "IN_PROGRESS"
         submitted = summary["submitted"] if summary else 0
         total = summary["total"] if summary else 0
         headline = f"{period['name']} جارية — اعتُمد تحضير {submitted} من {total} فصلًا."
+    attendance_date = date_cls.fromisoformat(monitoring["date"])
     return {
         "school_time": monitoring["school_time"],
         "date": monitoring["date"],
@@ -341,12 +353,87 @@ def today_operations(*, school) -> dict:
         "updated_at": monitoring["school_time"],
         "live_attendance": live_attendance_snapshot(
             school=school,
-            attendance_date=date_cls.fromisoformat(monitoring["date"]),
+            attendance_date=attendance_date,
             current_period_sequence=period["sequence"] if period else None,
             current_time=datetime_cls.fromisoformat(monitoring["school_time"]).time(),
         ),
+        "daily_attendance": daily_attendance_snapshot(
+            school=school, attendance_date=attendance_date
+        ),
         # لا حصة جارية: قبل الدوام أو فسحة أو يوم غير دراسي — ليست حالة خطأ
         "has_active_period": period is not None,
+    }
+
+
+def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
+    """إثبات الحضور والغياب المسجل خلال اليوم، مستقل عن الحصة الجارية.
+
+    الحضور لا يساوي مجرد شمول الطالب في جلسة معتمدة: لا يدخل الطالب في
+    ``present_students`` إلا إذا ثبت حضوره في حصة (حاضر/متأخر) أو سجل له وصول
+    صباحي. أما ``absent_students`` فهو عدد من لديهم غياب مسجل في حصة واحدة على
+    الأقل، وقد يتقاطع مع الحضور عند غياب الطالب في حصة وحضوره في أخرى.
+    """
+    from attendance.selectors.monitoring import expected_sections_queryset
+    from attendance.services.sessions import _active_year
+    from students.models import EnrollmentStatus
+    from students.services.enrollments import enrollments_on_date
+
+    year = _active_year(school)
+    section_ids = list(
+        expected_sections_queryset(school=school, year=year).values_list("id", flat=True)
+    )
+    student_ids = set(
+        enrollments_on_date(school=school, on_date=attendance_date)
+        .filter(
+            section_id__in=section_ids,
+            status=EnrollmentStatus.ACTIVE,
+            student__status="ACTIVE",
+        )
+        .values_list("student_id", flat=True)
+        .distinct()
+    )
+    if not student_ids:
+        return {
+            "total_students": 0,
+            "present_students": 0,
+            "absent_students": 0,
+            "unrecorded_students": 0,
+        }
+
+    summary_rows = DailyAttendanceSummary.objects.filter(
+        school=school,
+        attendance_date=attendance_date,
+        student_id__in=student_ids,
+        submitted_periods__gt=0,
+    )
+    present_student_ids = set(
+        summary_rows.filter(Q(present_periods__gt=0) | Q(late_periods__gt=0))
+        .values_list("student_id", flat=True)
+        .distinct()
+    )
+    arrival_student_ids = set(
+        SchoolArrival.objects.filter(
+            school=school,
+            attendance_date=attendance_date,
+            student_id__in=student_ids,
+        ).values_list("student_id", flat=True)
+    )
+    present_student_ids.update(arrival_student_ids)
+    absent_students = (
+        summary_rows.filter(absent_periods__gt=0)
+        .values("student_id")
+        .distinct()
+        .count()
+    )
+    recorded_student_ids = set(
+        summary_rows.values_list("student_id", flat=True).distinct()
+    )
+    recorded_student_ids.update(arrival_student_ids)
+    return {
+        "total_students": len(student_ids),
+        "present_students": len(present_student_ids),
+        "absent_students": absent_students,
+        "unrecorded_students": max(len(student_ids) - len(recorded_student_ids), 0),
     }
 
 

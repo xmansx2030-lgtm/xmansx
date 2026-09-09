@@ -42,6 +42,18 @@ class StaffPatchSerializer(serializers.Serializer):
     )
     job_title = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
+    def validate_display_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("أدخل اسم الموظف كاملًا.")
+        return value
+
+    def validate_employee_number(self, value):
+        return value.strip() if value is not None else None
+
+    def validate_job_title(self, value):
+        return value.strip()
+
 
 class StaffCreateSerializer(serializers.Serializer):
     display_name = serializers.CharField(max_length=200)

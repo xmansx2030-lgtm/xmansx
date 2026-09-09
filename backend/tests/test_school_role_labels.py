@@ -10,6 +10,7 @@ from schools.role_labels import school_role_label, school_student_label, school_
         ("VICE_PRINCIPAL", "الوكيلة"),
         ("COUNSELOR", "المرشدة الطلابية"),
         ("TEACHER", "معلمة"),
+        ("GATE_GUARD", "حارسة البوابة"),
     ],
 )
 def test_girls_school_role_labels(role, expected):

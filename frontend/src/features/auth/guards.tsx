@@ -72,6 +72,7 @@ function roleWorkspace(roles: SchoolRole[]) {
     return "/dashboard";
   }
   if (roles.includes("COUNSELOR")) return "/counselor";
+  if (roles.includes("GATE_GUARD")) return "/gate";
   return "/";
 }
 

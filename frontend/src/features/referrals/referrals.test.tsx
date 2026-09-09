@@ -111,7 +111,13 @@ const SESSION = {
   status: "IN_PROGRESS",
   attendance_date: "2026-08-19",
   section: { id: 3, name: "1", grade_name: "الأول الثانوي", students_count: 2 },
-  period: { sequence: 2, name: "الثانية", start_time: "08:05", end_time: "08:50" },
+  period: {
+    sequence: 2,
+    name: "الثانية",
+    start_time: "08:05",
+    end_time: "08:50",
+    timezone: "Asia/Riyadh",
+  },
   submitted_by: null,
   submitted_at: null,
   can_edit: true,
@@ -120,6 +126,13 @@ const SESSION = {
     { student_id: 12, full_name: "طالب ثانٍ", national_id_masked: "******0012" },
   ],
   marks: [],
+};
+
+const ATTENDANCE_PREVIEW = {
+  attendance_date: SESSION.attendance_date,
+  section: SESSION.section,
+  period: SESSION.period,
+  session: SESSION,
 };
 
 describe("referrals (Phase 13)", () => {
@@ -149,7 +162,7 @@ describe("referrals (Phase 13)", () => {
   it("teacher refers a student from the class roster", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sessions/start/": { body: SESSION },
+      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
       "/referrals/options/": { body: TEACHER_OPTIONS },
       "/referrals/": { status: 201, body: DETAIL },
     });
@@ -189,7 +202,7 @@ describe("referrals (Phase 13)", () => {
   it("requires a description when the reason is «other»", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sessions/start/": { body: SESSION },
+      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
       "/referrals/options/": { body: TEACHER_OPTIONS },
     });
     renderApp("/attendance/section/3");
@@ -207,7 +220,7 @@ describe("referrals (Phase 13)", () => {
   it("offers adding a note when a duplicate open case exists", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sessions/start/": { body: SESSION },
+      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
       "/referrals/options/": { body: TEACHER_OPTIONS },
       "/referrals/contribute/": {
         status: 201,

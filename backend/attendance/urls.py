@@ -5,6 +5,10 @@ from attendance.api import views
 urlpatterns = [
     path("attendance/current-period/", views.CurrentPeriodView.as_view()),
     path("attendance/sections/", views.AttendanceSectionsView.as_view()),
+    path(
+        "attendance/sections/<int:section_id>/preview/",
+        views.AttendanceSectionPreviewView.as_view(),
+    ),
     path("attendance/sessions/start/", views.StartSessionView.as_view()),
     path("attendance/sessions/<int:session_id>/", views.SessionDetailView.as_view()),
     path(

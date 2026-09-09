@@ -139,17 +139,18 @@ def reinvite(*, membership: SchoolMembership, actor, request=None) -> None:
 
 @transaction.atomic
 def reset_teacher_password(*, membership: SchoolMembership, actor, request=None) -> str:
-    """يعيد كلمة المعلم إلى جواله المحلي ويفرض عليه استبدالها عند دخوله التالي."""
-    if SchoolRole.TEACHER not in membership.role_codes():
+    """يعيد كلمة المعلم أو حارس البوابة ويفرض استبدالها عند الدخول التالي."""
+    roles = membership.role_codes()
+    if not {SchoolRole.TEACHER, SchoolRole.GATE_GUARD}.intersection(roles):
         raise ApiError(
             "TEACHER_ROLE_REQUIRED",
-            "إعادة ضبط كلمة المرور متاحة للمعلمين فقط.",
+            "إعادة ضبط كلمة المرور متاحة للمعلمين وحراس البوابة فقط.",
             409,
         )
     if membership.status != MembershipStatus.ACTIVE:
         raise ApiError(
             "ACTIVE_TEACHER_REQUIRED",
-            "أعد تفعيل المعلم أولًا قبل إعادة ضبط كلمة مروره.",
+            "أعد تفعيل الموظف أولًا قبل إعادة ضبط كلمة مروره.",
             409,
         )
     if membership.user_id == actor.id:

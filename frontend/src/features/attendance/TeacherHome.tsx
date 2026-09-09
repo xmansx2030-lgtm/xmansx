@@ -17,7 +17,7 @@ interface TeacherHomeProps {
   activeSchoolId: number;
 }
 
-/** شاشة المعلم: الحصة الحالية + فصول المدرسة + مسح QR — Mobile-first. */
+/** شاشة المعلم: الحصة الحالية + جميع الفصول النشطة + مسح QR — Mobile-first. */
 export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
   const navigate = useNavigate();
   const me = useMe();
@@ -103,7 +103,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700"><GraduationCap aria-hidden size={20} /></span>
-          <div><h2 className="text-lg font-black text-slate-900">اختيار الفصل</h2><p className="mt-1 text-xs text-slate-500">الفصول المتاحة لك في المدرسة الحالية.</p></div>
+          <div><h2 className="text-lg font-black text-slate-900">اختيار الفصل</h2><p className="mt-1 text-xs text-slate-500">جميع الفصول النشطة في المدرسة الحالية.</p></div>
         </div>
 
         {scanning && (
@@ -170,7 +170,9 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
                 <button
                   type="button"
                   className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 text-start shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
-                  onClick={() => navigate(`/attendance/section/${section.id}`)}
+                  onClick={() => navigate(`/attendance/section/${section.id}`, {
+                    state: { attendanceSource: "SECTION_LIST" },
+                  })}
                   data-testid={`section-${section.id}`}
                 >
                   <span><span className="block font-black text-slate-900">{section.name}</span><span className="mt-1 block text-xs text-slate-500">{section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}</span></span>

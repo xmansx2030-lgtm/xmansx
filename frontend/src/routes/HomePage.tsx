@@ -10,6 +10,7 @@ export function HomePage() {
   const roles = me.data?.roles ?? [];
   const isTeacher = roles.includes("TEACHER");
   const isCounselor = roles.includes("COUNSELOR");
+  const isGateGuard = roles.includes("GATE_GUARD");
   const canMonitor = roles.some((r) => MONITORING_ROLES.includes(r));
   const activeSchoolId = me.data?.active_school?.id;
 
@@ -23,6 +24,10 @@ export function HomePage() {
   // التي تشمل «معلم» تبقى على شاشة التحضير لأنها المهمة الأسرع زمنيًا داخل الحصة.
   if (isCounselor && !isTeacher && !canMonitor) {
     return <Navigate to="/counselor" replace />;
+  }
+
+  if (isGateGuard && !isTeacher && !isCounselor && !canMonitor) {
+    return <Navigate to="/gate" replace />;
   }
 
   return (

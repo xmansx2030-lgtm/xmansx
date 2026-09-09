@@ -5,13 +5,12 @@
   واقعية للفصول) — submitted_by_membership يسجل من اعتمد فعليًا.
 - Roster يثبت عند البدء (بصمة)؛ تغير جوهري قبل الاعتماد → ATTENDANCE_ROSTER_CHANGED
   والواجهة تحدّث — لا تسجيل غياب لطالب خرج من الفصل.
-- التأخر: يحسب خادميًا من snapshot.start_time؛ وصول قبل البداية مرفوض (لا دقائق
-  سالبة)؛ بعد نهاية الحصة مسموح والحساب من البداية يبقى صحيحًا.
+- التحضير الصفي ثنائي: حاضر ضمنيًا أو غائب؛ التأخر الصباحي يبقى في SchoolArrival.
+- سجلات LATE القديمة قابلة للقراءة والتحليل، لكن لا تنشأ من جلسات التحضير الجديدة.
 - نافذة تعديل المعلم من إعداد المدرسة؛ الوكيل/المدير تصحيح إداري بلا نافذة.
 """
 
 import hashlib
-from datetime import datetime, time
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone as dj_timezone
@@ -70,7 +69,7 @@ def roster_fingerprint(roster: list[dict]) -> str:
 
 
 def start_session(
-    *, school, membership, section, request=None
+    *, school, membership, section, source="DIRECT_LINK", request=None
 ) -> tuple[AttendanceSession, list[dict], bool]:
     """يفتح/يستأنف جلسة الحصة الحالية — يعيد (session, roster, resumed)."""
     if section.school_id != school.id or not section.is_active:
@@ -134,7 +133,11 @@ def start_session(
             school=school,
             target_type="AttendanceSession",
             target_id=session.id,
-            metadata={"section_id": section.id, "period": period.sequence},
+            metadata={
+                "section_id": section.id,
+                "period": period.sequence,
+                "source": source,
+            },
         )
         return session, roster, False
     except IntegrityError:
@@ -169,26 +172,6 @@ def _already_submitted_error(session: AttendanceSession) -> ApiError:
     )
 
 
-def _parse_snapshot_start(session: AttendanceSession) -> time:
-    hour, minute = session.bell_period_snapshot["start_time"].split(":")
-    return time(int(hour), int(minute))
-
-
-def _compute_late_minutes(session: AttendanceSession, arrival: time) -> int:
-    """من snapshot البداية حصرًا — لا BellPeriod الحالي ولا قيمة من العميل."""
-    start = _parse_snapshot_start(session)
-    delta = datetime.combine(session.attendance_date, arrival) - datetime.combine(
-        session.attendance_date, start
-    )
-    minutes = int(delta.total_seconds() // 60)
-    if minutes < 0:
-        raise ApiError(
-            "INVALID_ARRIVAL_TIME",
-            "وقت الوصول قبل بداية الحصة — تحقق من الوقت المدخل.",
-        )
-    return minutes
-
-
 def _validate_marks(
     session: AttendanceSession, marks: list[dict], roster: list[dict]
 ) -> list[dict]:
@@ -206,19 +189,17 @@ def _validate_marks(
                 "أحد الطلاب لا ينتمي لهذا الفصل — حدّث الصفحة.",
             )
         status = mark["status"]
-        arrival = None
-        late_minutes = None
-        if status == AttendanceMarkStatus.LATE:
-            arrival = mark.get("arrival_time")
-            if arrival is None:
-                raise ApiError("INVALID_ARRIVAL_TIME", "حدد وقت وصول الطالب المتأخر.")
-            late_minutes = _compute_late_minutes(session, arrival)
+        if status != AttendanceMarkStatus.ABSENT:
+            raise ApiError(
+                "ATTENDANCE_STATUS_NOT_ALLOWED",
+                "خيارات التحضير هي حاضر أو غائب فقط؛ لا يسجل تأخر داخل الحصة.",
+            )
         validated.append(
             {
                 "student_id": student_id,
                 "status": status,
-                "arrival_time": arrival,
-                "late_minutes": late_minutes,
+                "arrival_time": None,
+                "late_minutes": None,
             }
         )
     return validated

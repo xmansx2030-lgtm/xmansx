@@ -19,6 +19,7 @@ from attendance.models import (
 from common.errors import ApiError
 from devices.models import ArrivalSource, ArrivalStatus, SchoolArrival
 from documents.models import DocumentType
+from memberships.models import MembershipStatus, SchoolMembership, SchoolRole
 from student_actions.models import StudentAction, StudentActionStatus, StudentActionType
 from student_warnings.models import (
     StudentWarning,
@@ -67,7 +68,32 @@ def _membership_name(membership) -> str:
     if membership is None:
         return ""
     profile = getattr(membership, "staff_profile", None)
-    return profile.display_name if profile else membership.user.display_name
+    profile_name = getattr(profile, "display_name", "").strip()
+    return profile_name or membership.user.display_name
+
+
+def _principal_name(*, school, settings_row) -> str:
+    """الاسم الرسمي أولاً، ثم المدير الفعّال الفعلي للمدرسة.
+
+    قد يبقى حقل الطباعة الاختياري فارغاً في مدرسة مهيأة بصورة صحيحة من ناحية
+    العضويات. لا ينبغي أن يحوّل ذلك توقيع الإنذار إلى نقاط فارغة؛ وفي المقابل
+    تظل القيمة الرسمية الصريحة هي الأعلى أولوية لأنها قد تتضمن لقباً معتمداً.
+    """
+    configured_name = getattr(settings_row, "official_principal_name", "").strip()
+    if configured_name:
+        return configured_name
+
+    manager = (
+        SchoolMembership.objects.filter(
+            school=school,
+            status=MembershipStatus.ACTIVE,
+            roles__role=SchoolRole.SCHOOL_MANAGER,
+        )
+        .select_related("user", "staff_profile")
+        .order_by("joined_at", "id")
+        .first()
+    )
+    return _membership_name(manager)
 
 
 def school_header(school) -> dict:
@@ -85,7 +111,7 @@ def school_header(school) -> dict:
         "students_label": "الطالبات" if girls_school else "الطلاب",
         "ministry_school_number": getattr(settings_row, "ministry_school_number", "") or "",
         "city": getattr(settings_row, "city", "") or "",
-        "principal_name": getattr(settings_row, "official_principal_name", "") or "",
+        "principal_name": _principal_name(school=school, settings_row=settings_row),
     }
 
 

@@ -37,6 +37,19 @@ function currentTime() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+function normalizeLastFourInput(value: string) {
+  return [...value]
+    .map((char) => {
+      const index = ARABIC_DIGITS.indexOf(char);
+      return index === -1 ? char : String(index);
+    })
+    .join("")
+    .replace(/\D/g, "")
+    .slice(0, 4);
+}
+
 function dateLabel(value: string) {
   if (!value) return "جميع التواريخ";
   return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(
@@ -186,9 +199,20 @@ function LeaveForm({ today, schoolType, onClose, onCreated }: { today: string; s
   const [leaveDate, setLeaveDate] = useState(today);
   const [leaveTime, setLeaveTime] = useState(currentTime);
   const [reason, setReason] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientRelationship, setRecipientRelationship] = useState("");
+  const [recipientIdLast4, setRecipientIdLast4] = useState("");
   const [error, setError] = useState<string | null>(null);
   const create = useMutation({
-    mutationFn: () => createStudentLeave({ student_id: student!.id, leave_date: leaveDate, leave_time: leaveTime, reason: reason.trim() }),
+    mutationFn: () => createStudentLeave({
+      student_id: student!.id,
+      leave_date: leaveDate,
+      leave_time: leaveTime,
+      reason: reason.trim(),
+      recipient_name: recipientName.trim(),
+      recipient_relationship: recipientRelationship.trim(),
+      recipient_id_last4: recipientIdLast4.trim(),
+    }),
     onSuccess: onCreated,
     onError: (value) => setError(value instanceof ApiError ? value.message : "تعذر تسجيل الاستئذان."),
   });
@@ -197,6 +221,7 @@ function LeaveForm({ today, schoolType, onClose, onCreated }: { today: string; s
     event.preventDefault();
     if (!student) { setError(`اختر ${studentLabel(schoolType, true)} أولًا.`); return; }
     if (!leaveDate || !leaveTime || reason.trim().length < 3) { setError("أكمل التاريخ والوقت وسبب الاستئذان."); return; }
+    if (recipientIdLast4 && !/^\d{4}$/.test(recipientIdLast4)) { setError("أدخل آخر أربعة أرقام من هوية المستلم."); return; }
     setError(null);
     create.mutate();
   }
@@ -218,6 +243,21 @@ function LeaveForm({ today, schoolType, onClose, onCreated }: { today: string; s
           <textarea aria-label="سبب الاستئذان" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={4} placeholder={`اكتب السبب بوضوح ليظهر في سجل ${studentLabel(schoolType, true)}...`} className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal leading-6" />
           <span className="mt-1 block text-end text-xs font-medium text-slate-400">{reason.length}/500</span>
         </label>
+        <fieldset className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <legend className="px-2 text-sm font-black text-slate-800">بيانات المستلم <span className="font-medium text-slate-500">(اختيارية)</span></legend>
+          <p className="mb-3 text-xs leading-5 text-slate-500">ستظهر لحراس البوابة للمساعدة في التحقق، دون إظهار سبب الاستئذان.</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="text-sm font-bold text-slate-700">اسم المستلم
+              <input aria-label="اسم المستلم" value={recipientName} onChange={(event) => setRecipientName(event.target.value)} maxLength={150} placeholder="مثال: أحمد محمد" className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 font-normal" />
+            </label>
+            <label className="text-sm font-bold text-slate-700">صفته
+              <input aria-label="صفة المستلم" value={recipientRelationship} onChange={(event) => setRecipientRelationship(event.target.value)} maxLength={60} placeholder="والد، أخ، سائق..." className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 font-normal" />
+            </label>
+            <label className="text-sm font-bold text-slate-700">آخر 4 أرقام من الهوية
+              <input aria-label="آخر أربعة أرقام من هوية المستلم" dir="ltr" inputMode="numeric" pattern="[0-9]{4}" value={recipientIdLast4} onChange={(event) => setRecipientIdLast4(normalizeLastFourInput(event.target.value))} maxLength={4} placeholder="1234" className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-center font-mono font-bold tracking-[0.25em]" />
+            </label>
+          </div>
+        </fieldset>
         {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><Button variant="secondary" onClick={onClose} disabled={create.isPending}>إلغاء</Button><Button type="submit" disabled={create.isPending}><DoorOpen aria-hidden size={17} />{create.isPending ? "جارٍ التسجيل..." : "اعتماد الاستئذان"}</Button></div>
       </form>
@@ -241,7 +281,7 @@ function LeaveRow({ leave, onChanged }: { leave: StudentLeaveRow; onChanged: () 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
   const cancel = useMutation({ mutationFn: () => cancelStudentLeave(leave.id, reason.trim()), onSuccess: async () => { setCancelOpen(false); setReason(""); await onChanged(); } });
-  return <li className={`p-4 sm:p-5 ${leave.status === "CANCELLED" ? "bg-slate-50/70" : ""}`} data-testid={`student-leave-${leave.id}`}><div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.5fr)_auto]"><div><div className="flex flex-wrap items-center gap-2"><Link to={`/students/${leave.student.id}/attendance`} className="font-black text-slate-900 hover:text-blue-700">{leave.student.full_name}</Link><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${leave.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{leave.status_label}</span></div><p className="mt-2 text-xs text-slate-500">{leave.grade_name || "—"} / {leave.section_name || "—"}{leave.student.student_number ? ` · ${leave.student.student_number}` : ""}</p></div><div><p className="text-sm leading-6 text-slate-800">{leave.reason}</p><p className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><CalendarDays aria-hidden size={14} />{leave.weekday_label}، {dateLabel(leave.leave_date)}</span><span className="inline-flex items-center gap-1 font-bold text-blue-800"><Clock3 aria-hidden size={14} />{leave.leave_time}</span><span>سجله: {leave.recorded_by_name ?? "—"}</span></p>{leave.cancellation_reason && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">سبب الإلغاء: {leave.cancellation_reason}</p>}</div><div className="flex items-start justify-end">{leave.status === "ACTIVE" && <Button variant="secondary" className="border-red-200 text-red-700" onClick={() => setCancelOpen(true)}>إلغاء الاستئذان</Button>}</div></div>{cancelOpen && <Modal title={`إلغاء استئذان ${leave.student.full_name}`} description="سيبقى السجل محفوظًا مع سبب الإلغاء." onClose={() => setCancelOpen(false)}><label className="text-sm font-bold text-slate-700">سبب الإلغاء *<textarea aria-label="سبب إلغاء الاستئذان" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={300} className="mt-2 w-full rounded-xl border border-slate-300 p-3 font-normal" /></label>{cancel.isError && <ErrorState error={cancel.error} />}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={() => setCancelOpen(false)}>تراجع</Button><Button variant="danger" disabled={reason.trim().length < 3 || cancel.isPending} onClick={() => cancel.mutate()}>{cancel.isPending ? "جارٍ الإلغاء..." : "تأكيد الإلغاء"}</Button></div></Modal>}</li>;
+  return <li className={`p-4 sm:p-5 ${leave.status === "CANCELLED" ? "bg-slate-50/70" : ""}`} data-testid={`student-leave-${leave.id}`}><div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.5fr)_auto]"><div><div className="flex flex-wrap items-center gap-2"><Link to={`/students/${leave.student.id}/attendance`} className="font-black text-slate-900 hover:text-blue-700">{leave.student.full_name}</Link><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${leave.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{leave.status_label}</span>{leave.gate_release && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">خرج من البوابة</span>}</div><p className="mt-2 text-xs text-slate-500">{leave.grade_name || "—"} / {leave.section_name || "—"}{leave.student.student_number ? ` · ${leave.student.student_number}` : ""}</p></div><div><p className="text-sm leading-6 text-slate-800">{leave.reason}</p><p className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><CalendarDays aria-hidden size={14} />{leave.weekday_label}، {dateLabel(leave.leave_date)}</span><span className="inline-flex items-center gap-1 font-bold text-blue-800"><Clock3 aria-hidden size={14} />{leave.leave_time}</span><span>سجله: {leave.recorded_by_name ?? "—"}</span></p>{(leave.recipient_name || leave.recipient_relationship || leave.recipient_id_last4) && <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">المستلم: {leave.recipient_name || "غير محدد"}{leave.recipient_relationship ? ` · ${leave.recipient_relationship}` : ""}{leave.recipient_id_last4 ? ` · الهوية تنتهي بـ ${leave.recipient_id_last4}` : ""}</p>}{leave.gate_release && <p className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">سجل الخروج: {new Date(leave.gate_release.released_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })} · {leave.gate_release.released_by_name ?? "حارس البوابة"}</p>}{leave.cancellation_reason && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">سبب الإلغاء: {leave.cancellation_reason}</p>}</div><div className="flex items-start justify-end">{leave.status === "ACTIVE" && !leave.gate_release && <Button variant="secondary" className="border-red-200 text-red-700" onClick={() => setCancelOpen(true)}>إلغاء الاستئذان</Button>}</div></div>{cancelOpen && <Modal title={`إلغاء استئذان ${leave.student.full_name}`} description="سيبقى السجل محفوظًا مع سبب الإلغاء." onClose={() => setCancelOpen(false)}><label className="text-sm font-bold text-slate-700">سبب الإلغاء *<textarea aria-label="سبب إلغاء الاستئذان" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={300} className="mt-2 w-full rounded-xl border border-slate-300 p-3 font-normal" /></label>{cancel.isError && <ErrorState error={cancel.error} />}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={() => setCancelOpen(false)}>تراجع</Button><Button variant="danger" disabled={reason.trim().length < 3 || cancel.isPending} onClick={() => cancel.mutate()}>{cancel.isPending ? "جارٍ الإلغاء..." : "تأكيد الإلغاء"}</Button></div></Modal>}</li>;
 }
 
 function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof DoorOpen; tone: "blue" | "emerald" | "slate" }) {

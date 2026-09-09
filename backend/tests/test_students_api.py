@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 
 from academics.models import AcademicYear, AcademicYearStatus
 from common.security.identifiers import (
+    decrypt_national_id,
     encrypt_national_id,
     mask_national_id,
     national_id_lookup_hash,
@@ -150,6 +151,99 @@ def test_manual_student_rejects_duplicate_and_non_manager(role_client, make_scho
         ).status_code
         == 403
     )
+
+
+@pytest.mark.django_db
+def test_manager_corrects_student_identity_profile_and_section(role_client):
+    from audit.models import AuditAction, AuditLog
+
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    student = _make_student(school, "1012345678", "اسم قديم", "S-1")
+    old_enrollment = _enroll(school, student, code="1")
+    new_section = Section.objects.create(
+        school=school,
+        grade=old_enrollment.grade,
+        code="2",
+        name="2",
+    )
+
+    response = client.patch(
+        f"{STUDENTS_URL}{student.id}/",
+        {
+            "full_name": "اسم مصحح",
+            "national_id": "٢٠٩٨٧٦٥٤٣٢",
+            "student_number": "S-2",
+            "guardian_name": "ولي مصحح",
+            "guardian_mobile": "0551234567",
+            "section_id": new_section.id,
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["national_id_masked"] == "******5432"
+    assert response.json()["section"]["id"] == new_section.id
+    student.refresh_from_db()
+    assert decrypt_national_id(student.national_id_encrypted) == "2098765432"
+    assert student.guardian_mobile == "+966551234567"
+    old_enrollment.refresh_from_db()
+    assert old_enrollment.status == "TRANSFERRED"
+    assert student.enrollments.get(status="ACTIVE").section_id == new_section.id
+    audit = AuditLog.objects.filter(
+        action=AuditAction.STUDENT_UPDATED, target_id=str(student.id)
+    ).latest("id")
+    assert "national_id" in audit.metadata["changed_fields"]
+    assert "2098765432" not in str(audit.metadata)
+
+
+@pytest.mark.django_db
+def test_student_correction_rejects_invalid_duplicate_and_non_manager(role_client, make_school):
+    school = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    first = _make_student(school, "1012345678", "الأول")
+    second = _make_student(school, "1098765432", "الثاني")
+
+    invalid = manager.patch(
+        f"{STUDENTS_URL}{first.id}/",
+        {"national_id": "123"},
+        content_type="application/json",
+    )
+    assert invalid.status_code == 400
+    assert "10 أرقام" in str(invalid.json())
+
+    duplicate = manager.patch(
+        f"{STUDENTS_URL}{first.id}/",
+        {"national_id": "1098765432"},
+        content_type="application/json",
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "STUDENT_ALREADY_EXISTS"
+
+    denied = vice.patch(
+        f"{STUDENTS_URL}{second.id}/",
+        {"full_name": "تعديل غير مسموح"},
+        content_type="application/json",
+    )
+    assert denied.status_code == 403
+
+
+@pytest.mark.django_db
+def test_student_correction_is_tenant_isolated(role_client, make_school):
+    school_a = make_school()
+    school_b = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school_a)
+    foreign = _make_student(school_b, "1012345678", "طالب مدرسة أخرى")
+
+    response = manager.patch(
+        f"{STUDENTS_URL}{foreign.id}/",
+        {"full_name": "محاولة تعديل"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 404
+    foreign.refresh_from_db()
+    assert foreign.full_name == "طالب مدرسة أخرى"
 
 
 @pytest.mark.django_db

@@ -29,6 +29,8 @@ from documents.services.generation import (
     retry_document,
     void_document,
 )
+from memberships.models import MembershipStatus, SchoolRole
+from staff.models import StaffProfile
 from student_warnings.models import StudentWarning, WarningLevel, WarningRuleType, WarningStatus
 from tests.excuse_env import DAY, DAY2, build_env, full_day_absent, make_session, mark, recalc
 
@@ -218,6 +220,102 @@ def test_girls_school_document_uses_feminine_principal_and_student_labels(env):
     assert "مديرة المدرسة" in html
     assert "ولي أمر الطالبة" in html
     assert "الطالب/ة" not in html
+
+
+@pytest.mark.parametrize(
+    ("school_type", "principal_role_label", "manager_name"),
+    [
+        ("BOYS", "مدير المدرسة", "أ. خالد العتيبي"),
+        ("GIRLS", "مديرة المدرسة", "أ. نورة القحطاني"),
+    ],
+)
+def test_warning_uses_active_manager_name_when_official_name_is_blank(
+    env,
+    make_membership,
+    make_user,
+    school_type,
+    principal_role_label,
+    manager_name,
+):
+    school = env["school"]
+    school.school_type = school_type
+    school.save(update_fields=["school_type"])
+    school.settings.official_principal_name = ""
+    school.settings.save(update_fields=["official_principal_name"])
+
+    manager = make_membership(
+        make_user("0550001390", first_name="اسم الحساب"),
+        school,
+        [SchoolRole.SCHOOL_MANAGER],
+    )
+    StaffProfile.objects.create(
+        school=school,
+        membership=manager,
+        display_name=manager_name,
+    )
+    warning = make_warning(env, env["students"][0])
+
+    snapshot = snapshot_service.warning_snapshot(
+        school=school, warning=warning, membership=env["vice"], title="إشعار"
+    )
+    html = render_to_string(
+        "documents/warning_v2.html", {"data": snapshot, "assets": render_assets()}
+    )
+
+    assert snapshot["school"]["principal_role_label"] == principal_role_label
+    assert snapshot["school"]["principal_name"] == manager_name
+    assert manager_name in html
+
+
+def test_warning_prefers_configured_official_principal_name_over_membership(
+    env, make_membership, make_user
+):
+    manager = make_membership(
+        make_user("0550001391", first_name="مدير العضوية"),
+        env["school"],
+        [SchoolRole.SCHOOL_MANAGER],
+    )
+    StaffProfile.objects.create(
+        school=env["school"],
+        membership=manager,
+        display_name="مدير العضوية",
+    )
+
+    snapshot = snapshot_service.warning_snapshot(
+        school=env["school"],
+        warning=make_warning(env, env["students"][0]),
+        membership=env["vice"],
+        title="إشعار",
+    )
+
+    assert snapshot["school"]["principal_name"] == "خالد المدير"
+
+
+def test_warning_ignores_suspended_manager_when_resolving_principal_name(
+    env, make_membership, make_user
+):
+    env["school"].settings.official_principal_name = ""
+    env["school"].settings.save(update_fields=["official_principal_name"])
+    make_membership(
+        make_user("0550001392", first_name="مدير موقوف"),
+        env["school"],
+        [SchoolRole.SCHOOL_MANAGER],
+        status=MembershipStatus.SUSPENDED,
+    )
+    active_manager = make_membership(
+        make_user("0550001393", first_name="المدير الفعلي"),
+        env["school"],
+        [SchoolRole.SCHOOL_MANAGER],
+    )
+
+    snapshot = snapshot_service.warning_snapshot(
+        school=env["school"],
+        warning=make_warning(env, env["students"][0]),
+        membership=env["vice"],
+        title="إشعار",
+    )
+
+    assert snapshot["school"]["principal_name"] == active_manager.user.display_name
 
 
 @requires_pdf

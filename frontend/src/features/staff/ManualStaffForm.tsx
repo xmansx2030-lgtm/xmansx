@@ -12,10 +12,11 @@ import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hook
 import { getSections } from "@/features/students/api";
 import { roleLabel } from "@/utils/roles";
 
-const ROLES = ["TEACHER", "COUNSELOR", "VICE_PRINCIPAL", "SCHOOL_MANAGER"] as const;
+const ROLES = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL", "SCHOOL_MANAGER"] as const;
 const ROLE_DESCRIPTIONS: Record<(typeof ROLES)[number], string> = {
   TEACHER: "تحضير الطلاب والوصول إلى الفصول المسندة إليه.",
   COUNSELOR: "متابعة الحالات والإحالات والسلوك والإنذارات.",
+  GATE_GUARD: "عرض استئذانات اليوم وتأكيد خروج الطلاب من البوابة فقط.",
   VICE_PRINCIPAL: "الاطلاع الإداري والمتابعة دون تعديل إعدادات المدرسة.",
   SCHOOL_MANAGER: "صلاحية كاملة لإدارة المدرسة والموظفين والإعدادات.",
 };

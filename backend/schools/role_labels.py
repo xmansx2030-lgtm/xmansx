@@ -5,6 +5,7 @@ MASCULINE_ROLE_LABELS = {
     "VICE_PRINCIPAL": "الوكيل",
     "COUNSELOR": "المرشد الطلابي",
     "TEACHER": "معلم",
+    "GATE_GUARD": "حارس البوابة",
 }
 
 FEMININE_ROLE_LABELS = {
@@ -12,6 +13,7 @@ FEMININE_ROLE_LABELS = {
     "VICE_PRINCIPAL": "الوكيلة",
     "COUNSELOR": "المرشدة الطلابية",
     "TEACHER": "معلمة",
+    "GATE_GUARD": "حارسة البوابة",
 }
 
 

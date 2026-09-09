@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  AlarmClock,
   AlertTriangle,
   ArrowLeft,
   BarChart3,
   BellRing,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   DoorOpen,
   FileCheck2,
@@ -92,16 +92,18 @@ export function DashboardPage() {
   const filters: DashboardFilters = { preset, fromDate, toDate, gradeId, sectionId };
   const filterKey = [preset, fromDate, toDate, gradeId, sectionId];
   const enabled = activeSchoolId > 0;
+  const canManageCalendar = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
+  const analyticsEnabled = enabled && canManageCalendar;
 
   const sectionsListQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
     queryFn: ({ signal }) => getAttendanceSections(signal),
-    enabled,
+    enabled: analyticsEnabled,
   });
   const overviewQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "overview", ...filterKey),
     queryFn: ({ signal }) => getOverview(filters, signal),
-    enabled,
+    enabled: analyticsEnabled,
     refetchInterval: OVERVIEW_POLL_MS,
   });
   const todayQuery = useQuery({
@@ -114,13 +116,13 @@ export function DashboardPage() {
   const trendQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "trend", ...filterKey),
     queryFn: ({ signal }) => getTrend(filters, signal),
-    enabled,
+    enabled: analyticsEnabled,
     refetchInterval: ANALYTICS_POLL_MS,
   });
   const sectionsQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "sections", ...filterKey),
     queryFn: ({ signal }) => getSections(filters, signal),
-    enabled,
+    enabled: analyticsEnabled,
     refetchInterval: ANALYTICS_POLL_MS,
   });
   const attentionQuery = useQuery({
@@ -140,19 +142,18 @@ export function DashboardPage() {
     (error) =>
       error instanceof ApiError && error.code === "ACTIVE_ACADEMIC_YEAR_REQUIRED",
   );
-  const canManageCalendar = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const workspaceRoleLabel = schoolRoleLabel(
     canManageCalendar ? "SCHOOL_MANAGER" : "VICE_PRINCIPAL",
     schoolType,
   );
-  const liveToday = todayQuery.data ?? overviewQuery.data?.today_operations;
+  const liveToday = todayQuery.data ?? (canManageCalendar ? overviewQuery.data?.today_operations : undefined);
   const highPriorityCount =
     attentionQuery.data?.items.filter((item) => item.priority === "HIGH").length ?? 0;
   const lastUpdatedAt = Math.max(
     todayQuery.dataUpdatedAt,
     attentionQuery.dataUpdatedAt,
-    overviewQuery.dataUpdatedAt,
+    canManageCalendar ? overviewQuery.dataUpdatedAt : 0,
   );
   const isRefreshing =
     todayQuery.isFetching || attentionQuery.isFetching || overviewQuery.isFetching;
@@ -169,11 +170,9 @@ export function DashboardPage() {
   );
 
   function refreshOperationalData() {
-    void Promise.all([
-      todayQuery.refetch(),
-      attentionQuery.refetch(),
-      overviewQuery.refetch(),
-    ]);
+    const refreshes: Promise<unknown>[] = [todayQuery.refetch(), attentionQuery.refetch()];
+    if (canManageCalendar) refreshes.push(overviewQuery.refetch());
+    void Promise.all(refreshes);
   }
 
   return (
@@ -228,19 +227,13 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <nav aria-label="إجراءات سريعة" className="relative mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
-          <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
-          <QuickLink to="/excuses" icon={FileCheck2}>الأعذار</QuickLink>
-          <QuickLink to="/student-leaves" icon={DoorOpen}>استئذان {studentLabel(schoolType)}</QuickLink>
-          <QuickLink to="/warnings" icon={BellRing}>الإنذارات</QuickLink>
-          <QuickLink to="/referrals" icon={Send}>الإحالات</QuickLink>
-          {canManageCalendar ? (
-            <>
-              <QuickLink to="/staff" icon={UsersRound}>فريق المدرسة</QuickLink>
-              <QuickLink to="/settings" icon={Settings}>إعدادات المدرسة</QuickLink>
-            </>
-          ) : null}
-        </nav>
+        {canManageCalendar && (
+          <nav aria-label="إجراءات سريعة" className="relative mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+            <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
+            <QuickLink to="/staff" icon={UsersRound}>فريق المدرسة</QuickLink>
+            <QuickLink to="/settings" icon={Settings}>إعدادات المدرسة</QuickLink>
+          </nav>
+        )}
       </header>
 
       {academicSetupRequired ? (
@@ -261,30 +254,36 @@ export function DashboardPage() {
         </section>
       ) : (
         <>
-          <RoleWorkspace
-            isManager={canManageCalendar}
-            schoolType={schoolType}
-            today={liveToday}
-            attention={attentionQuery.data}
-            isLiveLoading={todayQuery.isPending || attentionQuery.isPending}
-          />
-
-          {liveToday?.live_attendance && (
-            <LiveSchoolAttendance
-              data={liveToday.live_attendance}
-              period={liveToday.period}
+          {!canManageCalendar && (
+            <RoleWorkspace
+              isManager={false}
               schoolType={schoolType}
+              today={liveToday}
+              attention={attentionQuery.data}
+              isLiveLoading={todayQuery.isPending || attentionQuery.isPending}
             />
           )}
 
           {liveToday ? (
-            <TodayCard data={liveToday} />
+            <>
+              <SchoolTodayStatusCard data={liveToday} schoolType={schoolType} showPreparation={!canManageCalendar} />
+              {canManageCalendar && <TodayCard data={liveToday} />}
+            </>
           ) : todayQuery.isPending ? (
             <div className="grid min-h-48 place-items-center rounded-3xl border border-slate-200 bg-white"><Spinner label="جارٍ تحميل التشغيل المباشر..." /></div>
           ) : null}
 
-          <AttentionSection query={attentionQuery} schoolType={schoolType} />
+          <AttentionSection query={attentionQuery} schoolType={schoolType} compact />
 
+          {canManageCalendar && <details className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="manager-analytics">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 transition hover:bg-slate-50 sm:p-6">
+            <span className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-violet-50 text-violet-700"><BarChart3 aria-hidden size={21} /></span>
+              <span><strong className="block text-lg font-black text-slate-900">التحليلات والتقارير</strong><span className="mt-1 block text-xs leading-5 text-slate-500">الفترات والمقارنات واتجاه الغياب وترتيب الفصول.</span></span>
+            </span>
+            <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-600">عرض التفاصيل <ChevronDown aria-hidden size={18} className="transition-transform group-open:rotate-180" /></span>
+          </summary>
+          <div className="space-y-5 border-t border-slate-100 bg-slate-50/40 p-4 sm:p-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -338,6 +337,8 @@ export function DashboardPage() {
             {sectionsQuery.isError && <div className="p-5"><ErrorState error={sectionsQuery.error} /></div>}
             {sectionsQuery.isSuccess && <SectionsTable data={sectionsQuery.data} schoolType={schoolType} />}
           </section>
+          </div>
+          </details>}
         </>
       )}
     </div>
@@ -504,7 +505,7 @@ function RoleWorkspace({
   attention?: import("@/features/dashboard/api").AttentionResponse;
   isLiveLoading: boolean;
 }) {
-  const overdue = today?.summary?.overdue_total ?? 0;
+  const overdue = actionableOverdue(today?.summary);
   const submitted = today?.summary?.submitted ?? 0;
   const totalSections = today?.summary?.total ?? 0;
   const highPriority = attention?.items.filter((item) => item.priority === "HIGH").length ?? 0;
@@ -564,121 +565,36 @@ function RoleWorkspace({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_auto_auto] lg:grid-cols-[auto_auto_auto]">
-          <div className={`min-w-32 rounded-2xl border px-4 py-3 ${hasAction ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`} data-testid="role-workspace-metric">
-            <p className={`text-2xl font-black tabular-nums ${hasAction ? "text-amber-900" : "text-emerald-800"}`}>{metric.value}</p>
-            <p className="mt-1 text-[11px] font-bold text-slate-600">{metric.label}</p>
-          </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {isManager && (
+            <div className={`min-w-32 rounded-2xl border px-4 py-3 ${hasAction ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`} data-testid="role-workspace-metric">
+              <p className={`text-2xl font-black tabular-nums ${hasAction ? "text-amber-900" : "text-emerald-800"}`}>{metric.value}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-600">{metric.label}</p>
+            </div>
+          )}
           <Link to={primary.to} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800">
             <PrimaryIcon aria-hidden size={16} /> {primary.label}
           </Link>
           <Link to={secondary.to} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-teal-300 hover:text-teal-800">
             <SecondaryIcon aria-hidden size={16} /> {secondary.label}
           </Link>
+          {!isManager && (
+            <Link to="/student-leaves" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-teal-300 hover:text-teal-800">
+              <DoorOpen aria-hidden size={16} /> استئذان {studentLabel(schoolType)}
+            </Link>
+          )}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function LiveSchoolAttendance({
-  data,
-  period,
-  schoolType,
-}: {
-  data: NonNullable<TodayOperations["live_attendance"]>;
-  period: TodayOperations["period"];
-  schoolType: SchoolType;
-}) {
-  if (data.status === "NO_ACTIVE_PERIOD") {
-    return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" data-testid="live-school-attendance" data-state="NO_ACTIVE_PERIOD">
-        <div className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-600"><Clock3 aria-hidden size={21} /></span>
-          <div>
-            <h2 className="font-black text-slate-900">نبض المدرسة الآن</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">لا توجد حصة تحضير جارية الآن، لذلك لا نعرض حالة حضور لحظية قد تكون مضللة.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const coverageComplete = data.pending_students === 0;
-  const periodLabel = period?.name ?? (
-    data.current_period_sequence ? `الحصة ${data.current_period_sequence}` : "الحصة الحالية"
-  );
-  const metrics = [
-    { label: `إجمالي ${studentPluralLabel(schoolType)} المدرسة`, value: data.total_students, tone: "slate", icon: UsersRound },
-    { label: schoolType === "GIRLS" ? "حاضرة في الحصة" : "حاضر في الحصة", value: data.present_students, tone: "green", icon: CheckCircle2 },
-    { label: schoolType === "GIRLS" ? "غائبة في الحصة" : "غائب في الحصة", value: data.absent_students, tone: "red", icon: ShieldAlert },
-    { label: schoolType === "GIRLS" ? "مستأذنة الآن" : "مستأذن الآن", value: data.leave_students, tone: "blue", icon: DoorOpen },
-    { label: schoolType === "GIRLS" ? "متأخرة في الحصة" : "متأخر في الحصة", value: data.late_students, tone: "amber", icon: Clock3 },
-    { label: schoolType === "GIRLS" ? "متأخرة صباحيًا" : "متأخر صباحيًا", value: data.morning_late_students, tone: "violet", icon: AlarmClock },
-  ] as const;
-  const tones = {
-    slate: "border-slate-200 bg-slate-50 text-slate-900",
-    green: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    red: "border-red-200 bg-red-50 text-red-900",
-    blue: "border-blue-200 bg-blue-50 text-blue-900",
-    amber: "border-amber-200 bg-amber-50 text-amber-900",
-    violet: "border-violet-200 bg-violet-50 text-violet-900",
-  };
-
-  return (
-    <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-live="polite" data-testid="live-school-attendance" data-state="AVAILABLE">
-      <div aria-hidden className="absolute -right-16 top-0 size-48 rounded-full bg-blue-100/70 blur-3xl" />
-      <div className="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-800"><Activity aria-hidden size={21} /></span>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black text-slate-900">نبض المدرسة الآن</h2>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-800 ring-1 ring-blue-100">الآن: {periodLabel}</span>
-            </div>
-            <p className="mt-1 text-sm leading-6 text-slate-600">الأعداد تخص الحصة الحالية وتُحدّث تلقائيًا عند تعديل التحضير أو الاستئذان أو الوصول الصباحي.</p>
-          </div>
-        </div>
-        <span className={`inline-flex w-fit items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ring-1 ${coverageComplete ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`} data-testid="live-attendance-coverage">
-          <span className={`size-2 rounded-full ${coverageComplete ? "bg-emerald-500" : "bg-amber-500"}`} />
-          {coverageComplete ? "بيانات جميع الفصول مكتملة" : `بانتظار تحضير ${data.pending_sections} فصل`}
-        </span>
-      </div>
-
-      <div className="relative mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6" data-testid="live-attendance-metrics">
-        {metrics.map(({ label, value, tone, icon: Icon }) => (
-          <div key={label} className={`rounded-2xl border p-4 ${tones[tone]}`} data-testid={`live-attendance-${tone}`}>
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-2xl font-black tabular-nums sm:text-3xl">{value}</p>
-              <Icon aria-hidden size={18} className="opacity-70" />
-            </div>
-            <p className="mt-1.5 text-xs font-bold leading-5 opacity-80">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className={`relative mt-4 rounded-2xl border px-4 py-3 text-xs leading-5 ${coverageComplete ? "border-slate-200 bg-slate-50 text-slate-600" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-        {coverageComplete ? (
-          <>التغطية: {data.covered_students} من {data.total_students} {studentCountLabel(schoolType)} عبر {data.covered_sections} فصلًا.</>
-        ) : (
-          <>المصنّف في الحصة الآن {data.covered_students} من {data.total_students} {studentCountLabel(schoolType)}. بقي {data.pending_students} {studentCountLabel(schoolType)} بانتظار اعتماد تحضير {schoolType === "GIRLS" ? "فصولهن؛ لا يدخلن في حاضرة أو غائبة أو مستأذنة أو متأخرة" : "فصلهم؛ لا يدخلون في حاضر أو غائب أو مستأذن أو متأخر"} الحصة حتى تكتمل البيانات. التأخر الصباحي مستقل عن تحضير الحصص.</>
-        )}
-      </div>
-      <div className="relative mt-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-xs leading-5 text-blue-900" data-testid="daily-absence-summary">
-        <span className="font-black">الغائب اليوم حتى الآن: {data.daily_absent_students}</span>
-        {data.daily_pending_sections > 0
-          ? ` — محسوب من ${data.daily_covered_students} ${studentCountLabel(schoolType)} في الفصول التي اكتمل تحضيرها من بداية اليوم، وبانتظار اكتمال ${data.daily_pending_sections} فصل.`
-          : schoolType === "GIRLS" ? " — سُجل غيابهن في جميع الحصص منذ بداية اليوم دون حضور أو تأخر في أي حصة." : " — غابوا في جميع الحصص منذ بداية اليوم دون حضور أو تأخر في أي حصة."}
       </div>
     </section>
   );
 }
 
 function TodayCard({ data: today }: { data: TodayOperations }) {
+  const openOverdue = actionableOverdue(today.summary);
   const state = today.operational_state ?? (
     !today.has_active_period
       ? "IDLE"
-      : (today.summary?.overdue_total ?? 0) > 0
+      : openOverdue > 0
         ? "ACTION_REQUIRED"
         : today.submission_completion_pct === 100
           ? "ON_TRACK"
@@ -726,18 +642,97 @@ function TodayCard({ data: today }: { data: TodayOperations }) {
             <p className="text-sm font-bold text-slate-800" data-testid="active-period">{today.period?.name} <span dir="ltr" className="font-medium text-slate-500">{today.period?.start_time}–{today.period?.end_time}</span></p>
             <p className="text-xs font-bold text-slate-600" data-testid="submission-pct">نسبة الاعتماد: {today.submission_completion_pct ?? 0}%</p>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full transition-all duration-500 ${summary.overdue_total > 0 ? "bg-red-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, today.submission_completion_pct ?? 0)}%` }} /></div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full transition-all duration-500 ${openOverdue > 0 ? "bg-red-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, today.submission_completion_pct ?? 0)}%` }} /></div>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="monitoring-summary-line">
-            <p className="sr-only">{summary.total} فصلًا: {summary.submitted} مكتمل، {summary.in_progress} قيد التحضير، {summary.not_started} لم يبدأ، {summary.overdue_total} متأخر.</p>
+            <p className="sr-only">{summary.total} فصلًا: {summary.submitted} مكتمل، {summary.in_progress} قيد التحضير، {summary.not_started} لم يبدأ، {openOverdue} يحتاج متابعة الآن.</p>
             <LiveMetric label="إجمالي الفصول" value={summary.total} tone="slate" />
             <LiveMetric label="تم الاعتماد" value={summary.submitted} tone="green" />
             <LiveMetric label="قيد التحضير" value={summary.in_progress} tone="blue" />
-            <LiveMetric label="متأخر أو لم يبدأ" value={summary.overdue_total} tone={summary.overdue_total > 0 ? "red" : "slate"} testId="overdue-total" />
+            <LiveMetric label="يحتاج متابعة الآن" value={openOverdue} tone={openOverdue > 0 ? "red" : "slate"} testId="overdue-total" />
           </div>
+          {(summary.overdue_submitted ?? 0) > 0 && <p className="mt-3 text-xs font-medium text-amber-800">اعتمد متأخرًا: {summary.overdue_submitted} فصل — معلومة متابعة تاريخية وليست مهمة مفتوحة.</p>}
         </div>
       )}
     </section>
   );
+}
+
+function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { data: TodayOperations; schoolType: SchoolType; showPreparation: boolean }) {
+  const daily = today.daily_attendance;
+  const live = today.live_attendance?.status === "AVAILABLE" ? today.live_attendance : undefined;
+  const summary = today.summary;
+  const openOverdue = actionableOverdue(summary);
+  const periodLabel = today.period?.name ?? "لا توجد حصة جارية";
+  const studentWord = studentLabel(schoolType);
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="school-today-status-card" aria-live="polite">
+      <div className="flex flex-col justify-between gap-4 border-b border-slate-100 bg-gradient-to-l from-blue-50 via-white to-white p-5 sm:flex-row sm:items-start sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-100 text-blue-800"><UsersRound aria-hidden size={21} /></span>
+          <div>
+            <h2 className="text-lg font-black text-slate-900">حالة المدرسة حتى الآن</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">الحضور تراكمي لليوم، والغياب المتتابع لا يشمل غياب حصة واحدة فقط.</p>
+          </div>
+        </div>
+        <Link to="/attendance/monitoring" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800">
+          عرض تفاصيل الفصول <ArrowLeft aria-hidden size={15} />
+        </Link>
+      </div>
+
+      <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5" data-testid="vice-day-summary">
+        <SchoolDayMetric testId="school-daily-present" label="حضر اليوم" value={daily?.present_students ?? 0} detail={`ثبت حضور ${studentWord} في حصة واحدة على الأقل`} tone="green" />
+        <SchoolDayMetric testId="school-continuous-absent" label="غائب حتى الآن" value={live?.daily_absent_students ?? "—"} detail={live ? "غاب في كل الحصص المكتملة حتى الحالية" : "يظهر أثناء الحصة الجارية بعد اكتمال التحضير"} tone="red" />
+        <SchoolDayMetric testId="school-current-leave" label="مستأذن الآن" value={live?.leave_students ?? "—"} detail="قد يكون ضمن الحضور اليومي إذا حضر قبل خروجه" tone="blue" />
+      </div>
+
+      <div className="space-y-2 border-t border-slate-100 bg-slate-50/70 px-4 py-4 text-xs leading-5 text-slate-700 sm:px-5">
+        {live ? (
+          <p data-testid="school-current-period-line">
+            <strong>{periodLabel} الآن:</strong> {live.present_students} حاضرًا · {live.absent_students} غائبًا عن الحصة · {live.leave_students} مستأذنًا{live.late_students > 0 ? ` · ${live.late_students} متأخرًا` : ""}.
+            {live.pending_students > 0 ? ` التغطية ${live.covered_students} من ${live.total_students}؛ بانتظار تحضير ${live.pending_sections} فصل.` : ""}
+          </p>
+        ) : (
+          <p data-testid="school-no-active-period"><strong>لا توجد حصة جارية الآن.</strong> يبقى «حضر اليوم» محفوظًا ولا يُصفّر بانتقال الوقت.</p>
+        )}
+        {showPreparation && summary && (
+          <div data-testid="monitoring-summary-card">
+            <p data-testid="monitoring-summary-line"><strong>اعتماد التحضير:</strong> {summary.submitted} من {summary.total} فصلًا · {summary.in_progress} قيد التحضير · {openOverdue} يحتاج متابعة الآن.</p>
+          </div>
+        )}
+        {live && (
+          <p className={live.daily_pending_sections > 0 ? "text-amber-800" : "text-emerald-800"} data-testid="school-coverage-line">
+            {live.daily_pending_sections > 0
+              ? `رقم الغياب المتتابع مكتمل لـ ${live.daily_covered_students} من ${live.total_students} ${studentCountLabel(schoolType)}؛ بانتظار اكتمال تحضير ${live.daily_pending_sections} فصل.`
+              : `تغطية الغياب المتتابع مكتملة لجميع ${live.total_students} ${studentCountLabel(schoolType)} من أول حصة حتى الحالية.`}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SchoolDayMetric({ testId, label, value, detail, tone }: { testId: string; label: string; value: number | string; detail: string; tone: "green" | "red" | "blue" }) {
+  const tones = {
+    green: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    red: "border-red-200 bg-red-50 text-red-900",
+    blue: "border-blue-200 bg-blue-50 text-blue-900",
+  };
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone]}`} data-testid={testId}>
+      <p className="text-3xl font-black tabular-nums">{value}</p>
+      <p className="mt-1 text-sm font-black">{label}</p>
+      <p className="mt-2 border-t border-current/10 pt-2 text-[11px] font-bold leading-5 opacity-75">{detail}</p>
+    </div>
+  );
+}
+
+function actionableOverdue(summary: TodayOperations["summary"] | undefined): number {
+  if (!summary) return 0;
+  if (summary.overdue_not_started !== undefined || summary.overdue_in_progress !== undefined) {
+    return (summary.overdue_not_started ?? 0) + (summary.overdue_in_progress ?? 0);
+  }
+  return summary.overdue_total;
 }
 
 function formatSchoolTime(value: string): string {
@@ -825,10 +820,20 @@ const ATTENTION_GROUPS: { key: string; label: string; icon: LucideIcon }[] = [
 function AttentionSection({
   query,
   schoolType,
+  compact = false,
 }: {
   query: ReturnType<typeof useQuery<import("@/features/dashboard/api").AttentionResponse>>;
   schoolType: SchoolType;
+  compact?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const groups = compact && query.data
+    ? ATTENTION_GROUPS.filter(({ key }) => (query.data.counts[key] ?? 0) > 0)
+    : ATTENTION_GROUPS;
+  const compactItems = query.data ? representativeAttentionItems(query.data.items, 5) : [];
+  const visibleItems = compact && !expanded ? compactItems : (query.data?.items ?? []);
+  const hasHiddenItems = compact && query.data ? query.data.items.length > compactItems.length : false;
+
   return (
     <section
       className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
@@ -841,9 +846,11 @@ function AttentionSection({
               {query.data && query.data.total > 0 ? <ShieldAlert aria-hidden size={22} /> : <CheckCircle2 aria-hidden size={22} />}
             </span>
             <div>
-              <h2 className="text-lg font-black text-slate-900">تنبيهات وإجراءات مطلوبة</h2>
+              <h2 className="text-lg font-black text-slate-900">{compact ? "ما يحتاج تدخلك" : "تنبيهات وإجراءات مطلوبة"}</h2>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                قائمة عمل إداري لحظية — ليست تصنيفًا {schoolType === "GIRLS" ? "للطالبات" : "للطلاب"} ولا تقييمًا لأحد، ولا يترتب عليها أي إجراء تلقائي.
+                {compact
+                  ? `أعلى الحالات أولوية الآن في قائمة قصيرة؛ ليست تصنيفًا ${schoolType === "GIRLS" ? "للطالبات" : "للطلاب"}.`
+                  : <>قائمة عمل إداري لحظية — ليست تصنيفًا {schoolType === "GIRLS" ? "للطالبات" : "للطلاب"} ولا تقييمًا لأحد، ولا يترتب عليها أي إجراء تلقائي.</>}
               </p>
             </div>
           </div>
@@ -866,8 +873,8 @@ function AttentionSection({
       )}
       {query.isSuccess && (
         <>
-          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 sm:p-5 lg:grid-cols-5">
-            {ATTENTION_GROUPS.map(({ key, label, icon: Icon }) => {
+          <div className={`grid grid-cols-2 gap-2 p-4 sm:p-5 ${compact ? "sm:grid-cols-3 lg:grid-cols-4" : "sm:grid-cols-3 lg:grid-cols-5"}`}>
+            {groups.map(({ key, label, icon: Icon }) => {
               const count = query.data.counts[key] ?? 0;
               return (
                 <div key={key} className={`rounded-2xl border p-3 ${count > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`} data-testid={`attention-count-${key}`}>
@@ -881,15 +888,41 @@ function AttentionSection({
             <div className="px-5 pb-6 text-center" data-testid="attention-empty"><p className="text-sm font-bold text-emerald-800">لا يوجد ما يحتاج متابعة الآن.</p><p className="mt-1 text-xs text-slate-500">ستظهر هنا أي حالة تتطلب تدخلًا إداريًا.</p></div>
           ) : (
             <ul className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5" data-testid="attention-items">
-              {query.data.items.map((item) => (
+              {visibleItems.map((item) => (
                 <AttentionRow key={`${item.kind}-${item.entity_id}`} item={item} />
               ))}
+              {hasHiddenItems && (
+                <li className="pt-2 text-center">
+                  <button type="button" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:border-teal-300 hover:text-teal-800" onClick={() => setExpanded((value) => !value)}>
+                    {expanded ? "عرض القائمة المختصرة" : `عرض بقية المهام (${query.data.items.length - compactItems.length})`}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </>
       )}
     </section>
   );
+}
+
+/** يضمن أن الملخص لا تمتلئ أسطره بنوع واحد بينما تختفي أنواع أخرى مهمة. */
+function representativeAttentionItems(items: AttentionItem[], limit: number): AttentionItem[] {
+  const selected: AttentionItem[] = [];
+  const representedKinds = new Set<string>();
+
+  for (const item of items) {
+    if (!representedKinds.has(item.kind)) {
+      selected.push(item);
+      representedKinds.add(item.kind);
+    }
+    if (selected.length === limit) return selected;
+  }
+  for (const item of items) {
+    if (!selected.includes(item)) selected.push(item);
+    if (selected.length === limit) break;
+  }
+  return selected;
 }
 
 function AttentionRow({ item }: { item: AttentionItem }) {

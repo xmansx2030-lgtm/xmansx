@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ClipboardCheck, Search, UserRoundPlus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, ClipboardCheck, Search, ShieldCheck, UserRoundPlus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
@@ -10,17 +10,25 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type {
   AttendanceSessionData,
+  AttendanceStartSource,
   MarkInput,
-  MarkStatus,
   RosterStudent,
+  SessionMarkStatus,
 } from "@/features/attendance/api";
-import { editSession, startSession, submitSession } from "@/features/attendance/api";
+import {
+  editSession,
+  getAttendancePreview,
+  getSession,
+  startSession,
+  submitSession,
+} from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 /** حالة الطالب محليًا — «حاضر» هو الافتراضي ولا يرسل للخادم (استثناءات فقط). */
-type LocalStatus = "PRESENT" | MarkStatus;
+type LocalStatus = "PRESENT" | SessionMarkStatus;
+type TeacherAttendanceStatus = "PRESENT" | "ABSENT";
 
 interface LocalMark {
   status: LocalStatus;
@@ -39,21 +47,12 @@ const FEMININE_STATUS_LABELS: Record<LocalStatus, string> = {
   LATE: "متأخرة",
 };
 
-export function currentTimeInZone(timezone: string, now = new Date()): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(now);
-}
-
 function marksFromSession(session: AttendanceSessionData): Record<number, LocalMark> {
   const map: Record<number, LocalMark> = {};
   for (const mark of session.marks) {
     map[mark.student_id] = {
       status: mark.status,
-      arrival_time: mark.arrival_time ?? currentTimeInZone(session.period.timezone),
+      arrival_time: mark.arrival_time ?? "",
     };
   }
   return map;
@@ -62,16 +61,16 @@ function marksFromSession(session: AttendanceSessionData): Record<number, LocalM
 function buildPayload(marks: Record<number, LocalMark>, roster: RosterStudent[]): MarkInput[] {
   const rosterIds = new Set(roster.map((s) => s.student_id));
   return Object.entries(marks)
-    .filter(([id, mark]) => mark.status !== "PRESENT" && rosterIds.has(Number(id)))
-    .map(([id, mark]) => ({
+    .filter(([id, mark]) => mark.status === "ABSENT" && rosterIds.has(Number(id)))
+    .map(([id]) => ({
       student_id: Number(id),
-      status: mark.status as MarkStatus,
-      arrival_time: mark.status === "LATE" ? mark.arrival_time : null,
+      status: "ABSENT" as const,
     }));
 }
 
 export function AttendanceSessionPage() {
   const { sectionId } = useParams();
+  const location = useLocation();
   const me = useMe();
   const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
@@ -79,11 +78,18 @@ export function AttendanceSessionPage() {
   const studentsLabel = studentPluralLabel(schoolType);
   const statusLabels = schoolType === "GIRLS" ? FEMININE_STATUS_LABELS : STATUS_LABELS;
 
-  const startQuery = useQuery({
-    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-start", sectionId),
-    queryFn: () => startSession(Number(sectionId)),
+  const navigationSource = (location.state as { attendanceSource?: AttendanceStartSource } | null)
+    ?.attendanceSource;
+  const startSource: AttendanceStartSource =
+    navigationSource === "SECTION_LIST" || navigationSource === "QR"
+      ? navigationSource
+      : "DIRECT_LINK";
+
+  const previewQuery = useQuery({
+    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-preview", sectionId),
+    queryFn: ({ signal }) => getAttendancePreview(Number(sectionId), signal),
     enabled: activeSchoolId > 0,
-    staleTime: Infinity,
+    staleTime: 15_000,
     gcTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
@@ -107,11 +113,23 @@ export function AttendanceSessionPage() {
 
   // مزامنة أثناء العرض (نمط adjusting state during render) — مرة واحدة لكل جلسة
   const [loadedSessionId, setLoadedSessionId] = useState<number | null>(null);
-  if (startQuery.data && startQuery.data.id !== loadedSessionId) {
-    setLoadedSessionId(startQuery.data.id);
-    setSession(startQuery.data);
-    setMarks(marksFromSession(startQuery.data));
+  if (previewQuery.data?.session && previewQuery.data.session.id !== loadedSessionId) {
+    setLoadedSessionId(previewQuery.data.session.id);
+    setSession(previewQuery.data.session);
+    setMarks(marksFromSession(previewQuery.data.session));
   }
+
+  const startMutation = useMutation({
+    mutationFn: () => startSession(Number(sectionId), startSource),
+    onSuccess: async (started) => {
+      setLoadedSessionId(started.id);
+      setSession(started);
+      setMarks(marksFromSession(started));
+      await queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(activeSchoolId, "dashboard"),
+      });
+    },
+  });
 
   const roster = useMemo(() => session?.roster ?? [], [session]);
   const summary = useMemo(() => {
@@ -132,17 +150,17 @@ export function AttendanceSessionPage() {
         term.length === 0 ||
         student.full_name.toLocaleLowerCase("ar").includes(term) ||
         student.national_id_masked.includes(term);
-      return matchesSearch && (!exceptionsOnly || status !== "PRESENT");
+      return matchesSearch && (!exceptionsOnly || status === "ABSENT");
     });
   }, [exceptionsOnly, marks, roster, rosterSearch]);
 
-  if (startQuery.isPending || me.isPending) {
-    return <Spinner label="جارٍ فتح جلسة التحضير..." />;
+  if (previewQuery.isPending || me.isPending) {
+    return <Spinner label="جارٍ عرض بيانات الفصل..." />;
   }
-  if (startQuery.isError) {
+  if (previewQuery.isError) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <ErrorState error={startQuery.error} />
+        <ErrorState error={previewQuery.error} />
         <p className="mt-3">
           <Link to="/" className="text-blue-700 underline">
             العودة للرئيسية
@@ -151,26 +169,98 @@ export function AttendanceSessionPage() {
       </section>
     );
   }
+  if (!session && previewQuery.data) {
+    const preview = previewQuery.data;
+    const sectionTitle = `${preview.section.grade_name} / ${preview.section.name}`;
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          icon={ClipboardCheck}
+          eyebrow="معاينة الفصل"
+          title={<span data-testid="preview-section-name">{sectionTitle}</span>}
+          description="راجع بيانات الفصل والحصة قبل إنشاء جلسة التحضير. لن يظهر الفصل قيد التحضير إلا بعد التأكيد أدناه."
+          tone="teacher"
+          badge="لم يبدأ"
+          meta={<><span>{preview.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{preview.period.start_time} – {preview.period.end_time}</span><span className="text-white/30">•</span><span>{preview.attendance_date}</span></>}
+          actions={(
+            <Link
+              to="/"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
+            >
+              <ArrowRight aria-hidden size={17} />
+              اختيار فصل آخر
+            </Link>
+          )}
+        />
+
+        <section
+          className="rounded-3xl border border-teal-200 bg-white p-5 shadow-lg shadow-teal-950/5 sm:p-7"
+          data-testid="attendance-start-confirmation"
+        >
+          <div className="flex items-start gap-4">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-teal-50 text-teal-700">
+              <ShieldCheck aria-hidden size={24} />
+            </span>
+            <div>
+              <h1 className="text-xl font-black text-slate-900">تأكيد الفصل قبل البدء</h1>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                ستبدأ تحضير <strong className="text-slate-950">{sectionTitle}</strong> في {preview.period.name}،
+                وعدد {studentsLabel} المسجلين {preview.section.students_count}.
+              </p>
+              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+                لن تُنشأ جلسة ولن يظهر «قيد التحضير» للوكيل قبل ضغط زر البدء.
+              </p>
+            </div>
+          </div>
+
+          {startMutation.isError && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
+          <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+            <Link
+              to="/"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              إلغاء واختيار فصل آخر
+            </Link>
+            <Button
+              onClick={() => startMutation.mutate()}
+              disabled={startMutation.isPending}
+              data-testid="start-attendance"
+            >
+              {startMutation.isPending
+                ? "جارٍ بدء التحضير..."
+                : `بدء تحضير ${sectionTitle}`}
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
   if (!session) return null;
 
   const marking = session.status === "IN_PROGRESS" || editing;
 
-  const setStatus = (studentId: number, status: LocalStatus) => {
+  const setStatus = (studentId: number, status: TeacherAttendanceStatus) => {
     setMarks((prev) => ({
       ...prev,
       [studentId]: {
         status,
-        arrival_time:
-          prev[studentId]?.arrival_time ?? currentTimeInZone(session.period.timezone),
+        arrival_time: "",
       },
     }));
   };
 
-  const setArrival = (studentId: number, value: string) => {
-    setMarks((prev) => ({
-      ...prev,
-      [studentId]: { status: prev[studentId]?.status ?? "LATE", arrival_time: value },
-    }));
+  const beginEditing = () => {
+    // أي LATE تاريخية تظهر عند القراءة فقط؛ عند بدء التصحيح تعامل كحضور
+    // ما لم يختر المصحح «غائب» صراحةً.
+    setMarks((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([studentId, mark]) => [
+          studentId,
+          mark.status === "LATE" ? { status: "PRESENT", arrival_time: "" } : mark,
+        ]),
+      ),
+    );
+    setEditing(true);
   };
 
   const handleSubmit = async () => {
@@ -195,11 +285,11 @@ export function AttendanceSessionPage() {
       if (error instanceof ApiError && error.code === "ATTENDANCE_ROSTER_CHANGED") {
         // الخادم حدّث بصمة القائمة — نعيد فتح الجلسة لقائمة محدثة ونبقي العلامات الصالحة
         setRosterNotice(true);
-        const refreshed = await startQuery.refetch();
-        if (refreshed.data) {
-          setSession(refreshed.data);
+        const refreshed = await getSession(session.id);
+        if (refreshed) {
+          setSession(refreshed);
           setMarks((prev) => {
-            const validIds = new Set(refreshed.data.roster.map((s) => s.student_id));
+            const validIds = new Set(refreshed.roster.map((s) => s.student_id));
             return Object.fromEntries(
               Object.entries(prev).filter(([id]) => validIds.has(Number(id))),
             );
@@ -219,7 +309,7 @@ export function AttendanceSessionPage() {
         icon={ClipboardCheck}
         eyebrow="جلسة التحضير"
         title={<span data-testid="session-section-name">{session.section.name} — {session.section.grade_name}</span>}
-        description={`سجّل الاستثناءات فقط؛ جميع ${studentsLabel} ${schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} افتراضيًا حتى تختار ${schoolType === "GIRLS" ? "غائبة أو متأخرة" : "غائبًا أو متأخرًا"}.`}
+        description={`التحضير بخيارين فقط: ${schoolType === "GIRLS" ? "حاضرة أو غائبة" : "حاضر أو غائب"}. جميع ${studentsLabel} ${schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} افتراضيًا حتى تحدد الغياب.`}
         tone="teacher"
         badge={session.status === "SUBMITTED" && !editing ? "تم الاعتماد" : editing ? "تعديل معتمد" : "قيد التحضير"}
         meta={<><span>{session.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{session.period.start_time} – {session.period.end_time}</span><span className="text-white/30">•</span><span>{session.attendance_date}</span></>}
@@ -236,7 +326,9 @@ export function AttendanceSessionPage() {
         <div className="flex flex-wrap gap-2 text-sm" data-testid="live-summary">
           <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-100 ring-1 ring-emerald-300/20">{statusLabels.PRESENT} {summary.present}</span>
           <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">{statusLabels.ABSENT} {summary.absent}</span>
-          <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">{statusLabels.LATE} {summary.late}</span>
+          {summary.late > 0 && (
+            <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">تأخر تاريخي {summary.late}</span>
+          )}
         </div>
       </PageHeader>
 
@@ -252,7 +344,7 @@ export function AttendanceSessionPage() {
               <Button
                 variant="secondary"
                 className="ms-3"
-                onClick={() => setEditing(true)}
+                onClick={beginEditing}
                 data-testid="edit-button"
               >
                 تعديل
@@ -318,7 +410,7 @@ export function AttendanceSessionPage() {
                   : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
             >
-              الاستثناءات فقط ({summary.absent + summary.late})
+              الغائبون فقط ({summary.absent})
             </button>
           </div>
           <label className="relative mt-4 block">
@@ -378,7 +470,7 @@ export function AttendanceSessionPage() {
                 </div>
                 {marking ? (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {(["PRESENT", "ABSENT", "LATE"] as const).map((option) => (
+                    {(["PRESENT", "ABSENT"] as const).map((option) => (
                       <button
                         key={option}
                         type="button"
@@ -388,24 +480,13 @@ export function AttendanceSessionPage() {
                           status === option
                             ? option === "PRESENT"
                               ? "bg-green-600 text-white"
-                              : option === "ABSENT"
-                                ? "bg-red-600 text-white"
-                                : "bg-amber-500 text-white"
+                              : "bg-red-600 text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
                         {statusLabels[option]}
                       </button>
                     ))}
-                    {status === "LATE" && (
-                      <input
-                        type="time"
-                        value={mark?.arrival_time ?? currentTimeInZone(session.period.timezone)}
-                        onChange={(e) => setArrival(student.student_id, e.target.value)}
-                        aria-label={`وقت وصول ${student.full_name}`}
-                        className="ms-1 rounded-lg border border-slate-300 px-2 py-1 text-sm"
-                      />
-                    )}
                   </div>
                 ) : (
                   <span
@@ -466,7 +547,7 @@ export function AttendanceSessionPage() {
           {actionError != null && <ErrorState error={actionError} />}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500">
-              سيُرسل {summary.absent + summary.late} استثناء، والبقية {schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} تلقائيًا.
+              سيُرسل غياب {summary.absent}، والبقية {schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} تلقائيًا.
             </p>
             <div className="flex gap-2">
               <Button

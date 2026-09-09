@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
-import { currentTimeInZone } from "@/features/attendance/AttendanceSessionPage";
 import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
@@ -60,6 +59,21 @@ function sessionBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function previewBody(session: ReturnType<typeof sessionBody> | null = null) {
+  return {
+    attendance_date: "2026-08-19",
+    section: SECTIONS[0],
+    period: {
+      sequence: 2,
+      name: "الثانية",
+      start_time: "08:05",
+      end_time: "08:50",
+      timezone: "Asia/Riyadh",
+    },
+    session,
+  };
+}
+
 function parseBody(init?: RequestInit): Record<string, unknown> {
   return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
 }
@@ -68,12 +82,6 @@ describe("attendance", () => {
   beforeEach(() => {
     queryClient.clear();
     document.cookie = "csrftoken=test-token";
-  });
-
-  it("uses the school timezone for the default late-arrival time", () => {
-    const utcNow = new Date("2026-09-05T16:51:00Z");
-    expect(currentTimeInZone("Asia/Riyadh", utcNow)).toBe("19:51");
-    expect(currentTimeInZone("Asia/Dubai", utcNow)).toBe("20:51");
   });
 
   it("teacher home shows current period and sections", async () => {
@@ -139,14 +147,20 @@ describe("attendance", () => {
   });
 
   it("searches the roster and can focus on attendance exceptions", async () => {
-    mockApi({
+    const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },
+      "/attendance/sections/3/preview/": { body: previewBody() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
     });
 
     renderApp("/attendance/section/3");
     const user = userEvent.setup();
+    expect(await screen.findByTestId("attendance-start-confirmation")).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/sessions/start/"))).toBe(false);
+    await user.click(screen.getByTestId("start-attendance"));
     const search = await screen.findByRole("searchbox", { name: "البحث في قائمة الطلاب" });
+    const startCall = calls.find((call) => call.url.includes("/sessions/start/"));
+    expect(parseBody(startCall?.init)).toMatchObject({ section_id: 3, source: "DIRECT_LINK" });
 
     await user.type(search, "ثانٍ");
     expect(screen.getByTestId("roster-student-12")).toBeInTheDocument();
@@ -160,17 +174,18 @@ describe("attendance", () => {
 
     expect(screen.getByTestId("roster-student-11")).toBeInTheDocument();
     expect(screen.queryByTestId("roster-student-12")).toBeNull();
-    expect(screen.getByText("سيُرسل 1 استثناء، والبقية حاضرون تلقائيًا.")).toBeInTheDocument();
+    expect(screen.getByText("سيُرسل غياب 1، والبقية حاضرون تلقائيًا.")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("exceptions-only"));
     expect(screen.getByTestId("roster-student-12")).toBeInTheDocument();
   });
 
-  it("submits exceptions only: absent + late with arrival time, never late_minutes", async () => {
+  it("offers present and absent only and submits absent exceptions", async () => {
     const dashboardKey = ["school", 10, "dashboard", "today"] as const;
     queryClient.setQueryData(dashboardKey, { present_students: 3 });
     const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },
+      "/attendance/sections/3/preview/": { body: previewBody() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
       "/attendance/sessions/5/submit/": {
         body: sessionBody({
@@ -179,7 +194,6 @@ describe("attendance", () => {
           submitted_at: "2026-08-19T08:20:00Z",
           marks: [
             { student_id: 11, status: "ABSENT", arrival_time: null, late_minutes: null },
-            { student_id: 12, status: "LATE", arrival_time: "08:15", late_minutes: 10 },
           ],
         }),
       },
@@ -187,16 +201,18 @@ describe("attendance", () => {
 
     renderApp("/attendance/section/3");
     const user = userEvent.setup();
+    await user.click(await screen.findByTestId("start-attendance"));
 
     const rowOne = await screen.findByTestId("roster-student-11");
+    expect(within(rowOne).getByRole("button", { name: "حاضر" })).toBeInTheDocument();
+    expect(within(rowOne).getByRole("button", { name: "غائب" })).toBeInTheDocument();
+    expect(within(rowOne).queryByRole("button", { name: "متأخر" })).toBeNull();
     await user.click(within(rowOne).getByRole("button", { name: "غائب" }));
-    const rowTwo = screen.getByTestId("roster-student-12");
-    await user.click(within(rowTwo).getByRole("button", { name: "متأخر" }));
 
     // الملخص الحي يتحدث فورًا
-    expect(screen.getByTestId("live-summary")).toHaveTextContent("حاضر 1");
+    expect(screen.getByTestId("live-summary")).toHaveTextContent("حاضر 2");
     expect(screen.getByTestId("live-summary")).toHaveTextContent("غائب 1");
-    expect(screen.getByTestId("live-summary")).toHaveTextContent("متأخر 1");
+    expect(screen.getByTestId("live-summary")).not.toHaveTextContent("متأخر");
 
     await user.click(screen.getByTestId("submit-attendance"));
     expect(await screen.findByTestId("submitted-banner")).toHaveTextContent("أحمد المعلم");
@@ -207,45 +223,42 @@ describe("attendance", () => {
     const submitCall = calls.find((c) => c.url.includes("/submit/"));
     const body = parseBody(submitCall?.init);
     const marks = body.marks as Record<string, unknown>[];
-    expect(marks).toHaveLength(2); // استثناءات فقط — لا «حاضر»
-    expect(marks[0]).toMatchObject({ student_id: 11, status: "ABSENT", arrival_time: null });
-    expect(marks[1]?.student_id).toBe(12);
-    expect(marks[1]?.arrival_time).toMatch(/^\d{2}:\d{2}$/);
-    expect(JSON.stringify(body)).not.toContain("late_minutes"); // يحسبه الخادم حصرًا
+    expect(marks).toEqual([{ student_id: 11, status: "ABSENT" }]);
+    expect(JSON.stringify(body)).not.toContain("arrival_time");
+    expect(JSON.stringify(body)).not.toContain("late_minutes");
   });
 
-  it("shows submitted view with late minutes and no edit button when can_edit=false", async () => {
+  it("keeps a legacy late mark readable but does not offer late as an option", async () => {
+    const submitted = sessionBody({
+      status: "SUBMITTED",
+      submitted_by: "خالد المدير",
+      submitted_at: "2026-08-19T08:20:00Z",
+      can_edit: false,
+      marks: [{ student_id: 12, status: "LATE", arrival_time: "08:15", late_minutes: 10 }],
+    });
     mockApi({
       "/auth/me/": { body: teacherMe() },
-      "/attendance/sessions/start/": {
-        body: sessionBody({
-          status: "SUBMITTED",
-          submitted_by: "خالد المدير",
-          submitted_at: "2026-08-19T08:20:00Z",
-          can_edit: false,
-          marks: [{ student_id: 12, status: "LATE", arrival_time: "08:15", late_minutes: 10 }],
-        }),
-      },
+      "/attendance/sections/3/preview/": { body: previewBody(submitted) },
     });
 
     renderApp("/attendance/section/3");
     expect(await screen.findByTestId("submitted-banner")).toHaveTextContent("خالد المدير");
     expect(screen.getByTestId("roster-student-12")).toHaveTextContent("متأخر (10 د)");
+    expect(screen.queryByRole("button", { name: "متأخر" })).toBeNull();
     expect(screen.queryByTestId("edit-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("submit-attendance")).not.toBeInTheDocument();
   });
 
   it("edits a submitted session with a reason via PATCH", async () => {
+    const submitted = sessionBody({
+      status: "SUBMITTED",
+      submitted_by: "أحمد المعلم",
+      submitted_at: "2026-08-19T08:20:00Z",
+      marks: [{ student_id: 11, status: "ABSENT", arrival_time: null, late_minutes: null }],
+    });
     const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },
-      "/attendance/sessions/start/": {
-        body: sessionBody({
-          status: "SUBMITTED",
-          submitted_by: "أحمد المعلم",
-          submitted_at: "2026-08-19T08:20:00Z",
-          marks: [{ student_id: 11, status: "ABSENT", arrival_time: null, late_minutes: null }],
-        }),
-      },
+      "/attendance/sections/3/preview/": { body: previewBody(submitted) },
       "/attendance/sessions/5/": (init) =>
         init?.method === "PATCH"
           ? {
@@ -278,22 +291,9 @@ describe("attendance", () => {
   });
 
   it("refreshes the roster and keeps marks when the server reports ROSTER_CHANGED", async () => {
-    let startCalls = 0;
     mockApi({
       "/auth/me/": { body: teacherMe() },
-      "/attendance/sessions/start/": () => {
-        startCalls += 1;
-        return startCalls === 1
-          ? { status: 201, body: sessionBody() }
-          : {
-              body: sessionBody({
-                roster: [
-                  ...ROSTER,
-                  { student_id: 14, full_name: "طالب جديد", national_id_masked: "******0014" },
-                ],
-              }),
-            };
-      },
+      "/attendance/sections/3/preview/": { body: previewBody(sessionBody()) },
       "/attendance/sessions/5/submit/": {
         status: 409,
         body: {
@@ -301,6 +301,14 @@ describe("attendance", () => {
           message: "تغيرت قائمة الفصل.",
           details: {},
         },
+      },
+      "/attendance/sessions/5/": {
+        body: sessionBody({
+          roster: [
+            ...ROSTER,
+            { student_id: 14, full_name: "طالب جديد", national_id_masked: "******0014" },
+          ],
+        }),
       },
     });
 
@@ -320,15 +328,22 @@ describe("attendance", () => {
   });
 
   it("resolves a QR token and opens the section roster", async () => {
-    mockApi({
+    const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },
       "/attendance/qr/resolve/": { body: SECTIONS[0] },
+      "/attendance/sections/3/preview/": { body: previewBody() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
     });
 
     renderApp("/qr/tok-abc123");
+    const user = userEvent.setup();
+    expect(await screen.findByTestId("preview-section-name")).toHaveTextContent("الأول الثانوي / 1");
+    expect(calls.some((call) => call.url.includes("/sessions/start/"))).toBe(false);
+    await user.click(screen.getByTestId("start-attendance"));
     expect(await screen.findByTestId("session-section-name")).toHaveTextContent("1");
     expect(await screen.findByTestId("roster-student-11")).toBeInTheDocument();
+    const startCall = calls.find((call) => call.url.includes("/sessions/start/"));
+    expect(parseBody(startCall?.init)).toMatchObject({ section_id: 3, source: "QR" });
   });
 
   it("shows an isolated public gate without resolving or leaking QR data", async () => {

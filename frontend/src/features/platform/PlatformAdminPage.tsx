@@ -1,12 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  BarChart3,
+  Building2,
+  CalendarClock,
+  ChevronLeft,
+  CircleDollarSign,
+  Database,
+  LogOut,
+  PackageCheck,
+  RefreshCw,
+  ServerCog,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  UsersRound,
+} from "lucide-react";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
-import { useLogout } from "@/features/auth/useMe";
+import { useLogout, useMe } from "@/features/auth/useMe";
 import {
   addSchoolManager,
   createPlan,
@@ -25,6 +42,7 @@ import {
   updatePlan,
   updateSchoolManager,
   type ManagerCredentialResponse,
+  type Overview,
   type Plan,
   type PlanInput,
   type SchoolDetail,
@@ -86,6 +104,203 @@ function statusClass(status: string | null | undefined) {
   if (status === "GRACE_PERIOD") return "bg-amber-50 text-amber-700";
   if (status === "SUSPENDED" || status === "CANCELLED") return "bg-red-50 text-red-700";
   return "bg-slate-100 text-slate-700";
+}
+
+type PlatformTab = "dashboard" | "schools" | "plans";
+
+const PLATFORM_TABS = [
+  {
+    id: "dashboard" as const,
+    label: "لوحة المؤشرات",
+    description: "الصحة العامة والتنبيهات",
+    icon: BarChart3,
+  },
+  {
+    id: "schools" as const,
+    label: "المدارس",
+    description: "الحسابات والاشتراكات",
+    icon: Building2,
+  },
+  {
+    id: "plans" as const,
+    label: "الباقات",
+    description: "الحدود والمزايا",
+    icon: PackageCheck,
+  },
+] satisfies { id: PlatformTab; label: string; description: string; icon: typeof BarChart3 }[];
+
+const numberFormat = new Intl.NumberFormat("ar-SA");
+
+function DashboardMetric({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone = "teal",
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  icon: typeof BarChart3;
+  tone?: "teal" | "blue" | "amber" | "slate";
+}) {
+  const tones = {
+    teal: "bg-teal-50 text-teal-700 ring-teal-100",
+    blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100",
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+  } as const;
+
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{hint}</p>
+        </div>
+        <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ring-1 ${tones[tone]}`}>
+          <Icon aria-hidden size={21} strokeWidth={2.2} />
+        </span>
+      </div>
+      <span className="absolute inset-x-0 bottom-0 h-0.5 origin-right scale-x-0 bg-gradient-to-l from-teal-500 to-blue-500 transition-transform duration-300 group-hover:scale-x-100" />
+    </article>
+  );
+}
+
+function DashboardPanel({ overview, onOpenSchools }: { overview: Overview; onOpenSchools: () => void }) {
+  const active = overview.subscriptions.active ?? 0;
+  const trial = overview.subscriptions.trial ?? 0;
+  const grace = overview.subscriptions.grace ?? 0;
+  const expired = overview.subscriptions.expired ?? 0;
+  const suspended = overview.subscriptions.suspended ?? 0;
+  const expiring = overview.expiring_soon ?? [];
+  const statusTotal = active + trial + grace + expired + suspended;
+  const coverage = overview.schools_total > 0 ? Math.min(100, Math.round(((active + trial) / overview.schools_total) * 100)) : 0;
+  const statusRows = [
+    { label: "نشطة", value: active, color: "bg-emerald-500", text: "text-emerald-700" },
+    { label: "تجريبية", value: trial, color: "bg-blue-500", text: "text-blue-700" },
+    { label: "مهلة سماح", value: grace, color: "bg-amber-500", text: "text-amber-700" },
+    { label: "منتهية", value: expired, color: "bg-rose-500", text: "text-rose-700" },
+    { label: "موقوفة", value: suspended, color: "bg-slate-500", text: "text-slate-700" },
+  ];
+
+  return (
+    <div className="space-y-5" data-testid="platform-dashboard">
+      <section className="relative overflow-hidden rounded-3xl bg-slate-950 px-5 py-6 text-white shadow-xl shadow-slate-950/10 sm:px-7 sm:py-7">
+        <div className="absolute -start-20 -top-24 size-64 rounded-full bg-teal-500/20 blur-3xl" />
+        <div className="absolute -bottom-28 end-10 size-64 rounded-full bg-blue-500/15 blur-3xl" />
+        <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <div className="mb-4 flex items-center gap-2 text-sm font-bold text-teal-300">
+              <Sparkles aria-hidden size={17} />
+              <span>ملخص المنصة الآن</span>
+            </div>
+            <h2 className="max-w-2xl text-2xl font-black leading-tight sm:text-3xl">نظرة تنفيذية لاتخاذ القرار بسرعة</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">متابعة حالة المدارس والاشتراكات والسعة التشغيلية من شاشة واحدة، دون الوصول إلى بيانات الطلاب.</p>
+          </div>
+          <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/7 px-5 py-4 backdrop-blur-sm">
+            <div className="relative grid size-16 place-items-center rounded-full bg-[conic-gradient(#2dd4bf_var(--coverage),#334155_0)]" style={{ "--coverage": `${coverage * 3.6}deg` } as CSSProperties}>
+              <span className="grid size-12 place-items-center rounded-full bg-slate-950 text-sm font-black">{coverage}%</span>
+            </div>
+            <div>
+              <p className="font-bold">تغطية فعّالة</p>
+              <p className="mt-1 text-xs text-slate-400">نشطة أو ضمن الفترة التجريبية</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="المؤشرات الرئيسية">
+        <DashboardMetric label="إجمالي المدارس" value={overview.schools_total ?? 0} hint="كل المدارس المسجلة بالمنصة" icon={Building2} />
+        <DashboardMetric label="الاشتراكات النشطة" value={active} hint="وصول تشغيلي كامل حاليًا" icon={ShieldCheck} tone="blue" />
+        <DashboardMetric label="تنتهي قريبًا" value={expiring.length} hint="تحتاج متابعة قبل الانقطاع" icon={CalendarClock} tone="amber" />
+        <DashboardMetric label="الاشتراكات المسجلة" value={statusTotal} hint="اشتراكات موزعة على الحالات" icon={CircleDollarSign} tone="slate" />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-slate-950">توزيع حالات الاشتراك</h3>
+              <p className="mt-1 text-xs text-slate-500">قراءة سريعة لمحفظة المدارس الحالية</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{numberFormat.format(statusTotal)} اشتراك</span>
+          </div>
+          <div className="mt-6 space-y-4">
+            {statusRows.map((row) => {
+              const percentage = statusTotal > 0 ? Math.round((row.value / statusTotal) * 100) : 0;
+              return (
+                <div key={row.label}>
+                  <div className="mb-1.5 flex items-center justify-between gap-4 text-sm">
+                    <span className="font-semibold text-slate-700">{row.label}</span>
+                    <span className={`font-black ${row.text}`}>{numberFormat.format(row.value)} <span className="text-xs font-medium text-slate-400">({percentage}%)</span></span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full transition-all duration-700 ${row.color}`} style={{ width: `${percentage}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-slate-950">السعة التشغيلية</h3>
+              <p className="mt-1 text-xs text-slate-500">إجماليات الاستخدام النشط عبر المنصة</p>
+            </div>
+            <Database aria-hidden className="text-slate-400" size={21} />
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            {[
+              { label: "الطلاب النشطون", value: overview.usage_totals?.active_students ?? 0, icon: UsersRound, tone: "bg-teal-50 text-teal-700" },
+              { label: "الموظفون", value: overview.usage_totals?.active_staff ?? 0, icon: ServerCog, tone: "bg-blue-50 text-blue-700" },
+              { label: "الأجهزة", value: overview.usage_totals?.active_devices ?? 0, icon: Smartphone, tone: "bg-violet-50 text-violet-700" },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                  <span className={`grid size-10 place-items-center rounded-xl ${item.tone}`}><Icon aria-hidden size={19} /></span>
+                  <div><p className="text-xs font-semibold text-slate-500">{item.label}</p><p className="text-xl font-black text-slate-950">{item.value}</p></div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+          <div>
+            <h3 className="flex items-center gap-2 text-base font-black text-slate-950"><AlertTriangle aria-hidden className="text-amber-500" size={19} />متابعة انتهاء الاشتراكات</h3>
+            <p className="mt-1 text-xs text-slate-500">المدارس التي يقترب موعد انتهاء اشتراكها</p>
+          </div>
+          <button type="button" onClick={onOpenSchools} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-teal-700 transition hover:bg-teal-50">
+            إدارة المدارس <ChevronLeft aria-hidden size={16} />
+          </button>
+        </div>
+        {expiring.length > 0 ? (
+          <div className="divide-y divide-slate-100">
+            {expiring.slice(0, 5).map((school) => (
+              <div key={school.school_id} className="grid gap-2 px-5 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:px-6">
+                <div><p className="font-bold text-slate-900">{school.school_name}</p><p className="mt-0.5 text-xs text-slate-500">باقة {school.plan}</p></div>
+                <p className="text-xs text-slate-500">تنتهي {formatDate(school.ends_at)}</p>
+                <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">متبقي {numberFormat.format(school.days_remaining)} يوم</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center px-5 py-9 text-center">
+            <span className="grid size-11 place-items-center rounded-full bg-emerald-50 text-emerald-700"><ShieldCheck aria-hidden size={21} /></span>
+            <p className="mt-3 font-bold text-slate-800">لا توجد اشتراكات قريبة من الانتهاء</p>
+            <p className="mt-1 text-xs text-slate-500">لا توجد متابعة عاجلة مطلوبة حاليًا.</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function ErrorLine({ error }: { error: unknown }) {
@@ -605,48 +820,84 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
 }
 
 export function PlatformAdminPage() {
-  const [tab, setTab] = useState<"dashboard" | "schools" | "plans">("dashboard");
+  const [tab, setTab] = useState<PlatformTab>("dashboard");
   const overview = useQuery({ queryKey: ["platform", "overview"], queryFn: ({ signal }) => getPlatformOverview(signal) });
   const plans = useQuery({ queryKey: ["platform", "plans"], queryFn: ({ signal }) => getPlans(signal) });
   const activePlans = useMemo(() => plans.data ?? [], [plans.data]);
   const logout = useLogout();
   const navigate = useNavigate();
+  const me = useMe();
+  const activeTab = PLATFORM_TABS.find((item) => item.id === tab) ?? PLATFORM_TABS[0]!;
+  const today = new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const handleLogout = () => void logout().then(() => navigate("/login", { replace: true }));
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-screen-2xl space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">إدارة المنصة</h1>
-          <p className="text-sm text-slate-500">إدارة المدارس والباقات والاشتراكات دون تصفح بيانات الطلاب.</p>
+    <main className="min-h-screen bg-slate-100/70 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+      <div className="mx-auto flex max-w-screen-2xl gap-6">
+        <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-72 shrink-0 flex-col overflow-hidden rounded-3xl bg-slate-950 text-white shadow-2xl shadow-slate-950/15 xl:flex">
+          <div className="border-b border-white/10 px-5 py-6">
+            <div className="flex items-center gap-3">
+              <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-600 shadow-lg shadow-teal-950/30"><ShieldCheck aria-hidden size={22} /></span>
+              <div><p className="font-black">منصة المواظبة</p><p className="mt-0.5 text-[11px] font-medium text-slate-400">مركز إدارة المنصة</p></div>
+            </div>
+          </div>
+
+          <nav aria-label="أقسام إدارة المنصة" className="flex-1 space-y-2 p-4">
+            <p className="mb-3 px-3 text-[11px] font-bold tracking-wide text-slate-500">مساحة العمل</p>
+            {PLATFORM_TABS.map((item) => {
+              const Icon = item.icon;
+              const selected = tab === item.id;
+              return (
+                <button key={item.id} type="button" aria-current={selected ? "page" : undefined} onClick={() => setTab(item.id)} className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start transition ${selected ? "bg-white/10 text-white ring-1 ring-white/10" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
+                  <span className={`grid size-10 shrink-0 place-items-center rounded-xl transition ${selected ? "bg-teal-400 text-slate-950" : "bg-white/5 text-slate-400 group-hover:text-teal-300"}`}><Icon aria-hidden size={19} /></span>
+                  <span><span className="block text-sm font-bold">{item.label}</span><span className={`mt-0.5 block text-[11px] ${selected ? "text-slate-300" : "text-slate-500"}`}>{item.description}</span></span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="border-t border-white/10 p-4">
+            <div className="mb-3 flex items-center gap-3 rounded-2xl bg-white/5 p-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-400/15 text-sm font-black text-teal-200">{me.data?.name?.trim().charAt(0) || "م"}</span>
+              <div className="min-w-0"><p className="truncate text-sm font-bold">{me.data?.name ?? "مشرف المنصة"}</p><p className="mt-0.5 text-[11px] text-slate-500">صلاحية إدارية كاملة</p></div>
+            </div>
+            <button type="button" onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"><LogOut aria-hidden size={17} />تسجيل الخروج</button>
+          </div>
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 -mx-4 mb-5 border-b border-slate-200/80 bg-slate-100/90 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-1">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="mb-1 hidden items-center gap-1.5 text-xs font-semibold text-slate-500 sm:flex"><CalendarClock aria-hidden size={14} />{today}</p>
+                <h1 className="truncate text-xl font-black text-slate-950 sm:text-2xl">إدارة المنصة</h1>
+                <p className="mt-1 hidden text-sm text-slate-500 sm:block">{activeTab.description} · دون تصفح بيانات الطلاب</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {tab === "dashboard" && (
+                  <button type="button" onClick={() => void overview.refetch()} disabled={overview.isFetching} className="inline-flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 sm:w-auto sm:px-3" aria-label="تحديث المؤشرات">
+                    <RefreshCw aria-hidden size={17} className={overview.isFetching ? "animate-spin" : ""} /><span className="ms-2 hidden text-sm font-bold sm:inline">تحديث</span>
+                  </button>
+                )}
+                <button type="button" onClick={handleLogout} className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /></button>
+              </div>
+            </div>
+            <nav aria-label="أقسام إدارة المنصة" className="mt-3 grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
+              {PLATFORM_TABS.map((item) => {
+                const Icon = item.icon;
+                return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold transition sm:text-sm ${tab === item.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon aria-hidden size={16} />{item.label}</button>;
+              })}
+            </nav>
+          </header>
+
+          {tab === "dashboard" && (
+            overview.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل لوحة المنصة..." /></div> : overview.isError || !overview.data ? (
+              <section className="rounded-2xl border border-red-200 bg-white p-6 text-center"><AlertTriangle aria-hidden className="mx-auto text-red-500" /><h2 className="mt-3 font-black text-slate-900">تعذر تحميل مؤشرات المنصة</h2><p className="mt-1 text-sm text-slate-500">تحقق من الاتصال ثم أعد المحاولة.</p><Button className="mt-4" onClick={() => void overview.refetch()}>إعادة المحاولة</Button></section>
+            ) : <DashboardPanel overview={overview.data} onOpenSchools={() => setTab("schools")} />
+          )}
+          {tab === "schools" && <SchoolsPanel plans={activePlans} />}
+          {tab === "plans" && (plans.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل الباقات..." /></div> : <PlanForm plans={activePlans} />)}
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-1">
-          {(["dashboard", "schools", "plans"] as const).map((item) => (
-            <button key={item} className={`rounded-md px-3 py-2 text-sm ${tab === item ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`} onClick={() => setTab(item)}>
-              {item === "dashboard" ? "لوحة المؤشرات" : item === "schools" ? "المدارس" : "الباقات"}
-            </button>
-          ))}
-          <button className="rounded-md px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => void logout().then(() => navigate("/login", { replace: true }))}>تسجيل الخروج</button>
-        </div>
-      </div>
-      {tab === "dashboard" && (
-        overview.isPending ? <Spinner label="جارٍ تحميل لوحة المنصة..." /> : (
-          <section className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">المدارس</p><p className="text-3xl font-bold">{overview.data?.schools_total ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">النشطة</p><p className="text-3xl font-bold">{overview.data?.subscriptions.active ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">التجريبية</p><p className="text-3xl font-bold">{overview.data?.subscriptions.trial ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">مهلة السماح</p><p className="text-3xl font-bold">{overview.data?.subscriptions.grace ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">المنتهية</p><p className="text-3xl font-bold">{overview.data?.subscriptions.expired ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الموقوفة</p><p className="text-3xl font-bold">{overview.data?.subscriptions.suspended ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">القريبة من الانتهاء</p><p className="text-3xl font-bold">{overview.data?.expiring_soon.length ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الطلاب النشطون</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_students ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الموظفون</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_staff ?? 0}</p></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm text-slate-500">الأجهزة</p><p className="text-3xl font-bold">{overview.data?.usage_totals?.active_devices ?? 0}</p></div>
-          </section>
-        )
-      )}
-      {tab === "schools" && <SchoolsPanel plans={activePlans} />}
-        {tab === "plans" && (plans.isPending ? <Spinner label="جارٍ تحميل الباقات..." /> : <PlanForm plans={activePlans} />)}
       </div>
     </main>
   );

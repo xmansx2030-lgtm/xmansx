@@ -418,7 +418,7 @@ def test_period_sequence_snapshot_immutable(make_school, make_user, make_members
 
 @pytest.mark.django_db
 def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, make_membership):
-    """الاعتماد والتعديل يحدثان الملخص فورًا: A→L→P تنقل العدادات (103-105، 60-61)."""
+    """الاعتماد والتعديل يحدثان الملخص فورًا: غائب→حاضر ينقل العدادات."""
     from attendance.services.sessions import edit_session, start_session, submit_session
     from tests.attendance_helpers import setup_attendance_env
 
@@ -438,27 +438,7 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
     other = DailyAttendanceSummary.objects.get(student=env2["students"][1])
     assert other.absence_status == "NONE"  # حاضر واليوم مكتمل (حصة واحدة متوقعة)
 
-    # ‏ABSENT → LATE
-    from datetime import date as date_cls
-    from datetime import datetime as datetime_cls
-    from datetime import timedelta
-
-    arrival = (
-        datetime_cls.combine(date_cls(2026, 1, 1), env2["period"].start_time) + timedelta(minutes=5)
-    ).time()
-    edit_session(
-        session_id=session.id,
-        school=school,
-        membership=membership,
-        roles=["TEACHER"],
-        marks=[{"student_id": target.id, "status": "LATE", "arrival_time": arrival}],
-        reason="وصل متأخرًا",
-    )
-    row.refresh_from_db()
-    assert (row.absent_periods, row.late_periods) == (0, 1)
-    assert row.total_late_minutes >= 0
-
-    # ‏LATE → PRESENT
+    # ‏ABSENT → PRESENT
     edit_session(
         session_id=session.id,
         school=school,

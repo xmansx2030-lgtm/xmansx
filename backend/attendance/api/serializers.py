@@ -9,13 +9,24 @@ from attendance.models import AttendanceMarkStatus, AttendanceSession
 
 class StartSessionSerializer(serializers.Serializer):
     section_id = serializers.IntegerField(min_value=1)
+    source = serializers.ChoiceField(
+        choices=["SECTION_LIST", "QR", "DIRECT_LINK"],
+        default="DIRECT_LINK",
+    )
 
 
 class MarkInputSerializer(serializers.Serializer):
     student_id = serializers.IntegerField(min_value=1)
-    status = serializers.ChoiceField(choices=AttendanceMarkStatus.choices)
-    arrival_time = serializers.TimeField(required=False, allow_null=True)
-    # ملاحظة أمنية: لا حقل late_minutes هنا — يحسب خادميًا حصرًا
+    # التحضير الصفي ثنائي فقط: الحاضر لا يرسل كسجل، والغائب هو الاستثناء الوحيد.
+    # تبقى LATE في نماذج الإخراج لقراءة السجلات التاريخية، ولا تقبل في إدخال جديد.
+    status = serializers.ChoiceField(
+        choices=[AttendanceMarkStatus.ABSENT],
+        error_messages={
+            "invalid_choice": (
+                "خيارات التحضير هي حاضر أو غائب فقط؛ لا يسجل تأخر داخل الحصة."
+            )
+        },
+    )
 
 
 class SubmitSessionSerializer(serializers.Serializer):
@@ -78,6 +89,13 @@ class SessionSerializer(serializers.Serializer):
     can_edit = serializers.BooleanField()
     roster = RosterStudentSerializer(many=True)
     marks = MarkSerializer(many=True)
+
+
+class AttendancePreviewSerializer(serializers.Serializer):
+    attendance_date = serializers.DateField()
+    section = AttendanceSectionSerializer()
+    period = PeriodSerializer()
+    session = SessionSerializer(allow_null=True)
 
 
 class QrInfoSerializer(serializers.Serializer):

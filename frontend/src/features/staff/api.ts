@@ -33,6 +33,12 @@ export interface ManualStaffInput {
   confirm_section_reassignment?: boolean;
 }
 
+export interface StaffUpdateInput {
+  display_name?: string;
+  employee_number?: string;
+  job_title?: string;
+}
+
 export interface ManualStaffResult extends StaffMember {
   temporary_password: string | null;
   invitation_sent: boolean;
@@ -104,6 +110,9 @@ export const createStaff = (input: ManualStaffInput) =>
   apiRequest<ManualStaffResult>("/staff/", { method: "POST", body: input });
 
 export const getStaffDetail = (id: number) => apiRequest<StaffMember>(`/staff/${id}/`);
+
+export const updateStaff = (id: number, input: StaffUpdateInput) =>
+  apiRequest<StaffMember>(`/staff/${id}/`, { method: "PATCH", body: input });
 
 export const updateCounselorSections = (
   id: number,

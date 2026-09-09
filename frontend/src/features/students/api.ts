@@ -127,6 +127,15 @@ export interface ManualStudentInput {
   section_id: number;
 }
 
+export interface StudentUpdateInput {
+  full_name?: string;
+  national_id?: string;
+  student_number?: string;
+  guardian_name?: string;
+  guardian_mobile?: string;
+  section_id?: number;
+}
+
 export type MappingField =
   | "national_id"
   | "full_name"
@@ -223,6 +232,9 @@ export function getStudents(
 
 export const createStudent = (input: ManualStudentInput) =>
   apiRequest<StudentRow>("/students/", { method: "POST", body: input });
+
+export const updateStudent = (id: number, input: StudentUpdateInput) =>
+  apiRequest<StudentRow>(`/students/${id}/`, { method: "PATCH", body: input });
 
 function profileQuery(params: { fromDate: string; toDate: string }): string {
   return `?from_date=${encodeURIComponent(params.fromDate)}&to_date=${encodeURIComponent(params.toDate)}`;

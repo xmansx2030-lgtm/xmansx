@@ -12,7 +12,7 @@ from common.security.identifiers import (
     mask_national_id,
     national_id_lookup_hash,
 )
-from students.models import Student, StudentEnrollment
+from students.models import EnrollmentStatus, Student, StudentEnrollment
 
 
 @transaction.atomic
@@ -87,4 +87,127 @@ def create_student(
         target_id=enrollment.id,
         metadata={"grade_id": section.grade_id, "section_id": section.id},
     )
+    return student
+
+
+@transaction.atomic
+def update_student(
+    *, school, student_id: int, academic_year, section, data: dict, actor, request=None
+) -> Student:
+    """تصحيح بيانات طالب يدويًا مع حفظ الهوية مشفرة وتاريخ القيد."""
+    student = Student.objects.select_for_update().get(id=student_id, school=school)
+    changed_fields: list[str] = []
+
+    national_id = data.get("national_id")
+    if national_id:
+        lookup_hash = national_id_lookup_hash(national_id)
+        if lookup_hash != student.national_id_lookup_hash:
+            if Student.objects.filter(
+                school=school, national_id_lookup_hash=lookup_hash
+            ).exclude(id=student.id).exists():
+                raise ApiError(
+                    "STUDENT_ALREADY_EXISTS",
+                    "يوجد طالب مسجل برقم الهوية/الإقامة هذا.",
+                    409,
+                )
+            student.national_id_encrypted = encrypt_national_id(national_id)
+            student.national_id_lookup_hash = lookup_hash
+            student.national_id_masked = mask_national_id(national_id)
+            changed_fields.append("national_id")
+
+    if "student_number" in data:
+        student_number = data["student_number"] or None
+        if student_number != student.student_number:
+            if student_number and Student.objects.filter(
+                school=school, student_number=student_number
+            ).exclude(id=student.id).exists():
+                raise ApiError(
+                    "STUDENT_NUMBER_ALREADY_EXISTS",
+                    "رقم الطالب مستخدم مسبقًا.",
+                    409,
+                )
+            student.student_number = student_number
+            changed_fields.append("student_number")
+
+    for field in ("full_name", "guardian_name", "guardian_mobile"):
+        if field in data and getattr(student, field) != data[field]:
+            setattr(student, field, data[field])
+            changed_fields.append(field)
+
+    try:
+        if changed_fields:
+            student.save()
+    except IntegrityError as exc:
+        raise ApiError(
+            "STUDENT_ALREADY_EXISTS",
+            "تعذر تحديث الطالب؛ رقم الهوية/الإقامة أو رقم الطالب مستخدم مسبقًا.",
+            409,
+        ) from exc
+
+    enrollment_changed = False
+    if section is not None:
+        current = (
+            StudentEnrollment.objects.select_for_update()
+            .filter(
+                school=school,
+                student=student,
+                academic_year=academic_year,
+                status=EnrollmentStatus.ACTIVE,
+            )
+            .first()
+        )
+        if current is None:
+            new_enrollment = StudentEnrollment.objects.create(
+                school=school,
+                student=student,
+                academic_year=academic_year,
+                grade=section.grade,
+                section=section,
+                enrolled_at=date.today(),
+            )
+            enrollment_changed = True
+        elif current.section_id != section.id:
+            current.status = EnrollmentStatus.TRANSFERRED
+            current.ended_at = date.today()
+            current.save(update_fields=["status", "ended_at", "updated_at"])
+            record_event(
+                AuditAction.STUDENT_ENROLLMENT_ENDED,
+                request=request,
+                actor=actor,
+                school=school,
+                target_type="StudentEnrollment",
+                target_id=current.id,
+                metadata={"reason": "MANUAL_CORRECTION"},
+            )
+            new_enrollment = StudentEnrollment.objects.create(
+                school=school,
+                student=student,
+                academic_year=academic_year,
+                grade=section.grade,
+                section=section,
+                enrolled_at=date.today(),
+            )
+            enrollment_changed = True
+        if enrollment_changed:
+            record_event(
+                AuditAction.STUDENT_ENROLLMENT_CREATED,
+                request=request,
+                actor=actor,
+                school=school,
+                target_type="StudentEnrollment",
+                target_id=new_enrollment.id,
+                metadata={"grade_id": section.grade_id, "section_id": section.id},
+            )
+
+    if changed_fields or enrollment_changed:
+        audit_fields = sorted(changed_fields + (["section"] if enrollment_changed else []))
+        record_event(
+            AuditAction.STUDENT_UPDATED,
+            request=request,
+            actor=actor,
+            school=school,
+            target_type="Student",
+            target_id=student.id,
+            metadata={"changed_fields": audit_fields},
+        )
     return student

@@ -91,6 +91,15 @@ export const routes = [
                     ],
                   },
                   {
+                    element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL", "GATE_GUARD"]} />,
+                    children: [
+                      {
+                        path: "gate",
+                        lazy: async () => ({ Component: (await import("@/features/gate/GatePage")).GatePage }),
+                      },
+                    ],
+                  },
+                  {
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER"]} />,
                     children: [
                       {

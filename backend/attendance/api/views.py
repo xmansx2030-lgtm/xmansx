@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from attendance.api.serializers import (
+    AttendancePreviewSerializer,
     AttendanceSectionSerializer,
     CurrentPeriodResponseSerializer,
     DailyResponseSerializer,
@@ -124,6 +125,84 @@ class AttendanceSectionsView(SchoolScopedAPIView):
         )
 
 
+def _attendance_section_for_teacher(request: Request, section_id: int) -> Section:
+    """يعزل الفصل النشط بالمدرسة؛ الاختيار متاح عبر القائمة أو QR."""
+
+    return get_object_or_404(
+        Section.objects.filter(school=request.school, is_active=True).select_related("grade"),
+        id=section_id,
+    )
+
+
+class AttendanceSectionPreviewView(SchoolScopedAPIView):
+    """معاينة قراءة فقط؛ لا تنشئ AttendanceSession ولا تسجل بدءًا."""
+
+    read_roles = TEACHER_ROLES
+    write_roles = TEACHER_ROLES
+
+    @extend_schema(responses=AttendancePreviewSerializer)
+    def get(self, request: Request, section_id: int) -> Response:
+        _teacher_membership(request)
+        section = _attendance_section_for_teacher(request, section_id)
+        year = sessions_service._active_year(request.school)
+        period, local_date = get_current_attendance_period(request.school)
+        if period is None:
+            raise ApiError(
+                "NO_CURRENT_ATTENDANCE_PERIOD",
+                "لا توجد حصة دراسية نشطة في الوقت الحالي.",
+                status_code=409,
+            )
+
+        settings_obj = get_or_create_settings(school=request.school)
+        existing = AttendanceSession.objects.filter(
+            school=request.school,
+            section=section,
+            attendance_date=local_date,
+            period_sequence=period.sequence,
+        ).first()
+        serialized = None
+        if existing is not None:
+            roster = sessions_service.get_roster(
+                school=request.school,
+                section=section,
+                academic_year=year,
+            )
+            existing = _load_session(request, existing.id)
+            serialized = serialize_session(
+                existing,
+                roster,
+                can_edit=_can_edit(existing, request),
+            )
+            students_count = len(roster)
+        else:
+            students_count = section.enrollments.filter(
+                academic_year=year,
+                status=EnrollmentStatus.ACTIVE,
+                student__status="ACTIVE",
+            ).count()
+
+        return Response(
+            {
+                "attendance_date": local_date.isoformat(),
+                "section": {
+                    "id": section.id,
+                    "name": section.name,
+                    "grade_id": section.grade_id,
+                    "grade_name": section.grade.name,
+                    "students_count": students_count,
+                },
+                "period": {
+                    "sequence": period.sequence,
+                    "name": period.name,
+                    "start_time": period.start_time.strftime("%H:%M"),
+                    "end_time": period.end_time.strftime("%H:%M"),
+                    "timezone": settings_obj.timezone,
+                },
+                "session": serialized,
+            }
+        )
+
+
 class StartSessionView(SchoolScopedAPIView):
     read_roles = TEACHER_ROLES
     write_roles = TEACHER_ROLES
@@ -133,13 +212,15 @@ class StartSessionView(SchoolScopedAPIView):
         membership = _teacher_membership(request)
         serializer = StartSessionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        section = get_object_or_404(
-            Section.objects.select_related("grade"),
-            id=serializer.validated_data["section_id"],
-            school=request.school,
+        section = _attendance_section_for_teacher(
+            request, serializer.validated_data["section_id"]
         )
         session, roster, resumed = sessions_service.start_session(
-            school=request.school, membership=membership, section=section, request=request
+            school=request.school,
+            membership=membership,
+            section=section,
+            source=serializer.validated_data["source"],
+            request=request,
         )
         session = _load_session(request, session.id)
         return Response(

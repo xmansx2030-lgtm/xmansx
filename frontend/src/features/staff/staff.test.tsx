@@ -119,6 +119,32 @@ describe("StaffPage", () => {
     expect(screen.getByText(/سيُطلب من المعلم تغييرها فور تسجيل الدخول/)).toBeInTheDocument();
   });
 
+  it("manager updates the teacher profile from the directory", async () => {
+    let patchBody: Record<string, unknown> | null = null;
+    const api = mockApi({
+      "/staff/1/": (init) => {
+        patchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return { body: { ...STAFF_PAGE.results[0], display_name: "أحمد المصحح", job_title: "معلم علوم" } };
+      },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    await user.click(screen.getByRole("button", { name: "تعديل البيانات" }));
+    const name = screen.getByLabelText("الاسم الكامل *");
+    await user.clear(name);
+    await user.type(name, "أحمد المصحح");
+    const title = screen.getByLabelText("المسمى الوظيفي");
+    await user.clear(title);
+    await user.type(title, "معلم علوم");
+    await user.click(screen.getByRole("button", { name: "حفظ البيانات" }));
+
+    await waitFor(() => expect(api.calls.some((call) => call.url.includes("/staff/1/") && call.init?.method === "PATCH")).toBe(true));
+    expect(patchBody).toMatchObject({ display_name: "أحمد المصحح", job_title: "معلم علوم" });
+  });
+
   it("requires typing the employee name before permanent deletion", async () => {
     const api = mockApi({
       "/staff/1/": { body: {} },
