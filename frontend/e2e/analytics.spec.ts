@@ -264,6 +264,7 @@ test("isolation: teacher role in school B gets no analytics link, page, or API",
   page,
 }) => {
   await login(page, "0550000002", "ثانوية الأندلس");
+  await page.getByText("أدوات إضافية", { exact: true }).click();
   await expect(page.getByRole("link", { name: "الغياب والحضور" })).toBeVisible();
 
   await page.getByRole("button", { name: "ثانوية الأندلس" }).click();

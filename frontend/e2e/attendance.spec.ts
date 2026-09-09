@@ -85,7 +85,7 @@ test("manager imports sections 8+9 and generates a section QR", async ({ page })
   expect(qrToken).toMatch(/^[A-Za-z0-9_-]{20,}$/); // رمز مبهم — ليس معرفًا رقميًا
 });
 
-test("teacher manual journey: mark → live summary → submit → reload persists → edit", async ({
+test("teacher manual journey: mark absent → live summary → submit → reload persists → edit", async ({
   page,
 }) => {
   const m = meta();
@@ -103,16 +103,12 @@ test("teacher manual journey: mark → live summary → submit → reload persis
   }
   await expect(page.getByTestId("live-summary")).toContainText("حاضر 3");
 
-  // غائب + متأخر → الملخص الحي يتحدث
+  // غائب → الملخص الحي يتحدث (واجهة المعلم بخياري حاضر/غائب فقط)
   await studentRow(page, m.attendance_students[0])
     .getByRole("button", { name: "غائب" })
     .click();
-  await studentRow(page, m.attendance_students[1])
-    .getByRole("button", { name: "متأخر" })
-    .click();
-  await expect(page.getByTestId("live-summary")).toContainText("حاضر 1");
+  await expect(page.getByTestId("live-summary")).toContainText("حاضر 2");
   await expect(page.getByTestId("live-summary")).toContainText("غائب 1");
-  await expect(page.getByTestId("live-summary")).toContainText("متأخر 1");
 
   await page.getByTestId("submit-attendance").click();
   await expect(page.getByTestId("submitted-banner")).toContainText("أحمد", { timeout: 15_000 });
@@ -121,7 +117,7 @@ test("teacher manual journey: mark → live summary → submit → reload persis
   await page.reload();
   await expect(page.getByTestId("submitted-banner")).toBeVisible({ timeout: 15_000 });
   await expect(studentRow(page, m.attendance_students[0])).toContainText("غائب");
-  await expect(studentRow(page, m.attendance_students[1])).toContainText("متأخر");
+  await expect(studentRow(page, m.attendance_students[1])).toContainText("حاضر");
 
   // التعديل داخل النافذة: الغائب يصبح حاضرًا مع سبب
   await page.getByTestId("edit-button").click();
@@ -132,7 +128,7 @@ test("teacher manual journey: mark → live summary → submit → reload persis
   await page.getByTestId("submit-attendance").click();
   await expect(page.getByTestId("submitted-banner")).toBeVisible({ timeout: 15_000 });
   await expect(studentRow(page, m.attendance_students[0])).toContainText("حاضر");
-  await expect(studentRow(page, m.attendance_students[1])).toContainText("متأخر");
+  await expect(studentRow(page, m.attendance_students[1])).toContainText("حاضر");
 });
 
 test("teacher QR journey: scan URL opens section 9 roster and submits", async ({ page }) => {
