@@ -1,8 +1,7 @@
 """عقد Adapter موحد — كل مصنّع يضيف كلاسًا يلتزم به.
 
-صدق تقني إلزامي: لا يدّعى دعم مصنّع (ZKTeco/Hikvision/Dahua/غيرها) قبل تنفيذ
-Adapter واختباره على الجهاز/البروتوكول الفعلي — الجاهز الآن هو Simulator فقط،
-والبنية تستقبل adapters المصنّعين كخطوة لاحقة محددة الموديل.
+صدق تقني إلزامي: دعم ZKTeco LAN منفذ ومختبر بمحاكاة البروتوكول، ويبقى اعتماد
+الموديل/firmware الفعلي مشروطًا باختبار قبول على الجهاز نفسه.
 """
 
 from enum import StrEnum
@@ -48,10 +47,13 @@ class DeviceConnector(Protocol):
 def build_connector(config: dict) -> DeviceConnector:
     """مصنع الموصلات حسب vendor — غير المنفذ يرفض بوضوح (لا ادعاء دعم)."""
     from bridge_core.adapters.simulator import SimulatorConnector
+    from bridge_core.adapters.zkteco_lan import ZKTecoLanConnector
 
     vendor = (config.get("vendor") or "SIMULATOR").upper()
     if vendor in ("SIMULATOR", "GENERIC"):
         return SimulatorConnector(config)
+    if vendor in ("ZKTECO", "ZK", "ZKTECO_MB2000", "MB2000"):
+        return ZKTecoLanConnector(config)
     raise NotImplementedError(
         f"Adapter '{vendor}' غير منفذ بعد — يتطلب تكاملًا مختبرًا على الجهاز الفعلي."
     )

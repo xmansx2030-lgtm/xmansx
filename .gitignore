@@ -47,6 +47,7 @@ test-results/
 blob-report/
 phase19-results/
 phase19-data.json
+tmp/
 
 # ---- IDEs / OS ----
 .idea/

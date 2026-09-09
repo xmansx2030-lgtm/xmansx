@@ -4,8 +4,8 @@
 تخزنها في طابور SQLite دائم، وترسلها إلى SaaS عبر HTTPS **للخارج فقط** —
 لا Port Forwarding ولا كشف للجهاز على الإنترنت، ولا أي بيانات بيومترية.
 
-- **التقنية:** Python 3.12+ قياسية بالكامل (بلا تبعيات خارجية — `urllib` + `sqlite3`)،
-  متوافقة مع stack المشروع (ADR في docs/DEVICE_BRIDGE.md).
+- **القلب:** Python 3.12+ قياسي (`urllib` + `sqlite3`). موصل ZKTeco LAN تبعية
+  اختيارية مستقلة حتى لا تتأثر بيئات المحاكي.
 - **Headless:** ‏`python -m bridge_core run` حلقة تشغيل دائمة؛ ‏`run-once` دورة واحدة.
 - **Windows Service:** التغليف عبر NSSM أو `sc create` مع Auto Start —
   موثق في docs/DEVICE_BRIDGE.md (تثبيت الخدمة الفعلي: NOT RUN في بيئة التطوير هذه؛
@@ -27,6 +27,24 @@
 
 ‏`credential` يولده مدير المدرسة من: الإعدادات ← أجهزة الحضور ← إضافة جسر.
 هوية المدرسة تشتق منه في الخادم — الجسر لا يرسل school_id أبدًا.
+
+## تفعيل ZKTeco MB2000 عبر LAN
+
+على جهاز Windows الموجود داخل شبكة المدرسة:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-zkteco.txt
+.\.venv\Scripts\python.exe -m bridge_core run-once --config bridge.json
+```
+
+ثم من لوحة المدير: **أجهزة الحضور ← إضافة جهاز**، واختر `ZKTeco` و`MB2000`
+وأدخل IP ثابتًا، والمنفذ `4370`، ونوع الاتصال `TCP`، وComm Key المطابق للجهاز.
+القيمة `0` تعني عدم وجود كلمة مرور اتصال وفق إعداد الجهاز.
+
+مهم: الحزمة الاختيارية `pyzk` غير رسمية وترخيصها GPL-2.0. يجب مراجعة التزامات
+ترخيص توزيع جسر Windows قبل شحنه تجاريًا. بديل المؤسسات هو تركيب Standalone SDK
+الرسمي من ZKTeco خلف نفس عقد Adapter بعد استلامه من المورد.
 
 ## الاختبارات
 

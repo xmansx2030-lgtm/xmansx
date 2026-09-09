@@ -44,19 +44,32 @@ class BridgeEngine:
         self.batch_size = batch_size
         self.simulator_users_file = simulator_users_file
 
-    def poll_devices(self, device_configs: list[dict]) -> int:
+    def poll_devices(
+        self, device_configs: list[dict], device_reports: list[dict] | None = None
+    ) -> int:
         """يقرأ أحداث كل جهاز عبر Adapter المناسب ويضيفها للطابور المحلي."""
         added = 0
+        reports_by_device = {report["device_id"]: report for report in (device_reports or [])}
         for config in device_configs:
+            report = reports_by_device.get(config.get("id"))
             try:
                 connector = build_connector(config)
                 events = connector.fetch_events(config.get("since"))
             except NotImplementedError as exc:
                 logger.warning("adapter unavailable: %s", exc)
+                if report is not None:
+                    report["reachable"] = False
+                    report["error_code"] = "ADAPTER_UNAVAILABLE"
                 continue
             except Exception as exc:  # جهاز متعطل لا يوقف البقية
                 logger.warning("device %s unreachable: %s", config.get("id"), exc)
+                if report is not None:
+                    report["reachable"] = False
+                    report["error_code"] = "DEVICE_UNREACHABLE"
                 continue
+            if report is not None:
+                report["reachable"] = True
+                report.pop("error_code", None)
             for event in events:
                 event.setdefault("device_id", config.get("id"))
                 if self.queue.enqueue(event):
@@ -108,7 +121,7 @@ class BridgeEngine:
         for config in configs:
             if self.simulator_users_file and config.get("vendor", "").upper() == "SIMULATOR":
                 config.setdefault("users_file", self.simulator_users_file)
-            report = {"device_id": config["id"], "reachable": True}
+            report = {"device_id": config["id"], "reachable": False}
             if config.get("test_requested"):
                 try:
                     report["test_result"] = build_connector(config).test_connection()
@@ -134,13 +147,15 @@ class BridgeEngine:
                     action = command["action"]
                     capability = DeviceCapability(f"{action}_USER")
                     if capability not in connector.capabilities():
-                        self.client.send_roster_command_result({
-                            "job_id": command["job_id"],
-                            "item_id": command["item_id"],
-                            "command_id": command["command_id"],
-                            "result": "FAILED_FINAL",
-                            "error_code": "DEVICE_ROSTER_WRITE_UNSUPPORTED",
-                        })
+                        self.client.send_roster_command_result(
+                            {
+                                "job_id": command["job_id"],
+                                "item_id": command["item_id"],
+                                "command_id": command["command_id"],
+                                "result": "FAILED_FINAL",
+                                "error_code": "DEVICE_ROSTER_WRITE_UNSUPPORTED",
+                            }
+                        )
                         roster_commands += 1
                         continue
                     if action == "CREATE":
@@ -155,26 +170,30 @@ class BridgeEngine:
                         result = connector.delete_user(command["external_user_id"])
                     else:
                         continue
-                    self.client.send_roster_command_result({
-                        "job_id": command["job_id"],
-                        "item_id": command["item_id"],
-                        "command_id": command["command_id"],
-                        "result": result.get("result", "FAILED_FINAL"),
-                        "error_code": result.get("error_code", ""),
-                    })
+                    self.client.send_roster_command_result(
+                        {
+                            "job_id": command["job_id"],
+                            "item_id": command["item_id"],
+                            "command_id": command["command_id"],
+                            "result": result.get("result", "FAILED_FINAL"),
+                            "error_code": result.get("error_code", ""),
+                        }
+                    )
                     roster_commands += 1
                 except Exception as exc:
                     logger.warning(
                         "roster command failed for item %s: %s", command.get("item_id"), exc
                     )
                     try:
-                        self.client.send_roster_command_result({
-                            "job_id": command["job_id"],
-                            "item_id": command["item_id"],
-                            "command_id": command["command_id"],
-                            "result": "FAILED_RETRYABLE",
-                            "error_code": "DEVICE_COMMAND_EXECUTION_FAILED",
-                        })
+                        self.client.send_roster_command_result(
+                            {
+                                "job_id": command["job_id"],
+                                "item_id": command["item_id"],
+                                "command_id": command["command_id"],
+                                "result": "FAILED_RETRYABLE",
+                                "error_code": "DEVICE_COMMAND_EXECUTION_FAILED",
+                            }
+                        )
                         roster_commands += 1
                     except Exception as result_error:
                         logger.warning(
@@ -182,7 +201,7 @@ class BridgeEngine:
                             command.get("item_id"),
                             result_error,
                         )
-        added = self.poll_devices(configs)
+        added = self.poll_devices(configs, reports)
         flushed = self.flush()
         if reports:
             self.heartbeat(reports)

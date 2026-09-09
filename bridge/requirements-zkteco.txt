@@ -1,0 +1,2 @@
+# Optional on-premise LAN driver. Review GPL-2.0 obligations before distribution.
+pyzk==0.9

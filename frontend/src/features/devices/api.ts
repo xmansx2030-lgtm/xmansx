@@ -53,6 +53,18 @@ export interface DeviceFull extends DeviceRow {
   test_result: { ok?: boolean; detail?: string } | null;
 }
 
+export interface DeviceMutationPayload {
+  name: string;
+  vendor?: string;
+  model?: string;
+  serial_number?: string;
+  connection_type?: "TCP" | "UDP";
+  local_ip?: string;
+  local_port?: number | null;
+  connection_secret?: string;
+  is_active?: boolean;
+}
+
 export interface BridgeRow {
   id: number;
   installation_name: string;
@@ -145,16 +157,10 @@ export const rotateBridge = (bridgeId: number) =>
 export const getDevicesFull = (signal?: AbortSignal) =>
   apiRequest<DeviceFull[]>("/devices/", { signal });
 
-export const createDevice = (payload: {
-  name: string;
-  vendor?: string;
-  model?: string;
-  local_ip?: string;
-  local_port?: number | null;
-  connection_secret?: string;
-}) => apiRequest<DeviceFull>("/devices/", { method: "POST", body: payload });
+export const createDevice = (payload: DeviceMutationPayload) =>
+  apiRequest<DeviceFull>("/devices/", { method: "POST", body: payload });
 
-export const updateDevice = (deviceId: number, payload: Record<string, unknown>) =>
+export const updateDevice = (deviceId: number, payload: Partial<DeviceMutationPayload>) =>
   apiRequest<DeviceFull>(`/devices/${deviceId}/`, { method: "PATCH", body: payload });
 
 export const testDeviceConnection = (deviceId: number) =>

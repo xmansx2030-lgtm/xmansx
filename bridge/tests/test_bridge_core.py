@@ -79,8 +79,12 @@ def test_queue_no_biometric_fields_needed(tmp_path):
     queue.enqueue(make_event(1))
     _, payload = queue.next_batch(1)[0]
     assert set(payload) == {
-        "device_id", "external_event_id", "external_user_id",
-        "occurred_at", "verification_method", "event_type",
+        "device_id",
+        "external_event_id",
+        "external_user_id",
+        "occurred_at",
+        "verification_method",
+        "event_type",
     }
 
 
@@ -90,8 +94,11 @@ def test_queue_no_biometric_fields_needed(tmp_path):
 def test_client_retries_on_5xx_with_backoff_then_succeeds():
     sleeps: list[float] = []
     client = make_client(
-        [RetryableError("HTTP 500"), RetryableError("timeout"),
-         {"results": [{"result": "accepted"}]}],
+        [
+            RetryableError("HTTP 500"),
+            RetryableError("timeout"),
+            {"results": [{"result": "accepted"}]},
+        ],
         sleeps,
     )
     results = client.send_events([make_event(1)])
@@ -170,9 +177,7 @@ def test_large_queue_survives_restart_and_drains_in_batches(tmp_path):
 
     reopened = DurableQueue(path)
     batch_size = 500
-    client = make_client(
-        [{"results": [{"result": "accepted"}] * batch_size} for _ in range(10)]
-    )
+    client = make_client([{"results": [{"result": "accepted"}] * batch_size} for _ in range(10)])
     result = BridgeEngine(client=client, queue=reopened, batch_size=batch_size).flush()
 
     assert result["sent"] == 5000
@@ -205,9 +210,14 @@ def test_run_once_polls_simulator_and_reports_tests(tmp_path):
         encoding="utf-8",
     )
     device_config = {
-        "id": 7, "name": "بوابة", "vendor": "SIMULATOR",
-        "connection_type": "TCP", "local_ip": "", "local_port": None,
-        "connection_secret": "", "test_requested": True,
+        "id": 7,
+        "name": "بوابة",
+        "vendor": "SIMULATOR",
+        "connection_type": "TCP",
+        "local_ip": "",
+        "local_port": None,
+        "connection_secret": "",
+        "test_requested": True,
         "events_file": str(events_file),
     }
     client = make_client(
@@ -223,3 +233,24 @@ def test_run_once_polls_simulator_and_reports_tests(tmp_path):
     # تقرير اختبار الاتصال أرسل في النبضة الثانية
     final_heartbeat = client.transport.calls[-1]["payload"]["devices"][0]
     assert final_heartbeat["test_result"]["ok"] is True
+
+
+def test_run_once_reports_device_unreachable_when_poll_fails(tmp_path):
+    device_config = {
+        "id": 8,
+        "name": "جهاز غير مدعوم",
+        "vendor": "UNKNOWN_VENDOR",
+        "connection_type": "TCP",
+        "local_ip": "192.168.1.60",
+        "local_port": 4370,
+        "connection_secret": "",
+        "test_requested": False,
+    }
+    client = make_client([[device_config], [device_config]])
+    engine = BridgeEngine(client=client, queue=DurableQueue(tmp_path / "q.sqlite3"))
+
+    result = engine.run_once()
+
+    assert result["devices"] == 1 and result["queued"] == 0
+    final_report = client.transport.calls[-1]["payload"]["devices"][0]
+    assert final_report["reachable"] is False

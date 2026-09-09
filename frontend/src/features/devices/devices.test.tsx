@@ -263,6 +263,87 @@ describe("devices settings UI (Phase 8.5)", () => {
     });
   });
 
+  it("creates an MB2000 with the complete LAN profile", async () => {
+    const created = {
+      id: 5, name: "بوابة الطلاب", vendor: "ZKTECO", model: "MB2000",
+      serial_number: "MB2K-001", connection_type: "TCP", local_ip: "192.168.10.25",
+      local_port: 4370, status: "UNKNOWN", last_seen_at: null,
+      last_successful_sync_at: null, is_active: true, unmatched_events: 0,
+      test_result: null,
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
+      "/device-bridges/": { body: [] },
+      "/devices/": (init) =>
+        init?.method === "POST" ? { status: 201, body: created } : { body: [] },
+      "/device-identities/": { body: [] },
+    });
+
+    renderApp("/devices");
+    const user = userEvent.setup();
+    await screen.findByTestId("devices-list");
+    await user.type(screen.getByLabelText("اسم الجهاز"), "بوابة الطلاب");
+    await user.type(screen.getByLabelText("الرقم التسلسلي"), "MB2K-001");
+    await user.type(screen.getByLabelText("IP المحلي"), "192.168.10.25");
+    await user.clear(screen.getByLabelText("Comm Key"));
+    await user.type(screen.getByLabelText("Comm Key"), "123456");
+    await user.click(screen.getByTestId("add-device"));
+
+    await waitFor(() => {
+      const post = calls.find(
+        (call) => call.url.endsWith("/devices/") && call.init?.method === "POST",
+      );
+      expect(parseBody(post?.init)).toEqual({
+        name: "بوابة الطلاب",
+        vendor: "ZKTECO",
+        model: "MB2000",
+        serial_number: "MB2K-001",
+        connection_type: "TCP",
+        local_ip: "192.168.10.25",
+        local_port: 4370,
+        connection_secret: "123456",
+      });
+    });
+  });
+
+  it("repairs an existing ZKTeco device LAN configuration without exposing its key", async () => {
+    const device = {
+      id: 4, name: "جهاز قديم", vendor: "ZKTECO", model: "", serial_number: "",
+      connection_type: "TCP", local_ip: "", local_port: null,
+      status: "UNKNOWN", last_seen_at: null, last_successful_sync_at: null,
+      is_active: true, unmatched_events: 0, test_result: null,
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
+      "/device-bridges/": { body: [] },
+      "/devices/4/": { body: { ...device, model: "MB2000", local_ip: "192.168.1.50", local_port: 4370 } },
+      "/devices/": { body: [device] },
+      "/device-identities/": { body: [] },
+    });
+
+    renderApp("/devices");
+    const user = userEvent.setup();
+    const row = await screen.findByTestId("device-4");
+    expect(row).toHaveTextContent("إعداد LAN ناقص");
+    await user.click(within(row).getByTestId("edit-device-4"));
+    await user.type(screen.getByLabelText("تعديل IP المحلي"), "192.168.1.50");
+    await user.type(screen.getByLabelText("تعديل Comm Key"), "0");
+    await user.click(screen.getByTestId("save-device-4"));
+
+    await waitFor(() => {
+      const patchCall = calls.find(
+        (call) => call.url.includes("/devices/4/") && call.init?.method === "PATCH",
+      );
+      expect(parseBody(patchCall?.init)).toMatchObject({
+        vendor: "ZKTECO",
+        model: "MB2000",
+        local_ip: "192.168.1.50",
+        local_port: 4370,
+        connection_secret: "0",
+      });
+    });
+  });
+
   it("maps an unmatched device user to a student", async () => {
     const identity = {
       id: 9, device_id: 4, device_name: "بوابة رئيسية",

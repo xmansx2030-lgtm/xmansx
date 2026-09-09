@@ -34,8 +34,11 @@ def at(hour, minute, second=0, day=None):
 def env(make_school, make_user, make_membership):
     school = make_school()
     year = AcademicYear.objects.create(
-        school=school, name="ع", start_date=date(2026, 8, 23),
-        end_date=date(2027, 6, 25), status=AcademicYearStatus.ACTIVE,
+        school=school,
+        name="ع",
+        start_date=date(2026, 8, 23),
+        end_date=date(2027, 6, 25),
+        status=AcademicYearStatus.ACTIVE,
     )
     grade = Grade.objects.create(school=school, name="الأول الثانوي", code="G1", sequence=1)
     section = Section.objects.create(school=school, grade=grade, code="1", name="1")
@@ -48,16 +51,25 @@ def env(make_school, make_user, make_membership):
     bridge, token = create_bridge(school=school, name="جسر الاختبار", actor=None)
     device = AttendanceDevice.objects.create(school=school, name="بوابة رئيسية")
     return {
-        "school": school, "year": year, "grade": grade, "section": section,
-        "students": students, "settings": settings_obj,
-        "bridge": bridge, "token": token, "device": device,
+        "school": school,
+        "year": year,
+        "grade": grade,
+        "section": section,
+        "students": students,
+        "settings": settings_obj,
+        "bridge": bridge,
+        "token": token,
+        "device": device,
     }
 
 
 def map_student(env, student, external_id="1001"):
     return StudentDeviceIdentity.objects.create(
-        school=env["school"], device=env["device"], external_user_id=external_id,
-        student=student, status=IdentityStatus.MATCHED,
+        school=env["school"],
+        device=env["device"],
+        external_user_id=external_id,
+        student=student,
+        status=IdentityStatus.MATCHED,
     )
 
 
@@ -88,9 +100,7 @@ def test_late_calculation_and_grace_boundary(env):
     s = env["settings"]
 
     def calc(h, m, sec=0):
-        return compute_lateness(
-            settings_obj=s, arrival_at=at(h, m, sec), attendance_date=YESTERDAY
-        )
+        return compute_lateness(settings_obj=s, arrival_at=at(h, m, sec), attendance_date=YESTERDAY)
 
     late = calc(7, 18)
     assert late == {"raw_late_minutes": 18, "counted_late_minutes": 13, "status": "LATE"}
@@ -115,7 +125,8 @@ def test_ingest_creates_single_arrival_from_first_event(
     map_student(env, env["students"][0])
     with django_capture_on_commit_callbacks(execute=True):
         response = post_batch(
-            client, env["token"],
+            client,
+            env["token"],
             [
                 event(env, at(7, 12), external_event_id="e1"),
                 event(env, at(7, 14), external_event_id="e2"),
@@ -172,9 +183,7 @@ def test_unmatched_event_kept_then_reprocessed_after_mapping(
     env, client, role_client, monkeypatch, django_capture_on_commit_callbacks
 ):
     """حدث غير مربوط لا يحذف؛ وبعد المطابقة يعاد معالجته فيظهر الوصول (123-124)."""
-    response = post_batch(
-        client, env["token"], [event(env, at(7, 20), external_user_id="9999")]
-    )
+    response = post_batch(client, env["token"], [event(env, at(7, 20), external_user_id="9999")])
     assert response.json()["results"][0]["result"] == "unmatched"
     row = DeviceEvent.objects.get()
     assert row.processing_status == "UNMATCHED"
@@ -255,17 +264,13 @@ def test_manual_arrival_and_duplicate_guard(
         "reason": "دخل من البوابة الخلفية",
     }
     with django_capture_on_commit_callbacks(execute=True):
-        response = vice.post(
-            "/api/v1/morning/arrivals/", payload, content_type="application/json"
-        )
+        response = vice.post("/api/v1/morning/arrivals/", payload, content_type="application/json")
     assert response.status_code == 201
     body = response.json()
     assert body["source"] == "MANUAL"
     assert body["status"] == "LATE" and body["counted_late_minutes"] == 5
     assert invalidated == [env["school"].id]
-    duplicate = vice.post(
-        "/api/v1/morning/arrivals/", payload, content_type="application/json"
-    )
+    duplicate = vice.post("/api/v1/morning/arrivals/", payload, content_type="application/json")
     assert duplicate.status_code == 409
     assert duplicate.json()["code"] == "ARRIVAL_ALREADY_EXISTS"
 
@@ -307,7 +312,8 @@ def test_late_list_and_student_history(env, client, role_client):
     map_student(env, env["students"][1], "1002")
     day_before = YESTERDAY - timedelta(days=1)
     post_batch(
-        client, env["token"],
+        client,
+        env["token"],
         [
             event(env, at(7, 16), "1001", "h1"),
             event(env, at(7, 3), "1002", "h2"),  # في الوقت
@@ -331,8 +337,7 @@ def test_late_list_and_student_history(env, client, role_client):
     assert len(history["entries"]) == 2
 
     too_long = vice.get(
-        f"/api/v1/morning/students/{env['students'][0].id}/history/"
-        f"?from=2020-01-01&to={YESTERDAY}"
+        f"/api/v1/morning/students/{env['students'][0].id}/history/?from=2020-01-01&to={YESTERDAY}"
     )
     assert too_long.status_code == 400
 
@@ -365,26 +370,45 @@ def test_tenant_isolation_foreign_ids(env, role_client):
     foreign, _, _ = role_client(["SCHOOL_MANAGER"])  # مدرسة أخرى
     identity = map_student(env, env["students"][0])
     arrival = SchoolArrival.objects.create(
-        school=env["school"], student=env["students"][0], attendance_date=YESTERDAY,
-        first_arrival_at=at(7, 30), raw_late_minutes=30, counted_late_minutes=25,
-        status="LATE", source="MANUAL",
+        school=env["school"],
+        student=env["students"][0],
+        attendance_date=YESTERDAY,
+        first_arrival_at=at(7, 30),
+        raw_late_minutes=30,
+        counted_late_minutes=25,
+        status="LATE",
+        source="MANUAL",
     )
     assert foreign.get("/api/v1/devices/").json() == []
-    assert foreign.patch(
-        f"/api/v1/devices/{env['device'].id}/", {}, content_type="application/json"
-    ).status_code == 404
-    assert foreign.post(
-        f"/api/v1/device-identities/{identity.id}/map/",
-        {"student_id": 1}, content_type="application/json",
-    ).status_code == 404
-    assert foreign.post(
-        f"/api/v1/morning/arrivals/{arrival.id}/correct/",
-        {"arrival_time": "07:00", "reason": "x"}, content_type="application/json",
-    ).status_code == 404
-    assert foreign.get(
-        f"/api/v1/morning/students/{env['students'][0].id}/history/"
-        f"?from={YESTERDAY}&to={YESTERDAY}"
-    ).status_code == 404
+    assert (
+        foreign.patch(
+            f"/api/v1/devices/{env['device'].id}/", {}, content_type="application/json"
+        ).status_code
+        == 404
+    )
+    assert (
+        foreign.post(
+            f"/api/v1/device-identities/{identity.id}/map/",
+            {"student_id": 1},
+            content_type="application/json",
+        ).status_code
+        == 404
+    )
+    assert (
+        foreign.post(
+            f"/api/v1/morning/arrivals/{arrival.id}/correct/",
+            {"arrival_time": "07:00", "reason": "x"},
+            content_type="application/json",
+        ).status_code
+        == 404
+    )
+    assert (
+        foreign.get(
+            f"/api/v1/morning/students/{env['students'][0].id}/history/"
+            f"?from={YESTERDAY}&to={YESTERDAY}"
+        ).status_code
+        == 404
+    )
     assert foreign.get(f"/api/v1/morning/late/?date={YESTERDAY}").json()["total_late"] == 0
 
 
@@ -411,6 +435,80 @@ def test_device_secret_never_exposed_to_browser(env, client, role_client):
     ).json()
     secret = next(c for c in configs if c["name"] == "جهاز بسر")["connection_secret"]
     assert secret == "comm-key-77"
+
+
+@pytest.mark.django_db
+def test_bridge_receives_mb2000_lan_metadata_and_school_timezone(env, client, role_client):
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
+    env["settings"].timezone = "Asia/Riyadh"
+    env["settings"].save(update_fields=["timezone"])
+    created = manager.post(
+        "/api/v1/devices/",
+        {
+            "name": "بوابة MB2000",
+            "vendor": "ZKTECO",
+            "model": "MB2000",
+            "serial_number": "MB2K-001",
+            "connection_type": "TCP",
+            "local_ip": "192.168.10.25",
+            "local_port": 4370,
+            "connection_secret": "123456",
+        },
+        content_type="application/json",
+    )
+    assert created.status_code == 201
+
+    configs = client.get(
+        "/api/v1/bridge/devices/", HTTP_AUTHORIZATION=f"Bearer {env['token']}"
+    ).json()
+    mb2000 = next(item for item in configs if item["name"] == "بوابة MB2000")
+    assert {
+        key: mb2000[key]
+        for key in (
+            "vendor",
+            "model",
+            "serial_number",
+            "connection_type",
+            "local_ip",
+            "local_port",
+            "timezone",
+            "connection_secret",
+        )
+    } == {
+        "vendor": "ZKTECO",
+        "model": "MB2000",
+        "serial_number": "MB2K-001",
+        "connection_type": "TCP",
+        "local_ip": "192.168.10.25",
+        "local_port": 4370,
+        "timezone": "Asia/Riyadh",
+        "connection_secret": "123456",
+    }
+
+
+@pytest.mark.django_db
+def test_zkteco_device_rejects_public_ip_and_invalid_comm_key(env, role_client):
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
+    public_ip = manager.post(
+        "/api/v1/devices/",
+        {"name": "غير آمن", "vendor": "ZKTECO", "local_ip": "8.8.8.8"},
+        content_type="application/json",
+    )
+    assert public_ip.status_code == 400
+    assert "local_ip" in public_ip.json()["details"]
+
+    bad_key = manager.post(
+        "/api/v1/devices/",
+        {
+            "name": "مفتاح غير صالح",
+            "vendor": "ZKTECO",
+            "local_ip": "192.168.1.50",
+            "connection_secret": "secret",
+        },
+        content_type="application/json",
+    )
+    assert bad_key.status_code == 400
+    assert "connection_secret" in bad_key.json()["details"]
 
 
 # ---------- الحذف النهائي (البنود 94-95، 130) ----------
@@ -451,10 +549,7 @@ def test_unregistered_device_purge_fails_loudly(env, monkeypatch):
     map_student(env, student)
     student.status = "WITHDRAWN"
     student.save(update_fields=["status"])
-    stripped = [
-        step for step in purge_service.PURGE_STEPS
-        if step[0] != "هويات أجهزة الطالب"
-    ]
+    stripped = [step for step in purge_service.PURGE_STEPS if step[0] != "هويات أجهزة الطالب"]
     monkeypatch.setattr(purge_service, "PURGE_STEPS", stripped)
     with pytest.raises(ProtectedError):
         purge_service.purge_student(student=student)
@@ -475,8 +570,12 @@ def test_all_absent_shows_arrival_indicator_without_changing_result(
     schedule = BellSchedule.objects.create(school=env["school"], name="ع")
     periods = [
         BellPeriod.objects.create(
-            school=env["school"], bell_schedule=schedule, sequence=i,
-            name=f"حصة {i}", start_time=time(6 + i, 0), end_time=time(6 + i, 45),
+            school=env["school"],
+            bell_schedule=schedule,
+            sequence=i,
+            name=f"حصة {i}",
+            start_time=time(6 + i, 0),
+            end_time=time(6 + i, 45),
         )
         for i in (1, 2)
     ]
@@ -489,12 +588,17 @@ def test_all_absent_shows_arrival_indicator_without_changing_result(
     with_arrival, without_arrival = env["students"][0], env["students"][1]
     for period in periods:
         session = AttendanceSession.objects.create(
-            school=env["school"], academic_year=env["year"], section=env["section"],
-            attendance_date=YESTERDAY, period_sequence=period.sequence,
+            school=env["school"],
+            academic_year=env["year"],
+            section=env["section"],
+            attendance_date=YESTERDAY,
+            period_sequence=period.sequence,
             bell_period_snapshot=build_period_snapshot(period, YESTERDAY, "Asia/Riyadh"),
-            status="SUBMITTED", roster_fingerprint="fp",
+            status="SUBMITTED",
+            roster_fingerprint="fp",
             unprepared_alert_minutes_snapshot=25,
-            started_by_membership=membership, submitted_by_membership=membership,
+            started_by_membership=membership,
+            submitted_by_membership=membership,
             submitted_at=at(8, 0),
         )
         for student in (with_arrival, without_arrival):
@@ -505,8 +609,10 @@ def test_all_absent_shows_arrival_indicator_without_changing_result(
     post_batch(client, env["token"], [event(env, at(7, 4), external_event_id="m1")])
 
     report = get_multi_period_report(
-        school=env["school"], attendance_date=YESTERDAY,
-        sequences=[1, 2], match="ALL_ABSENT",
+        school=env["school"],
+        attendance_date=YESTERDAY,
+        sequences=[1, 2],
+        match="ALL_ABSENT",
     )
     rows = {s["student_id"]: s for s in report["students"]}
     # النتيجة لا تتغير بسبب البصمة — كلاهما يبقى ALL_ABSENT (يحتاج مراجعة فقط)

@@ -146,9 +146,7 @@ class BridgeRotateView(SchoolScopedAPIView):
 
     @extend_schema(request=None, responses=BridgeCredentialSerializer)
     def post(self, request: Request, bridge_id: int) -> Response:
-        bridge = get_object_or_404(
-            DeviceBridgeInstallation, id=bridge_id, school=request.school
-        )
+        bridge = get_object_or_404(DeviceBridgeInstallation, id=bridge_id, school=request.school)
         token = bridge_service.rotate_bridge_credential(
             installation=bridge, actor=request.user, request=request
         )
@@ -179,8 +177,14 @@ def _device_payload(device, unmatched_count: int = 0) -> dict:
 
 def _apply_device_fields(device, data: dict) -> None:
     for field in (
-        "name", "vendor", "model", "serial_number",
-        "connection_type", "local_ip", "local_port", "is_active",
+        "name",
+        "vendor",
+        "model",
+        "serial_number",
+        "connection_type",
+        "local_ip",
+        "local_port",
+        "is_active",
     ):
         if field in data:
             setattr(device, field, data[field])
@@ -228,8 +232,11 @@ class DevicesView(SchoolScopedAPIView):
             device.save()
         record_event(
             AuditAction.DEVICE_CREATED,
-            request=request, actor=request.user, school=request.school,
-            target_type="AttendanceDevice", target_id=device.id,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="AttendanceDevice",
+            target_id=device.id,
             metadata={"name": device.name},  # لا أسرار
         )
         return Response(_device_payload(device), status=http_status.HTTP_201_CREATED)
@@ -242,12 +249,10 @@ class DeviceDetailView(SchoolScopedAPIView):
     @extend_schema(request=DeviceUpdateSerializer, responses=DeviceSerializer)
     def patch(self, request: Request, device_id: int) -> Response:
         device = get_object_or_404(AttendanceDevice, id=device_id, school=request.school)
-        serializer = DeviceUpdateSerializer(data=request.data, partial=True)
+        serializer = DeviceUpdateSerializer(instance=device, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         was_active = device.is_active
-        will_activate = (
-            not was_active and bool(serializer.validated_data.get("is_active", False))
-        )
+        will_activate = not was_active and bool(serializer.validated_data.get("is_active", False))
         from subscriptions.entitlements import lock_school_capacity
 
         with transaction.atomic():
@@ -266,8 +271,12 @@ class DeviceDetailView(SchoolScopedAPIView):
             else AuditAction.DEVICE_UPDATED
         )
         record_event(
-            action, request=request, actor=request.user, school=request.school,
-            target_type="AttendanceDevice", target_id=device.id,
+            action,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="AttendanceDevice",
+            target_id=device.id,
         )
         return Response(_device_payload(device))
 
@@ -286,8 +295,11 @@ class DeviceTestView(SchoolScopedAPIView):
         device.save(update_fields=["test_requested_at", "test_result", "updated_at"])
         record_event(
             AuditAction.DEVICE_CONNECTION_TESTED,
-            request=request, actor=request.user, school=request.school,
-            target_type="AttendanceDevice", target_id=device.id,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="AttendanceDevice",
+            target_id=device.id,
         )
         return Response(_device_payload(device))
 
@@ -513,8 +525,11 @@ class IdentityMapView(SchoolScopedAPIView):
         reprocessed = reprocess_unmatched(identity=identity)
         record_event(
             AuditAction.DEVICE_USER_MAPPED,
-            request=request, actor=request.user, school=request.school,
-            target_type="StudentDeviceIdentity", target_id=identity.id,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="StudentDeviceIdentity",
+            target_id=identity.id,
             metadata={"reprocessed_events": reprocessed},  # لا اسم/هوية
         )
         return Response(_identity_payload(identity))
@@ -538,8 +553,11 @@ class IdentityUnmapView(SchoolScopedAPIView):
         identity.save()
         record_event(
             AuditAction.DEVICE_USER_UNMAPPED,
-            request=request, actor=request.user, school=request.school,
-            target_type="StudentDeviceIdentity", target_id=identity.id,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="StudentDeviceIdentity",
+            target_id=identity.id,
         )
         return Response(_identity_payload(identity))
 
@@ -597,9 +615,7 @@ class StudentLateHistoryView(SchoolScopedAPIView):
             date_from = date_cls.fromisoformat(request.query_params.get("from", ""))
             date_to = date_cls.fromisoformat(request.query_params.get("to", ""))
         except ValueError:
-            raise ApiError(
-                "VALIDATION_ERROR", "حدد الفترة بصيغة YYYY-MM-DD."
-            ) from None
+            raise ApiError("VALIDATION_ERROR", "حدد الفترة بصيغة YYYY-MM-DD.") from None
         return Response(
             get_student_late_history(
                 school=request.school, student=student, date_from=date_from, date_to=date_to
@@ -634,9 +650,7 @@ class ManualArrivalView(SchoolScopedAPIView):
         serializer = ManualArrivalSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        student = get_object_or_404(
-            Student, id=data["student_id"], school=request.school
-        )
+        student = get_object_or_404(Student, id=data["student_id"], school=request.school)
         arrival = morning_service.create_manual_arrival(
             school=request.school,
             membership=request.membership,
@@ -703,17 +717,13 @@ class BridgeHeartbeatView(BridgeAPIView):
         serializer = BridgeHeartbeatSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         now = dj_timezone.now()
-        devices = {
-            d.id: d for d in AttendanceDevice.objects.filter(school=bridge.school)
-        }
+        devices = {d.id: d for d in AttendanceDevice.objects.filter(school=bridge.school)}
         for report in serializer.validated_data.get("devices", []):
             device = devices.get(report["device_id"])
             if device is None:
                 continue  # جهاز مدرسة أخرى/غير موجود — يتجاهل بصمت (لا استكشاف)
             device.last_seen_at = now
-            device.status = (
-                DeviceStatus.ONLINE if report["reachable"] else DeviceStatus.DEGRADED
-            )
+            device.status = DeviceStatus.ONLINE if report["reachable"] else DeviceStatus.DEGRADED
             update_fields = ["last_seen_at", "status", "updated_at"]
             if report.get("test_result") is not None and device.test_requested_at:
                 device.test_result = report["test_result"]
@@ -844,24 +854,35 @@ class BridgeRosterCommandResultView(BridgeAPIView):
 
 
 def _bridge_device_configs(bridge, *, include_commands: bool = True) -> list[dict]:
+    from schools.services.settings import get_or_create_settings
+
     configs = []
+    school_timezone = get_or_create_settings(school=bridge.school).timezone
     for device in AttendanceDevice.objects.filter(school=bridge.school, is_active=True):
         secret = ""
         if device.connection_secret_encrypted:
             secret = _fernet().decrypt(device.connection_secret_encrypted.encode()).decode()
-        read_job = DeviceRosterSyncJob.objects.filter(
-            device=device,
-            status__in=[
-                DeviceRosterSyncStatus.ANALYZING,
-                DeviceRosterSyncStatus.APPROVED,
-                DeviceRosterSyncStatus.RUNNING,
-            ],
-        ).order_by("id").first()
+        read_job = (
+            DeviceRosterSyncJob.objects.filter(
+                device=device,
+                status__in=[
+                    DeviceRosterSyncStatus.ANALYZING,
+                    DeviceRosterSyncStatus.APPROVED,
+                    DeviceRosterSyncStatus.RUNNING,
+                ],
+            )
+            .order_by("id")
+            .first()
+        )
         commands = []
-        command_job = DeviceRosterSyncJob.objects.filter(
-            device=device,
-            status=DeviceRosterSyncStatus.RUNNING,
-        ).order_by("id").first()
+        command_job = (
+            DeviceRosterSyncJob.objects.filter(
+                device=device,
+                status=DeviceRosterSyncStatus.RUNNING,
+            )
+            .order_by("id")
+            .first()
+        )
         if command_job and include_commands:
             pending_items = command_job.items.filter(
                 action__in=[
@@ -884,9 +905,12 @@ def _bridge_device_configs(bridge, *, include_commands: bool = True) -> list[dic
                 "id": device.id,
                 "name": device.name,
                 "vendor": device.vendor,
+                "model": device.model,
+                "serial_number": device.serial_number,
                 "connection_type": device.connection_type,
                 "local_ip": device.local_ip,
                 "local_port": device.local_port,
+                "timezone": school_timezone,
                 "connection_secret": secret,
                 "test_requested": device.test_requested_at is not None,
                 "roster_read_job_id": read_job.id if read_job else None,
