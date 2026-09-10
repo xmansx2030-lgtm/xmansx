@@ -187,6 +187,47 @@ test("primary shell has no horizontal overflow at release viewports", async ({ p
   }
 });
 
+test("manager workspaces stay contained and readable on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "0550000002", "ثانوية الأندلس");
+
+  const managerRoutes = [
+    "/dashboard",
+    "/students",
+    "/students/inactive",
+    "/warnings",
+    "/excuses",
+    "/referrals",
+    "/counselor",
+    "/attendance/monitoring",
+    "/attendance/analytics",
+    "/morning",
+    "/student-leaves",
+    "/gate",
+    "/attendance/qr",
+    "/devices",
+    "/devices/roster-sync",
+    "/subscription",
+    "/staff",
+    "/settings",
+  ];
+
+  for (const path of managerRoutes) {
+    await page.goto(path);
+    await expect(page.locator("main h1").first()).toBeVisible();
+    await assertNoPageOverflow(page);
+  }
+
+  await page.goto("/students");
+  const firstStudent = page.getByTestId("students-table-body").locator("tr").first();
+  await expect(firstStudent).toBeVisible();
+  await expect(firstStudent).toHaveCSS("display", "grid");
+
+  await page.goto("/settings");
+  await expect(page.getByTestId("settings-page")).toBeVisible();
+  await assertNoPageOverflow(page);
+});
+
 test("VP tablet, counselor tablet, manager desktop, and platform admin remain usable", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await login(page, "0550000003", "ثانوية الأندلس");
