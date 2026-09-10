@@ -44,7 +44,7 @@ export function SchoolSwitcher() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
       >
         <span data-testid="active-school-name">{me.data.active_school.name}</span>
         {others.length > 0 && <span aria-hidden>▼</span>}
@@ -61,7 +61,7 @@ export function SchoolSwitcher() {
                 type="button"
                 disabled={switchMutation.isPending}
                 onClick={() => switchMutation.mutate(membership.school.id)}
-                className="flex w-full flex-col items-start px-4 py-2 text-start hover:bg-slate-50 disabled:opacity-50"
+                className="flex min-h-11 w-full flex-col items-start justify-center px-4 py-2 text-start hover:bg-slate-50 disabled:opacity-50"
               >
                 <span className="text-sm font-medium text-slate-800">
                   {membership.school.name}

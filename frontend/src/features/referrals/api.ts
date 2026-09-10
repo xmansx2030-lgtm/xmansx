@@ -35,6 +35,13 @@ export interface ReferralStudent {
   section_name: string | null;
 }
 
+export interface ReferralCandidate {
+  id: number;
+  full_name: string;
+  grade: { id: number; name: string };
+  section: { id: number; name: string };
+}
+
 export interface ReferralRow {
   id: number;
   student: ReferralStudent;
@@ -158,6 +165,11 @@ export const getReferrals = (filters: ReferralFilters = {}, signal?: AbortSignal
 
 export const getMyReferrals = (filters: ReferralFilters = {}, signal?: AbortSignal) =>
   apiRequest<Paginated<ReferralRow>>(`/referrals/mine/${query(filters)}`, { signal });
+
+export const getReferralCandidates = (
+  filters: { search?: string; grade?: number; section?: number; page?: number } = {},
+  signal?: AbortSignal,
+) => apiRequest<Paginated<ReferralCandidate>>(`/referrals/students/${query(filters)}`, { signal });
 
 export const getReferralKpis = (signal?: AbortSignal) =>
   apiRequest<ReferralKpis>("/referrals/kpis/", { signal });

@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from common.errors import ApiError
 from memberships.models import SchoolRole
-from memberships.permissions import school_role_required
+from memberships.permissions import school_role_or_capability_required
 from subscriptions.access import FULL, get_school_access_mode, subscription_state
 
 SETTINGS_READ_ROLES = (
@@ -24,13 +24,17 @@ class SchoolScopedAPIView(APIView):
 
     read_roles: tuple = SETTINGS_READ_ROLES
     write_roles: tuple = SETTINGS_WRITE_ROLES
+    read_capabilities: tuple = ()
+    write_capabilities: tuple = ()
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
             roles = self.read_roles
+            capabilities = self.read_capabilities
         else:
             roles = self.write_roles
-        return [school_role_required(*roles)()]
+            capabilities = self.write_capabilities
+        return [school_role_or_capability_required(*roles, capabilities=capabilities)()]
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)

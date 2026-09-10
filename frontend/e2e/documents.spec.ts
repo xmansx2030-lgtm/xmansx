@@ -374,7 +374,6 @@ test("absence report keeps excused and unexcused classification, morning report 
         student_id: turkiId,
         date: day,
         arrival_time: "07:40",
-        reason: "وصول متأخر موثق",
       },
     });
     expect([201, 409]).toContain(arrival.status);

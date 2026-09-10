@@ -5,10 +5,13 @@
 قبل فحص «هل يملك الإجراء؟» — إحالة مدرسة أخرى تعيد 404 لا 403 (بند 82).
 """
 
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework import serializers
 from rest_framework.response import Response
 
+from academics.models import AcademicYear, AcademicYearStatus
 from common.errors import ApiError
 from common.pagination import DefaultPagination
 from memberships.api_base import SchoolScopedAPIView
@@ -35,9 +38,15 @@ from referrals.models import (
 )
 from referrals.services import referrals as referral_service
 from referrals.services.snapshots import attendance_metrics
-from students.models import Student
+from students.models import (
+    EnrollmentStatus,
+    Student,
+    StudentEnrollment,
+    StudentStatus,
+)
 
 MANAGE_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+CREATE_ROLES = (*MANAGE_ROLES, SchoolRole.TEACHER)
 # كل الأدوار المدرسية تصل للقائمة — النطاق نفسه هو ما يحمي الخصوصية
 ALL_SCHOOL_ROLES = (
     SchoolRole.SCHOOL_MANAGER,
@@ -238,6 +247,93 @@ class ReferralOptionsView(SchoolScopedAPIView):
                 ],
             }
         )
+
+
+class ReferralCandidateFilterSerializer(serializers.Serializer):
+    """فلاتر بحث قائمة التحويل؛ لا تقبل أي معرف مدرسة من العميل."""
+
+    search = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    grade = serializers.IntegerField(required=False, min_value=1)
+    section = serializers.IntegerField(required=False, min_value=1)
+
+
+class ReferralCandidateListView(SchoolScopedAPIView):
+    """قائمة دنيا لاختيار طالب للإحالة، منفصلة عن ملف الطلاب العام.
+
+    المعلم يرى الاسم والصف والفصل فقط، وهي نفس البيانات التشغيلية التي تظهر له
+    في قائمة التحضير. لا تُعاد الهوية أو بيانات ولي الأمر.
+    """
+
+    read_roles = CREATE_ROLES
+    write_roles = CREATE_ROLES
+
+    @extend_schema(responses=None)
+    def get(self, request):
+        filters = ReferralCandidateFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        data = filters.validated_data
+        year = AcademicYear.objects.filter(
+            school=request.school, status=AcademicYearStatus.ACTIVE
+        ).first()
+
+        if year is None:
+            queryset = Student.objects.none()
+        else:
+            enrollment_filters = {
+                "enrollments__academic_year": year,
+                "enrollments__status": EnrollmentStatus.ACTIVE,
+                "enrollments__grade__is_active": True,
+                "enrollments__section__is_active": True,
+            }
+            if data.get("grade"):
+                enrollment_filters["enrollments__grade_id"] = data["grade"]
+            if data.get("section"):
+                enrollment_filters["enrollments__section_id"] = data["section"]
+
+            active_enrollment = StudentEnrollment.objects.filter(
+                academic_year=year,
+                status=EnrollmentStatus.ACTIVE,
+                grade__is_active=True,
+                section__is_active=True,
+            ).select_related("grade", "section")
+            queryset = (
+                Student.objects.filter(
+                    school=request.school,
+                    status=StudentStatus.ACTIVE,
+                    **enrollment_filters,
+                )
+                .filter(full_name__icontains=data.get("search", "").strip())
+                .prefetch_related(
+                    Prefetch(
+                        "enrollments",
+                        queryset=active_enrollment,
+                        to_attr="referral_active_enrollments",
+                    )
+                )
+                .distinct()
+                .order_by("full_name", "id")
+            )
+
+        paginator = DefaultPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        rows = []
+        for student in page:
+            enrollment = student.referral_active_enrollments[0]
+            rows.append(
+                {
+                    "id": student.id,
+                    "full_name": student.full_name,
+                    "grade": {
+                        "id": enrollment.grade_id,
+                        "name": enrollment.grade.name,
+                    },
+                    "section": {
+                        "id": enrollment.section_id,
+                        "name": enrollment.section.name,
+                    },
+                }
+            )
+        return paginator.get_paginated_response(rows)
 
 
 class CounselorListView(SchoolScopedAPIView):

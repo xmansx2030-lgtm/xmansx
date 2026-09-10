@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ClipboardCheck, Search, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Search, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
@@ -23,7 +23,6 @@ import {
   submitSession,
 } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
-import { ReferralCreateCard } from "@/features/referrals/ReferralCreateCard";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 /** حالة الطالب محليًا — «حاضر» هو الافتراضي ولا يرسل للخادم (استثناءات فقط). */
@@ -104,12 +103,6 @@ export function AttendanceSessionPage() {
   const [rosterNotice, setRosterNotice] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [exceptionsOnly, setExceptionsOnly] = useState(false);
-  // م13 — تحويل طالب من قائمة الفصل إلى المرشد
-  const [referralTarget, setReferralTarget] = useState<{
-    id: number;
-    name: string;
-  } | null>(null);
-  const [referralDone, setReferralDone] = useState<string | null>(null);
 
   // مزامنة أثناء العرض (نمط adjusting state during render) — مرة واحدة لكل جلسة
   const [loadedSessionId, setLoadedSessionId] = useState<number | null>(null);
@@ -366,33 +359,6 @@ export function AttendanceSessionPage() {
         </p>
       )}
 
-      {referralTarget && (
-        <ReferralCreateCard
-          // ‏key بالطالب: بدونه يعيد React استخدام النموذج نفسه عند اختيار طالب
-          // آخر فتذهب الملاحظة (أو حالة التكرار) إلى ملف الطالب السابق
-          key={referralTarget.id}
-          student={{ id: referralTarget.id, name: referralTarget.name }}
-          onCreated={() => {
-            setReferralTarget(null);
-            setReferralDone("تم إرسال الإحالة إلى المرشد.");
-          }}
-          onContributed={() => {
-            setReferralTarget(null);
-            setReferralDone("أضيفت ملاحظتك إلى ملف المتابعة المفتوح.");
-          }}
-          onCancel={() => setReferralTarget(null)}
-        />
-      )}
-      {referralDone && (
-        <p
-          role="status"
-          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
-          data-testid="referral-done"
-        >
-          {referralDone}
-        </p>
-      )}
-
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-gradient-to-l from-slate-50 to-white p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -455,21 +421,6 @@ export function AttendanceSessionPage() {
                   <p className="text-xs text-slate-400" dir="ltr">
                     {student.national_id_masked}
                   </p>
-                  {/* م13: التحويل للمرشد من مكان ملاحظة المعلم للطالب فعليًا */}
-                  <button
-                    type="button"
-                    className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                    onClick={() =>
-                      setReferralTarget({
-                        id: student.student_id,
-                        name: student.full_name,
-                      })
-                    }
-                    data-testid={`refer-student-${student.student_id}`}
-                  >
-                    <UserRoundPlus aria-hidden size={14} />
-                    تحويل للمرشد
-                  </button>
                 </div>
                 {marking ? (
                   <div className="grid w-full grid-cols-2 items-center gap-1.5 sm:flex sm:w-auto sm:flex-wrap">

@@ -187,6 +187,16 @@ export interface CreateSchoolResponse extends SchoolRow {
   temporary_password: string | null;
 }
 
+export interface DeleteSchoolResponse {
+  deleted: true;
+  school_id: number;
+  school_name: string;
+  database_records_deleted: number;
+  user_accounts_deleted: number;
+  storage_objects_deleted: number;
+  storage_objects_failed: number;
+}
+
 export interface PlanInput {
   code?: string;
   name_ar: string;
@@ -225,6 +235,16 @@ export const updatePlatformSchool = (
   schoolId: number,
   body: { name?: string; school_status?: string; school_type?: SchoolType },
 ) => apiRequest<SchoolDetail>(`/platform/schools/${schoolId}/`, { method: "PATCH", body });
+
+export const deletePlatformSchool = (schoolId: number, confirmationName: string) =>
+  apiRequest<DeleteSchoolResponse>(`/platform/schools/${schoolId}/`, {
+    method: "DELETE",
+    body: {
+      confirmation_name: confirmationName,
+      acknowledge_permanent_deletion: true,
+    },
+    timeoutMs: 60_000,
+  });
 
 export const addSchoolManager = (
   schoolId: number,

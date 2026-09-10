@@ -17,7 +17,11 @@ def staff_queryset(*, school, search: str = "", role: str = "", status: str = ""
     queryset = (
         StaffProfile.objects.filter(school=school)
         .select_related("membership__user")
-        .prefetch_related("membership__roles", COUNSELOR_SECTIONS_PREFETCH)
+        .prefetch_related(
+            "membership__roles",
+            "membership__capabilities",
+            COUNSELOR_SECTIONS_PREFETCH,
+        )
         .order_by("display_name")
     )
     if search:

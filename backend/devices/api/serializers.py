@@ -111,7 +111,6 @@ class ManualArrivalSerializer(serializers.Serializer):
     student_id = serializers.IntegerField(min_value=1)
     date = serializers.DateField()
     arrival_time = serializers.TimeField()
-    reason = serializers.CharField(max_length=300)
 
 
 class ArrivalCorrectionSerializer(serializers.Serializer):
@@ -173,6 +172,9 @@ class MorningSummarySerializer(serializers.Serializer):
     unmatched_events = serializers.IntegerField()
     devices_total = serializers.IntegerField()
     devices_offline = serializers.IntegerField()
+    school_day_start_time = serializers.CharField()
+    grace_minutes = serializers.IntegerField()
+    late_after_time = serializers.CharField()
 
 
 class LateStudentSerializer(serializers.Serializer):

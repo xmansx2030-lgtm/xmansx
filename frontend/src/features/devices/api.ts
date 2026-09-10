@@ -98,6 +98,9 @@ export interface MorningSummary {
   unmatched_events: number;
   devices_total: number;
   devices_offline: number;
+  school_day_start_time: string;
+  grace_minutes: number;
+  late_after_time: string;
 }
 
 export interface LateStudentRow {
@@ -210,7 +213,6 @@ export const createManualArrival = (payload: {
   student_id: number;
   date: string;
   arrival_time: string;
-  reason: string;
 }) => apiRequest<ArrivalRow>("/morning/arrivals/", { method: "POST", body: payload });
 
 export const correctArrival = (

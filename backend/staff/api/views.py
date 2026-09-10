@@ -124,6 +124,7 @@ def _serialize_staff(
         "job_title": profile.job_title,
         "mobile": user.mobile if full_mobile else mask_mobile(user.mobile),
         "roles": membership.role_codes(),
+        "capabilities": membership.capability_codes(),
         "membership_status": membership.status,
         "joined_at": membership.joined_at.date().isoformat(),
         "is_active": profile.is_active,
@@ -180,7 +181,7 @@ class StaffDetailView(SchoolScopedAPIView):
     def get_object(self, request, staff_id: int) -> StaffProfile:
         return get_object_or_404(
             StaffProfile.objects.select_related("membership__user").prefetch_related(
-                "membership__roles", COUNSELOR_SECTIONS_PREFETCH
+                "membership__roles", "membership__capabilities", COUNSELOR_SECTIONS_PREFETCH
             ),
             id=staff_id,
             school=request.school,
@@ -286,6 +287,42 @@ class StaffRoleDeleteView(StaffDetailView):
         profile = self.get_object(request, staff_id)
         management.remove_role(
             membership=profile.membership, role=role, actor=request.user, request=request
+        )
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
+
+
+class StaffMorningAttendanceCapabilityView(StaffDetailView):
+    """منح/سحب تكليف التأخر الصباحي — مدير المدرسة فقط."""
+
+    http_method_names = ["post", "delete", "options"]
+
+    def post(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        management.grant_morning_attendance(
+            membership=profile.membership,
+            actor=request.user,
+            request=request,
+        )
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
+
+    def delete(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        management.revoke_morning_attendance(
+            membership=profile.membership,
+            actor=request.user,
+            request=request,
         )
         return Response(
             _serialize_staff(

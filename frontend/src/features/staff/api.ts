@@ -8,6 +8,7 @@ export interface StaffMember {
   job_title: string;
   mobile: string; // مقنع في القائمة — كامل في التفاصيل (مدير فقط)
   roles: string[];
+  capabilities?: string[];
   membership_status: string;
   joined_at: string;
   is_active: boolean;
@@ -132,6 +133,12 @@ export const addStaffRole = (id: number, role: string) =>
 
 export const removeStaffRole = (id: number, role: string) =>
   apiRequest<StaffMember>(`/staff/${id}/roles/${role}/`, { method: "DELETE" });
+
+export const grantMorningAttendance = (id: number) =>
+  apiRequest<StaffMember>(`/staff/${id}/morning-attendance/`, { method: "POST" });
+
+export const revokeMorningAttendance = (id: number) =>
+  apiRequest<StaffMember>(`/staff/${id}/morning-attendance/`, { method: "DELETE" });
 
 export const suspendStaff = (id: number) =>
   apiRequest<StaffMember>(`/staff/${id}/suspend/`, { method: "POST" });

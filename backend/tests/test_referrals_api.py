@@ -133,6 +133,39 @@ def test_options_endpoint_restricts_teacher_categories(api_env):
 
 
 @pytest.mark.django_db
+def test_referral_student_search_is_filtered_and_privacy_limited(api_env):
+    """صفحة التحويل تبحث في النشطين وتعيد أقل قدر لازم من بيانات الطالب."""
+    first, second = api_env["students"]
+    first.full_name = "أحمد المرشح"
+    first.save(update_fields=["full_name"])
+    second.full_name = "محمد الآخر"
+    second.save(update_fields=["full_name"])
+
+    response = api_env["teacher_client"].get(
+        f"{BASE}students/?search=أحمد&grade={api_env['grade'].id}"
+        f"&section={api_env['section'].id}"
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["results"] == [
+        {
+            "id": first.id,
+            "full_name": "أحمد المرشح",
+            "grade": {"id": api_env["grade"].id, "name": "الأول الثانوي"},
+            "section": {"id": api_env["section"].id, "name": "1"},
+        }
+    ]
+    # لا هوية ولا رقم طالب ولا بيانات ولي أمر في استجابة المعلم.
+    assert set(body["results"][0]) == {"id", "full_name", "grade", "section"}
+
+
+@pytest.mark.django_db
+def test_counselor_cannot_open_teacher_referral_student_search(api_env):
+    assert api_env["counselor_client"].get(f"{BASE}students/").status_code == 403
+
+
+@pytest.mark.django_db
 def test_teacher_cannot_assign_counselor_on_create(api_env):
     response = create_referral(
         api_env["teacher_client"],

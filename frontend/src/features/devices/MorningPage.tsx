@@ -1,6 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, ScanFace } from "lucide-react";
-import { useState } from "react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  ScanFace,
+  ShieldCheck,
+  Sunrise,
+  UserRoundCheck,
+  WifiOff,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -22,9 +31,28 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function currentTime(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+function useOnlineStatus() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return online;
+}
+
 type Tab = "today" | "late" | "history";
 
-/** الحضور الصباحي (وكيل + مدير): ملخص اليوم، المتأخرون، سجل طالب، وصول يدوي وتصحيح.
+/** التأخر الصباحي: الإدارة والمعلم المكلّف، مع حساب خادمي وسجل تدقيق.
  *  قاعدة صلبة: لا قائمة «غائبين» هنا — غياب البصمة لا يعني غيابًا عن المدرسة. */
 export function MorningPage() {
   const me = useMe();
@@ -34,6 +62,8 @@ export function MorningPage() {
   const [tab, setTab] = useState<Tab>("today");
   const [date, setDate] = useState(todayIso());
   const isToday = date === todayIso();
+  const isDelegatedOperator = (me.data?.capabilities ?? []).includes("MORNING_ATTENDANCE");
+  const online = useOnlineStatus();
 
   const summaryQuery = useQuery({
     queryKey: schoolScopedKey(schoolId, "morning", "summary", date),
@@ -52,10 +82,40 @@ export function MorningPage() {
   ]);
 
   return (
-    <div className="space-y-5">
-      <PageHeader icon={ScanFace} eyebrow="الاستقبال الصباحي" title="الحضور الصباحي" description={`مراقبة وصول ${studentPluralLabel(schoolType)} من أجهزة الحضور، ومعالجة الحالات اليدوية دون الخلط بينها وبين الغياب الرسمي.`} tone="operational" badge={isToday ? "تحديث مباشر" : "سجل تاريخي"} actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border-white/20 bg-white text-slate-950" data-testid="morning-date" /></label>} />
-      <section className="rounded-2xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
-        <div className="mt-3 flex gap-1 border-b border-slate-100" role="tablist">
+    <div className="space-y-5" data-testid="morning-attendance-page">
+      <PageHeader
+        icon={Sunrise}
+        eyebrow={isDelegatedOperator ? "تكليف تشغيلي مستقل" : "الاستقبال الصباحي"}
+        title="التأخر الصباحي"
+        description={`تسجيل وقت الوصول الفعلي ${studentPluralLabel(schoolType) === "الطالبات" ? "للطالبات" : "للطلاب"} وحساب التأخر تلقائيًا ضمن تكليف مستقل لا يغيّر أدوار الموظف أو مهامه الأصلية.`}
+        tone="operational"
+        badge={isDelegatedOperator ? "تكليف نشط" : isToday ? "تحديث مباشر" : "سجل تاريخي"}
+        actions={<label className="flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span className="sr-only">التاريخ</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="min-h-11 border-white/20 bg-white text-slate-950" data-testid="morning-date" /></label>}
+      />
+
+      {!online && (
+        <div role="status" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" data-testid="morning-offline-notice">
+          <WifiOff aria-hidden size={20} className="mt-0.5 shrink-0" />
+          <div><p className="font-black">أنت تعمل دون اتصال</p><p className="mt-1 text-xs leading-5">تظل واجهة PWA متاحة، لكن تسجيل الوصول يحتاج اتصالًا لحظيًا لمنع التكرار بين المكلّفين.</p></div>
+        </div>
+      )}
+
+      {summaryQuery.isSuccess && (
+        <section className="grid overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-l from-amber-50 via-white to-white shadow-sm md:grid-cols-[minmax(0,1fr)_auto]" data-testid="morning-policy">
+          <div className="flex items-start gap-3 p-5">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-900/15"><Clock3 aria-hidden size={21} /></span>
+            <div><h2 className="font-black text-slate-900">سياسة الاحتساب المعتمدة</h2><p className="mt-1 text-sm leading-6 text-slate-600">بداية الدوام <b dir="ltr">{summaryQuery.data.school_day_start_time}</b>، وفترة السماح {summaryQuery.data.grace_minutes} دقائق. يبدأ تصنيف الوصول متأخرًا بعد <b dir="ltr">{summaryQuery.data.late_after_time}</b>.</p></div>
+          </div>
+          <div className="grid grid-cols-3 border-t border-amber-100 bg-white/70 md:border-r md:border-t-0">
+            <PolicyValue label="بداية الدوام" value={summaryQuery.data.school_day_start_time} />
+            <PolicyValue label="السماح" value={`${summaryQuery.data.grace_minutes} د`} />
+            <PolicyValue label="بعدها متأخر" value={summaryQuery.data.late_after_time} />
+          </div>
+        </section>
+      )}
+
+      <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white px-2 pt-2 shadow-sm">
+        <div className="flex min-w-max gap-1 border-b border-slate-100" role="tablist">
           {(
             [
               ["today", "اليوم"],
@@ -69,7 +129,7 @@ export function MorningPage() {
               role="tab"
               aria-selected={tab === key}
               onClick={() => setTab(key)}
-              className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+              className={`min-h-11 rounded-t-xl px-5 py-2 text-sm font-bold transition ${
                 tab === key
                   ? "border-b-2 border-blue-600 text-blue-700"
                   : "text-slate-500 hover:text-slate-800"
@@ -89,8 +149,9 @@ export function MorningPage() {
               <ErrorState error={summaryQuery.error} />
             </section>
           )}
+          {isDelegatedOperator && <ManualArrivalCard date={date} onDone={refresh} online={online} />}
           {summaryQuery.isSuccess && (
-            <section className="grid grid-cols-2 gap-2 sm:grid-cols-5" data-testid="morning-kpis">
+            <section className="grid grid-cols-2 gap-3 sm:grid-cols-5" data-testid="morning-kpis">
               {(
                 [
                   ["kpi-arrived", "سجلوا حضورًا", summaryQuery.data.arrived_total],
@@ -103,19 +164,19 @@ export function MorningPage() {
                 <div
                   key={testId}
                   data-testid={testId}
-                  className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm"
                 >
-                  <p className="text-2xl font-bold text-slate-800">{value}</p>
-                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className="text-2xl font-black tabular-nums text-slate-900">{value}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{label}</p>
                 </div>
               ))}
             </section>
           )}
-          <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-sm">
-            عدم وجود بصمة لا يعني غياب {studentLabel(schoolType, true)} (جهاز معطل/بوابة أخرى/مزامنة متأخرة) —
-            الغياب الرسمي من تحضير الحصص فقط.
-          </p>
-          <ManualArrivalCard date={date} onDone={refresh} />
+          <div className="flex items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 p-4 text-xs leading-5 text-teal-950">
+            <ShieldCheck aria-hidden size={18} className="mt-0.5 shrink-0 text-teal-700" />
+            <p>عدم وجود بصمة لا يعني غياب {studentLabel(schoolType, true)}؛ الغياب الرسمي يبقى من تحضير الحصص «حاضر/غائب» فقط.</p>
+          </div>
+          {!isDelegatedOperator && <ManualArrivalCard date={date} onDone={refresh} online={online} />}
         </>
       )}
 
@@ -125,50 +186,41 @@ export function MorningPage() {
   );
 }
 
-function ManualArrivalCard({ date, onDone }: { date: string; onDone: () => void }) {
+function PolicyValue({ label, value }: { label: string; value: string }) {
+  return <div className="grid min-w-24 place-items-center border-l border-amber-100 p-3 text-center last:border-l-0"><strong className="text-base tabular-nums text-slate-900" dir="auto">{value}</strong><span className="mt-1 text-[10px] font-bold text-slate-500">{label}</span></div>;
+}
+
+function ManualArrivalCard({ date, onDone, online }: { date: string; onDone: () => void; online: boolean }) {
   const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [student, setStudent] = useState<{ id: number; name: string } | null>(null);
-  const [time, setTime] = useState("07:10");
-  const [reason, setReason] = useState("");
+  const [time, setTime] = useState(currentTime);
   const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
   return (
-    <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="font-bold text-slate-800">تسجيل وصول يدوي</h3>
-      <p className="text-xs text-slate-500">
-        {schoolType === "GIRLS" ? "لطالبة دخلت" : "لطالب دخل"} من بوابة أخرى أو تعطل الجهاز — التأخر يحسب خادميًا من إعدادات الدوام.
-      </p>
-      {student ? (
-        <p className="text-sm">
-          {studentLabel(schoolType, true)}: <span className="font-medium">{student.name}</span>{" "}
-          <button type="button" className="text-blue-700 underline" onClick={() => setStudent(null)}>
-            تغيير
-          </button>
-        </p>
-      ) : (
-        <StudentPicker onSelect={(id, name) => setStudent({ id, name })} />
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-sm text-slate-600">
-          وقت الوصول{" "}
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2 py-1.5"
-            data-testid="manual-arrival-time"
-          />
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg shadow-slate-950/5" data-testid="manual-arrival-card">
+      <div className="border-b border-slate-100 bg-gradient-to-l from-slate-950 via-slate-900 to-teal-950 p-5 text-white sm:p-6">
+        <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-teal-200 ring-1 ring-white/10"><UserRoundCheck aria-hidden size={21} /></span><div><h3 className="text-lg font-black">تسجيل وصول متأخر</h3><p className="mt-1 text-xs leading-5 text-slate-300">أدخل وقت الوصول الفعلي، والمنصة تحسب الدقائق وتحفظ منفذ العملية تلقائيًا.</p></div></div>
+      </div>
+      <div className="space-y-5 p-4 sm:p-6">
+        <div>
+          <p className="mb-2 text-sm font-black text-slate-800">1. اختر {studentLabel(schoolType, true)}</p>
+          {student ? (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-3 text-sm"><span><CheckCircle2 aria-hidden size={17} className="ml-2 inline text-teal-700" /><b>{student.name}</b></span><button type="button" className="min-h-11 rounded-lg px-3 font-bold text-teal-800 hover:bg-white" onClick={() => setStudent(null)}>تغيير</button></div>
+          ) : (
+            <StudentPicker
+              searchEndpoint="/morning/students/search/"
+              showMaskedIdentifier={false}
+              onSelect={(id, name) => setStudent({ id, name })}
+            />
+          )}
+        </div>
+        <label className="block max-w-sm text-sm font-black text-slate-800">2. وقت الوصول الفعلي
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base font-black tabular-nums" data-testid="manual-arrival-time" />
         </label>
-        <input
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="السبب (إلزامي)"
-          aria-label="سبب التسجيل اليدوي"
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-        />
         <Button
-          disabled={!student || !reason.trim()}
+          className="min-h-12 w-full text-base sm:w-auto"
+          disabled={!student || !time || !online}
           onClick={() => {
             setError(null);
             setSaved(null);
@@ -176,7 +228,6 @@ function ManualArrivalCard({ date, onDone }: { date: string; onDone: () => void 
               student_id: student!.id,
               date,
               arrival_time: time,
-              reason: reason.trim(),
             })
               .then((arrival) => {
                 setSaved(
@@ -185,22 +236,22 @@ function ManualArrivalCard({ date, onDone }: { date: string; onDone: () => void 
                     : "سجل — في الوقت",
                 );
                 setStudent(null);
-                setReason("");
+                setTime(currentTime());
                 onDone();
               })
               .catch(setError);
           }}
           data-testid="save-manual-arrival"
         >
-          تسجيل الوصول
+          <ScanFace aria-hidden size={18} /> تسجيل الوصول واحتساب التأخر
         </Button>
-      </div>
       {saved && (
-        <p className="text-sm text-green-700" data-testid="manual-arrival-result">
+        <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800" data-testid="manual-arrival-result">
           {saved}
         </p>
       )}
       {error != null && <ErrorState error={error} />}
+      </div>
     </section>
   );
 }
@@ -262,28 +313,28 @@ function LateTab({
               {lateQuery.data.students.map((row) => (
                 <li
                   key={row.arrival_id}
-                  className="flex flex-wrap items-center justify-between gap-2 p-3"
+                  className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center"
                   data-testid={`late-row-${row.student_id}`}
                 >
                   <div>
-                    <p className="font-medium text-slate-800">{row.full_name}</p>
+                    <p className="font-black text-slate-900">{row.full_name}</p>
                     <p className="text-xs text-slate-500">
                       {row.grade_name} / {row.section_name}
                     </p>
                   </div>
-                  <p className="text-sm text-slate-600">
+                  <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
                     وصل <span dir="ltr">{row.arrival_time}</span> · متأخر{" "}
                     {row.counted_late_minutes} دقيقة ·{" "}
                     {row.source === "BIOMETRIC" ? "البصمة" : "يدوي"}
                   </p>
                   {correcting === row.arrival_id ? (
-                    <span className="flex items-center gap-2">
+                    <span className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 md:flex md:w-auto">
                       <input
                         type="time"
                         value={correctTime}
                         onChange={(e) => setCorrectTime(e.target.value)}
                         aria-label="وقت الوصول المصحح"
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        className="min-h-11 rounded-xl border border-slate-300 px-2 py-1 text-sm"
                         data-testid="correct-time"
                       />
                       <input
@@ -291,7 +342,7 @@ function LateTab({
                         onChange={(e) => setCorrectReason(e.target.value)}
                         placeholder="السبب"
                         aria-label="سبب التصحيح"
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        className="col-span-2 min-h-11 rounded-xl border border-slate-300 px-3 py-1 text-sm md:col-span-1"
                         data-testid="correct-reason"
                       />
                       <Button
@@ -309,17 +360,19 @@ function LateTab({
                             })
                             .catch(setError);
                         }}
+                        className="min-h-11"
                         data-testid="save-correction"
                       >
                         حفظ
                       </Button>
-                      <Button variant="secondary" onClick={() => setCorrecting(null)}>
+                      <Button variant="secondary" className="min-h-11" onClick={() => setCorrecting(null)}>
                         إلغاء
                       </Button>
                     </span>
                   ) : (
                     <Button
                       variant="secondary"
+                      className="w-full md:w-auto"
                       onClick={() => {
                         setCorrecting(row.arrival_id);
                         setCorrectTime(row.arrival_time);
@@ -385,7 +438,11 @@ function HistoryTab({ schoolId }: { schoolId: number }) {
             </button>
           </p>
         ) : (
-          <StudentPicker onSelect={(id, name) => setStudent({ id, name })} />
+          <StudentPicker
+            searchEndpoint="/morning/students/search/"
+            showMaskedIdentifier={false}
+            onSelect={(id, name) => setStudent({ id, name })}
+          />
         )}
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
           <label>
@@ -394,7 +451,7 @@ function HistoryTab({ schoolId }: { schoolId: number }) {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
+              className="min-h-11 rounded-lg border border-slate-300 px-2 py-1.5"
             />
           </label>
           <label>
@@ -403,7 +460,7 @@ function HistoryTab({ schoolId }: { schoolId: number }) {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5"
+              className="min-h-11 rounded-lg border border-slate-300 px-2 py-1.5"
             />
           </label>
         </div>

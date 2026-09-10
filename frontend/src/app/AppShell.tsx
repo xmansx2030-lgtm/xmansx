@@ -10,7 +10,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
 import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels, studentPluralLabel } from "@/utils/roles";
-import type { SchoolRole } from "@/types/auth";
+import type { SchoolCapability, SchoolRole } from "@/types/auth";
 
 type Role = SchoolRole;
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -19,6 +19,7 @@ interface NavigationItem {
   to: string;
   label: string;
   roles: Role[];
+  capabilities?: SchoolCapability[];
   icon: LucideIcon;
   group: NavigationGroup;
 }
@@ -55,10 +56,10 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/referrals", label: "الإحالات", roles: MANAGER_VP_COUNSELOR, icon: Send, group: "students" },
   { to: "/counselor", label: "الإرشاد", roles: MANAGER_VP_COUNSELOR, icon: HeartHandshake, group: "students" },
   { to: "/teacher/follow-ups", label: "طلبات المتابعة", roles: ["TEACHER"], icon: MessageSquareMore, group: "students" },
-  { to: "/referrals/mine", label: "إحالاتي", roles: ["TEACHER"], icon: Send, group: "students" },
+  { to: "/referrals/mine", label: "التحويلات", roles: ["TEACHER"], icon: Send, group: "students" },
   { to: "/attendance/monitoring", label: "متابعة التحضير", roles: MANAGER_VP, icon: BookOpenCheck, group: "operations" },
   { to: "/attendance/analytics", label: "الغياب والحضور", roles: MANAGER_VP, icon: BarChart3, group: "operations" },
-  { to: "/morning", label: "الحضور الصباحي", roles: MANAGER_VP, icon: Sunrise, group: "operations" },
+  { to: "/morning", label: "التأخر الصباحي", roles: MANAGER_VP, capabilities: ["MORNING_ATTENDANCE"], icon: Sunrise, group: "operations" },
   { to: "/student-leaves", label: "الاستئذانات", roles: MANAGER_VP, icon: DoorOpen, group: "operations" },
   { to: "/gate", label: "بوابة المدرسة", roles: [...MANAGER_VP, "GATE_GUARD"], icon: DoorOpen, group: "operations" },
   { to: "/attendance/qr", label: "رموز QR", roles: ["SCHOOL_MANAGER"], icon: QrCode, group: "operations" },
@@ -159,7 +160,10 @@ export function AppShell() {
   const doLogout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const schoolType = me.data?.active_school?.school_type;
-  const items = me.isSuccess ? NAVIGATION.filter((item) => item.roles.some((role) => me.data.roles.includes(role))) : [];
+  const items = me.isSuccess ? NAVIGATION.filter((item) =>
+    item.roles.some((role) => me.data.roles.includes(role)) ||
+    (item.capabilities ?? []).some((capability) => (me.data.capabilities ?? []).includes(capability)),
+  ) : [];
   const isManager = me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER");
   const isVicePrincipalOnly = me.isSuccess && me.data.roles.includes("VICE_PRINCIPAL") && !isManager;
   const primaryPaths = isManager ? MANAGER_PRIMARY_PATHS : isVicePrincipalOnly ? VICE_PRINCIPAL_PRIMARY_PATHS : null;
@@ -184,7 +188,7 @@ export function AppShell() {
           <div className="mx-auto flex max-w-7xl items-center gap-3">
             <div className="rounded-xl bg-slate-950 p-1.5 lg:hidden"><Brand compact /></div>
             <div className="min-w-0 flex-1"><SchoolSwitcher /></div>
-            <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
+            <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
               {mobileMenuOpen ? <X aria-hidden size={20} /> : <Menu aria-hidden size={20} />}
             </button>
           </div>

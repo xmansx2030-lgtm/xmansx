@@ -17,8 +17,9 @@ urlpatterns = [
     path("device-identities/", views.IdentitiesView.as_view()),
     path("device-identities/<int:identity_id>/map/", views.IdentityMapView.as_view()),
     path("device-identities/<int:identity_id>/unmap/", views.IdentityUnmapView.as_view()),
-    # الحضور الصباحي (مدير + وكيل)
+    # التأخر الصباحي (الإدارة + المعلم المكلّف)
     path("morning/summary/", views.MorningSummaryView.as_view()),
+    path("morning/students/search/", views.MorningStudentSearchView.as_view()),
     path("morning/late/", views.MorningLateListView.as_view()),
     path(
         "morning/students/<int:student_id>/history/",

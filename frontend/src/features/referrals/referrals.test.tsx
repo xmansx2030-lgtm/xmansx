@@ -105,34 +105,18 @@ const DETAIL = {
 const LIST = { count: 1, next: null, previous: null, results: [ROW] };
 const KPIS = { new_count: 1, acknowledged_count: 0, unassigned_count: 1 };
 
-/** جلسة تحضير مفتوحة — نقطة دخول المعلم للإحالة من قائمة الفصل. */
-const SESSION = {
-  id: 5,
-  status: "IN_PROGRESS",
-  attendance_date: "2026-08-19",
-  section: { id: 3, name: "1", grade_name: "الأول الثانوي", students_count: 2 },
-  period: {
-    sequence: 2,
-    name: "الثانية",
-    start_time: "08:05",
-    end_time: "08:50",
-    timezone: "Asia/Riyadh",
-  },
-  submitted_by: null,
-  submitted_at: null,
-  can_edit: true,
-  roster: [
-    { student_id: 11, full_name: "طالب أول", national_id_masked: "******0011" },
-    { student_id: 12, full_name: "طالب ثانٍ", national_id_masked: "******0012" },
+const SECTIONS = [
+  { id: 3, name: "1", grade_id: 9, grade_name: "الأول الثانوي", students_count: 2 },
+  { id: 4, name: "2", grade_id: 9, grade_name: "الأول الثانوي", students_count: 1 },
+];
+const CANDIDATES = {
+  count: 2,
+  next: null,
+  previous: null,
+  results: [
+    { id: 11, full_name: "طالب أول", grade: { id: 9, name: "الأول الثانوي" }, section: { id: 3, name: "1" } },
+    { id: 12, full_name: "طالب ثانٍ", grade: { id: 9, name: "الأول الثانوي" }, section: { id: 4, name: "2" } },
   ],
-  marks: [],
-};
-
-const ATTENDANCE_PREVIEW = {
-  attendance_date: SESSION.attendance_date,
-  section: SESSION.section,
-  period: SESSION.period,
-  session: SESSION,
 };
 
 describe("referrals (Phase 13)", () => {
@@ -143,33 +127,64 @@ describe("referrals (Phase 13)", () => {
 
   // ---- نموذج المعلم ----
 
-  it("offers a teacher only academic/classroom reasons from the class roster", async () => {
+  it("shows a dedicated teacher page for creating and tracking referrals", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/referrals/options/": { body: TEACHER_OPTIONS },
-      "/attendance/sections/": {
-        body: { sections: [{ id: 3, name: "1", grade_name: "الأول الثانوي" }] },
-      },
+      "/attendance/sections/": { body: SECTIONS },
+      "/referrals/students/": { body: CANDIDATES },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
     });
     renderApp("/referrals/mine");
-    expect(await screen.findByRole("heading", { name: "إحالاتي" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "التحويلات إلى المرشد الطلابي" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "إنشاء تحويل جديد" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "متابعة إحالاتي" })).toBeInTheDocument();
     expect(await screen.findByTestId("no-referrals")).toHaveTextContent(
       "لم تنشئ أي إحالة بعد",
     );
   });
 
-  it("teacher refers a student from the class roster", async () => {
+  it("searches referral candidates by name, grade, and section", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
-      "/referrals/options/": { body: TEACHER_OPTIONS },
-      "/referrals/": { status: 201, body: DETAIL },
+      "/attendance/sections/": { body: SECTIONS },
+      "/referrals/students/": { body: CANDIDATES },
+      "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
     });
-    renderApp("/attendance/section/3");
+    renderApp("/referrals/mine");
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("refer-student-11"));
+    await user.type(await screen.findByTestId("referral-student-search"), "طالب أول");
+    await user.selectOptions(screen.getByTestId("referral-grade-filter"), "9");
+    await user.selectOptions(screen.getByTestId("referral-section-filter"), "3");
+    await user.click(screen.getByRole("button", { name: "بحث" }));
+
+    expect(calls.some((call) =>
+      call.url.includes("/referrals/students/") &&
+      call.url.includes("search=") &&
+      call.url.includes("grade=9") &&
+      call.url.includes("section=3"),
+    )).toBe(true);
+  });
+
+  it("teacher refers a student from the dedicated referrals page", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["TEACHER"]) },
+      "/attendance/sections/": { body: SECTIONS },
+      "/referrals/students/": { body: CANDIDATES },
+      "/referrals/options/": { body: TEACHER_OPTIONS },
+      "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/7/": { body: DETAIL },
+      "/referrals/": { status: 201, body: DETAIL },
+    });
+    renderApp("/referrals/mine");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("referral-candidate-11"));
     const form = await screen.findByTestId("referral-create");
     expect(within(form).getByTestId("referral-student")).toHaveTextContent("طالب أول");
 
@@ -202,13 +217,16 @@ describe("referrals (Phase 13)", () => {
   it("requires a description when the reason is «other»", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
+      "/attendance/sections/": { body: SECTIONS },
+      "/referrals/students/": { body: CANDIDATES },
       "/referrals/options/": { body: TEACHER_OPTIONS },
+      "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
     });
-    renderApp("/attendance/section/3");
+    renderApp("/referrals/mine");
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("refer-student-11"));
+    await user.click(await screen.findByTestId("referral-candidate-11"));
     await user.selectOptions(await screen.findByTestId("referral-category"), "ACADEMIC");
     await user.selectOptions(screen.getByTestId("referral-reason"), "OTHER_ACADEMIC");
     expect(screen.getByTestId("save-referral")).toBeDisabled();
@@ -220,8 +238,12 @@ describe("referrals (Phase 13)", () => {
   it("offers adding a note when a duplicate open case exists", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
-      "/attendance/sections/3/preview/": { body: ATTENDANCE_PREVIEW },
+      "/attendance/sections/": { body: SECTIONS },
+      "/referrals/students/": { body: CANDIDATES },
       "/referrals/options/": { body: TEACHER_OPTIONS },
+      "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/7/": { body: DETAIL },
       "/referrals/contribute/": {
         status: 201,
         body: {
@@ -245,10 +267,10 @@ describe("referrals (Phase 13)", () => {
         },
       },
     });
-    renderApp("/attendance/section/3");
+    renderApp("/referrals/mine");
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("refer-student-11"));
+    await user.click(await screen.findByTestId("referral-candidate-11"));
     await user.selectOptions(await screen.findByTestId("referral-category"), "ACADEMIC");
     await user.selectOptions(screen.getByTestId("referral-reason"), "ACADEMIC_WEAKNESS");
     await user.click(screen.getByTestId("save-referral"));

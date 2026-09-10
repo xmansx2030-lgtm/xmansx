@@ -145,6 +145,92 @@ describe("StaffPage", () => {
     expect(patchBody).toMatchObject({ display_name: "أحمد المصحح", job_title: "معلم علوم" });
   });
 
+  it("manager assigns morning follow-up without changing the employee role", async () => {
+    const api = mockApi({
+      "/staff/1/morning-attendance/": {
+        body: { ...STAFF_PAGE.results[0], capabilities: ["MORNING_ATTENDANCE"] },
+      },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    const assignment = screen.getByTestId("morning-assignment-1");
+    expect(assignment).toHaveTextContent("متاح للمعلم أو الوكيل أو المرشد أو الحارس");
+    await user.click(within(assignment).getByRole("button", { name: "تكليف بالمتابعة" }));
+    await waitFor(() => expect(api.calls.some((call) =>
+      call.url.includes("/staff/1/morning-attendance/") && call.init?.method === "POST",
+    )).toBe(true));
+    expect(STAFF_PAGE.results[0]!.roles).toEqual(["TEACHER"]);
+  });
+
+  it.each([
+    ["VICE_PRINCIPAL", "وكيل المدرسة", 31],
+    ["COUNSELOR", "المرشد الطلابي", 32],
+    ["GATE_GUARD", "حارس البوابة", 33],
+  ] as const)("manager can assign morning follow-up to %s", async (role, name, id) => {
+    const member = {
+      id,
+      display_name: name,
+      employee_number: null,
+      job_title: "",
+      mobile: "+9665****0031",
+      roles: [role],
+      capabilities: [],
+      membership_status: "ACTIVE",
+      joined_at: "2026-08-18",
+      is_active: true,
+    };
+    const api = mockApi({
+      [`/staff/${id}/morning-attendance/`]: {
+        body: { ...member, capabilities: ["MORNING_ATTENDANCE"] },
+      },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: { count: 1, next: null, previous: null, results: [member] } },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدارة" }));
+    const assignment = screen.getByTestId(`morning-assignment-${id}`);
+    await user.click(within(assignment).getByRole("button", { name: "تكليف بالمتابعة" }));
+    await waitFor(() => expect(api.calls.some((call) =>
+      call.url.includes(`/staff/${id}/morning-attendance/`) && call.init?.method === "POST",
+    )).toBe(true));
+    expect(member.roles).toEqual([role]);
+  });
+
+  it("confirms revoking morning follow-up without removing employee duties", async () => {
+    const assignedStaff = {
+      ...STAFF_PAGE,
+      results: [
+        { ...STAFF_PAGE.results[0]!, capabilities: ["MORNING_ATTENDANCE"] },
+        STAFF_PAGE.results[1]!,
+      ],
+    };
+    const api = mockApi({
+      "/staff/1/morning-attendance/": {
+        body: { ...STAFF_PAGE.results[0], capabilities: [] },
+      },
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: assignedStaff },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole("button", { name: "إدارة" }))[0]!);
+    const assignment = screen.getByTestId("morning-assignment-1");
+    await user.click(within(assignment).getByRole("button", { name: "سحب التكليف" }));
+
+    const dialog = screen.getByRole("dialog", { name: /سحب تكليف التأخر الصباحي من أحمد الغامدي/ });
+    expect(within(dialog).getByText(/ستبقى أدوار الموظف ومهامه الأصلية دون تغيير/)).toBeInTheDocument();
+    expect(api.calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+
+    await user.click(within(dialog).getByRole("button", { name: "تأكيد سحب التكليف" }));
+    await waitFor(() => expect(api.calls.some((call) =>
+      call.url.includes("/staff/1/morning-attendance/") && call.init?.method === "DELETE",
+    )).toBe(true));
+  });
+
   it("requires typing the employee name before permanent deletion", async () => {
     const api = mockApi({
       "/staff/1/": { body: {} },

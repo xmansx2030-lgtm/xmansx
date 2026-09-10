@@ -25,6 +25,12 @@ class SchoolRole(models.TextChoices):
     GATE_GUARD = "GATE_GUARD", "حارس البوابة"
 
 
+class SchoolCapability(models.TextChoices):
+    """تكليفات تشغيلية تضاف للعضوية ولا تستبدل أدوار الموظف الأصلية."""
+
+    MORNING_ATTENDANCE = "MORNING_ATTENDANCE", "متابعة التأخر الصباحي"
+
+
 class SchoolMembership(TimestampedModel):
     """عضوية مستخدم عالمي في مدرسة — العمود الفقري للـ Multi-Tenancy."""
 
@@ -66,6 +72,9 @@ class SchoolMembership(TimestampedModel):
     def role_codes(self) -> list[str]:
         return [r.role for r in self.roles.all()]
 
+    def capability_codes(self) -> list[str]:
+        return [row.capability for row in self.capabilities.all()]
+
 
 class SchoolMembershipRole(TimestampedModel):
     """دور داخل عضوية — يسمح بتعدد الأدوار في نفس المدرسة."""
@@ -86,3 +95,34 @@ class SchoolMembershipRole(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.membership} → {self.role}"
+
+
+class SchoolMembershipCapability(TimestampedModel):
+    """تكليف دائم داخل مدرسة واحدة؛ يبقى حتى يسحبه مدير المدرسة."""
+
+    membership = models.ForeignKey(
+        SchoolMembership,
+        on_delete=models.CASCADE,
+        related_name="capabilities",
+    )
+    capability = models.CharField(max_length=40, choices=SchoolCapability.choices)
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "تكليف تشغيلي"
+        verbose_name_plural = "التكليفات التشغيلية"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership", "capability"],
+                name="uniq_membership_capability",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.membership} → {self.capability}"

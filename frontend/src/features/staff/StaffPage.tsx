@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Sunrise,
   Trash2,
   Upload,
   UserCheck,
@@ -38,9 +39,11 @@ import {
   addStaffRole,
   deleteStaff,
   getStaff,
+  grantMorningAttendance,
   MEMBERSHIP_STATUS_LABELS,
   reinviteStaff,
   resetStaffPassword,
+  revokeMorningAttendance,
   removeStaffRole,
   suspendStaff,
   updateStaff,
@@ -237,7 +240,7 @@ export function StaffPage() {
   );
 }
 
-type ConfirmAction = "suspend" | "delete" | "reset-password" | null;
+type ConfirmAction = "suspend" | "delete" | "reset-password" | "revoke-morning" | null;
 
 function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMember; isManager: boolean; schoolType: SchoolType; onError: (message: string | null) => void }) {
   const invalidate = useInvalidateSchoolData();
@@ -323,11 +326,16 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
               مسؤول عن {member.counselor_section_count ?? 0} فصل
             </span>
           )}
+          {(member.capabilities ?? []).includes("MORNING_ATTENDANCE") && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200" data-testid={`morning-assignment-badge-${member.id}`}>
+              <Sunrise aria-hidden size={13} /> متابعة التأخر الصباحي
+            </span>
+          )}
           {isManager && (
             <button
               type="button"
               aria-expanded={expanded}
-              className="mr-auto inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700 lg:mr-2"
+              className="mr-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700 lg:mr-2"
               onClick={() => { setExpanded((value) => !value); setRowError(null); }}
             >
               إدارة {expanded ? <ChevronUp aria-hidden size={15} /> : <ChevronDown aria-hidden size={15} />}
@@ -362,6 +370,17 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
               })}
             </div>
             {member.is_current_user && <p className="mt-3 text-xs font-medium text-violet-700">لحماية وصولك، اطلب من مدير آخر تعديل أدوار حسابك.</p>}
+            <MorningAttendanceAssignment
+              member={member}
+              pending={mutation.isPending}
+              onToggle={(assigned) => {
+                if (assigned) {
+                  setConfirmAction("revoke-morning");
+                  return;
+                }
+                mutation.mutate(() => grantMorningAttendance(member.id));
+              }}
+            />
           </section>
 
           <section className="rounded-2xl bg-slate-50 p-4">
@@ -442,6 +461,26 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
         </Modal>
       )}
 
+      {confirmAction === "revoke-morning" && (
+        <Modal
+          title={`سحب تكليف التأخر الصباحي من ${member.display_name}`}
+          description="سيختفي قسم التأخر الصباحي من مساحة المعلم فورًا."
+          onClose={closeConfirmation}
+        >
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            <p className="font-black">سيُسحب التكليف التشغيلي فقط.</p>
+            <p className="mt-1">ستبقى أدوار الموظف ومهامه الأصلية دون تغيير.</p>
+          </div>
+          {rowError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{rowError}</p>}
+          <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <Button variant="secondary" onClick={closeConfirmation} disabled={mutation.isPending}>إلغاء</Button>
+            <Button variant="danger" onClick={() => mutation.mutate(() => revokeMorningAttendance(member.id))} disabled={mutation.isPending}>
+              <Sunrise aria-hidden size={16} /> {mutation.isPending ? "جارٍ سحب التكليف..." : "تأكيد سحب التكليف"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
       {confirmAction === "delete" && (
         <Modal title={`حذف ${member.display_name} نهائيًا`} description="هذا الإجراء لا يمكن التراجع عنه." onClose={closeConfirmation}>
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900">
@@ -470,6 +509,54 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
         </Modal>
       )}
     </li>
+  );
+}
+
+function MorningAttendanceAssignment({
+  member,
+  pending,
+  onToggle,
+}: {
+  member: StaffMember;
+  pending: boolean;
+  onToggle: (assigned: boolean) => void;
+}) {
+  const assigned = (member.capabilities ?? []).includes("MORNING_ATTENDANCE");
+  const active = member.membership_status === "ACTIVE";
+
+  return (
+    <section
+      className={`mt-5 overflow-hidden rounded-2xl border ${assigned ? "border-amber-200 bg-amber-50/70" : "border-slate-200 bg-slate-50"}`}
+      data-testid={`morning-assignment-${member.id}`}
+    >
+      <div className="flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${assigned ? "bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-md shadow-amber-900/15" : "bg-white text-slate-500 ring-1 ring-slate-200"}`}>
+            <Sunrise aria-hidden size={21} />
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h5 className="text-sm font-black text-slate-900">مسؤول متابعة التأخر الصباحي</h5>
+              {assigned && <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">تكليف دائم</span>}
+            </div>
+            <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">
+              تكليف مستقل متاح للمعلم أو الوكيل أو المرشد أو الحارس، دون تغيير أدواره أو مهامه الأصلية.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant={assigned ? "secondary" : "primary"}
+          className={assigned ? "shrink-0 border-amber-300 text-amber-900 hover:bg-amber-100" : "shrink-0"}
+          disabled={pending || !active}
+          onClick={() => onToggle(assigned)}
+          data-testid={`toggle-morning-assignment-${member.id}`}
+        >
+          <Sunrise aria-hidden size={16} />
+          {pending ? "جارٍ الحفظ..." : assigned ? "سحب التكليف" : "تكليف بالمتابعة"}
+        </Button>
+      </div>
+      {!active && <p className="border-t border-slate-200 px-4 py-2 text-xs font-medium text-amber-800">أعد تفعيل الموظف أولًا لمنحه هذا التكليف.</p>}
+    </section>
   );
 }
 

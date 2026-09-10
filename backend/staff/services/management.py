@@ -18,7 +18,9 @@ from audit.services import record_event
 from common.errors import ApiError
 from memberships.models import (
     MembershipStatus,
+    SchoolCapability,
     SchoolMembership,
+    SchoolMembershipCapability,
     SchoolMembershipRole,
     SchoolRole,
 )
@@ -85,6 +87,61 @@ def remove_role(*, membership: SchoolMembership, role: str, actor, request=None)
         request=request, actor=actor, school=membership.school,
         target_type="SchoolMembership", target_id=membership.id,
         metadata={"role": role},
+    )
+
+
+@transaction.atomic
+def grant_morning_attendance(*, membership: SchoolMembership, actor, request=None) -> None:
+    """يمنح موظفًا نشطًا تكليف الصباح دون تعديل أدواره الأخرى."""
+    if membership.status != MembershipStatus.ACTIVE:
+        raise ApiError(
+            "ACTIVE_STAFF_REQUIRED",
+            "أعد تفعيل الموظف أولًا قبل منحه تكليف التأخر الصباحي.",
+            409,
+        )
+    _, created = SchoolMembershipCapability.objects.get_or_create(
+        membership=membership,
+        capability=SchoolCapability.MORNING_ATTENDANCE,
+        defaults={"granted_by": actor},
+    )
+    if not created:
+        raise ApiError(
+            "CAPABILITY_ALREADY_GRANTED",
+            "هذا الموظف مكلّف بمتابعة التأخر الصباحي بالفعل.",
+            409,
+        )
+    record_event(
+        AuditAction.STAFF_CAPABILITY_GRANTED,
+        request=request,
+        actor=actor,
+        school=membership.school,
+        target_type="SchoolMembership",
+        target_id=membership.id,
+        metadata={"capability": SchoolCapability.MORNING_ATTENDANCE},
+    )
+
+
+@transaction.atomic
+def revoke_morning_attendance(*, membership: SchoolMembership, actor, request=None) -> None:
+    """يسحب التكليف وحده ويبقي أدوار الموظف وبقية مهامه كما هي."""
+    deleted, _ = SchoolMembershipCapability.objects.filter(
+        membership=membership,
+        capability=SchoolCapability.MORNING_ATTENDANCE,
+    ).delete()
+    if not deleted:
+        raise ApiError(
+            "CAPABILITY_NOT_GRANTED",
+            "هذا الموظف غير مكلّف بمتابعة التأخر الصباحي.",
+            409,
+        )
+    record_event(
+        AuditAction.STAFF_CAPABILITY_REVOKED,
+        request=request,
+        actor=actor,
+        school=membership.school,
+        target_type="SchoolMembership",
+        target_id=membership.id,
+        metadata={"capability": SchoolCapability.MORNING_ATTENDANCE},
     )
 
 

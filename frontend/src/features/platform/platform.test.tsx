@@ -345,6 +345,83 @@ describe("platform and subscription UI", () => {
     });
   });
 
+  it("requires typing the exact school name before permanent deletion", async () => {
+    const user = userEvent.setup();
+    const row = {
+      id: SCHOOL.id,
+      name: SCHOOL.name,
+      slug: SCHOOL.slug,
+      school_type: "BOYS",
+      school_status: "ACTIVE",
+      subscription_status: null,
+      plan: null,
+      plan_name: null,
+      starts_at: null,
+      ends_at: null,
+      manager: null,
+      usage: USAGE,
+    };
+    const detail = {
+      ...row,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      managers: [],
+      subscription: {
+        has_subscription: false,
+        status: null,
+        access_mode: "BLOCKED",
+        plan: null,
+        starts_at: null,
+        ends_at: null,
+        days_remaining: null,
+        grace_ends_at: null,
+        trial_ends_at: null,
+      },
+      entitlements: {},
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true }) },
+      "/platform/overview/": { body: { schools_total: 1, subscriptions: {}, usage_totals: {}, expiring_soon: [] } },
+      "/platform/plans/": { body: [] },
+      "/platform/schools/7/subscription/events/": { body: [] },
+      "/platform/schools/7/subscription/": { body: { current: null, history: [] } },
+      "/platform/schools/7/": (init) => init?.method === "DELETE"
+        ? {
+            body: {
+              deleted: true,
+              school_id: SCHOOL.id,
+              school_name: SCHOOL.name,
+              database_records_deleted: 30,
+              user_accounts_deleted: 1,
+              storage_objects_deleted: 2,
+              storage_objects_failed: 0,
+            },
+          }
+        : { body: detail },
+      "/platform/schools/": { body: { count: 1, next: null, previous: null, results: [row] } },
+    });
+
+    renderApp("/platform");
+    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
+    await user.click(await screen.findByRole("button", { name: "حذف المدرسة نهائيًا" }));
+    const confirmButton = screen.getByRole("button", { name: "تأكيد الحذف النهائي" });
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(screen.getByLabelText("اكتب اسم المدرسة للتأكيد"), SCHOOL.name);
+    expect(confirmButton).toBeEnabled();
+    await user.click(confirmButton);
+
+    await waitFor(() => {
+      const request = calls.find(({ url, init }) => url.includes("/platform/schools/7/") && init?.method === "DELETE");
+      expect(JSON.parse(String(request?.init?.body))).toEqual({
+        confirmation_name: SCHOOL.name,
+        acknowledge_permanent_deletion: true,
+      });
+    });
+    expect(await screen.findByText(`حُذفت مدرسة ${SCHOOL.name} وجميع بياناتها نهائيًا.`)).toBeInTheDocument();
+  });
+
   it("manages school profile, manager login credentials, and one-time password reset", async () => {
     const user = userEvent.setup();
     const manager = {

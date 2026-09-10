@@ -159,14 +159,14 @@ describe("navigation after the merge", () => {
     expect(await screen.findByRole("link", { name: "الإحالات" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "الإنذارات" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "الاستئذانات" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "إحالاتي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "التحويلات" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "مزامنة أجهزة الطلاب" })).not.toBeInTheDocument();
   });
 
   it("teacher sees only his own referrals, no official documents or admin pages", async () => {
     mockApi({ "/auth/me/": { body: roleMe(["TEACHER"]) } });
     renderApp("/");
-    expect(await screen.findByRole("link", { name: "إحالاتي" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "التحويلات" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "الإحالات" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "الإنذارات" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "الأعذار" })).not.toBeInTheDocument();
@@ -176,6 +176,6 @@ describe("navigation after the merge", () => {
     mockApi({ "/auth/me/": { body: roleMe(["COUNSELOR"]) } });
     renderApp("/");
     expect(await screen.findByRole("link", { name: "الإحالات" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "إحالاتي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "التحويلات" })).not.toBeInTheDocument();
   });
 });

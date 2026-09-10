@@ -5,6 +5,7 @@ export type SchoolRole =
   | "TEACHER"
   | "GATE_GUARD";
 export type SchoolType = "BOYS" | "GIRLS";
+export type SchoolCapability = "MORNING_ATTENDANCE";
 
 export interface SchoolSummary {
   id: number;
@@ -17,6 +18,7 @@ export interface MembershipSummary {
   id: number;
   school: SchoolSummary;
   roles: SchoolRole[];
+  capabilities?: SchoolCapability[];
   status: string;
 }
 
@@ -24,6 +26,7 @@ export interface Invitation {
   id: number;
   school: SchoolSummary;
   roles: SchoolRole[];
+  capabilities?: SchoolCapability[];
 }
 
 export interface Me {
@@ -34,6 +37,7 @@ export interface Me {
   must_change_password: boolean;
   active_school: SchoolSummary | null;
   roles: SchoolRole[];
+  capabilities?: SchoolCapability[];
   memberships: MembershipSummary[];
   invitations: Invitation[];
 }

@@ -5,7 +5,7 @@
 """
 
 from datetime import date as date_cls
-from datetime import timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Q, Sum
@@ -61,6 +61,11 @@ def effective_device_status(device: AttendanceDevice, now=None) -> str:
 
 
 def get_morning_summary(*, school, attendance_date: date_cls) -> dict:
+    settings_obj = get_or_create_settings(school=school)
+    policy_start = datetime.combine(attendance_date, settings_obj.school_day_start_time)
+    late_after = policy_start + timedelta(
+        minutes=settings_obj.morning_late_grace_minutes
+    )
     arrivals = SchoolArrival.objects.filter(school=school, attendance_date=attendance_date)
     counts = arrivals.aggregate(
         total=Count("id"),
@@ -85,6 +90,9 @@ def get_morning_summary(*, school, attendance_date: date_cls) -> dict:
         "unmatched_events": unmatched_events,
         "devices_total": len(devices),
         "devices_offline": offline,
+        "school_day_start_time": settings_obj.school_day_start_time.strftime("%H:%M"),
+        "grace_minutes": settings_obj.morning_late_grace_minutes,
+        "late_after_time": late_after.strftime("%H:%M"),
     }
 
 

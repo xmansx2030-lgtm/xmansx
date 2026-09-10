@@ -336,7 +336,7 @@ test("snapshot stays fixed while current metrics improve", async ({ page }) => {
 test("multi-school user keeps roles separate", async ({ page }) => {
   // أحمد: معلم في «ثانوية الأندلس» ومعلم+مرشد في «مدارس الرواد»
   await login(page, "0550000001", "ثانوية الأندلس");
-  await expect(page.getByRole("link", { name: "إحالاتي" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "التحويلات" })).toBeVisible();
   await expect(page.getByRole("link", { name: "الإحالات" })).toHaveCount(0);
   expect((await api(page, "/referrals/counselors/")).status).toBe(403);
 
