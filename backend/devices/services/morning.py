@@ -160,9 +160,9 @@ def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=
 
 
 def create_manual_arrival(
-    *, school, membership, student, attendance_date, arrival_time, reason: str, request=None
+    *, school, membership, student, attendance_date, arrival_time, request=None
 ):
-    """تسجيل وصول يدوي (وكيل/مدير) — بوابة أخرى/جهاز معطل/بصمة لم تعمل."""
+    """تسجيل وصول يدوي من موظف مخول، مع احتساب خادمي موحّد."""
     settings_obj = get_or_create_settings(school=school)
     tz = ZoneInfo(settings_obj.timezone)
     arrival_at = datetime.combine(attendance_date, arrival_time, tzinfo=tz)
@@ -177,15 +177,24 @@ def create_manual_arrival(
     fields = compute_lateness(
         settings_obj=settings_obj, arrival_at=arrival_at, attendance_date=attendance_date
     )
-    arrival = SchoolArrival.objects.create(
-        school=school,
-        student=student,
-        attendance_date=attendance_date,
-        first_arrival_at=arrival_at,
-        source=ArrivalSource.MANUAL,
-        recorded_by_membership=membership,
-        **fields,
-    )
+    try:
+        with transaction.atomic():
+            arrival = SchoolArrival.objects.create(
+                school=school,
+                student=student,
+                attendance_date=attendance_date,
+                first_arrival_at=arrival_at,
+                source=ArrivalSource.MANUAL,
+                recorded_by_membership=membership,
+                **fields,
+            )
+    except IntegrityError as exc:
+        # مع تعدد المعلمين قد يصل طلبان للطالب نفسه معًا؛ القيد هو الحكم النهائي.
+        raise ApiError(
+            "ARRIVAL_ALREADY_EXISTS",
+            "سجّل مكلّف آخر وصول هذا الطالب بالفعل — حدّث القائمة قبل التصحيح.",
+            status_code=409,
+        ) from exc
     record_event(
         AuditAction.MORNING_ARRIVAL_MANUAL_CREATED,
         request=request,
@@ -193,7 +202,7 @@ def create_manual_arrival(
         school=school,
         target_type="SchoolArrival",
         target_id=arrival.id,
-        metadata={"date": str(attendance_date), "reason": reason[:100]},  # لا اسم/هوية
+        metadata={"date": str(attendance_date)},  # لا اسم/هوية
     )
     _invalidate_dashboard_on_commit(school.id)
     return arrival

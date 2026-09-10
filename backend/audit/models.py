@@ -108,6 +108,8 @@ class AuditAction(models.TextChoices):
     SCHOOL_MEMBERSHIP_DECLINED = "SCHOOL_MEMBERSHIP_DECLINED", "رفض دعوة"
     STAFF_ROLE_ADDED = "STAFF_ROLE_ADDED", "إضافة دور"
     STAFF_ROLE_REMOVED = "STAFF_ROLE_REMOVED", "إزالة دور"
+    STAFF_CAPABILITY_GRANTED = "STAFF_CAPABILITY_GRANTED", "منح تكليف تشغيلي"
+    STAFF_CAPABILITY_REVOKED = "STAFF_CAPABILITY_REVOKED", "سحب تكليف تشغيلي"
     STAFF_SUSPENDED = "STAFF_SUSPENDED", "إيقاف موظف"
     STAFF_REACTIVATED = "STAFF_REACTIVATED", "إعادة تفعيل موظف"
     STAFF_DELETED = "STAFF_DELETED", "حذف موظف نهائيًا"
@@ -116,6 +118,10 @@ class AuditAction(models.TextChoices):
     # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
     PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"
     PLATFORM_SCHOOL_UPDATED = "PLATFORM_SCHOOL_UPDATED", "تحديث مدرسة من المنصة"
+    PLATFORM_SCHOOL_PERMANENTLY_DELETED = (
+        "PLATFORM_SCHOOL_PERMANENTLY_DELETED",
+        "حذف مدرسة نهائيًا من المنصة",
+    )
     PLATFORM_MANAGER_ADDED = "PLATFORM_MANAGER_ADDED", "إضافة مدير مدرسة من المنصة"
     PLATFORM_MANAGER_UPDATED = "PLATFORM_MANAGER_UPDATED", "تحديث مدير مدرسة من المنصة"
     PLATFORM_MANAGER_PASSWORD_RESET = (

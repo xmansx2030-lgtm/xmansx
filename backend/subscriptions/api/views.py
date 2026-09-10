@@ -45,6 +45,7 @@ from subscriptions.permissions import PlatformAPIView
 from subscriptions.services import plans as plan_service
 from subscriptions.services import provisioning as provisioning_service
 from subscriptions.services import school_accounts as school_account_service
+from subscriptions.services import school_purge as school_purge_service
 from subscriptions.services import subscriptions as subscription_service
 from subscriptions.usage import get_school_usage
 
@@ -392,6 +393,15 @@ class SchoolDetailView(PlatformAPIView):
                 raise serializers.ValidationError("أدخل اسم المدرسة كاملًا.")
             return value
 
+    class DeleteSerializer(serializers.Serializer):
+        confirmation_name = serializers.CharField(max_length=200)
+        acknowledge_permanent_deletion = serializers.BooleanField()
+
+        def validate_acknowledge_permanent_deletion(self, value):
+            if value is not True:
+                raise serializers.ValidationError("يجب تأكيد أن الحذف نهائي.")
+            return value
+
     def get(self, request: Request, school_id: int) -> Response:
         """بيانات تشغيلية وحسابات المديرين فقط — لا بيانات طلاب (بند 98)."""
         school = get_object_or_404(_platform_school_queryset(), id=school_id)
@@ -434,6 +444,17 @@ class SchoolDetailView(PlatformAPIView):
                 metadata={"changed_fields": changed},
             )
         return self.get(request, school_id)
+
+    def delete(self, request: Request, school_id: int) -> Response:
+        serializer = self.DeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = school_purge_service.permanently_delete_school(
+            school_id=school_id,
+            confirmation_name=serializer.validated_data["confirmation_name"],
+            actor=request.user,
+            request=request,
+        )
+        return Response(result)
 
 
 class SchoolManagersView(PlatformAPIView):

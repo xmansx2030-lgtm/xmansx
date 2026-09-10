@@ -33,6 +33,15 @@ export default defineConfig({
             purpose: "maskable",
           },
         ],
+        shortcuts: [
+          {
+            name: "التأخر الصباحي",
+            short_name: "التأخر الصباحي",
+            description: "تسجيل وقت وصول الطلاب ومتابعة التأخر الصباحي",
+            url: "/morning",
+            icons: [{ src: "/icons/pwa-192.png", sizes: "192x192", type: "image/png" }],
+          },
+        ],
       },
       workbox: {
         cleanupOutdatedCaches: true,

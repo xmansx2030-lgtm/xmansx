@@ -159,6 +159,8 @@ describe("attendance", () => {
     expect(calls.some((call) => call.url.includes("/sessions/start/"))).toBe(false);
     await user.click(screen.getByTestId("start-attendance"));
     const search = await screen.findByRole("searchbox", { name: "البحث في قائمة الطلاب" });
+    expect(screen.queryByText("تحويل للمرشد")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("referral-create")).not.toBeInTheDocument();
     const startCall = calls.find((call) => call.url.includes("/sessions/start/"));
     expect(parseBody(startCall?.init)).toMatchObject({ section_id: 3, source: "DIRECT_LINK" });
 

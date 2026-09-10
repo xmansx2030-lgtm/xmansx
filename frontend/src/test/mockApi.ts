@@ -56,6 +56,7 @@ export function buildMe(overrides: Partial<Me> = {}): Me {
     must_change_password: false,
     active_school: null,
     roles: [],
+    capabilities: [],
     memberships: [],
     invitations: [],
     ...overrides,

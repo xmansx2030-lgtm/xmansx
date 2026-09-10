@@ -261,7 +261,6 @@ def test_manual_arrival_and_duplicate_guard(
         "student_id": env["students"][0].id,
         "date": str(YESTERDAY),
         "arrival_time": "07:10",
-        "reason": "دخل من البوابة الخلفية",
     }
     with django_capture_on_commit_callbacks(execute=True):
         response = vice.post("/api/v1/morning/arrivals/", payload, content_type="application/json")
@@ -363,6 +362,61 @@ def test_roles_matrix(role_client, roles, devices_status, morning_status):
     client, school, _ = role_client(roles)
     assert client.get("/api/v1/devices/").status_code == devices_status
     assert client.get("/api/v1/morning/summary/").status_code == morning_status
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("role", ["TEACHER", "VICE_PRINCIPAL", "COUNSELOR", "GATE_GUARD"])
+def test_delegated_staff_can_use_morning_screen_and_keeps_original_role(
+    env, role_client, role
+):
+    from memberships.models import SchoolCapability, SchoolMembership, SchoolMembershipCapability
+
+    staff_client, _, user = role_client([role], school=env["school"])
+    membership = SchoolMembership.objects.get(user=user, school=env["school"])
+    SchoolMembershipCapability.objects.create(
+        membership=membership,
+        capability=SchoolCapability.MORNING_ATTENDANCE,
+    )
+
+    me = staff_client.get("/api/v1/auth/me/").json()
+    assert me["roles"] == [role]
+    assert me["capabilities"] == ["MORNING_ATTENDANCE"]
+    assert staff_client.get(f"/api/v1/morning/summary/?date={YESTERDAY}").status_code == 200
+
+    search = staff_client.get("/api/v1/morning/students/search/?search=طالب")
+    assert search.status_code == 200
+    assert search.json()["count"] == 3
+    assert set(search.json()["results"][0]) == {"id", "full_name"}
+
+    payload = {
+        "student_id": env["students"][0].id,
+        "date": str(YESTERDAY),
+        "arrival_time": "07:17",
+    }
+    created = staff_client.post(
+        "/api/v1/morning/arrivals/", payload, content_type="application/json"
+    )
+    assert created.status_code == 201
+    assert created.json()["counted_late_minutes"] == 12
+    arrival = SchoolArrival.objects.get(student=env["students"][0])
+    assert arrival.recorded_by_membership_id == membership.id
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("role", ["TEACHER", "COUNSELOR", "GATE_GUARD"])
+def test_unassigned_staff_cannot_use_morning_student_search(env, role_client, role):
+    staff_client, _, _ = role_client([role], school=env["school"])
+    response = staff_client.get("/api/v1/morning/students/search/?search=طالب")
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_morning_summary_exposes_effective_time_policy(env, role_client):
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
+    body = vice.get(f"/api/v1/morning/summary/?date={YESTERDAY}").json()
+    assert body["school_day_start_time"] == "07:00"
+    assert body["grace_minutes"] == 5
+    assert body["late_after_time"] == "07:05"
 
 
 @pytest.mark.django_db

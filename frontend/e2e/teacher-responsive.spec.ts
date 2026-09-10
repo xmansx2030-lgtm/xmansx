@@ -24,6 +24,7 @@ const TEACHER_ME = {
 const SECTION = {
   id: 3,
   name: "فصل الموهوبين ١",
+  grade_id: 1,
   grade_name: "الأول الثانوي - المسار العام",
   students_count: 3,
 };
@@ -132,8 +133,8 @@ async function installTeacherApi(page: Page) {
     if (path.endsWith("/attendance/sections/")) {
       return fulfillJson(route, [
         SECTION,
-        { id: 4, name: "2", grade_name: "الأول الثانوي", students_count: 26 },
-        { id: 5, name: "1", grade_name: "الثاني الثانوي", students_count: 24 },
+        { id: 4, name: "2", grade_id: 1, grade_name: "الأول الثانوي", students_count: 26 },
+        { id: 5, name: "1", grade_id: 2, grade_name: "الثاني الثانوي", students_count: 24 },
       ]);
     }
     if (path.endsWith("/attendance/sections/3/preview/")) {
@@ -166,7 +167,23 @@ async function installTeacherApi(page: Page) {
       }]);
     }
     if (path.endsWith("/referrals/mine/")) {
+      if (url.searchParams.get("status") === "ACKNOWLEDGED") {
+        return fulfillJson(route, { count: 0, next: null, previous: null, results: [] });
+      }
       return fulfillJson(route, { count: 1, next: null, previous: null, results: [REFERRAL_ROW] });
+    }
+    if (path.endsWith("/referrals/students/")) {
+      return fulfillJson(route, {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{
+          id: 5,
+          full_name: "محمد أحمد السبيعي",
+          grade: { id: 1, name: "الأول الثانوي" },
+          section: { id: 3, name: "1" },
+        }],
+      });
     }
     if (path.endsWith("/referrals/7/")) return fulfillJson(route, REFERRAL_DETAIL);
     if (path.endsWith("/referrals/options/")) {
@@ -214,6 +231,7 @@ test("teacher mobile templates remain focused and responsive with realistic data
   await page.getByTestId("start-attendance").click();
   await expect(page.getByTestId("roster-list")).toContainText("عبدالرحمن محمد عبدالله القحطاني");
   await expect(page.getByTestId("roster-student-11").getByRole("button", { name: "حاضر" })).toBeVisible();
+  await expect(page.getByText("تحويل للمرشد")).toHaveCount(0);
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "teacher-attendance-phone.png");
 
@@ -238,7 +256,7 @@ test("teacher mobile templates remain focused and responsive with realistic data
   await expect(navigation.getByRole("link")).toHaveCount(3);
   await expect(navigation.getByRole("link", { name: "التحضير" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "طلبات المتابعة" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "إحالاتي" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "التحويلات" })).toBeVisible();
   await expect(page.getByTestId("user-roles-mobile")).toHaveText("معلم");
   await assertNoPageOverflow(page);
 });

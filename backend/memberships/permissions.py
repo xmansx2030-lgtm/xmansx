@@ -31,6 +31,14 @@ def has_any_school_role(request, roles: list[str]) -> bool:
     return request.school is not None and any(r in request.school_roles for r in roles)
 
 
+def has_school_capability(request, capability: str) -> bool:
+    """هل يحمل المستخدم تكليفًا تشغيليًا في المدرسة النشطة؟"""
+    return (
+        request.school is not None
+        and capability in getattr(request, "school_capabilities", [])
+    )
+
+
 def require_school_role(request, role: str) -> None:
     """يرفع خطأ واضحًا إن لم يحمل المستخدم الدور في المدرسة النشطة."""
     if request.school is None:
@@ -76,3 +84,26 @@ def school_role_required(*roles: str):
             return True
 
     return _SchoolRolePermission
+
+
+def school_role_or_capability_required(*roles: str, capabilities: tuple[str, ...] = ()):
+    """يسمح بدور إداري أو بتكليف تشغيلي صريح داخل المدرسة نفسها."""
+
+    class _SchoolRoleOrCapabilityPermission(ActiveSchoolRequired):
+        def has_permission(self, request, view) -> bool:
+            if not super().has_permission(request, view):
+                return False
+            has_role = any(role in request.school_roles for role in roles)
+            has_capability = any(
+                capability in getattr(request, "school_capabilities", [])
+                for capability in capabilities
+            )
+            if not (has_role or has_capability):
+                raise ApiError(
+                    "PERMISSION_DENIED",
+                    "ليست لديك صلاحية لتنفيذ هذا الإجراء.",
+                    status_code=403,
+                )
+            return True
+
+    return _SchoolRoleOrCapabilityPermission

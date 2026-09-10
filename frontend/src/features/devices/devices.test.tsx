@@ -5,11 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/app/queryClient";
 import { buildMe, membership, mockApi } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
+import type { SchoolRole } from "@/types/auth";
 
-function roleMe(roles: ("SCHOOL_MANAGER" | "VICE_PRINCIPAL" | "TEACHER")[]) {
+function roleMe(
+  roles: SchoolRole[],
+  capabilities: ("MORNING_ATTENDANCE")[] = [],
+) {
   return buildMe({
     active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
     roles,
+    capabilities,
     memberships: [membership(1, 10, "ثانوية الأندلس", roles)],
   });
 }
@@ -23,6 +28,9 @@ const SUMMARY = {
   unmatched_events: 3,
   devices_total: 2,
   devices_offline: 1,
+  school_day_start_time: "07:00",
+  grace_minutes: 5,
+  late_after_time: "07:05",
 };
 
 const LATE_LIST = {
@@ -60,6 +68,7 @@ describe("morning attendance UI (Phase 8.5)", () => {
   beforeEach(() => {
     queryClient.clear();
     document.cookie = "csrftoken=test-token";
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
   });
 
   it("shows today KPIs and never an absent counter from biometrics", async () => {
@@ -84,7 +93,7 @@ describe("morning attendance UI (Phase 8.5)", () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/morning/summary/": { body: SUMMARY },
-      "/students/search/": { body: SEARCH },
+      "/morning/students/search/": { body: SEARCH },
       "/morning/arrivals/": {
         status: 201,
         body: {
@@ -98,9 +107,9 @@ describe("morning attendance UI (Phase 8.5)", () => {
     renderApp("/morning");
     const user = userEvent.setup();
     await screen.findByTestId("morning-kpis");
+    expect(screen.queryByLabelText("سبب التسجيل اليدوي")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("بحث عن طالب"), "محمد");
     await user.click(await screen.findByTestId("pick-student-5"));
-    await user.type(screen.getByLabelText("سبب التسجيل اليدوي"), "دخل من البوابة الخلفية");
     await user.click(screen.getByTestId("save-manual-arrival"));
 
     expect(await screen.findByTestId("manual-arrival-result")).toHaveTextContent(
@@ -109,8 +118,10 @@ describe("morning attendance UI (Phase 8.5)", () => {
     const post = calls.find(
       (c) => c.url.includes("/morning/arrivals/") && c.init?.method === "POST",
     );
+    expect(calls.some((c) => c.url.includes("/morning/students/search/"))).toBe(true);
     const body = parseBody(post?.init);
     expect(body.student_id).toBe(5);
+    expect(body).not.toHaveProperty("reason");
     expect(body).not.toHaveProperty("late_minutes"); // الحساب خادمي حصرًا
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["school", 10, "dashboard"],
@@ -157,7 +168,7 @@ describe("morning attendance UI (Phase 8.5)", () => {
     mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/morning/summary/": { body: SUMMARY },
-      "/students/search/": { body: SEARCH },
+      "/morning/students/search/": { body: SEARCH },
       "/morning/students/5/history/": {
         body: {
           student_id: 5, full_name: "محمد أحمد",
@@ -192,8 +203,81 @@ describe("morning attendance UI (Phase 8.5)", () => {
 
     renderApp("/");
     await screen.findByTestId("active-school-name");
-    expect(screen.queryByRole("link", { name: "الحضور الصباحي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "التأخر الصباحي" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "أجهزة الحضور" })).not.toBeInTheDocument();
+  });
+
+  it("delegated teacher gets the morning screen without losing teacher tools", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["TEACHER"], ["MORNING_ATTENDANCE"]) },
+      "/morning/summary/": { body: SUMMARY },
+      "/morning/students/search/": { body: SEARCH },
+    });
+
+    renderApp("/morning");
+    expect(await screen.findByRole("heading", { name: "التأخر الصباحي" })).toBeInTheDocument();
+    expect(screen.getByText("تكليف نشط")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "التأخر الصباحي" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "التحضير" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "طلبات المتابعة" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "التحويلات" })).toBeInTheDocument();
+    const manualCard = screen.getByTestId("manual-arrival-card");
+    const kpis = await screen.findByTestId("morning-kpis");
+    expect(manualCard.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("بحث عن طالب"), "محمد");
+    expect(await screen.findByTestId("pick-student-5")).toHaveTextContent("محمد أحمد");
+    expect(screen.queryByText(/\*{4}/)).not.toBeInTheDocument();
+  });
+
+  it.each(["VICE_PRINCIPAL", "COUNSELOR", "GATE_GUARD"] as const)(
+    "delegated %s gets the morning screen without changing the original role",
+    async (role) => {
+      mockApi({
+        "/auth/me/": { body: roleMe([role], ["MORNING_ATTENDANCE"]) },
+        "/morning/summary/": { body: SUMMARY },
+      });
+
+      renderApp("/morning");
+      expect(await screen.findByRole("heading", { name: "التأخر الصباحي" })).toBeInTheDocument();
+      expect(screen.getByText("تكليف نشط")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "التأخر الصباحي" })).toBeInTheDocument();
+      const manualCard = screen.getByTestId("manual-arrival-card");
+      const kpis = await screen.findByTestId("morning-kpis");
+      expect(manualCard.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    },
+  );
+
+  it("shows a recoverable error when morning student search fails", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["TEACHER"], ["MORNING_ATTENDANCE"]) },
+      "/morning/summary/": { body: SUMMARY },
+      "/morning/students/search/": {
+        status: 503,
+        body: { code: "SEARCH_UNAVAILABLE", message: "تعذر البحث مؤقتًا.", details: {} },
+      },
+    });
+
+    renderApp("/morning");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("بحث عن طالب"), "محمد");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("تعذر البحث مؤقتًا");
+    expect(within(alert).getByRole("button", { name: "إعادة المحاولة" })).toBeInTheDocument();
+  });
+
+  it("keeps the PWA screen visible offline but blocks unsafe duplicate writes", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    mockApi({
+      "/auth/me/": { body: roleMe(["TEACHER"], ["MORNING_ATTENDANCE"]) },
+      "/morning/summary/": { body: SUMMARY },
+      "/morning/students/search/": { body: SEARCH },
+    });
+
+    renderApp("/morning");
+    expect(await screen.findByTestId("morning-offline-notice")).toHaveTextContent("دون اتصال");
+    expect(screen.getByTestId("save-manual-arrival")).toBeDisabled();
   });
 });
 

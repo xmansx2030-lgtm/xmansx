@@ -5,7 +5,12 @@ from django.test import Client
 
 from accounts.models import User
 from audit.models import AuditAction, AuditLog
-from memberships.models import MembershipStatus, SchoolMembership
+from memberships.models import (
+    MembershipStatus,
+    SchoolCapability,
+    SchoolMembership,
+    SchoolMembershipCapability,
+)
 from staff.models import StaffProfile
 from tests.conftest import PASSWORD
 
@@ -205,6 +210,103 @@ def test_directory_query_count(role_client, make_user, django_assert_max_num_que
 
 
 # ---------- Roles & suspension ----------
+
+
+@pytest.mark.django_db
+def test_manager_assigns_morning_attendance_to_all_staff_roles_without_changing_roles(
+    role_client, make_user
+):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    specs = [
+        (["TEACHER"], "معلم الصباح"),
+        (["VICE_PRINCIPAL"], "وكيل الصباح"),
+        (["COUNSELOR"], "مرشد الصباح"),
+        (["GATE_GUARD"], "حارس الصباح"),
+    ]
+    staff = [
+        _make_staff(school, make_user(f"055888009{index}"), roles, name)
+        for index, (roles, name) in enumerate(specs, start=1)
+    ]
+
+    responses = [
+        manager.post(f"{STAFF_URL}{profile.id}/morning-attendance/")
+        for _, profile in staff
+    ]
+
+    assert all(response.status_code == 200 for response in responses)
+    for response, (roles, _) in zip(responses, specs, strict=True):
+        assert sorted(response.json()["roles"]) == sorted(roles)
+        assert response.json()["capabilities"] == [SchoolCapability.MORNING_ATTENDANCE]
+    assert SchoolMembershipCapability.objects.filter(
+        capability=SchoolCapability.MORNING_ATTENDANCE
+    ).count() == 4
+
+    counselor_membership, counselor_profile = staff[2]
+    revoked = manager.delete(f"{STAFF_URL}{counselor_profile.id}/morning-attendance/")
+    assert revoked.status_code == 200
+    assert revoked.json()["roles"] == ["COUNSELOR"]
+    assert revoked.json()["capabilities"] == []
+    assert staff[3][0].capabilities.filter(
+        capability=SchoolCapability.MORNING_ATTENDANCE
+    ).exists()
+    assert counselor_membership.roles.filter(role="COUNSELOR").exists()
+    assert AuditLog.objects.filter(
+        action=AuditAction.STAFF_CAPABILITY_GRANTED, school=school
+    ).count() == 4
+    assert AuditLog.objects.filter(
+        action=AuditAction.STAFF_CAPABILITY_REVOKED,
+        target_id=str(counselor_membership.id),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_morning_assignment_requires_manager_and_active_staff(
+    role_client, make_user, make_school
+):
+    school = make_school()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=school)
+    _, counselor_profile = _make_staff(
+        school, make_user("0558880095"), ["COUNSELOR"], "مرشد فقط"
+    )
+    _, guard_profile = _make_staff(
+        school, make_user("0558880096"), ["GATE_GUARD"], "حارس موقوف"
+    )
+
+    assert vice.post(
+        f"{STAFF_URL}{counselor_profile.id}/morning-attendance/"
+    ).status_code == 403
+    assigned = manager.post(f"{STAFF_URL}{counselor_profile.id}/morning-attendance/")
+    assert assigned.status_code == 200
+    assert assigned.json()["roles"] == ["COUNSELOR"]
+
+    guard_profile.membership.status = MembershipStatus.SUSPENDED
+    guard_profile.membership.save(update_fields=["status"])
+    inactive = manager.post(f"{STAFF_URL}{guard_profile.id}/morning-attendance/")
+    assert inactive.status_code == 409
+    assert inactive.json()["code"] == "ACTIVE_STAFF_REQUIRED"
+
+
+@pytest.mark.django_db
+def test_morning_assignment_survives_role_changes_until_manager_revokes_it(
+    role_client, make_user
+):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    membership, profile = _make_staff(
+        school,
+        make_user("0558880097"),
+        ["TEACHER", "COUNSELOR"],
+        "موظف متعدد الأدوار",
+    )
+    assigned = manager.post(f"{STAFF_URL}{profile.id}/morning-attendance/")
+    assert assigned.status_code == 200
+
+    removed = manager.delete(f"{STAFF_URL}{profile.id}/roles/TEACHER/")
+    assert removed.status_code == 200
+    assert removed.json()["roles"] == ["COUNSELOR"]
+    assert membership.capabilities.filter(
+        capability=SchoolCapability.MORNING_ATTENDANCE
+    ).exists()
 
 
 @pytest.mark.django_db

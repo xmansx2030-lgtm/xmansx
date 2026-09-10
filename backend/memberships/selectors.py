@@ -8,7 +8,7 @@ def active_memberships_for_user(user):
     return (
         SchoolMembership.objects.filter(user=user, status=MembershipStatus.ACTIVE)
         .select_related("school")
-        .prefetch_related("roles")
+        .prefetch_related("roles", "capabilities")
         .order_by("school__name")
     )
 
@@ -18,7 +18,7 @@ def invited_memberships_for_user(user):
     return (
         SchoolMembership.objects.filter(user=user, status=MembershipStatus.INVITED)
         .select_related("school")
-        .prefetch_related("roles")
+        .prefetch_related("roles", "capabilities")
         .order_by("school__name")
     )
 
@@ -28,6 +28,6 @@ def get_membership(user, school_id) -> SchoolMembership | None:
     return (
         SchoolMembership.objects.filter(user=user, school_id=school_id)
         .select_related("school")
-        .prefetch_related("roles")
+        .prefetch_related("roles", "capabilities")
         .first()
     )

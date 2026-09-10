@@ -14,7 +14,7 @@ ACTIVE_SCHOOL_SESSION_KEY = "active_school_id"
 
 
 class TenantContextMiddleware:
-    """بعد AuthenticationMiddleware: يحدد request.school/membership/school_roles."""
+    """يثبت المدرسة والعضوية والأدوار والتكليفات التشغيلية للطلب الحالي."""
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -23,6 +23,7 @@ class TenantContextMiddleware:
         request.school = None
         request.membership = None
         request.school_roles: list[str] = []
+        request.school_capabilities: list[str] = []
         request.school_context_error: str | None = None
 
         user = getattr(request, "user", None)
@@ -46,5 +47,6 @@ class TenantContextMiddleware:
                 request.school = membership.school
                 request.membership = membership
                 request.school_roles = membership.role_codes()
+                request.school_capabilities = membership.capability_codes()
 
         return self.get_response(request)

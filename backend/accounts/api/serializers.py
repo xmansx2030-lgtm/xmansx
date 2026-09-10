@@ -36,6 +36,7 @@ def serialize_membership(membership: SchoolMembership) -> dict:
         "id": membership.id,
         "school": serialize_school(membership.school),
         "roles": membership.role_codes(),
+        "capabilities": membership.capability_codes(),
         "status": membership.status,
     }
 
@@ -45,6 +46,7 @@ def serialize_invitation(membership: SchoolMembership) -> dict:
         "id": membership.id,
         "school": serialize_school(membership.school),
         "roles": membership.role_codes(),
+        "capabilities": membership.capability_codes(),
     }
 
 
@@ -65,6 +67,7 @@ def build_me_payload(
             serialize_school(active_membership.school) if active_membership else None
         ),
         "roles": active_membership.role_codes() if active_membership else [],
+        "capabilities": active_membership.capability_codes() if active_membership else [],
         "memberships": [serialize_membership(m) for m in memberships],
         "invitations": [serialize_invitation(m) for m in invitations],
     }

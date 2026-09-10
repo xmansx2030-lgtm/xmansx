@@ -11,6 +11,10 @@ urlpatterns = [
         views.StaffCounselorSectionsView.as_view(),
     ),
     path("staff/<int:staff_id>/roles/<str:role>/", views.StaffRoleDeleteView.as_view()),
+    path(
+        "staff/<int:staff_id>/morning-attendance/",
+        views.StaffMorningAttendanceCapabilityView.as_view(),
+    ),
     path("staff/<int:staff_id>/suspend/", views.StaffSuspendView.as_view()),
     path("staff/<int:staff_id>/activate/", views.StaffActivateView.as_view()),
     path("staff/<int:staff_id>/reinvite/", views.StaffReinviteView.as_view()),

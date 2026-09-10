@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Trash2,
   UsersRound,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ import {
   addSchoolManager,
   createPlan,
   createPlatformSchool,
+  deletePlatformSchool,
   disablePlan,
   getPlans,
   getPlatformOverview,
@@ -717,6 +719,9 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionActionName>("activate");
   const [actionReason, setActionReason] = useState("إجراء من إدارة المنصة");
   const [actionNotice, setActionNotice] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteNotice, setDeleteNotice] = useState("");
   const preview = useQuery({
     queryKey: ["platform", "plan-preview", selected?.id, actionPlanId],
     queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
@@ -756,6 +761,26 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
       ]);
     },
   });
+  const deleteSchool = useMutation({
+    mutationFn: () => deletePlatformSchool(detail.data!.id, deleteConfirmation),
+    onSuccess: async (result) => {
+      setSelected(null);
+      setDeleteOpen(false);
+      setDeleteConfirmation("");
+      setDeleteNotice(
+        result.storage_objects_failed > 0
+          ? `حُذفت مدرسة ${result.school_name} وبياناتها، لكن تعذر حذف ${result.storage_objects_failed} ملف من التخزين. راجع السجلات التشغيلية.`
+          : `حُذفت مدرسة ${result.school_name} وجميع بياناتها نهائيًا.`,
+      );
+      queryClient.removeQueries({ queryKey: ["platform", "school", result.school_id] });
+      queryClient.removeQueries({ queryKey: ["platform", "subscription", result.school_id] });
+      queryClient.removeQueries({ queryKey: ["platform", "events", result.school_id] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["platform", "schools"] }),
+        queryClient.invalidateQueries({ queryKey: ["platform", "overview"] }),
+      ]);
+    },
+  });
 
   useEffect(() => {
     if (detail.data?.id && window.innerWidth < 1280) {
@@ -765,6 +790,9 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
 
   const chooseSchool = (school: SchoolRow) => {
     setSelected(school);
+    setDeleteOpen(false);
+    setDeleteConfirmation("");
+    deleteSchool.reset();
     setActionPlanId(plans.find((plan) => plan.code === school.plan)?.id.toString() ?? "");
     setSubscriptionAction(defaultSubscriptionAction(school.subscription_status));
     setActionDays(school.subscription_status === "ACTIVE" ? 30 : 12);
@@ -788,6 +816,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   return (
     <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
       <div className="order-2 min-w-0 space-y-3 xl:order-1">
+        {deleteNotice && <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">{deleteNotice}</p>}
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -898,6 +927,35 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
               <h4 className="mb-2 font-bold">السجل</h4>
               {(history.data?.history ?? []).slice(0, 4).map((row) => <p key={row.id} className="text-sm text-slate-600">{row.plan_name} · {statusLabel(row.status)}</p>)}
               {(events.data ?? []).slice(0, 5).map((event) => <p key={event.id} className="mt-1 text-xs text-slate-500">{event.event_type} · {new Date(event.created_at).toLocaleDateString("ar-SA")}</p>)}
+            </div>
+            <div className="rounded-2xl border border-red-200 bg-red-50/60 p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-red-100 text-red-700"><Trash2 aria-hidden size={19} /></span>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-black text-red-950">منطقة الخطر</h4>
+                  <p className="mt-1 text-xs leading-5 text-red-800">يحذف المدرسة والطلاب والموظفين والحضور والاشتراكات والسجلات والملفات نهائيًا. لا يمكن التراجع عن هذا الإجراء.</p>
+                </div>
+              </div>
+              {!deleteOpen ? (
+                <Button className="mt-4 w-full" variant="danger" onClick={() => setDeleteOpen(true)}>حذف المدرسة نهائيًا</Button>
+              ) : (
+                <form className="mt-4 rounded-xl border border-red-200 bg-white p-3" onSubmit={(event) => { event.preventDefault(); deleteSchool.mutate(); }}>
+                  <p className="text-sm font-bold text-red-950">للتأكيد، اكتب اسم المدرسة كما هو:</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-900">{detail.data.name}</p>
+                  <input
+                    aria-label="اكتب اسم المدرسة للتأكيد"
+                    autoComplete="off"
+                    className="mt-3 w-full rounded-xl border border-red-300 px-3 py-2.5"
+                    value={deleteConfirmation}
+                    onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  />
+                  <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row">
+                    <Button variant="secondary" className="flex-1" disabled={deleteSchool.isPending} onClick={() => { setDeleteOpen(false); setDeleteConfirmation(""); deleteSchool.reset(); }}>تراجع</Button>
+                    <Button type="submit" variant="danger" className="flex-1" disabled={deleteSchool.isPending || deleteConfirmation.trim() !== detail.data.name}>{deleteSchool.isPending ? "جارٍ الحذف النهائي..." : "تأكيد الحذف النهائي"}</Button>
+                  </div>
+                  <ErrorLine error={deleteSchool.error} />
+                </form>
+              )}
             </div>
           </>
         )}

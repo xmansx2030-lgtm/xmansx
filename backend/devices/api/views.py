@@ -17,6 +17,7 @@ from academics.models import AcademicYear, AcademicYearStatus
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
+from common.pagination import DefaultPagination
 from common.security.identifiers import _fernet
 from devices.api.roster_serializers import (
     BridgeRosterCommandSerializer,
@@ -70,14 +71,25 @@ from devices.services import morning as morning_service
 from devices.services import roster as roster_service
 from devices.services.ingest import ingest_batch, reprocess_unmatched
 from memberships.api_base import SchoolScopedAPIView
-from memberships.models import SchoolRole
+from memberships.models import SchoolCapability, SchoolRole
 from students.models import Student, StudentImportJob
+from students.services.queries import students_queryset
 from subscriptions.entitlements import require_capacity
 from subscriptions.models import EntitlementKey
 from subscriptions.usage import count_active_devices
 
 MANAGER_ONLY = (SchoolRole.SCHOOL_MANAGER,)
 MORNING_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+MORNING_CAPABILITIES = (SchoolCapability.MORNING_ATTENDANCE,)
+
+
+class MorningAccessAPIView(SchoolScopedAPIView):
+    """إدارة المدرسة أو معلم يحمل تكليف التأخر الصباحي."""
+
+    read_roles = MORNING_ROLES
+    write_roles = MORNING_ROLES
+    read_capabilities = MORNING_CAPABILITIES
+    write_capabilities = MORNING_CAPABILITIES
 
 
 def _parse_date(request, param="date"):
@@ -562,12 +574,10 @@ class IdentityUnmapView(SchoolScopedAPIView):
         return Response(_identity_payload(identity))
 
 
-# ---------- الحضور الصباحي (مدير + وكيل) ----------
+# ---------- التأخر الصباحي (الإدارة + المعلم المكلّف) ----------
 
 
-class MorningSummaryView(SchoolScopedAPIView):
-    read_roles = MORNING_ROLES
-    write_roles = MORNING_ROLES
+class MorningSummaryView(MorningAccessAPIView):
 
     @extend_schema(responses=MorningSummarySerializer)
     def get(self, request: Request) -> Response:
@@ -576,9 +586,32 @@ class MorningSummaryView(SchoolScopedAPIView):
         )
 
 
-class MorningLateListView(SchoolScopedAPIView):
-    read_roles = MORNING_ROLES
-    write_roles = MORNING_ROLES
+class MorningStudentSearchView(MorningAccessAPIView):
+    """بحث تشغيلي محدود لاختيار طالب في شاشة التأخر الصباحي."""
+
+    def get(self, request: Request) -> Response:
+        search = request.query_params.get("search", "").strip()
+        if len(search) < 2:
+            return Response({"count": 0, "next": None, "previous": None, "results": []})
+
+        academic_year = AcademicYear.objects.filter(
+            school=request.school,
+            status=AcademicYearStatus.ACTIVE,
+        ).first()
+        queryset = students_queryset(
+            school=request.school,
+            academic_year=academic_year,
+            search=search,
+            status="ACTIVE",
+        )
+        paginator = DefaultPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(
+            [{"id": student.id, "full_name": student.full_name} for student in page]
+        )
+
+
+class MorningLateListView(MorningAccessAPIView):
 
     @extend_schema(responses=LateListSerializer)
     def get(self, request: Request) -> Response:
@@ -602,9 +635,7 @@ class MorningLateListView(SchoolScopedAPIView):
         )
 
 
-class StudentLateHistoryView(SchoolScopedAPIView):
-    read_roles = MORNING_ROLES
-    write_roles = MORNING_ROLES
+class StudentLateHistoryView(MorningAccessAPIView):
 
     @extend_schema(responses=StudentLateHistorySerializer)
     def get(self, request: Request, student_id: int) -> Response:
@@ -641,9 +672,7 @@ def _arrival_payload(arrival) -> dict:
     }
 
 
-class ManualArrivalView(SchoolScopedAPIView):
-    read_roles = MORNING_ROLES
-    write_roles = MORNING_ROLES
+class ManualArrivalView(MorningAccessAPIView):
 
     @extend_schema(request=ManualArrivalSerializer, responses=ArrivalSerializer)
     def post(self, request: Request) -> Response:
@@ -657,15 +686,12 @@ class ManualArrivalView(SchoolScopedAPIView):
             student=student,
             attendance_date=data["date"],
             arrival_time=data["arrival_time"],
-            reason=data["reason"],
             request=request,
         )
         return Response(_arrival_payload(arrival), status=http_status.HTTP_201_CREATED)
 
 
-class ArrivalCorrectView(SchoolScopedAPIView):
-    read_roles = MORNING_ROLES
-    write_roles = MORNING_ROLES
+class ArrivalCorrectView(MorningAccessAPIView):
 
     @extend_schema(request=ArrivalCorrectionSerializer, responses=ArrivalSerializer)
     def post(self, request: Request, arrival_id: int) -> Response:
