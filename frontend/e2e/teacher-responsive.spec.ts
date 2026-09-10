@@ -1,5 +1,9 @@
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 
+// هذا الاختبار يعزل بيانات العرض عبر page.route. في بناء الإنتاج قد يسبق
+// Service Worker اعتراض Playwright، لذا يُحجب هنا فقط؛ تغطي phase17 تشغيله فعليًا.
+test.use({ serviceWorkers: "block" });
+
 const TEACHER_ME = {
   id: 71,
   mobile: "+966550000001",
