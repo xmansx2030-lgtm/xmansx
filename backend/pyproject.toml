@@ -20,7 +20,7 @@ dependencies = [
     "django-storages[s3]>=1.14,<2",
     # توليد المستندات الرسمية: HTML+CSS → PDF مع تشكيل عربي وRTL عبر Pango/HarfBuzz
     # (يحتاج مكتبات النظام المثبتة في Dockerfile — انظر docs/GENERATED_DOCUMENTS.md)
-    "weasyprint>=66,<70",
+    "weasyprint>=70,<71",
 ]
 
 [project.optional-dependencies]
