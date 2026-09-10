@@ -34,10 +34,12 @@ async function login(page: Page, mobile: string, school?: string) {
 
 async function logout(page: Page) {
   const desktop = page.getByRole("button", { name: "تسجيل الخروج" });
+  const mobileMenu = page.getByRole("button", { name: "فتح قائمة التنقل" });
+  await expect(desktop.or(mobileMenu)).toBeVisible({ timeout: 10_000 });
   if (await desktop.isVisible()) {
     await desktop.click();
   } else {
-    await page.getByRole("button", { name: "فتح قائمة التنقل" }).click();
+    await mobileMenu.click();
     await page.getByRole("button", { name: "خروج" }).click();
   }
   await expect(page.getByRole("button", { name: "تسجيل الدخول" })).toBeVisible();
@@ -291,7 +293,7 @@ test("VP tablet, counselor tablet, manager desktop, and platform admin remain us
   await page.getByRole("button", { name: /ثانوية الأندلس/ }).click();
   await expect(page.getByRole("heading", { name: "بيانات المدرسة والدخول" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "حسابات مديري المدرسة" })).toBeVisible();
-  await expect(page.getByText("بيانات الاشتراك")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "إدارة الاشتراك" })).toBeVisible();
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "platform-school-account-management.png");
 });
