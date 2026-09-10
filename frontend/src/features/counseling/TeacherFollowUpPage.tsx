@@ -93,7 +93,7 @@ export function TeacherFollowUpPage() {
         <EmptyState title="لا توجد طلبات متابعة حاليًا" description="ستظهر هنا الطلبات المرسلة لك من المرشد، مع السؤال والموعد المحدد للرد." icon={ClipboardCheck} testId="no-requests" />
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-3" aria-label="ملخص طلبات المتابعة">
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="ملخص طلبات المتابعة">
             <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
               <Clock3 aria-hidden size={20} className="mb-3 text-amber-600" />
               <p className="text-2xl font-black text-slate-900">{pendingCount}</p>
@@ -104,7 +104,7 @@ export function TeacherFollowUpPage() {
               <p className="text-2xl font-black text-slate-900">{answeredCount}</p>
               <p className="text-sm font-medium text-slate-600">تم الرد عليها</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1">
               <ClipboardCheck aria-hidden size={20} className="mb-3 text-slate-500" />
               <p className="text-2xl font-black text-slate-900">{rows.length}</p>
               <p className="text-sm font-medium text-slate-600">إجمالي الطلبات</p>
@@ -114,14 +114,14 @@ export function TeacherFollowUpPage() {
           <ul className="grid gap-4">
             {rows.map((row) => (
               <li key={row.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md" data-testid={`follow-up-${row.id}`}>
-                <div className="space-y-4 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                <div className="space-y-4 p-4 sm:p-5">
+                  <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700">
                         <UserRound aria-hidden size={21} />
                       </span>
-                      <div>
-                        <p className="font-bold text-slate-900">{row.student_name}</p>
+                      <div className="min-w-0">
+                        <p className="break-words font-bold text-slate-900">{row.student_name}</p>
                         <p className="mt-0.5 text-xs text-slate-500">طلب من {row.requested_by_name ?? roleLabel("COUNSELOR", schoolType)}</p>
                       </div>
                     </div>
@@ -156,8 +156,8 @@ export function TeacherFollowUpPage() {
                     placeholder="اكتب ما لاحظته داخل الفصل بوضوح واختصار..."
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10"
                   />
-                  <div className="flex flex-wrap items-end justify-between gap-3">
-                    <label className="flex min-w-48 flex-col gap-1 text-sm font-bold text-slate-700">
+                  <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-end">
+                    <label className="flex w-full min-w-0 flex-col gap-1 text-sm font-bold text-slate-700 sm:w-auto sm:min-w-48">
                       التقييم
                       <select
                         data-testid="response-improvement"
@@ -174,9 +174,10 @@ export function TeacherFollowUpPage() {
                         ))}
                       </select>
                     </label>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" onClick={closeComposer} data-testid="cancel-response">إلغاء</Button>
+                    <div className="grid gap-2 sm:flex">
+                      <Button variant="secondary" className="w-full justify-center sm:w-auto" onClick={closeComposer} data-testid="cancel-response">إلغاء</Button>
                       <Button
+                        className="w-full justify-center sm:w-auto"
                         data-testid="submit-response"
                         disabled={observation.trim().length === 0}
                         onClick={() => submit(row.id)}
@@ -192,7 +193,7 @@ export function TeacherFollowUpPage() {
                   type="button"
                   data-testid={`respond-${row.id}`}
                   onClick={() => openComposer(row.id)}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 sm:w-auto"
                 >
                   <MessageSquareReply aria-hidden size={16} />
                   إضافة ملاحظتي

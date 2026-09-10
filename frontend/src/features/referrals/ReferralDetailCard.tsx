@@ -143,10 +143,10 @@ export function ReferralDetailCard({
       className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="referral-detail"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-bold">{referral.student.full_name}</h2>
-          <p className="text-sm text-slate-600">
+      <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <h2 className="break-words text-lg font-bold">{referral.student.full_name}</h2>
+          <p className="mt-1 break-words text-sm leading-7 text-slate-600">
             {referral.student.grade_name ?? "—"} / {referral.student.section_name ?? "—"}
             <span className="mx-2">•</span>
             {referral.category_label} — {referral.reason_label}
@@ -154,7 +154,7 @@ export function ReferralDetailCard({
             <ReferralStatusBadge status={referral.status} label={referral.status_label} />
           </p>
         </div>
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="secondary" className="w-full justify-center sm:w-auto" onClick={onClose}>
           إغلاق العرض
         </Button>
       </div>
@@ -181,7 +181,30 @@ export function ReferralDetailCard({
       {(current || snapshot.full_absence_days !== undefined) && (
         <section data-testid="referral-metrics">
           <h3 className="mb-2 text-sm font-bold">المؤشرات</h3>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <div className="grid gap-2 md:hidden" data-testid="referral-metrics-list">
+            {METRIC_LABELS.filter(([key]) => snapshot[key] !== undefined).map(
+              ([key, label]) => (
+                <article
+                  key={key}
+                  className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
+                  data-testid={`metric-card-${key}`}
+                >
+                  <p className="text-sm font-bold text-slate-800">{label}</p>
+                  <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-lg bg-white p-2">
+                      <dt className="text-xs text-slate-500">وقت الإحالة</dt>
+                      <dd className="mt-1 font-black text-slate-900">{String(snapshot[key] ?? "—")}</dd>
+                    </div>
+                    <div className="rounded-lg bg-white p-2">
+                      <dt className="text-xs text-slate-500">حاليًا</dt>
+                      <dd className="mt-1 font-black text-slate-900">{current ? String(current[key] ?? "—") : "—"}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ),
+            )}
+          </div>
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
@@ -225,8 +248,8 @@ export function ReferralDetailCard({
           )}
         </ul>
         {isOpen && (
-          <div className="mt-2 flex flex-wrap items-end gap-2">
-            <label className="flex flex-1 flex-col gap-1 text-sm">
+          <div className="mt-2 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
               إضافة ملاحظة
               <input
                 data-testid="detail-note"
@@ -237,6 +260,7 @@ export function ReferralDetailCard({
             </label>
             <Button
               variant="secondary"
+              className="w-full justify-center sm:w-auto"
               onClick={() => contributionMutation.mutate()}
               disabled={notes.trim() === "" || contributionMutation.isPending}
               data-testid="detail-add-note"
@@ -266,16 +290,16 @@ export function ReferralDetailCard({
       )}
 
       {isOpen && (
-        <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+        <div className="grid gap-2 border-t border-slate-100 pt-3 sm:flex sm:flex-wrap sm:items-end">
           {canManage && (
             <>
-              <label className="flex flex-col gap-1 text-sm">
+              <label className="flex min-w-0 flex-col gap-1 text-sm">
                 {roleLabel("COUNSELOR", schoolType)}
                 <select
                   data-testid="assign-counselor"
                   value={counselorId}
                   onChange={(event) => setCounselorId(event.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 >
                   <option value="">اختر {roleLabel("COUNSELOR", schoolType)}</option>
                   {(counselors.data?.counselors ?? []).map((counselor) => (
@@ -286,6 +310,7 @@ export function ReferralDetailCard({
                 </select>
               </label>
               <Button
+                className="w-full justify-center sm:w-auto"
                 onClick={() => assignMutation.mutate()}
                 disabled={counselorId === "" || assignMutation.isPending}
                 data-testid="save-assign"
@@ -296,6 +321,7 @@ export function ReferralDetailCard({
           )}
           {isCounselor && referral.status === "NEW" && (
             <Button
+              className="w-full justify-center sm:w-auto"
               onClick={() => acknowledgeMutation.mutate()}
               disabled={acknowledgeMutation.isPending}
               data-testid="acknowledge-referral"
@@ -306,6 +332,7 @@ export function ReferralDetailCard({
           {(canManage || isCounselor) && referral.counseling_case_id && (
             <Button
               variant="secondary"
+              className="w-full justify-center sm:w-auto"
               onClick={() => navigate(`/counselor/cases/${referral.counseling_case_id}`)}
               data-testid="open-counseling-case"
             >
@@ -314,6 +341,7 @@ export function ReferralDetailCard({
           )}
           {(roles.includes("SCHOOL_MANAGER") || isCounselor) && referral.status === "ACKNOWLEDGED" && !referral.counseling_case_id && (
             <Button
+              className="w-full justify-center sm:w-auto"
               onClick={() => openCaseMutation.mutate()}
               disabled={openCaseMutation.isPending}
               data-testid="create-counseling-case"
@@ -321,18 +349,19 @@ export function ReferralDetailCard({
               {openCaseMutation.isPending ? "جارٍ فتح الملف..." : "فتح ملف المتابعة"}
             </Button>
           )}
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex min-w-0 flex-col gap-1 text-sm sm:min-w-56 sm:flex-1">
             سبب الإغلاق/الإلغاء
             <input
               data-testid="closure-reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
           {(canManage || isCounselor) && (
             <Button
               variant="danger"
+              className="w-full justify-center sm:w-auto"
               onClick={() => closeMutation.mutate()}
               disabled={reason.trim() === "" || closeMutation.isPending}
               data-testid="close-referral"
@@ -345,6 +374,7 @@ export function ReferralDetailCard({
           {referral.can_cancel && (
             <Button
               variant="secondary"
+              className="w-full justify-center sm:w-auto"
               onClick={() => cancelMutation.mutate()}
               disabled={reason.trim() === "" || cancelMutation.isPending}
               data-testid="cancel-referral"

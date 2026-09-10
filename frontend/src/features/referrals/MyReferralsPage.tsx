@@ -46,7 +46,7 @@ export function MyReferralsPage() {
         tone="teacher"
         badge={list.isPending ? "جارٍ التحديث" : `${rows.length} إحالة`}
         actions={(
-          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15">
+          <Link to="/" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto">
             <ArrowRight aria-hidden size={17} />
             العودة للتحضير
           </Link>
@@ -57,7 +57,7 @@ export function MyReferralsPage() {
         <Spinner />
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-3" aria-label={`ملخص إحالات ${roleLabel("TEACHER", schoolType)}`}>
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label={`ملخص إحالات ${roleLabel("TEACHER", schoolType)}`}>
             <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
               <Clock3 aria-hidden size={20} className="mb-3 text-blue-600" />
               <p className="text-2xl font-black text-slate-900">{activeCount}</p>
@@ -68,7 +68,7 @@ export function MyReferralsPage() {
               <p className="text-2xl font-black text-slate-900">{closedCount}</p>
               <p className="text-sm font-medium text-slate-600">مغلقة أو مكتملة</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-1">
               <Send aria-hidden size={20} className="mb-3 text-slate-500" />
               <p className="text-2xl font-black text-slate-900">{rows.length}</p>
               <p className="text-sm font-medium text-slate-600">إجمالي إحالاتك</p>

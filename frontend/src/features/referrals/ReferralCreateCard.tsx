@@ -124,8 +124,9 @@ export function ReferralCreateCard({
             {error}
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:flex sm:flex-wrap">
           <Button
+            className="w-full justify-center sm:w-auto"
             onClick={() => contributionMutation.mutate()}
             disabled={contributionNotes.trim() === "" || contributionMutation.isPending}
             data-testid="add-contribution"
@@ -136,6 +137,7 @@ export function ReferralCreateCard({
               تفشل أبدًا، بينما إحالة جديدة صارت مقبولة */}
           <Button
             variant="secondary"
+            className="w-full justify-center sm:w-auto"
             onClick={() => {
               setDuplicate(null);
               setError(null);
@@ -144,7 +146,7 @@ export function ReferralCreateCard({
           >
             العودة إلى النموذج
           </Button>
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" className="w-full justify-center sm:w-auto" onClick={onCancel}>
             إلغاء
           </Button>
         </div>
@@ -166,8 +168,8 @@ export function ReferralCreateCard({
         الأسبوع») — الإحالة طلب متابعة وليست تشخيصًا.
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex min-w-0 flex-col gap-1 text-sm">
           الفئة
           <select
             data-testid="referral-category"
@@ -176,7 +178,7 @@ export function ReferralCreateCard({
               setCategory(event.target.value);
               setReason("");
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2"
           >
             <option value="">اختر الفئة</option>
             {categories.map((item) => (
@@ -186,14 +188,14 @@ export function ReferralCreateCard({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex min-w-0 flex-col gap-1 text-sm">
           السبب
           <select
             data-testid="referral-reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             disabled={category === ""}
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2"
           >
             <option value="">اختر السبب</option>
             {reasons.map((item) => (
@@ -222,15 +224,16 @@ export function ReferralCreateCard({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="grid gap-2 sm:flex">
         <Button
+          className="w-full justify-center sm:w-auto"
           onClick={() => createMutation.mutate()}
           disabled={!ready || createMutation.isPending}
           data-testid="save-referral"
         >
           {createMutation.isPending ? "جارٍ الإرسال..." : "إرسال الإحالة"}
         </Button>
-        <Button variant="secondary" onClick={onCancel}>
+        <Button variant="secondary" className="w-full justify-center sm:w-auto" onClick={onCancel}>
           إلغاء
         </Button>
       </div>

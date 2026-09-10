@@ -185,7 +185,7 @@ export function AttendanceSessionPage() {
           actions={(
             <Link
               to="/"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto"
             >
               <ArrowRight aria-hidden size={17} />
               اختيار فصل آخر
@@ -197,11 +197,11 @@ export function AttendanceSessionPage() {
           className="rounded-3xl border border-teal-200 bg-white p-5 shadow-lg shadow-teal-950/5 sm:p-7"
           data-testid="attendance-start-confirmation"
         >
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col items-start gap-4 sm:flex-row">
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-teal-50 text-teal-700">
               <ShieldCheck aria-hidden size={24} />
             </span>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-black text-slate-900">تأكيد الفصل قبل البدء</h1>
               <p className="mt-2 text-sm leading-7 text-slate-600">
                 ستبدأ تحضير <strong className="text-slate-950">{sectionTitle}</strong> في {preview.period.name}،
@@ -214,14 +214,15 @@ export function AttendanceSessionPage() {
           </div>
 
           {startMutation.isError && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
-          <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+          <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <Link
               to="/"
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50 sm:w-auto"
             >
               إلغاء واختيار فصل آخر
             </Link>
             <Button
+              className="w-full justify-center sm:w-auto"
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}
               data-testid="start-attendance"
@@ -316,7 +317,7 @@ export function AttendanceSessionPage() {
         actions={(
           <Link
             to={me.data?.roles.includes("TEACHER") ? "/" : "/attendance/monitoring"}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto"
           >
             <ArrowRight aria-hidden size={17} />
             العودة للمتابعة
@@ -334,16 +335,18 @@ export function AttendanceSessionPage() {
 
       {session.status === "SUBMITTED" && !editing && (
           <div
-            className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"
+            className="flex flex-col items-stretch gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between"
             data-testid="submitted-banner"
           >
-            تم إرسال التحضير بواسطة {session.submitted_by ?? "—"}
-            {session.submitted_at &&
-              ` في ${new Date(session.submitted_at).toLocaleString("ar-SA")}`}
+            <span>
+              تم إرسال التحضير بواسطة {session.submitted_by ?? "—"}
+              {session.submitted_at &&
+                ` في ${new Date(session.submitted_at).toLocaleString("ar-SA")}`}
+            </span>
             {session.can_edit && (
               <Button
                 variant="secondary"
-                className="ms-3"
+                className="w-full justify-center sm:w-auto"
                 onClick={beginEditing}
                 data-testid="edit-button"
               >
@@ -438,7 +441,7 @@ export function AttendanceSessionPage() {
             return (
               <li
                 key={student.student_id}
-                className={`flex flex-wrap items-center justify-between gap-3 p-4 transition-colors sm:p-5 ${
+                className={`flex flex-col items-stretch justify-between gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:p-5 ${
                   status === "ABSENT"
                     ? "bg-red-50/50"
                     : status === "LATE"
@@ -447,8 +450,8 @@ export function AttendanceSessionPage() {
                 }`}
                 data-testid={`roster-student-${student.student_id}`}
               >
-                <div>
-                  <p className="font-medium text-slate-800">{student.full_name}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-slate-800">{student.full_name}</p>
                   <p className="text-xs text-slate-400" dir="ltr">
                     {student.national_id_masked}
                   </p>
@@ -469,14 +472,14 @@ export function AttendanceSessionPage() {
                   </button>
                 </div>
                 {marking ? (
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="grid w-full grid-cols-2 items-center gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
                     {(["PRESENT", "ABSENT"] as const).map((option) => (
                       <button
                         key={option}
                         type="button"
                         onClick={() => setStatus(student.student_id, option)}
                         aria-pressed={status === option}
-                        className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-bold transition-all ${
+                        className={`min-h-10 w-full rounded-xl px-3 py-1.5 text-sm font-bold transition-all sm:w-auto ${
                           status === option
                             ? option === "PRESENT"
                               ? "bg-green-600 text-white"
@@ -490,7 +493,7 @@ export function AttendanceSessionPage() {
                   </div>
                 ) : (
                   <span
-                    className={`rounded-full px-3 py-1 text-sm ${
+                    className={`self-start rounded-full px-3 py-1 text-sm ${
                       status === "PRESENT"
                         ? "bg-green-100 text-green-800"
                         : status === "ABSENT"
@@ -545,12 +548,13 @@ export function AttendanceSessionPage() {
             </label>
           )}
           {actionError != null && <ErrorState error={actionError} />}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <p className="text-sm text-slate-500">
               سيُرسل غياب {summary.absent}، والبقية {schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} تلقائيًا.
             </p>
-            <div className="flex gap-2">
+            <div className="grid gap-2 sm:flex">
               <Button
+                className="w-full justify-center sm:w-auto"
                 onClick={() => void handleSubmit()}
                 disabled={pending}
                 data-testid="submit-attendance"
@@ -560,6 +564,7 @@ export function AttendanceSessionPage() {
               {editing && (
                 <Button
                   variant="secondary"
+                  className="w-full justify-center sm:w-auto"
                   onClick={() => {
                     setEditing(false);
                     setMarks(marksFromSession(session));

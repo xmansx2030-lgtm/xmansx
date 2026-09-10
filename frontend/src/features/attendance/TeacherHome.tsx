@@ -65,7 +65,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
           <Button
             variant="secondary"
             onClick={() => setScanning((value) => !value)}
-            className="border-white/15 !bg-white !text-slate-950 shadow-lg hover:!bg-slate-50"
+            className="w-full justify-center border-white/15 !bg-white !text-slate-950 shadow-lg hover:!bg-slate-50 sm:w-auto"
           >
             <ScanLine aria-hidden size={18} /> {scanning ? "إغلاق الماسح" : "مسح رمز الفصل"}
           </Button>
@@ -80,17 +80,17 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
         {periodQuery.isPending && <Spinner label="جارٍ تحديد الحصة الحالية..." />}
         {periodQuery.isError && <ErrorState error={periodQuery.error} />}
         {periodQuery.isSuccess && period && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="grid size-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><Clock3 aria-hidden size={21} /></span>
-              <div>
+              <div className="min-w-0">
               <p className="text-xs font-bold text-slate-500">الحصة الحالية</p>
               <p className="mt-0.5 text-lg font-black text-slate-900" data-testid="current-period-name">
                 {period.name}
               </p>
               </div>
             </div>
-            <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700" dir="ltr">
+            <p className="rounded-xl bg-slate-100 px-3 py-2 text-center text-sm font-bold text-slate-700 sm:text-start" dir="ltr">
               {period.start_time} – {period.end_time}
             </p>
           </div>
@@ -175,7 +175,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
                   })}
                   data-testid={`section-${section.id}`}
                 >
-                  <span><span className="block font-black text-slate-900">{section.name}</span><span className="mt-1 block text-xs text-slate-500">{section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}</span></span>
+                  <span className="min-w-0"><span className="block break-words font-black text-slate-900">{section.name}</span><span className="mt-1 block break-words text-xs text-slate-500">{section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}</span></span>
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-teal-600 group-hover:text-white"><ArrowLeft aria-hidden size={17} /></span>
                 </button>
               </li>
