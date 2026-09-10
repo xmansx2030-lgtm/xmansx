@@ -22,7 +22,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/55 p-2 backdrop-blur-sm sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -31,10 +31,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="my-auto w-full max-w-2xl rounded-3xl border border-white/60 bg-white shadow-2xl"
+        className="my-auto flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
-          <div>
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <h2 id="modal-title" className="text-xl font-black text-slate-900">{title}</h2>
             {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
           </div>
@@ -42,7 +42,7 @@ export function Modal({
             <X aria-hidden size={19} />
           </button>
         </header>
-        <div className="p-5 sm:p-6">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6">{children}</div>
       </section>
     </div>
   );

@@ -75,7 +75,7 @@ export function PageHeader({
             {meta && <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">{meta}</div>}
           </div>
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto lg:shrink-0">{actions}</div>}
       </div>
       {children && <div className="mt-5 border-t border-white/10 pt-4">{children}</div>}
     </header>

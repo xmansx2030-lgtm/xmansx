@@ -132,8 +132,22 @@ export function StudentsPage() {
       {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{notice}</p>}
 
       {canImport && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 flex flex-col items-stretch gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
           <span className="text-sm text-slate-600">تخريج دفعة — {schoolType === "GIRLS" ? "المحددات" : "المحددون"}: {selected.size}</span>
+          <Button
+            variant="secondary"
+            className="md:hidden"
+            disabled={(students.data?.results.length ?? 0) === 0}
+            onClick={() => {
+              const visibleIds = students.data?.results.map((row) => row.id) ?? [];
+              const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+              setSelected(allVisibleSelected ? new Set() : new Set(visibleIds));
+            }}
+          >
+            {students.data?.results.length && students.data.results.every((row) => selected.has(row.id))
+              ? "إلغاء تحديد المعروض"
+              : "تحديد المعروض"}
+          </Button>
           <Button
             variant="secondary"
             disabled={selected.size === 0 || graduateMutation.isPending}
@@ -235,9 +249,9 @@ export function StudentsPage() {
 
       {students.data && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-150 text-sm">
-              <thead>
+          <div className="md:overflow-x-auto">
+            <table className="block w-full text-sm md:table md:min-w-150">
+              <thead className="hidden md:table-header-group">
                 <tr className="border-b border-slate-200 text-slate-500">
                   {canImport && (
                     <th className="p-3">
@@ -267,11 +281,11 @@ export function StudentsPage() {
                   {canImport && <th className="p-3 text-start">الإجراءات</th>}
                 </tr>
               </thead>
-              <tbody data-testid="students-table-body">
+              <tbody className="grid gap-3 p-3 md:table-row-group md:p-0" data-testid="students-table-body">
                 {students.data.results.map((student) => (
-                  <tr key={student.id} className="border-b border-slate-100">
+                  <tr key={student.id} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0">
                     {canImport && (
-                      <td className="p-3">
+                      <td className="col-span-2 flex items-center gap-2 p-0 md:table-cell md:p-3">
                         <input
                           type="checkbox"
                           aria-label={`تحديد ${student.full_name}`}
@@ -284,22 +298,25 @@ export function StudentsPage() {
                           }}
                           className="size-4"
                         />
+                        <span className="text-xs font-bold text-slate-500 md:hidden">تحديد السجل</span>
                       </td>
                     )}
-                    <td className="p-3 font-medium">
+                    <td className="col-span-2 p-0 font-medium md:table-cell md:p-3">
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الاسم</span>
                       <Link to={`/students/${student.id}/attendance`} className="text-blue-700 hover:underline">
                         {student.full_name}
                       </Link>
                     </td>
-                    <td className="p-3" dir="ltr">
+                    <td className="p-0 md:table-cell md:p-3" dir="ltr">
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden" dir="rtl">رقم الهوية</span>
                       {student.national_id_masked}
                     </td>
-                    <td className="p-3">{student.grade?.name ?? "—"}</td>
-                    <td className="p-3">{student.section?.name ?? "—"}</td>
-                    <td className="p-3">{STATUS_LABELS[student.status] ?? student.status}</td>
+                    <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف</span>{student.grade?.name ?? "—"}</td>
+                    <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفصل</span>{student.section?.name ?? "—"}</td>
+                    <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>{STATUS_LABELS[student.status] ?? student.status}</td>
                     {canImport && (
-                      <td className="p-3">
-                        <Button variant="secondary" onClick={() => setEditingStudent(student)}>
+                      <td className="col-span-2 p-0 md:table-cell md:p-3">
+                        <Button className="w-full md:w-auto" variant="secondary" onClick={() => setEditingStudent(student)}>
                           <Pencil aria-hidden size={15} /> تعديل البيانات
                         </Button>
                       </td>
@@ -307,8 +324,8 @@ export function StudentsPage() {
                   </tr>
                 ))}
                 {students.data.results.length === 0 && (
-                  <tr>
-                    <td colSpan={canImport ? 7 : 5} className="p-6 text-center text-slate-400">
+                  <tr className="block">
+                    <td colSpan={canImport ? 7 : 5} className="block p-6 text-center text-slate-400">
                       <EmptyState title={`لا يوجد ${studentsLabel} ${schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}`} description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
                     </td>
                   </tr>
@@ -317,11 +334,11 @@ export function StudentsPage() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
+          <div className="flex flex-col gap-3 border-t border-slate-100 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="text-slate-500">
               الإجمالي: {students.data.count} {studentCountLabel(schoolType)} — صفحة {page} من {totalPages}
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <Button
                 variant="secondary"
                 disabled={page <= 1}

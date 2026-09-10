@@ -963,9 +963,9 @@ function SectionsTable({ data, schoolType }: { data: SectionsResponse; schoolTyp
     );
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm" data-testid="sections-table">
-        <thead className="bg-slate-50 text-slate-600">
+    <div>
+      <table className="block w-full text-sm md:table" data-testid="sections-table">
+        <thead className="hidden bg-slate-50 text-slate-600 md:table-header-group">
           <tr>
             <th className="p-2 text-start">الفصل</th>
             <th className="p-2 text-start">{schoolType === "GIRLS" ? "طالبات" : "طلاب"}</th>
@@ -976,24 +976,26 @@ function SectionsTable({ data, schoolType }: { data: SectionsResponse; schoolTyp
             <th className="p-2 text-start">تأخر حصص</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="grid gap-3 p-3 md:table-row-group md:p-0">
           {data.sections.map((row) => (
             <tr
               key={row.section_id}
-              className="border-t border-slate-100"
+              className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-b-0 md:p-0"
               data-testid={`section-row-${row.section_id}`}
             >
-              <td className="p-2 text-slate-800">
+              <td className="col-span-2 p-0 font-bold text-slate-800 md:table-cell md:p-2 md:font-normal">
+                <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفصل</span>
                 {row.grade_name} / {row.section_name}
               </td>
-              <td className="p-2 text-slate-600">{row.students}</td>
-              <td className="p-2 font-medium text-slate-800">
+              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">{schoolType === "GIRLS" ? "طالبات" : "طلاب"}</span>{row.students}</td>
+              <td className="p-0 font-medium text-slate-800 md:table-cell md:p-2">
+                <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">غياب بلا عذر</span>
                 {row.unexcused_full_absence_days}
               </td>
-              <td className="p-2 text-slate-600">{row.full_absence_days}</td>
-              <td className="p-2 text-slate-600">{row.partial_absence_days}</td>
-              <td className="p-2 text-slate-600">{row.morning_late_occurrences}</td>
-              <td className="p-2 text-slate-600">{row.period_late_occurrences}</td>
+              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الغياب الكامل</span>{row.full_absence_days}</td>
+              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الغياب الجزئي</span>{row.partial_absence_days}</td>
+              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التأخر الصباحي</span>{row.morning_late_occurrences}</td>
+              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">تأخر الحصص</span>{row.period_late_occurrences}</td>
             </tr>
           ))}
         </tbody>

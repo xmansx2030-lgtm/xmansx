@@ -68,14 +68,14 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6" data-testid="settings-page">
+    <div className="min-w-0 space-y-6" data-testid="settings-page">
       <header className="overflow-hidden rounded-3xl border border-teal-900/10 bg-gradient-to-l from-slate-950 via-slate-900 to-teal-950 px-5 py-6 text-white shadow-xl shadow-slate-950/10 sm:px-7">
         <div className="flex flex-wrap items-center justify-between gap-5">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-teal-200 ring-1 ring-white/10">
               <Settings2 aria-hidden size={25} />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="mb-1 text-xs font-bold text-teal-300">لوحة التحكم</p>
               <h1 className="text-2xl font-black sm:text-3xl">إعدادات المدرسة</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">اضبط بيانات المدرسة والتقويم والحصص وسياسات المتابعة من مكان واحد.</p>
@@ -88,10 +88,10 @@ export function SettingsPage() {
         </div>
       </header>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-24">
-          <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" role="tablist" aria-label="أقسام إعدادات المدرسة">
-            <div className="flex min-w-max gap-1 lg:min-w-0 lg:flex-col">
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="min-w-0 lg:sticky lg:top-24">
+          <nav className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" role="tablist" aria-label="أقسام إعدادات المدرسة">
+            <div className="flex w-max min-w-full snap-x snap-mandatory gap-1 lg:w-auto lg:min-w-0 lg:flex-col lg:snap-none">
               {TABS.map((item) => {
                 const Icon = item.icon;
                 const selected = tab === item.key;
@@ -105,7 +105,7 @@ export function SettingsPage() {
                     aria-selected={selected}
                     aria-controls={`settings-panel-${item.key}`}
                     onClick={() => selectTab(item.key)}
-                    className={`group flex min-w-42 items-center gap-3 rounded-xl px-3 py-3 text-start transition-all lg:min-w-0 ${selected ? "bg-blue-50 text-blue-800 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+                    className={`group flex min-w-42 snap-start items-center gap-3 rounded-xl px-3 py-3 text-start transition-all lg:min-w-0 ${selected ? "bg-blue-50 text-blue-800 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
                   >
                     <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 group-hover:bg-white"}`}><Icon aria-hidden size={18} /></span>
                     <span className="min-w-0">

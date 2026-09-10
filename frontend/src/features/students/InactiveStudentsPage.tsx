@@ -161,8 +161,8 @@ export function InactiveStudentsPage() {
         testId="inactive-students-header"
       />
 
-      <div>
-        <label htmlFor="inactive-search" className="me-2 text-sm font-medium text-slate-700">
+      <div className="flex flex-col gap-1 sm:block">
+        <label htmlFor="inactive-search" className="sm:me-2 text-sm font-medium text-slate-700">
           بحث بالاسم
         </label>
         <input
@@ -173,7 +173,7 @@ export function InactiveStudentsPage() {
             setPage(1);
             setSelected(new Set());
           }}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:w-auto"
         />
       </div>
 
@@ -251,8 +251,16 @@ export function InactiveStudentsPage() {
 
       {/* إجراءات جماعية للمدير */}
       {isManager && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 flex flex-col items-stretch gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
           <span className="text-sm text-slate-600">المحددون: {selected.size}</span>
+          <Button
+            variant="secondary"
+            className="md:hidden"
+            disabled={rows.length === 0}
+            onClick={() => setSelected(allSelected ? new Set() : new Set(rows.map((row) => row.id)))}
+          >
+            {allSelected ? "إلغاء تحديد المعروض" : "تحديد المعروض"}
+          </Button>
           {filter === "missing" && (
             <>
               <Button
@@ -320,9 +328,9 @@ export function InactiveStudentsPage() {
 
       {students.data && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-150 text-sm">
-              <thead>
+          <div className="md:overflow-x-auto">
+            <table className="block w-full text-sm md:table md:min-w-150">
+              <thead className="hidden md:table-header-group">
                 <tr className="border-b border-slate-200 text-slate-500">
                   {isManager && (
                     <th className="p-3">
@@ -345,11 +353,11 @@ export function InactiveStudentsPage() {
                   <th className="p-3 text-start">تاريخ الخروج</th>
                 </tr>
               </thead>
-              <tbody data-testid="inactive-table-body">
+              <tbody className="grid gap-3 p-3 md:table-row-group md:p-0" data-testid="inactive-table-body">
                 {rows.map((student) => (
-                  <tr key={student.id} className="border-b border-slate-100">
+                  <tr key={student.id} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0">
                     {isManager && (
-                      <td className="p-3">
+                      <td className="col-span-2 flex items-center gap-2 p-0 md:table-cell md:p-3">
                         <input
                           type="checkbox"
                           aria-label={`تحديد ${student.full_name}`}
@@ -362,21 +370,24 @@ export function InactiveStudentsPage() {
                           }}
                           className="size-4"
                         />
+                        <span className="text-xs font-bold text-slate-500 md:hidden">تحديد السجل</span>
                       </td>
                     )}
-                    <td className="p-3 font-medium">{student.full_name}</td>
-                    <td className="p-3">
+                    <td className="col-span-2 p-0 font-medium md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الاسم</span>{student.full_name}</td>
+                    <td className="p-0 md:table-cell md:p-3">
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">آخر صف/فصل</span>
                       {student.grade ? `${student.grade.name} / ${student.section?.name}` : "—"}
                     </td>
-                    <td className="p-3">
+                    <td className="p-0 md:table-cell md:p-3">
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>
                       {LIFECYCLE_STATUS_LABELS[student.status] ?? student.status}
                     </td>
-                    <td className="p-3">{student.exit_date ?? "—"}</td>
+                    <td className="col-span-2 p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">تاريخ الخروج</span>{student.exit_date ?? "—"}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={isManager ? 5 : 4} className="p-6 text-center text-slate-400">
+                  <tr className="block">
+                    <td colSpan={isManager ? 5 : 4} className="block p-6 text-center text-slate-400">
                       {schoolType === "GIRLS"
                         ? `لا توجد ${studentsLabel} مطابقات.`
                         : "لا يوجد طلاب مطابقون."}

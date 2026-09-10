@@ -159,9 +159,9 @@ export function ExcusesPage() {
       {list.isPending ? (
         <Spinner />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead>
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <table className="block w-full text-sm md:table">
+            <thead className="hidden md:table-header-group">
               <tr className="border-b text-slate-500">
                 <th className="p-3 text-start">{studentLabel(schoolType, true)}</th>
                 <th className="p-3 text-start">الفترة</th>
@@ -172,32 +172,35 @@ export function ExcusesPage() {
                 <th className="p-3 text-start"></th>
               </tr>
             </thead>
-            <tbody data-testid="excuses-rows">
+            <tbody className="grid gap-3 p-3 md:table-row-group md:p-0" data-testid="excuses-rows">
               {(list.data?.results ?? []).map((row) => (
-                <tr key={row.id} className="border-b" data-testid={`excuse-row-${row.id}`}>
-                  <td className="p-3">
+                <tr key={row.id} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0" data-testid={`excuse-row-${row.id}`}>
+                  <td className="col-span-2 p-0 md:table-cell md:p-3">
+                    <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">{studentLabel(schoolType, true)}</span>
                     <strong>{row.student.full_name}</strong>
                     <span className="block text-xs text-slate-500">
                       {row.student.grade_name ?? "—"} / {row.student.section_name ?? "—"}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="col-span-2 p-0 md:table-cell md:p-3">
+                    <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفترة</span>
                     {row.date_from
                       ? row.date_from === row.date_to
                         ? formatDate(row.date_from)
                         : `${formatDate(row.date_from)} — ${formatDate(row.date_to!)}`
                       : "—"}
                   </td>
-                  <td className="p-3">{row.reason_type_label}</td>
-                  <td className="p-3">
+                  <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">نوع العذر</span>{row.reason_type_label}</td>
+                  <td className="p-0 md:table-cell md:p-3">
+                    <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>
                     <StatusBadge status={row.status} label={row.status_label} />
                   </td>
-                  <td className="p-3">{row.active_coverage_count} حصة</td>
-                  <td className="p-3">{row.recorded_by_name ?? "—"}</td>
-                  <td className="p-3">
+                  <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحصص المغطاة</span>{row.active_coverage_count} حصة</td>
+                  <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المسجل</span>{row.recorded_by_name ?? "—"}</td>
+                  <td className="col-span-2 p-0 md:table-cell md:p-3">
                     <button
                       type="button"
-                      className="text-blue-700 underline"
+                      className="min-h-10 w-full rounded-xl bg-blue-50 px-3 font-bold text-blue-700 md:w-auto md:bg-transparent md:underline"
                       data-testid={`open-excuse-${row.id}`}
                       onClick={() => setSelected(selected === row.id ? null : row.id)}
                     >
@@ -209,11 +212,11 @@ export function ExcusesPage() {
             </tbody>
           </table>
           {(list.data?.results.length ?? 0) === 0 && <div className="p-4"><EmptyState title="لا توجد أعذار مطابقة" description={`غيّر معايير البحث أو أضف عذرًا جديدًا ${schoolType === "GIRLS" ? "للطالبة" : "للطالب"} عند توفر المستند المؤيد.`} testId="no-excuses" compact /></div>}
-          <div className="flex items-center justify-between border-t border-slate-100 p-3 text-sm">
+          <div className="flex flex-col gap-3 border-t border-slate-100 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="text-slate-500">
               صفحة {page} من {totalPages}
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <Button
                 variant="secondary"
                 disabled={page <= 1}

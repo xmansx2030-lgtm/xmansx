@@ -55,9 +55,9 @@ export function ReferralsTable({
   studentTitle?: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full text-sm">
-        <thead>
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table className="block w-full text-sm md:table">
+        <thead className="hidden md:table-header-group">
           <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500">
             <th className="p-3 text-start">{studentTitle}</th>
             <th className="p-3 text-start">الصف/الفصل</th>
@@ -69,27 +69,30 @@ export function ReferralsTable({
             <th className="p-3 text-start"></th>
           </tr>
         </thead>
-        <tbody data-testid={testId}>
+        <tbody className="grid gap-3 p-3 md:table-row-group md:p-0" data-testid={testId}>
           {rows.map((row) => (
-            <tr key={row.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70" data-testid={`referral-row-${row.id}`}>
-              <td className="p-3 font-bold text-slate-800">{row.student.full_name}</td>
-              <td className="p-3">
+            <tr key={row.id} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 transition-colors hover:bg-slate-50/70 md:table-row md:border-x-0 md:border-t-0 md:p-0" data-testid={`referral-row-${row.id}`}>
+              <td className="col-span-2 p-0 font-bold text-slate-800 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">{studentTitle}</span>{row.student.full_name}</td>
+              <td className="p-0 md:table-cell md:p-3">
+                <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف/الفصل</span>
                 {row.student.grade_name ?? "—"} / {row.student.section_name ?? "—"}
               </td>
-              <td className="p-3">{row.source_type_label}</td>
-              <td className="p-3">
+              <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المصدر</span>{row.source_type_label}</td>
+              <td className="col-span-2 p-0 md:table-cell md:p-3">
+                <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">السبب</span>
                 {row.category_label}
                 <span className="block text-xs text-slate-500">{row.reason_label}</span>
               </td>
-              <td className="p-3">{row.created_by_name ?? "—"}</td>
-              <td className="p-3">{row.assigned_counselor_name ?? "غير معيّن"}</td>
-              <td className="p-3">
+              <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المُحيل</span>{row.created_by_name ?? "—"}</td>
+              <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المرشد</span>{row.assigned_counselor_name ?? "غير معيّن"}</td>
+              <td className="p-0 md:table-cell md:p-3">
+                <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>
                 <ReferralStatusBadge status={row.status} label={row.status_label} />
               </td>
-              <td className="p-3">
+              <td className="col-span-2 p-0 md:table-cell md:p-3">
                 <button
                   type="button"
-                  className="min-h-9 rounded-lg bg-blue-50 px-3 font-bold text-blue-700 transition hover:bg-blue-100"
+                  className="min-h-10 w-full rounded-xl bg-blue-50 px-3 font-bold text-blue-700 transition hover:bg-blue-100 md:w-auto"
                   onClick={() => onSelect(row.id)}
                   data-testid={`open-referral-${row.id}`}
                   aria-expanded={selectedId === row.id}
