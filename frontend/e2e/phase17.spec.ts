@@ -68,6 +68,7 @@ async function sectionId(page: Page, sectionName: string): Promise<number> {
 test("production PWA manifest, headers, service worker, and SPA fallbacks", async ({ page, request }) => {
   const manifestResponse = await request.get("/manifest.webmanifest");
   expect(manifestResponse.status()).toBe(200);
+  expect(manifestResponse.headers()["content-type"]).toContain("application/manifest+json");
   const manifest = (await manifestResponse.json()) as {
     name: string;
     lang: string;
