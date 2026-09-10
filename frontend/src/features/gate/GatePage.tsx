@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarDays,
   CheckCircle2,
   Clock3,
   DoorOpen,
@@ -53,6 +54,14 @@ function releasedTimeLabel(value: string) {
   return new Date(value).toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit" });
 }
 
+function dateLabel(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString("ar-SA", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
 export function GatePage() {
   const schoolId = useActiveSchoolId();
   const schoolType = useActiveSchoolType();
@@ -87,25 +96,29 @@ export function GatePage() {
   );
   const students = studentPluralLabel(schoolType);
   const student = studentLabel(schoolType, true);
+  const updatedAt = leaves.dataUpdatedAt
+    ? new Date(leaves.dataUpdatedAt).toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit" })
+    : null;
 
   return (
     <div className="space-y-5" data-testid="gate-page">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-teal-950 to-emerald-900 p-5 text-white shadow-xl shadow-emerald-950/15 sm:p-7">
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-teal-950 to-emerald-900 p-4 text-white shadow-xl shadow-emerald-950/15 sm:p-7">
         <div aria-hidden className="absolute -left-12 -top-20 size-56 rounded-full bg-emerald-300/10 blur-3xl" />
         <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div className="flex items-start gap-4">
-            <span className="grid size-13 shrink-0 place-items-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15 sm:size-13">
               <DoorOpen aria-hidden size={27} />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold text-emerald-200">محطة حارس البوابة</p>
               <h1 className="mt-1 text-2xl font-black sm:text-3xl">خروج {students}</h1>
               <p className="mt-2 text-sm leading-6 text-emerald-50/80">تحقق من البيانات ثم سجّل الخروج الفعلي من المدرسة.</p>
+              {leaves.data?.date && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-100/80"><CalendarDays aria-hidden size={14} />قائمة {dateLabel(leaves.data.date)}</p>}
             </div>
           </div>
           <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-xs font-black ring-1 ${online ? "bg-emerald-400/15 text-emerald-100 ring-emerald-300/25" : "bg-red-400/15 text-red-100 ring-red-300/25"}`}>
             {online ? <Wifi aria-hidden size={15} /> : <WifiOff aria-hidden size={15} />}
-            {online ? "متصل — القائمة محدثة" : "غير متصل — التأكيد متوقف"}
+            {online ? (leaves.isFetching ? "متصل — جارٍ التحديث" : "متصل") : "غير متصل — التأكيد متوقف"}
           </span>
         </div>
       </header>
@@ -117,7 +130,7 @@ export function GatePage() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3" aria-label="ملخص البوابة اليوم">
+      <section className="grid grid-cols-2 gap-3" aria-label="ملخص البوابة اليوم" aria-live="polite">
         <SummaryButton active={tab === "pending"} label="بانتظار الخروج" value={leaves.data?.summary.pending ?? 0} onClick={() => setTab("pending")} />
         <SummaryButton active={tab === "released"} label="خرج اليوم" value={leaves.data?.summary.released ?? 0} onClick={() => setTab("released")} />
       </section>
@@ -133,7 +146,10 @@ export function GatePage() {
             <RefreshCw aria-hidden size={19} className={leaves.isFetching ? "animate-spin" : ""} />
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">تتحدث القائمة تلقائيًا كل 15 ثانية وتصل إلى جميع حراس المدرسة.</p>
+        <div className="mt-2 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>تتحدث القائمة تلقائيًا كل 15 ثانية وتصل إلى جميع حراس المدرسة.</p>
+          <p className="shrink-0 font-bold text-slate-600" data-testid="gate-last-updated" aria-live="polite">{leaves.isFetching ? "جارٍ مزامنة القائمة..." : updatedAt ? `آخر مزامنة ${updatedAt}` : "بانتظار أول مزامنة"}</p>
+        </div>
       </section>
 
       {leaves.isPending ? (
@@ -158,6 +174,7 @@ export function GatePage() {
         <Modal title={`تأكيد خروج ${selected.student.full_name}`} description={`تحقق من ${student} وبيانات المستلم قبل السماح بالخروج.`} onClose={() => { if (!release.isPending) setSelected(null); }}>
           <div className="space-y-3">
             <StudentIdentity leave={selected} />
+            <ReleaseFacts leave={selected} />
             <RecipientDetails leave={selected} />
             <div className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900"><ShieldCheck aria-hidden size={18} className="mt-1 shrink-0" />سيُسجّل اسمك ووقت الخروج من الخادم، ولا يمكن إلغاء الاستئذان بعد التأكيد.</div>
             {release.isError && <ErrorState error={release.error} />}
@@ -175,16 +192,16 @@ export function GatePage() {
 }
 
 function SummaryButton({ active, label, value, onClick }: { active: boolean; label: string; value: number; onClick: () => void }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-2xl border p-4 text-start shadow-sm transition ${active ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100" : "border-slate-200 bg-white hover:border-slate-300"}`}><span className="text-xs font-bold text-slate-600">{label}</span><strong className={`mt-1 block text-3xl font-black ${active ? "text-emerald-800" : "text-slate-900"}`}>{value}</strong></button>;
+  return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-24 rounded-2xl border p-4 text-start shadow-sm transition ${active ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100" : "border-slate-200 bg-white hover:border-slate-300"}`}><span className="text-xs font-bold leading-5 text-slate-600">{label}</span><strong className={`mt-1 block text-3xl font-black ${active ? "text-emerald-800" : "text-slate-900"}`}>{value}</strong></button>;
 }
 
 function GateLeaveCard({ leave, online, schoolType, onRelease }: { leave: GateStudentLeave; online: boolean; schoolType: "BOYS" | "GIRLS"; onRelease: () => void }) {
   const released = leave.gate_release !== null;
   return (
     <li className={`overflow-hidden rounded-3xl border bg-white shadow-sm ${released ? "border-emerald-200" : "border-slate-200"}`} data-testid={`gate-leave-${leave.id}`}>
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3"><StudentIdentity leave={leave} /><span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${released ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{released ? "خرج" : "بانتظار الخروج"}</span></div>
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-3 text-sm"><span className="flex items-center gap-2 text-slate-600"><Clock3 aria-hidden size={17} />الوقت المصرح</span><strong className="text-end text-slate-900">{timeLabel(leave.leave_time)}</strong><span className="text-slate-500">اعتمده</span><span className="text-end font-bold text-slate-700">{leave.recorded_by_name ?? "إدارة المدرسة"}</span></div>
+      <div className="p-4 sm:p-5">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between"><StudentIdentity leave={leave} /><span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${released ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{released ? "خرج" : "بانتظار الخروج"}</span></div>
+        <ReleaseFacts leave={leave} compact />
         <RecipientDetails leave={leave} compact />
       </div>
       {released ? (
@@ -197,7 +214,11 @@ function GateLeaveCard({ leave, online, schoolType, onRelease }: { leave: GateSt
 }
 
 function StudentIdentity({ leave }: { leave: GateStudentLeave }) {
-  return <div className="min-w-0"><h2 className="text-lg font-black text-slate-950">{leave.student.full_name}</h2><p className="mt-1 text-sm font-medium text-slate-600">{leave.grade_name || "الصف غير محدد"} · فصل {leave.section_name || "—"}</p><p dir="ltr" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 font-mono text-xs font-bold text-blue-800"><Hash aria-hidden size={14} />{leave.student.student_number || "لا يوجد رقم طلابي"}</p></div>;
+  return <div className="min-w-0 max-w-full"><h2 className="break-words text-lg font-black text-slate-950">{leave.student.full_name}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-600">{leave.grade_name || "الصف غير محدد"} · فصل {leave.section_name || "—"}</p><p dir="ltr" className="mt-2 inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 font-mono text-xs font-bold text-blue-800"><Hash aria-hidden size={14} className="shrink-0" /><span className="truncate">{leave.student.student_number || "لا يوجد رقم طلابي"}</span></p></div>;
+}
+
+function ReleaseFacts({ leave, compact = false }: { leave: GateStudentLeave; compact?: boolean }) {
+  return <div className={`${compact ? "mt-4" : ""} grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3`} data-testid="gate-release-facts"><div><p className="flex items-center gap-1.5 text-xs font-bold text-slate-500"><Clock3 aria-hidden size={16} />الوقت المصرح</p><strong className="mt-1 block text-lg font-black text-slate-950">{timeLabel(leave.leave_time)}</strong></div><div className="border-s border-slate-200 ps-3"><p className="text-xs font-bold text-slate-500">اعتمده</p><strong className="mt-1 block break-words text-sm font-black leading-6 text-slate-800">{leave.recorded_by_name ?? "إدارة المدرسة"}</strong></div></div>;
 }
 
 function RecipientDetails({ leave, compact = false }: { leave: GateStudentLeave; compact?: boolean }) {

@@ -223,7 +223,7 @@ export function CaseDetailPage() {
       )}
 
       <div
-        className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+        className="flex snap-x snap-mandatory gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
         role="tablist"
         aria-label="أقسام ملف المتابعة"
       >
@@ -236,7 +236,7 @@ export function CaseDetailPage() {
             aria-selected={tab === value}
             tabIndex={tab === value ? 0 : -1}
             onClick={() => setTab(value)}
-            className={`min-h-10 shrink-0 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition ${
+            className={`min-h-10 shrink-0 snap-start whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition ${
               tab === value
                 ? "bg-slate-950 text-white shadow-sm"
                 : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -255,21 +255,21 @@ export function CaseDetailPage() {
             <button type="button" onClick={() => setTab("requests")} className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700"><FileText aria-hidden size={18} /></span><span><span className="block text-sm font-black text-slate-900">{canManage ? "اطلب متابعة" : `طلبات ${roleGenitivePluralLabel("TEACHER", schoolType)}`}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{canManage ? `اطلب ملاحظة مهنية من ${roleLabel("TEACHER", schoolType)}.` : "تابع الطلبات والردود المسجلة في الملف."}</span></span></button>
           </section>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="block w-full text-sm md:table">
+              <thead className="hidden bg-slate-50 text-slate-600 md:table-header-group">
                 <tr>
                   <th className="p-3 text-start">المؤشر</th>
                   <th className="p-3 text-start">عند فتح الملف</th>
                   <th className="p-3 text-start">حاليًا</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="grid gap-3 p-3 md:table-row-group md:p-0" data-testid="case-metrics">
                 {Object.entries(METRIC_LABELS).map(([key, label]) => (
-                  <tr key={key} className="border-b" data-testid={`metric-${key}`}>
-                    <td className="p-3">{label}</td>
-                    <td className="p-3">{metricValue(data.snapshot_at_opening, key)}</td>
-                    <td className="p-3">{metricValue(data.current_metrics, key)}</td>
+                  <tr key={key} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0" data-testid={`metric-${key}`}>
+                    <td className="col-span-2 p-0 font-black text-slate-900 md:table-cell md:p-3 md:font-normal">{label}</td>
+                    <td className="rounded-xl bg-slate-50 p-3 md:table-cell md:rounded-none md:bg-transparent"><span className="mb-1 block text-[11px] font-bold text-slate-500 md:hidden">عند فتح الملف</span>{metricValue(data.snapshot_at_opening, key)}</td>
+                    <td className="rounded-xl bg-teal-50 p-3 font-black text-teal-900 md:table-cell md:rounded-none md:bg-transparent md:font-normal md:text-inherit"><span className="mb-1 block text-[11px] font-bold text-teal-700 md:hidden">حاليًا</span>{metricValue(data.current_metrics, key)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -326,7 +326,7 @@ export function CaseDetailPage() {
                     ))}
                   </select>
                 </label>
-                <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm">
+                <label className="flex w-full min-w-0 flex-1 flex-col gap-1 text-sm sm:min-w-56">
                   ملخص النتيجة <span className="text-xs font-normal text-slate-500">اختياري</span>
                   <textarea
                     data-testid="closure-outcome-summary"
@@ -485,7 +485,7 @@ export function CaseDetailPage() {
           {canManage && !activePlan && (
             <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-violet-100 bg-gradient-to-l from-violet-50 to-white p-4 shadow-sm sm:p-5">
               <span className="grid size-10 shrink-0 place-items-center self-start rounded-xl bg-violet-100 text-violet-700"><ClipboardList aria-hidden size={18} /></span>
-              <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm font-bold text-slate-700">
+              <label className="flex w-full min-w-0 flex-1 flex-col gap-1 text-sm font-bold text-slate-700 sm:min-w-60">
                 خطة متابعة جديدة
                 <input
                   data-testid="plan-title"
@@ -673,7 +673,7 @@ export function CaseDetailPage() {
                     </div>
 
                     <div className="flex flex-wrap items-end gap-2 rounded-xl bg-slate-50 p-3">
-                      <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm">
+                      <label className="flex w-full min-w-0 flex-1 flex-col gap-1 text-sm sm:min-w-48">
                         إجراء جديد
                         <input
                           data-testid="activity-title"

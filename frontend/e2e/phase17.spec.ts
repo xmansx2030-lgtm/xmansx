@@ -230,6 +230,75 @@ test("manager workspaces stay contained and readable on a phone", async ({ page 
   await assertNoPageOverflow(page);
 });
 
+test("vice principal workspaces and detail views stay usable on a phone", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "0550000003", "ثانوية الأندلس");
+
+  const vicePrincipalRoutes = [
+    "/dashboard",
+    "/students",
+    "/students/inactive",
+    "/warnings",
+    "/excuses",
+    "/referrals",
+    "/counselor",
+    "/attendance/monitoring",
+    "/attendance/analytics",
+    "/morning",
+    "/student-leaves",
+    "/gate",
+    "/staff",
+  ];
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const path of vicePrincipalRoutes) {
+      await page.goto(path);
+      await expect(page.locator("main h1").first(), path).toBeVisible({ timeout: 20_000 });
+      await assertNoPageOverflow(page);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/dashboard");
+  await expect(page.getByText("محطة عمل الوكيل")).toBeVisible();
+  await expect(page.getByTestId("school-today-status-card")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("attention-section")).toBeVisible();
+  await expect(page.locator('[data-testid^="attention-count-"]').first()).toBeVisible({ timeout: 20_000 });
+  await screenshot(page, testInfo, "vice-principal-phone-dashboard-responsive.png");
+
+  await page.goto("/students");
+  const firstStudentLink = page.getByTestId("students-table-body").getByRole("link").first();
+  await expect(firstStudentLink).toBeVisible();
+  await firstStudentLink.click();
+  await expect(page.getByTestId("student-profile-header")).toBeVisible();
+  await assertNoPageOverflow(page);
+  await screenshot(page, testInfo, "vice-principal-phone-student-profile-responsive.png");
+  const profileSections = page.getByRole("group", { name: "أقسام ملف الطالب" });
+  await profileSections.getByRole("button", { name: "الأعذار", exact: true }).click();
+  await expect(page.getByTestId("profile-excuses-list")).toHaveCSS("display", "grid");
+  await assertNoPageOverflow(page);
+  await screenshot(page, testInfo, "vice-principal-phone-student-excuses-responsive.png");
+
+  await page.goto("/counselor");
+  const firstCaseLink = page.locator('[data-testid^="open-case-mobile-"]').first();
+  await expect(firstCaseLink).toBeVisible();
+  await firstCaseLink.click();
+  await expect(page.getByTestId("case-detail")).toBeVisible();
+  await assertNoPageOverflow(page);
+  await expect(page.getByTestId("case-metrics")).toHaveCSS("display", "grid");
+  await expect(page.getByTestId("case-metrics").locator("tr").first()).toHaveCSS("display", "grid");
+  await screenshot(page, testInfo, "vice-principal-phone-case-detail-responsive.png");
+
+  await page.getByRole("button", { name: "فتح قائمة التنقل" }).click();
+  await expect(page.getByTestId("user-roles-mobile")).toHaveText("الوكيل");
+  await expect(page.locator("#mobile-navigation").getByTestId("additional-navigation")).toBeVisible();
+  await assertNoPageOverflow(page);
+});
+
 test("platform admin workspaces and subscription flow remain usable on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page, "0550000016");

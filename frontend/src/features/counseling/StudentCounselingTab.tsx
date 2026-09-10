@@ -50,7 +50,7 @@ export function StudentCounselingTab({ studentId }: { studentId: number }) {
               </p>
             </div>
           </div>
-          <div className="grid min-w-56 grid-cols-2 gap-2 text-center">
+          <div className="grid w-full min-w-0 grid-cols-2 gap-2 text-center sm:w-auto sm:min-w-56">
             <div className="rounded-xl bg-white/10 px-4 py-2.5 ring-1 ring-white/10">
               <span className="block text-2xl font-black text-teal-200">{data.open_cases}</span>
               <span className="text-[11px] font-bold text-slate-300">ملف مفتوح</span>

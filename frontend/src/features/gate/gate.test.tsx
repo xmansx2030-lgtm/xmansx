@@ -67,7 +67,11 @@ describe("GatePage", () => {
     expect(screen.queryByText("موعد طبي لدى المستشفى")).not.toBeInTheDocument();
 
     await user.click(within(card).getByRole("button", { name: "تحقق واسمح بخروج الطالب" }));
-    await user.click(screen.getByRole("button", { name: "تم التحقق والسماح بالخروج" }));
+    const dialog = screen.getByRole("dialog", { name: "تأكيد خروج محمد أحمد" });
+    expect(within(dialog).getByTestId("gate-release-facts")).toHaveTextContent("١٠:٣٥ ص");
+    expect(within(dialog).getByTestId("gate-release-facts")).toHaveTextContent("سعد الوكيل");
+    expect(within(dialog).getByText("أحمد عبدالله")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "تم التحقق والسماح بالخروج" }));
 
     await waitFor(() => expect(api.calls.some(
       (call) => call.url.includes("/gate/student-leaves/81/release/") && call.init?.method === "POST",
