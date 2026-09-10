@@ -100,14 +100,14 @@ describe("platform and subscription UI", () => {
     expect(screen.queryByRole("heading", { name: "إدارة المنصة" })).not.toBeInTheDocument();
   });
 
-  it("requires the school type during creation and uses feminine manager labels", async () => {
+  it("creates a girls school, manager, and active subscription in one guided form", async () => {
     const user = userEvent.setup();
     const { calls } = mockApi({
       "/auth/me/": { body: buildMe({ is_platform_admin: true }) },
       "/platform/overview/": {
         body: { schools_total: 0, subscriptions: {}, usage_totals: {}, expiring_soon: [] },
       },
-      "/platform/plans/": { body: [] },
+      "/platform/plans/": { body: [PLAN] },
       "/platform/schools/": (init) => init?.method === "POST"
         ? { status: 400, body: { code: "TEST", message: "test", details: {} } }
         : { body: { count: 0, next: null, previous: null, results: [] } },
@@ -115,7 +115,8 @@ describe("platform and subscription UI", () => {
 
     renderApp("/platform");
     await user.click(await screen.findByRole("button", { name: "المدارس" }));
-    const createButton = screen.getByRole("button", { name: "إنشاء" });
+    await user.click(screen.getByRole("button", { name: "إضافة مدرسة جديدة" }));
+    const createButton = screen.getByRole("button", { name: "إنشاء المدرسة بدون اشتراك" });
     expect(createButton).toBeDisabled();
 
     await user.selectOptions(screen.getByLabelText("نوع المدرسة الجديدة"), "GIRLS");
@@ -124,11 +125,21 @@ describe("platform and subscription UI", () => {
     await user.type(screen.getByPlaceholderText("اسم المدرسة"), "ثانوية البنات");
     await user.type(screen.getByPlaceholderText("اسم المديرة"), "نورة");
     await user.type(screen.getByPlaceholderText("جوال المديرة"), "0550000000");
-    await user.click(createButton);
+    await user.selectOptions(screen.getByLabelText("باقة الاشتراك عند الإنشاء"), "1");
+    await user.selectOptions(screen.getByLabelText("نوع الاشتراك عند الإنشاء"), "ACTIVE");
+    const duration = screen.getByLabelText("مدة الاشتراك عند الإنشاء");
+    await user.clear(duration);
+    await user.type(duration, "6");
+    await user.click(screen.getByRole("button", { name: "إنشاء المدرسة والاشتراك" }));
 
     await waitFor(() => {
       const request = calls.find((call) => call.url.includes("/platform/schools/") && call.init?.method === "POST");
-      expect(JSON.parse(String(request?.init?.body))).toMatchObject({ school_type: "GIRLS" });
+      expect(JSON.parse(String(request?.init?.body))).toMatchObject({
+        school_type: "GIRLS",
+        plan_id: 1,
+        subscription_mode: "ACTIVE",
+        months: 6,
+      });
     });
   });
 
@@ -200,6 +211,67 @@ describe("platform and subscription UI", () => {
     expect(screen.getByText(/البيانات محفوظة/)).toBeInTheDocument();
   });
 
+  it("activates a subscription for an existing school from the simplified form", async () => {
+    const user = userEvent.setup();
+    const row = {
+      id: SCHOOL.id,
+      name: SCHOOL.name,
+      slug: SCHOOL.slug,
+      school_type: "BOYS",
+      school_status: "ACTIVE",
+      subscription_status: null,
+      plan: null,
+      plan_name: null,
+      starts_at: null,
+      ends_at: null,
+      manager: { id: 4, name: "مدير النور" },
+      usage: USAGE,
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true }) },
+      "/platform/overview/": { body: { schools_total: 1, subscriptions: {}, usage_totals: {}, expiring_soon: [] } },
+      "/platform/plans/": { body: [PLAN] },
+      "/platform/schools/7/subscription/activate/": { body: { id: 8, status: "ACTIVE" } },
+      "/platform/schools/7/subscription/events/": { body: [] },
+      "/platform/schools/7/subscription/": { body: { current: null, history: [] } },
+      "/platform/schools/7/": {
+        body: {
+          ...row,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          managers: [],
+          subscription: {
+            has_subscription: false,
+            status: null,
+            access_mode: "BLOCKED",
+            plan: null,
+            starts_at: null,
+            ends_at: null,
+            days_remaining: null,
+            grace_ends_at: null,
+            trial_ends_at: null,
+          },
+          entitlements: {},
+        },
+      },
+      "/platform/schools/": { body: { count: 1, next: null, previous: null, results: [row] } },
+    });
+
+    renderApp("/platform");
+    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
+    await user.selectOptions(await screen.findByLabelText("الباقة الجديدة"), "1");
+    const duration = screen.getByLabelText("المدة");
+    await user.clear(duration);
+    await user.type(duration, "6");
+    await user.click(screen.getByRole("button", { name: "تفعيل اشتراك" }));
+
+    await waitFor(() => {
+      const request = calls.find((call) => call.url.includes("/subscription/activate/") && call.init?.method === "POST");
+      expect(JSON.parse(String(request?.init?.body))).toMatchObject({ plan_id: 1, months: 6 });
+    });
+  });
+
   it("lists SaaS metadata, previews a safe downgrade, and runs suspension", async () => {
     const user = userEvent.setup();
     const row = {
@@ -261,10 +333,12 @@ describe("platform and subscription UI", () => {
     const schoolButton = await screen.findByRole("button", { name: new RegExp(SCHOOL.name) });
     expect(schoolButton).toHaveTextContent("مدير النور");
     await user.click(schoolButton);
+    await user.selectOptions(await screen.findByLabelText("إجراء الاشتراك"), "change-plan");
     await user.selectOptions(await screen.findByLabelText("الباقة الجديدة"), "1");
     expect(within(await screen.findByTestId("plan-change-preview")).getAllByText(/تجاوز الحد/)).toHaveLength(2);
     expect(screen.getByText("لن تُحذف أي بيانات.")).toBeInTheDocument();
     expect(screen.queryByText("بيانات ولي الأمر")).not.toBeInTheDocument();
+    await user.click(screen.getByText("إجراءات متقدمة"));
     await user.click(screen.getByRole("button", { name: "إيقاف" }));
     await waitFor(() => {
       expect(calls.some(({ url, init }) => url.includes("/subscription/suspend/") && init?.method === "POST")).toBe(true);
@@ -343,7 +417,7 @@ describe("platform and subscription UI", () => {
     expect(await screen.findByRole("heading", { name: "بيانات المدرسة والدخول" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("+966550123456")).toBeInTheDocument();
     expect(screen.getByText("بيانات الدخول مفعلة")).toBeInTheDocument();
-    expect(screen.getByText("بيانات الاشتراك")).toBeInTheDocument();
+    expect(screen.getByText("إدارة الاشتراك")).toBeInTheDocument();
     expect(screen.getByText("صلاحية الاستخدام")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "حفظ بيانات المدرسة" }));

@@ -228,6 +228,34 @@ test("manager workspaces stay contained and readable on a phone", async ({ page 
   await assertNoPageOverflow(page);
 });
 
+test("platform admin workspaces and subscription flow remain usable on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "0550000016");
+  await expect(page).toHaveURL(/\/platform$/);
+
+  await expect(page.getByTestId("platform-dashboard")).toBeVisible();
+  await assertNoPageOverflow(page);
+
+  await page.getByRole("button", { name: "المدارس", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "إضافة مدرسة واشتراكها" })).toBeVisible();
+  await page.getByRole("button", { name: "إضافة مدرسة جديدة" }).click();
+  await expect(page.getByLabel("باقة الاشتراك عند الإنشاء")).toBeVisible();
+  await assertNoPageOverflow(page);
+  await page.getByRole("button", { name: "إغلاق النموذج" }).click();
+
+  const firstSchool = page.locator('button[aria-pressed="false"]').first();
+  await expect(firstSchool).toBeVisible();
+  await firstSchool.click();
+  await expect(page.getByRole("heading", { name: "إدارة الاشتراك" })).toBeVisible();
+  await expect(page.getByLabel("إجراء الاشتراك", { exact: true })).toBeVisible();
+  await assertNoPageOverflow(page);
+
+  await page.getByRole("button", { name: "الباقات", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "إنشاء باقة جديدة" })).toBeVisible();
+  await expect(page.getByLabel("اسم الباقة")).toBeVisible();
+  await assertNoPageOverflow(page);
+});
+
 test("VP tablet, counselor tablet, manager desktop, and platform admin remain usable", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await login(page, "0550000003", "ثانوية الأندلس");

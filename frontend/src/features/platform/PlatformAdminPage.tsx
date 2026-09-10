@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -107,6 +107,41 @@ function statusClass(status: string | null | undefined) {
 }
 
 type PlatformTab = "dashboard" | "schools" | "plans";
+type SubscriptionActionName =
+  | "start-trial"
+  | "extend-trial"
+  | "activate"
+  | "change-plan"
+  | "extend"
+  | "suspend"
+  | "reactivate"
+  | "cancel";
+
+const SUBSCRIPTION_ACTION_LABELS: Record<SubscriptionActionName, string> = {
+  "start-trial": "بدء فترة تجريبية",
+  "extend-trial": "تمديد الفترة التجريبية",
+  activate: "تفعيل اشتراك",
+  "change-plan": "تغيير الباقة",
+  extend: "تمديد الاشتراك",
+  suspend: "إيقاف الاشتراك",
+  reactivate: "إعادة تفعيل الاشتراك",
+  cancel: "إلغاء الاشتراك",
+};
+
+function subscriptionActionsFor(status: string | null): SubscriptionActionName[] {
+  if (status === "TRIAL") return ["activate", "extend-trial", "change-plan"];
+  if (status === "ACTIVE" || status === "GRACE_PERIOD") return ["extend", "change-plan"];
+  if (status === "SUSPENDED") return ["reactivate"];
+  if (status === "EXPIRED") return ["activate", "start-trial", "extend"];
+  return ["activate", "start-trial"];
+}
+
+function defaultSubscriptionAction(status: string | null): SubscriptionActionName {
+  if (status === "TRIAL") return "activate";
+  if (status === "ACTIVE" || status === "GRACE_PERIOD") return "extend";
+  if (status === "SUSPENDED") return "reactivate";
+  return "activate";
+}
 
 const PLATFORM_TABS = [
   {
@@ -613,34 +648,36 @@ function PlanForm({ plans }: { plans: Plan[] }) {
 
   return (
     <section className="space-y-4">
-      <form onSubmit={submit} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-4">
-        <input className="rounded border border-slate-300 px-3 py-2" placeholder="رمز الباقة" value={form.code} disabled={Boolean(editing)} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-        <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
-        <input className="rounded border border-slate-300 px-3 py-2" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} />
-        <input className="rounded border border-slate-300 px-3 py-2" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} />
+      <form onSubmit={submit} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
+        <div className="md:col-span-4"><h2 className="font-black text-slate-950">{editing ? `تعديل باقة ${editing.name_ar}` : "إنشاء باقة جديدة"}</h2><p className="mt-1 text-xs text-slate-500">حدد السعر والحدود ثم اختر المزايا المتاحة للمدرسة.</p></div>
+        <label className="text-sm font-medium text-slate-700">رمز الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="مثال: PRO" value={form.code} disabled={Boolean(editing)} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
+        <label className="text-sm font-medium text-slate-700">اسم الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} /></label>
+        <label className="text-sm font-medium text-slate-700">السعر السنوي (ر.س)<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} /></label>
+        <label className="text-sm font-medium text-slate-700">أيام التجربة الافتراضية<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} /></label>
         {LIMIT_KEYS.map((key) => (
           <label key={key} className="text-sm text-slate-600">
             {ENTITLEMENT_LABELS[key]}
-            <input className="mt-1 w-full rounded border border-slate-300 px-3 py-2" type="number" value={form[LIMIT_FORM_KEYS[key]]} onChange={(e) => setForm({ ...form, [LIMIT_FORM_KEYS[key]]: Number(e.target.value) })} />
+            <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" min={0} type="number" value={form[LIMIT_FORM_KEYS[key]]} onChange={(e) => setForm({ ...form, [LIMIT_FORM_KEYS[key]]: Number(e.target.value) })} />
           </label>
         ))}
-        <div className="md:col-span-4 grid gap-2 md:grid-cols-3">
+        <fieldset className="grid gap-2 rounded-2xl bg-slate-50 p-3 md:col-span-4 md:grid-cols-3">
+          <legend className="px-1 text-sm font-black text-slate-800">المزايا المتاحة</legend>
           {FEATURE_KEYS.map((key) => (
-            <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={features[key]} onChange={(e) => setFeatures({ ...features, [key]: e.target.checked })} />
+            <label key={key} className="flex min-h-10 items-center gap-2 rounded-xl bg-white px-3 text-sm text-slate-700">
+              <input className="size-4" type="checkbox" checked={features[key]} onChange={(e) => setFeatures({ ...features, [key]: e.target.checked })} />
               {ENTITLEMENT_LABELS[key]}
             </label>
           ))}
-        </div>
-        <div className="flex gap-2 md:col-span-4">
-          <Button type="submit" disabled={save.isPending}>{editing ? "حفظ التعديل" : "إنشاء باقة"}</Button>
-          {editing && <Button variant="secondary" onClick={() => setEditingId(null)}>إلغاء</Button>}
+        </fieldset>
+        <div className="grid gap-2 sm:flex md:col-span-4">
+          <Button className="w-full sm:w-auto" type="submit" disabled={save.isPending}>{editing ? "حفظ التعديل" : "إنشاء باقة"}</Button>
+          {editing && <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setEditingId(null)}>إلغاء</Button>}
         </div>
         <div className="md:col-span-4"><ErrorLine error={save.error} /></div>
       </form>
       <div className="grid gap-3 md:grid-cols-2">
         {plans.map((plan) => (
-          <article key={plan.id} className="rounded-lg border border-slate-200 bg-white p-4">
+          <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-bold text-slate-900">{plan.name_ar}</h3>
@@ -648,7 +685,7 @@ function PlanForm({ plans }: { plans: Plan[] }) {
               </div>
               <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex">
               <Button variant="secondary" onClick={() => load(plan)}>تعديل</Button>
               <Button variant="danger" disabled={!plan.is_active} onClick={() => void disablePlan(plan.id).then(() => queryClient.invalidateQueries({ queryKey: ["platform", "plans"] }))}>تعطيل</Button>
             </div>
@@ -667,18 +704,23 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   const [expiresSoon, setExpiresSoon] = useState(false);
   const [overLimit, setOverLimit] = useState(false);
   const [selected, setSelected] = useState<SchoolRow | null>(null);
+  const detailRef = useRef<HTMLElement>(null);
   const filters = { search, status: statusFilter, plan: planFilter, expires_soon: expiresSoon, over_limit: overLimit };
   const schools = useQuery({ queryKey: ["platform", "schools", filters], queryFn: ({ signal }) => getPlatformSchools(filters, signal) });
   const detail = useQuery({ queryKey: ["platform", "school", selected?.id], queryFn: ({ signal }) => getSchoolDetail(selected!.id, signal), enabled: Boolean(selected) });
   const history = useQuery({ queryKey: ["platform", "subscription", selected?.id], queryFn: ({ signal }) => getSubscriptionHistory(selected!.id, signal), enabled: Boolean(selected) });
   const events = useQuery({ queryKey: ["platform", "events", selected?.id], queryFn: ({ signal }) => getSubscriptionEvents(selected!.id, signal), enabled: Boolean(selected) });
-  const [createForm, setCreateForm] = useState({ school_name: "", school_type: "" as SchoolType | "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" as "TRIAL" | "ACTIVE" });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ school_name: "", school_type: "" as SchoolType | "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" as "TRIAL" | "ACTIVE", trial_days: 30, months: 12 });
   const [actionPlanId, setActionPlanId] = useState("");
   const [actionDays, setActionDays] = useState(30);
+  const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionActionName>("activate");
+  const [actionReason, setActionReason] = useState("إجراء من إدارة المنصة");
+  const [actionNotice, setActionNotice] = useState("");
   const preview = useQuery({
     queryKey: ["platform", "plan-preview", selected?.id, actionPlanId],
     queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
-    enabled: Boolean(selected && actionPlanId),
+    enabled: Boolean(selected && actionPlanId && subscriptionAction === "change-plan"),
   });
   const [createdCredentials, setCreatedCredentials] = useState<{
     mobile: string;
@@ -694,13 +736,17 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
         schoolType: row.school_type,
       });
       setSelected(row);
-      setCreateForm({ school_name: "", school_type: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL" });
+      setActionPlanId(plans.find((plan) => plan.code === row.plan)?.id.toString() ?? "");
+      setSubscriptionAction(defaultSubscriptionAction(row.subscription_status));
+      setCreateForm({ school_name: "", school_type: "", manager_name: "", manager_mobile: "", plan_id: "", subscription_mode: "TRIAL", trial_days: 30, months: 12 });
+      setCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["platform", "schools"] });
     },
   });
   const action = useMutation({
     mutationFn: ({ name, body }: { name: string; body: Record<string, unknown> }) => runSubscriptionAction(selected!.id, name, body),
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      setActionNotice(`تم ${SUBSCRIPTION_ACTION_LABELS[variables.name as SubscriptionActionName]} بنجاح.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["platform", "schools"] }),
         queryClient.invalidateQueries({ queryKey: ["platform", "overview"] }),
@@ -711,60 +757,102 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
     },
   });
 
+  useEffect(() => {
+    if (detail.data?.id && window.innerWidth < 1280) {
+      detailRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+  }, [detail.data?.id]);
+
+  const chooseSchool = (school: SchoolRow) => {
+    setSelected(school);
+    setActionPlanId(plans.find((plan) => plan.code === school.plan)?.id.toString() ?? "");
+    setSubscriptionAction(defaultSubscriptionAction(school.subscription_status));
+    setActionDays(school.subscription_status === "ACTIVE" ? 30 : 12);
+    setActionNotice("");
+  };
+
+  const subscriptionActions = subscriptionActionsFor(detail.data?.subscription.status ?? selected?.subscription_status ?? null);
+  const actionNeedsPlan = ["start-trial", "activate", "change-plan"].includes(subscriptionAction);
+  const actionNeedsDuration = ["start-trial", "extend-trial", "activate", "extend"].includes(subscriptionAction);
+  const durationLabel = subscriptionAction === "activate" ? "مدة الاشتراك بالأشهر" : subscriptionAction.includes("trial") ? "المدة بالأيام" : "أيام التمديد";
+
+  const runPrimarySubscriptionAction = () => {
+    const body: Record<string, unknown> = { reason: actionReason };
+    if (actionNeedsPlan) body.plan_id = Number(actionPlanId);
+    if (subscriptionAction === "activate") body.months = actionDays;
+    if (subscriptionAction === "start-trial") body.trial_days = actionDays;
+    if (subscriptionAction === "extend" || subscriptionAction === "extend-trial") body.days = actionDays;
+    action.mutate({ name: subscriptionAction, body });
+  };
+
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
-      <div className="space-y-3">
-        <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-6">
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder="اسم المدرسة" value={createForm.school_name} onChange={(e) => setCreateForm({ ...createForm, school_name: e.target.value })} />
-          <select aria-label="نوع المدرسة الجديدة" required className="rounded border border-slate-300 px-3 py-2" value={createForm.school_type} onChange={(e) => setCreateForm({ ...createForm, school_type: e.target.value as SchoolType })}>
-            <option value="" disabled>نوع المدرسة</option>
-            <option value="BOYS">بنين</option>
-            <option value="GIRLS">بنات</option>
-          </select>
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder={createForm.school_type === "GIRLS" ? "اسم المديرة" : createForm.school_type === "BOYS" ? "اسم المدير" : "اسم المدير/المديرة"} value={createForm.manager_name} onChange={(e) => setCreateForm({ ...createForm, manager_name: e.target.value })} />
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder={createForm.school_type === "GIRLS" ? "جوال المديرة" : createForm.school_type === "BOYS" ? "جوال المدير" : "جوال المدير/المديرة"} value={createForm.manager_mobile} onChange={(e) => setCreateForm({ ...createForm, manager_mobile: e.target.value })} />
-          <select className="rounded border border-slate-300 px-3 py-2" value={createForm.plan_id} onChange={(e) => setCreateForm({ ...createForm, plan_id: e.target.value })}>
-            <option value="">بدون باقة</option>
-            {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
-          </select>
-          <Button type="submit" disabled={createSchool.isPending || !createForm.school_type}>إنشاء</Button>
-          <div className="md:col-span-6 space-y-2">
-            <ErrorLine error={createSchool.error} />
-            {createdCredentials && <CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} managerLabel={createdCredentials.schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCreatedCredentials(null)} />}
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
+      <div className="order-2 min-w-0 space-y-3 xl:order-1">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-black text-slate-950">إضافة مدرسة واشتراكها</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">أنشئ المدرسة وحساب المدير والاشتراك في خطوة واحدة.</p>
+            </div>
+            <Button type="button" variant={createOpen ? "secondary" : "primary"} onClick={() => setCreateOpen((open) => !open)}>{createOpen ? "إغلاق النموذج" : "إضافة مدرسة جديدة"}</Button>
           </div>
-        </form>
-        <div className="grid gap-2 md:grid-cols-5">
-          <input className="rounded border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select aria-label="حالة الاشتراك" className="rounded border border-slate-300 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          {createOpen && (
+            <form onSubmit={(e) => { e.preventDefault(); createSchool.mutate(); }} className="mt-4 space-y-5 border-t border-slate-100 pt-4">
+              <fieldset>
+                <legend className="mb-3 text-sm font-black text-slate-800">1. بيانات المدرسة والمدير</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-medium text-slate-700">اسم المدرسة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="اسم المدرسة" value={createForm.school_name} onChange={(e) => setCreateForm({ ...createForm, school_name: e.target.value })} /></label>
+                  <label className="text-sm font-medium text-slate-700">نوع المدرسة<select aria-label="نوع المدرسة الجديدة" required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" value={createForm.school_type} onChange={(e) => setCreateForm({ ...createForm, school_type: e.target.value as SchoolType })}><option value="" disabled>اختر النوع</option><option value="BOYS">بنين</option><option value="GIRLS">بنات</option></select></label>
+                  <label className="text-sm font-medium text-slate-700">{createForm.school_type === "GIRLS" ? "اسم المديرة" : "اسم المدير"}<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder={createForm.school_type === "GIRLS" ? "اسم المديرة" : createForm.school_type === "BOYS" ? "اسم المدير" : "اسم المدير/المديرة"} value={createForm.manager_name} onChange={(e) => setCreateForm({ ...createForm, manager_name: e.target.value })} /></label>
+                  <label className="text-sm font-medium text-slate-700">{createForm.school_type === "GIRLS" ? "جوال المديرة" : "جوال المدير"}<input required dir="ltr" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-start" placeholder={createForm.school_type === "GIRLS" ? "جوال المديرة" : createForm.school_type === "BOYS" ? "جوال المدير" : "جوال المدير/المديرة"} value={createForm.manager_mobile} onChange={(e) => setCreateForm({ ...createForm, manager_mobile: e.target.value })} /></label>
+                </div>
+              </fieldset>
+              <fieldset className="rounded-2xl bg-slate-50 p-4">
+                <legend className="px-1 text-sm font-black text-slate-800">2. الاشتراك</legend>
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <label className="text-sm font-medium text-slate-700">الباقة<select aria-label="باقة الاشتراك عند الإنشاء" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={createForm.plan_id} onChange={(e) => { const selectedPlan = plans.find((plan) => plan.id === Number(e.target.value)); setCreateForm({ ...createForm, plan_id: e.target.value, trial_days: selectedPlan?.trial_days_default ?? 30 }); }}><option value="">إنشاء بدون اشتراك</option>{plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}</select></label>
+                  {createForm.plan_id && <label className="text-sm font-medium text-slate-700">نوع الاشتراك<select aria-label="نوع الاشتراك عند الإنشاء" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={createForm.subscription_mode} onChange={(e) => setCreateForm({ ...createForm, subscription_mode: e.target.value as "TRIAL" | "ACTIVE" })}><option value="TRIAL">فترة تجريبية</option><option value="ACTIVE">اشتراك نشط</option></select></label>}
+                  {createForm.plan_id && <label className="text-sm font-medium text-slate-700">{createForm.subscription_mode === "TRIAL" ? "مدة التجربة بالأيام" : "مدة الاشتراك بالأشهر"}<input aria-label="مدة الاشتراك عند الإنشاء" min={1} required type="number" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={createForm.subscription_mode === "TRIAL" ? createForm.trial_days : createForm.months} onChange={(e) => setCreateForm({ ...createForm, [createForm.subscription_mode === "TRIAL" ? "trial_days" : "months"]: Number(e.target.value) })} /></label>}
+                </div>
+              </fieldset>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between"><ErrorLine error={createSchool.error} /><Button className="w-full sm:w-auto" type="submit" disabled={createSchool.isPending || !createForm.school_type || !createForm.school_name.trim() || !createForm.manager_name.trim() || !createForm.manager_mobile.trim()}>{createForm.plan_id ? "إنشاء المدرسة والاشتراك" : "إنشاء المدرسة بدون اشتراك"}</Button></div>
+            </form>
+          )}
+          {createdCredentials && <div className="mt-4"><CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} managerLabel={createdCredentials.schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCreatedCredentials(null)} /></div>}
+        </section>
+        <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2 xl:grid-cols-5">
+          <input className="min-h-11 rounded-xl border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select aria-label="حالة الاشتراك" className="min-h-11 rounded-xl border border-slate-300 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">كل الحالات</option>
             {(["TRIAL", "ACTIVE", "GRACE_PERIOD", "EXPIRED", "SUSPENDED", "CANCELLED"] as const).map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
           </select>
-          <select aria-label="الباقة" className="rounded border border-slate-300 px-3 py-2" value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
+          <select aria-label="الباقة" className="min-h-11 rounded-xl border border-slate-300 px-3 py-2" value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
             <option value="">كل الباقات</option>
             {plans.map((plan) => <option key={plan.id} value={plan.code}>{plan.name_ar}</option>)}
           </select>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={expiresSoon} onChange={(e) => setExpiresSoon(e.target.checked)} />تنتهي قريبًا</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overLimit} onChange={(e) => setOverLimit(e.target.checked)} />فوق الحد</label>
+          <label className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3 text-sm"><input className="size-4" type="checkbox" checked={expiresSoon} onChange={(e) => setExpiresSoon(e.target.checked)} />تنتهي قريبًا</label>
+          <label className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3 text-sm"><input className="size-4" type="checkbox" checked={overLimit} onChange={(e) => setOverLimit(e.target.checked)} />فوق الحد</label>
         </div>
         {schools.isPending ? <Spinner label="جارٍ تحميل المدارس..." /> : (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {(schools.data?.results ?? []).map((school) => (
-              <button key={school.id} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-start last:border-b-0 hover:bg-slate-50" onClick={() => setSelected(school)}>
-                <span><b>{school.name}</b><span className="block text-xs text-slate-500">{school.plan_name ?? "بدون باقة"} · {school.manager?.name ?? "بلا مدير"}</span></span>
-                <span className={`rounded px-2 py-1 text-xs ${statusClass(school.subscription_status)}`}>{statusLabel(school.subscription_status)}</span>
+              <button key={school.id} aria-pressed={selected?.id === school.id} className={`flex min-h-16 w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-start last:border-b-0 hover:bg-slate-50 ${selected?.id === school.id ? "bg-teal-50/70 ring-1 ring-inset ring-teal-200" : ""}`} onClick={() => chooseSchool(school)}>
+                <span className="min-w-0"><b className="block truncate">{school.name}</b><span className="mt-1 block truncate text-xs text-slate-500">{school.plan_name ?? "بدون باقة"} · {school.manager?.name ?? "بلا مدير"}</span></span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(school.subscription_status)}`}>{statusLabel(school.subscription_status)}</span>
               </button>
             ))}
           </div>
         )}
       </div>
-      <aside className="space-y-3">
-        {!selected && <div className="rounded-lg border border-slate-200 bg-white p-4 text-slate-600">اختر مدرسة لعرض الاشتراك والاستخدام.</div>}
+      <aside ref={detailRef} className="order-1 min-w-0 scroll-mt-36 space-y-3 xl:order-2 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:pe-1">
+        {!selected && <div className="hidden rounded-2xl border border-slate-200 bg-white p-4 text-slate-600 xl:block">اختر مدرسة لعرض الاشتراك والاستخدام.</div>}
         {detail.data && (
           <>
-            <SchoolAccountManagement key={detail.data.id} detail={detail.data} />
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="font-bold text-slate-900">بيانات الاشتراك</h3>
-              <p className="text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {statusLabel(detail.data.subscription.status)}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div><h3 className="font-black text-slate-900">إدارة الاشتراك</h3><p className="mt-1 text-sm text-slate-500">{detail.data.subscription.plan?.name ?? "بدون اشتراك"} · {statusLabel(detail.data.subscription.status)}</p></div>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(detail.data.subscription.status)}`}>{statusLabel(detail.data.subscription.status)}</span>
+              </div>
               <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
                 <div><dt className="text-slate-500">بداية الاشتراك</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.starts_at)}</dd></div>
                 <div><dt className="text-slate-500">نهاية الاشتراك</dt><dd className="font-semibold text-slate-800">{formatDate(detail.data.subscription.ends_at)}</dd></div>
@@ -773,15 +861,17 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                 <div><dt className="text-slate-500">الأيام المتبقية</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.days_remaining ?? "—"}</dd></div>
                 <div><dt className="text-slate-500">صلاحية الاستخدام</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.access_mode === "FULL" ? "كاملة" : detail.data.subscription.access_mode === "READ_ONLY" ? "قراءة فقط" : "محجوبة"}</dd></div>
               </dl>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <select aria-label="الباقة الجديدة" className="rounded border border-slate-300 px-2 py-2 text-sm" value={actionPlanId} onChange={(e) => setActionPlanId(e.target.value)}>
-                  <option value="">اختر باقة</option>
-                  {plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}
-                </select>
-                <input aria-label="المدة" className="rounded border border-slate-300 px-2 py-2 text-sm" type="number" value={actionDays} onChange={(e) => setActionDays(Number(e.target.value))} />
-              </div>
-              {preview.data && (
-                <div className="mt-3 border-y border-slate-100 py-2 text-xs text-slate-600" data-testid="plan-change-preview">
+              <form className="mt-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-3" onSubmit={(event) => { event.preventDefault(); runPrimarySubscriptionAction(); }}>
+                <p className="mb-3 text-sm font-black text-teal-950">إضافة أو تحديث الاشتراك</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-medium text-slate-700">الإجراء<select aria-label="إجراء الاشتراك" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={subscriptionAction} onChange={(event) => { setSubscriptionAction(event.target.value as SubscriptionActionName); setActionNotice(""); }}>
+                    {subscriptionActions.map((name) => <option key={name} value={name}>{SUBSCRIPTION_ACTION_LABELS[name]}</option>)}
+                  </select></label>
+                  {actionNeedsPlan && <label className="text-sm font-medium text-slate-700">الباقة<select aria-label="الباقة الجديدة" required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={actionPlanId} onChange={(e) => setActionPlanId(e.target.value)}><option value="">اختر الباقة</option>{plans.filter((plan) => plan.is_active).map((plan) => <option key={plan.id} value={plan.id}>{plan.name_ar}</option>)}</select></label>}
+                  {actionNeedsDuration && <label className="text-sm font-medium text-slate-700">{durationLabel}<input aria-label="المدة" min={1} required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" type="number" value={actionDays} onChange={(e) => setActionDays(Number(e.target.value))} /></label>}
+                </div>
+              {preview.data?.plan && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600" data-testid="plan-change-preview">
                   <p className="font-semibold">معاينة {preview.data.plan.name}</p>
                   {Object.entries(preview.data.impact).map(([key, value]) => (
                     <p key={key} className={value.over_limit ? "font-semibold text-red-700" : ""}>{ENTITLEMENT_LABELS[key] ?? key}: {"used_gb" in value ? value.used_gb : value.used} / {"new_limit_gb" in value ? value.new_limit_gb ?? "بلا حد" : value.new_limit ?? "بلا حد"}{value.over_limit ? " · تجاوز الحد" : ""}</p>
@@ -789,23 +879,20 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                   <p>لن تُحذف أي بيانات.</p>
                 </div>
               )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {([
-                  ["start-trial", "بدء تجربة"],
-                  ["activate", "تفعيل"],
-                  ["change-plan", "تغيير الباقة"],
-                  ["extend", "تمديد"],
-                  ["suspend", "إيقاف"],
-                  ["reactivate", "إعادة تفعيل"],
-                  ["cancel", "إلغاء"],
-                ] as [string, string][]).map(([name, label]) => (
-                  <Button key={name} variant={name === "suspend" || name === "cancel" ? "danger" : "secondary"} className="px-3 py-1.5" disabled={action.isPending || (["start-trial", "activate", "change-plan"].includes(name) && !actionPlanId) || (["start-trial", "extend"].includes(name) && actionDays < 1)} onClick={() => {
-                    action.mutate({ name, body: { plan_id: Number(actionPlanId), days: actionDays, trial_days: actionDays, months: 12, reason: "إجراء من إدارة المنصة" } });
-                  }}>{label}</Button>
-                ))}
-              </div>
+                <Button className="mt-3 w-full" type="submit" disabled={action.isPending || (actionNeedsPlan && !actionPlanId) || (actionNeedsDuration && actionDays < 1)}>{action.isPending ? "جارٍ الحفظ..." : SUBSCRIPTION_ACTION_LABELS[subscriptionAction]}</Button>
+              </form>
+              {actionNotice && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{actionNotice}</p>}
+              <details className="mt-3 rounded-xl border border-slate-200 p-3">
+                <summary className="cursor-pointer text-sm font-bold text-slate-700">إجراءات متقدمة</summary>
+                <label className="mt-3 block text-sm font-medium text-slate-700">سبب الإجراء<input aria-label="سبب إجراء الاشتراك" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" value={actionReason} onChange={(event) => setActionReason(event.target.value)} /></label>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {detail.data.subscription.has_subscription && detail.data.subscription.status !== "SUSPENDED" && <Button variant="danger" disabled={action.isPending || !actionReason.trim()} onClick={() => action.mutate({ name: "suspend", body: { reason: actionReason } })}>إيقاف</Button>}
+                  {detail.data.subscription.has_subscription && <Button variant="danger" disabled={action.isPending || !actionReason.trim()} onClick={() => action.mutate({ name: "cancel", body: { reason: actionReason } })}>إلغاء</Button>}
+                </div>
+              </details>
               <ErrorLine error={action.error} />
             </div>
+            <SchoolAccountManagement key={detail.data.id} detail={detail.data} />
             <UsageGrid usage={detail.data.usage} />
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h4 className="mb-2 font-bold">السجل</h4>
