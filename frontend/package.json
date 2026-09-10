@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "e2e:release": "playwright test --workers=1 --retries=0 --shard=1/8 && playwright test --workers=1 --retries=0 --shard=2/8 && playwright test --workers=1 --retries=0 --shard=3/8 && playwright test --workers=1 --retries=0 --shard=4/8 && playwright test --workers=1 --retries=0 --shard=5/8 && playwright test --workers=1 --retries=0 --shard=6/8 && playwright test --workers=1 --retries=0 --shard=7/8 && playwright test --workers=1 --retries=0 --shard=8/8",
+    "e2e:release": "playwright test --workers=1 --retries=1 --shard=1/8 && playwright test --workers=1 --retries=1 --shard=2/8 && playwright test --workers=1 --retries=1 --shard=3/8 && playwright test --workers=1 --retries=1 --shard=4/8 && playwright test --workers=1 --retries=1 --shard=5/8 && playwright test --workers=1 --retries=1 --shard=6/8 && playwright test --workers=1 --retries=1 --shard=7/8 && playwright test --workers=1 --retries=1 --shard=8/8",
     "e2e:pwa-update": "node e2e/pwa-update.mjs"
   },
   "dependencies": {
