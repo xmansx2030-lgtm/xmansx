@@ -86,20 +86,28 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await scheduleCard.getByRole("button", { name: "تطبيق على الأيام المحددة" }).click();
   await expect(scheduleCard.getByText("تم ربط الجدول بالأيام المحددة.")).toBeVisible();
 
-  // 6) إعدادات التحضير: غيّر القيم فعليًا حتى يبقى الاختبار صالحًا بعد إعادة التشغيل
-  await page.getByRole("tab", { name: "إعدادات التحضير" }).click();
+  // 6) سياسات الحضور: غيّر قيم التأخر والتحضير فعليًا حتى يبقى الاختبار صالحًا بعد إعادة التشغيل
+  await page.getByRole("tab", { name: "سياسات الحضور" }).click();
+  const startTimeInput = page.getByLabel("وقت بداية الدوام");
+  const graceInput = page.getByLabel("فترة السماح بعد بداية الدوام");
   const alertInput = page.getByLabel(/إظهار تنبيه/);
   const editWindowInput = page.getByLabel("مهلة تعديل التحضير");
+  const startTimeValue = (await startTimeInput.inputValue()) === "07:00" ? "07:01" : "07:00";
+  const graceValue = (await graceInput.inputValue()) === "5" ? "6" : "5";
   const alertValue = (await alertInput.inputValue()) === "25" ? "26" : "25";
   const editWindowValue = (await editWindowInput.inputValue()) === "15" ? "16" : "15";
+  await startTimeInput.fill(startTimeValue);
+  await graceInput.fill(graceValue);
   await alertInput.fill(alertValue);
   await editWindowInput.fill(editWindowValue);
   await page.getByRole("button", { name: "حفظ الإعدادات" }).click();
-  await expect(page.getByText("تم حفظ سياسة التحضير.")).toBeVisible();
+  await expect(page.getByText("تم حفظ سياسات الحضور.")).toBeVisible();
 
   // 7) إعادة تحميل — كل القيم ثابتة
   await page.reload();
-  await page.getByRole("tab", { name: "إعدادات التحضير" }).click();
+  await page.getByRole("tab", { name: "سياسات الحضور" }).click();
+  await expect(page.getByLabel("وقت بداية الدوام")).toHaveValue(startTimeValue);
+  await expect(page.getByLabel("فترة السماح بعد بداية الدوام")).toHaveValue(graceValue);
   await expect(page.getByLabel(/إظهار تنبيه/)).toHaveValue(alertValue);
   await expect(page.getByLabel("مهلة تعديل التحضير")).toHaveValue(editWindowValue);
 

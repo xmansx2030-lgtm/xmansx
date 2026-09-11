@@ -17,6 +17,8 @@ const SETTINGS_BODY = {
   logo_url: null,
   attendance_edit_window_minutes: 15,
   unprepared_period_alert_minutes: 25,
+  school_day_start_time: "07:00",
+  morning_late_grace_minutes: 5,
   staff: { managers: ["خالد المدير"], vice_principals: ["سعد الوكيل"], counselors: [] },
 };
 
@@ -99,7 +101,7 @@ describe("SettingsPage", () => {
     });
     renderApp("/settings");
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("tab", { name: "إعدادات التحضير" }));
+    await user.click(await screen.findByRole("tab", { name: "سياسات الحضور" }));
     const alertInput = await screen.findByLabelText(/إظهار تنبيه/);
     await user.clear(alertInput);
     await user.type(alertInput, "121");
@@ -107,6 +109,35 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("بين 1 و120"),
     );
+  });
+
+  it("manager can control morning start and grace time from attendance policies", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/school/settings/": { body: SETTINGS_BODY },
+    });
+    renderApp("/settings?section=attendance");
+    const user = userEvent.setup();
+
+    const startTime = await screen.findByLabelText("وقت بداية الدوام");
+    const grace = screen.getByLabelText("فترة السماح بعد بداية الدوام");
+    expect(screen.getByTestId("morning-policy-preview")).toHaveTextContent("07:05");
+
+    await user.clear(startTime);
+    await user.type(startTime, "07:15");
+    await user.clear(grace);
+    await user.type(grace, "10");
+    expect(screen.getByTestId("morning-policy-preview")).toHaveTextContent("07:25");
+    await user.click(screen.getByRole("button", { name: "حفظ الإعدادات" }));
+
+    await waitFor(() => {
+      const patch = calls.find((call) => call.url.includes("/school/settings/") && call.init?.method === "PATCH");
+      expect(JSON.parse(String(patch?.init?.body))).toMatchObject({
+        school_day_start_time: "07:15",
+        morning_late_grace_minutes: 10,
+      });
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("تم حفظ سياسات الحضور");
   });
 
   it("manager can create grades and sections from school settings", async () => {

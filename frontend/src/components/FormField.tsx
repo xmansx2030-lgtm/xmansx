@@ -12,7 +12,7 @@ interface FieldShellProps {
 
 export function FieldShell({ id, label, required, description, error, children, className = "" }: FieldShellProps) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex flex-col min-w-0 gap-1.5 ${className}`}>
       <label
         htmlFor={id}
         className={`text-sm font-bold text-slate-700 ${required ? "after:ms-1 after:text-red-600 after:content-['*']" : ""}`}
@@ -39,7 +39,7 @@ export function SelectField({ label, description, error, children, className = "
   const describedBy = error ? `${id}-error` : description ? `${id}-description` : undefined;
   return (
     <FieldShell id={id} label={label} description={description} error={error} required={required} className={className}>
-      <select id={id} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full border px-3.5 py-2.5 text-sm" {...props}>
+      <select id={id} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="w-full min-w-0 border px-3.5 py-2.5 text-sm" {...props}>
         {children}
       </select>
     </FieldShell>
@@ -58,7 +58,7 @@ export function TextareaField({ label, description, error, className = "", id: i
   const describedBy = error ? `${id}-error` : description ? `${id}-description` : undefined;
   return (
     <FieldShell id={id} label={label} description={description} error={error} required={required} className={className}>
-      <textarea id={id} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="min-h-28 w-full resize-y border px-3.5 py-2.5 text-sm leading-6" {...props} />
+      <textarea id={id} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className="min-h-28 w-full min-w-0 resize-y border px-3.5 py-2.5 text-sm leading-6" {...props} />
     </FieldShell>
   );
 }

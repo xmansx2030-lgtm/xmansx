@@ -34,7 +34,7 @@ function AccessCard({ icon, eyebrow, title, description, action }: AccessCardPro
       <div className="pointer-events-none absolute -bottom-32 -left-24 size-96 rounded-full bg-sky-300/10 blur-3xl" />
 
       <section
-        className="auth-card relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/70 p-6 shadow-2xl shadow-slate-950/15 sm:p-9"
+        className="auth-card relative w-full min-w-0 max-w-xl overflow-hidden rounded-[2rem] border border-white/70 p-6 shadow-2xl shadow-slate-950/15 sm:p-9"
         data-testid="qr-access-gate"
       >
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-teal-500 via-emerald-400 to-sky-500" />
