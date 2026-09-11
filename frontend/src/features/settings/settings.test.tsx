@@ -123,6 +123,53 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(calls.some((call) => call.url.endsWith("/grades/") && call.init?.method === "POST")).toBe(true));
   });
 
+  it("يدير الصفوف والفصول بالتعديل والإيقاف والحذف الآمن", async () => {
+    const grades = [
+      { id: 1, name: "الأول الثانوي", code: "SEC-1", sequence: 1, is_active: true },
+      { id: 2, name: "صف فارغ", code: "EMPTY", sequence: 9, is_active: false },
+    ];
+    const sections = [
+      { id: 10, name: "1", code: "A", is_active: true, grade: { id: 1, name: "الأول الثانوي", is_active: true } },
+    ];
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/grades/1/": (init) => ({ body: { ...grades[0], ...JSON.parse(String(init?.body ?? "{}")) } }),
+      "/grades/2/": (init) => ({ body: { ...grades[1], ...JSON.parse(String(init?.body ?? "{}")) } }),
+      "/sections/10/": (init) => ({ body: init?.method === "DELETE" ? {} : { ...sections[0], ...JSON.parse(String(init?.body ?? "{}")) } }),
+      "/grades/": { body: grades },
+      "/sections/": { body: sections },
+    });
+    renderApp("/settings?section=structure");
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("إدارة الصفوف والفصول من مكان واحد")).toBeInTheDocument();
+    expect(screen.getByText("صف نشط").parentElement?.parentElement).toHaveTextContent("1");
+    expect(screen.getAllByText("متوقف").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "تعديل الصف الأول الثانوي" }));
+    const name = screen.getByLabelText("تعديل اسم الصف");
+    await user.clear(name);
+    await user.type(name, "الأول الثانوي المطور");
+    await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
+    await waitFor(() => {
+      const call = calls.find((item) => item.url.includes("/grades/1/") && item.init?.method === "PATCH");
+      expect(JSON.parse(String(call?.init?.body))).toMatchObject({ name: "الأول الثانوي المطور" });
+    });
+
+    await user.click(screen.getByRole("button", { name: "إيقاف الصف الأول الثانوي" }));
+    expect(await screen.findByText(/سيتم أيضًا إيقاف 1 فصل تابع/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "تأكيد الإيقاف" }));
+    await waitFor(() => {
+      const call = calls.filter((item) => item.url.includes("/grades/1/") && item.init?.method === "PATCH").at(-1);
+      expect(JSON.parse(String(call?.init?.body))).toEqual({ is_active: false });
+    });
+
+    await user.click(screen.getByRole("button", { name: "حذف الفصل 1" }));
+    expect(await screen.findByText("الحذف النهائي متاح للعناصر غير المستخدمة فقط.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "تأكيد الحذف" }));
+    await waitFor(() => expect(calls.some((item) => item.url.includes("/sections/10/") && item.init?.method === "DELETE")).toBe(true));
+  });
+
   it("تحديث توقيت الحصص يبطل قراءات الحصة والمراقبة واللوحة فورًا", async () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const schedule = {

@@ -10,7 +10,7 @@ import {
   Send,
   UserRoundPlus,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/Button";
@@ -46,6 +46,14 @@ export function MyReferralsPage() {
   const [candidatePage, setCandidatePage] = useState(1);
   const [referralPage, setReferralPage] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const sections = useQuery({
     queryKey: schoolScopedKey(schoolId, "attendance", "sections"),
@@ -172,11 +180,18 @@ export function MyReferralsPage() {
                 <input
                   type="search"
                   value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
+                  onChange={(event) => {
+                    setSearchInput(event.target.value);
+                    setCandidatePage(1);
+                    setSelectedStudent(null);
+                  }}
                   placeholder={`ابحث باسم ${studentSingular}`}
                   className="min-h-11 w-full pe-10 ps-3"
                   data-testid="referral-student-search"
                 />
+                <span className="mt-1 block text-xs font-medium text-slate-500">
+                  تتحدث النتائج تلقائيًا أثناء الكتابة.
+                </span>
               </span>
             </label>
             <label className="block text-sm font-bold text-slate-700">

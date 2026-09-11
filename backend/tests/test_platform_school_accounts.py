@@ -116,7 +116,7 @@ def test_platform_admin_adds_edits_and_resets_school_manager_credentials(
 
 
 @pytest.mark.django_db
-def test_platform_manager_suspend_preserves_last_manager_safety(
+def test_platform_rejects_second_manager_and_preserves_only_manager(
     client, make_school, make_user, make_membership, platform_admin
 ):
     school = make_school("مدرسة الحماية")
@@ -135,16 +135,8 @@ def test_platform_manager_suspend_preserves_last_manager_safety(
         {"name": "المدير البديل", "mobile": "0550099006"},
         content_type="application/json",
     )
-    assert second.status_code == 201
-
-    suspended = client.post(
-        f"/api/v1/platform/schools/{school.id}/managers/{first_membership.id}/suspend/"
-    )
-    assert suspended.status_code == 200
-    assert suspended.json()["membership_status"] == MembershipStatus.SUSPENDED
-
-    reactivated = client.post(
-        f"/api/v1/platform/schools/{school.id}/managers/{first_membership.id}/reactivate/"
-    )
-    assert reactivated.status_code == 200
-    assert reactivated.json()["membership_status"] == MembershipStatus.ACTIVE
+    assert second.status_code == 409
+    assert second.json()["code"] == "SCHOOL_MANAGER_ALREADY_ASSIGNED"
+    assert "مدير واحد فقط" in second.json()["message"]
+    assert not User.objects.filter(mobile="+966550099006").exists()
+    assert school.memberships.filter(roles__role=SchoolRole.SCHOOL_MANAGER).count() == 1

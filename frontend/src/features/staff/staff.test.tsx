@@ -81,6 +81,39 @@ describe("StaffPage", () => {
     expect(screen.getByText(/تظهر مرة واحدة فقط/)).toBeInTheDocument();
   });
 
+  it("does not offer school-manager assignment in manual entry", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: STAFF_PAGE },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدخال يدوي" }));
+
+    const dialog = screen.getByRole("dialog", { name: "إضافة موظف" });
+    expect(within(dialog).queryByRole("option", { name: "مدير المدرسة" })).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/للمدرسة مدير واحد فقط/)).toBeInTheDocument();
+  });
+
+  it("shows a protected manager account without staff-management controls", async () => {
+    const manager = {
+      id: 9, display_name: "مدير المدرسة", employee_number: null, job_title: "",
+      mobile: "+9665****0009", roles: ["SCHOOL_MANAGER"], membership_status: "ACTIVE",
+      joined_at: "2026-08-18", is_active: true, is_current_user: false,
+    };
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/staff/": { body: { count: 1, next: null, previous: null, results: [manager] } },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدارة" }));
+
+    expect(screen.getByText("حساب مدير المدرسة محمي")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "تعطيل الموظف" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "حذف نهائي" })).not.toBeInTheDocument();
+  });
+
   it("confirms suspending a staff member before disabling access", async () => {
     const api = mockApi({
       "/staff/1/suspend/": { body: { ...STAFF_PAGE.results[0], membership_status: "SUSPENDED" } },

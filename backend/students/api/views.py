@@ -38,6 +38,7 @@ from students.models import (
 from students.services import attendance_profile as attendance_profile_service
 from students.services import manual as manual_service
 from students.services import morning_profile as morning_profile_service
+from students.services import structure as structure_service
 from students.services.imports import commit as commit_service
 from students.services.imports import mapping as mapping_service
 from students.services.imports import parser as parser_service
@@ -252,12 +253,40 @@ class StudentDetailView(SchoolScopedAPIView):
         return Response(_serialize_student(updated))
 
 
+def _include_inactive(request: Request) -> bool:
+    return str(request.query_params.get("include_inactive", "")).lower() in {"1", "true"}
+
+
+def _grade_payload(grade: Grade) -> dict:
+    return {
+        "id": grade.id,
+        "name": grade.name,
+        "code": grade.code,
+        "sequence": grade.sequence,
+        "is_active": grade.is_active,
+    }
+
+
+def _section_payload(section: Section) -> dict:
+    return {
+        "id": section.id,
+        "name": section.name,
+        "code": section.code,
+        "is_active": section.is_active,
+        "grade": {
+            "id": section.grade.id,
+            "name": section.grade.name,
+            "is_active": section.grade.is_active,
+        },
+    }
+
+
 class GradeListView(SchoolScopedAPIView):
     def get(self, request: Request) -> Response:
-        grades = Grade.objects.filter(school=request.school, is_active=True)
-        return Response(
-            [{"id": g.id, "name": g.name, "code": g.code, "sequence": g.sequence} for g in grades]
-        )
+        grades = Grade.objects.filter(school=request.school)
+        if not _include_inactive(request):
+            grades = grades.filter(is_active=True)
+        return Response([_grade_payload(grade) for grade in grades])
 
     def post(self, request: Request) -> Response:
         serializer = serializers.Serializer(data=request.data)
@@ -285,31 +314,55 @@ class GradeListView(SchoolScopedAPIView):
             target_id=grade.id,
             metadata={"sequence": grade.sequence},
         )
-        return Response(
-            {"id": grade.id, "name": grade.name, "code": grade.code, "sequence": grade.sequence},
-            status=http_status.HTTP_201_CREATED,
+        return Response(_grade_payload(grade), status=http_status.HTTP_201_CREATED)
+
+
+class GradeDetailView(SchoolScopedAPIView):
+    http_method_names = ["patch", "delete", "options"]
+
+    def get_object(self, request: Request, grade_id: int) -> Grade:
+        return get_object_or_404(Grade, school=request.school, id=grade_id)
+
+    def patch(self, request: Request, grade_id: int) -> Response:
+        grade = self.get_object(request, grade_id)
+        serializer = serializers.Serializer(data=request.data)
+        serializer.fields["name"] = serializers.CharField(
+            max_length=100, trim_whitespace=True, required=False
         )
+        serializer.fields["code"] = serializers.CharField(
+            max_length=50, trim_whitespace=True, required=False
+        )
+        serializer.fields["sequence"] = serializers.IntegerField(
+            min_value=0, max_value=32767, required=False
+        )
+        serializer.fields["is_active"] = serializers.BooleanField(required=False)
+        serializer.is_valid(raise_exception=True)
+        if not serializer.validated_data:
+            raise ApiError("VALIDATION_ERROR", "أرسل حقلًا واحدًا على الأقل للتعديل.")
+        grade = structure_service.update_grade(
+            grade=grade,
+            data=serializer.validated_data,
+            actor=request.user,
+            request=request,
+        )
+        return Response(_grade_payload(grade))
+
+    def delete(self, request: Request, grade_id: int) -> Response:
+        structure_service.delete_grade(
+            grade=self.get_object(request, grade_id), actor=request.user, request=request
+        )
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 
 class SectionListView(SchoolScopedAPIView):
     def get(self, request: Request) -> Response:
-        sections = Section.objects.filter(school=request.school, is_active=True).select_related(
-            "grade"
-        )
+        sections = Section.objects.filter(school=request.school).select_related("grade")
+        if not _include_inactive(request):
+            sections = sections.filter(is_active=True, grade__is_active=True)
         grade_id = request.query_params.get("grade")
         if grade_id:
             sections = sections.filter(grade_id=grade_id)
-        return Response(
-            [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "code": s.code,
-                    "grade": {"id": s.grade.id, "name": s.grade.name},
-                }
-                for s in sections
-            ]
-        )
+        return Response([_section_payload(section) for section in sections])
 
     def post(self, request: Request) -> Response:
         serializer = serializers.Serializer(data=request.data)
@@ -347,15 +400,46 @@ class SectionListView(SchoolScopedAPIView):
             target_id=section.id,
             metadata={"grade_id": grade.id},
         )
-        return Response(
-            {
-                "id": section.id,
-                "name": section.name,
-                "code": section.code,
-                "grade": {"id": grade.id, "name": grade.name},
-            },
-            status=http_status.HTTP_201_CREATED,
+        return Response(_section_payload(section), status=http_status.HTTP_201_CREATED)
+
+
+class SectionDetailView(SchoolScopedAPIView):
+    http_method_names = ["patch", "delete", "options"]
+
+    def get_object(self, request: Request, section_id: int) -> Section:
+        return get_object_or_404(
+            Section.objects.select_related("grade"), school=request.school, id=section_id
         )
+
+    def patch(self, request: Request, section_id: int) -> Response:
+        section = self.get_object(request, section_id)
+        serializer = serializers.Serializer(data=request.data)
+        serializer.fields["grade_id"] = serializers.IntegerField(min_value=1, required=False)
+        serializer.fields["name"] = serializers.CharField(
+            max_length=50, trim_whitespace=True, required=False
+        )
+        serializer.fields["code"] = serializers.CharField(
+            max_length=50, trim_whitespace=True, required=False
+        )
+        serializer.fields["is_active"] = serializers.BooleanField(required=False)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        if not data:
+            raise ApiError("VALIDATION_ERROR", "أرسل حقلًا واحدًا على الأقل للتعديل.")
+        if "grade_id" in data:
+            data["grade"] = get_object_or_404(
+                Grade, school=request.school, id=data.pop("grade_id")
+            )
+        section = structure_service.update_section(
+            section=section, data=data, actor=request.user, request=request
+        )
+        return Response(_section_payload(section))
+
+    def delete(self, request: Request, section_id: int) -> Response:
+        structure_service.delete_section(
+            section=self.get_object(request, section_id), actor=request.user, request=request
+        )
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 
 def _serialize_job(job: StudentImportJob) -> dict:

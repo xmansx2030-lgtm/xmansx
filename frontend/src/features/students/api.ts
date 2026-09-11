@@ -109,13 +109,15 @@ export interface GradeItem {
   name: string;
   code: string;
   sequence: number;
+  is_active: boolean;
 }
 
 export interface SectionItem {
   id: number;
   name: string;
   code: string;
-  grade: { id: number; name: string };
+  is_active: boolean;
+  grade: { id: number; name: string; is_active: boolean };
 }
 
 export interface ManualStudentInput {
@@ -300,17 +302,33 @@ export const getAttendanceChanges = (
   { signal },
 );
 
-export const getGrades = (signal?: AbortSignal) =>
-  apiRequest<GradeItem[]>("/grades/", { signal });
+export const getGrades = (signal?: AbortSignal, includeInactive = false) =>
+  apiRequest<GradeItem[]>(`/grades/${includeInactive ? "?include_inactive=1" : ""}`, { signal });
 
-export const getSections = (signal?: AbortSignal) =>
-  apiRequest<SectionItem[]>("/sections/", { signal });
+export const getSections = (signal?: AbortSignal, includeInactive = false) =>
+  apiRequest<SectionItem[]>(`/sections/${includeInactive ? "?include_inactive=1" : ""}`, { signal });
 
 export const createGrade = (body: { name: string; code: string; sequence: number }) =>
   apiRequest<GradeItem>("/grades/", { method: "POST", body });
 
 export const createSection = (body: { grade_id: number; name: string; code: string }) =>
   apiRequest<SectionItem>("/sections/", { method: "POST", body });
+
+export const updateGrade = (
+  id: number,
+  body: Partial<Pick<GradeItem, "name" | "code" | "sequence" | "is_active">>,
+) => apiRequest<GradeItem>(`/grades/${id}/`, { method: "PATCH", body });
+
+export const deleteGrade = (id: number) =>
+  apiRequest<void>(`/grades/${id}/`, { method: "DELETE" });
+
+export const updateSection = (
+  id: number,
+  body: Partial<Pick<SectionItem, "name" | "code" | "is_active">> & { grade_id?: number },
+) => apiRequest<SectionItem>(`/sections/${id}/`, { method: "PATCH", body });
+
+export const deleteSection = (id: number) =>
+  apiRequest<void>(`/sections/${id}/`, { method: "DELETE" });
 
 // ---- الاستيراد ----
 

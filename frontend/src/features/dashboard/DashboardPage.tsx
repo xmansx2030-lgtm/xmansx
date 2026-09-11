@@ -47,8 +47,9 @@ import {
   getTrend,
 } from "@/features/dashboard/api";
 import { TrendChart } from "@/features/dashboard/TrendChart";
+import { getStaff } from "@/features/staff/api";
 import type { SchoolType } from "@/types/auth";
-import { roleLabel as schoolRoleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
+import { roleGenitivePluralLabel, roleLabel as schoolRoleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 /** تحديث متدرج: التشغيل أسرع، والتنبيهات أبطأ، والتحليلات لا تُحمّل كل عدة ثوانٍ. */
 // نافذة قصيرة حتى تنعكس اعتمادات المعلمين على شاشة الإدارة دون إعادة تحميل.
@@ -98,6 +99,12 @@ export function DashboardPage() {
   const sectionsListQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
     queryFn: ({ signal }) => getAttendanceSections(signal),
+    enabled: analyticsEnabled,
+  });
+  const teachersQuery = useQuery({
+    queryKey: schoolScopedKey(activeSchoolId, "dashboard", "setup", "teachers"),
+    queryFn: ({ signal }) =>
+      getStaff({ page: 1, role: "TEACHER", status: "ACTIVE" }, signal),
     enabled: analyticsEnabled,
   });
   const overviewQuery = useQuery({
@@ -157,6 +164,11 @@ export function DashboardPage() {
   );
   const isRefreshing =
     todayQuery.isFetching || attentionQuery.isFetching || overviewQuery.isFetching;
+  const needsStudentImport =
+    sectionsListQuery.isSuccess &&
+    (sectionsListQuery.data.length === 0 ||
+      sectionsListQuery.data.every((section) => section.students_count === 0));
+  const needsTeacherImport = teachersQuery.isSuccess && teachersQuery.data.count === 0;
 
   const grades = useMemo(() => {
     const map = new Map<number, string>();
@@ -235,6 +247,14 @@ export function DashboardPage() {
           </nav>
         )}
       </header>
+
+      {canManageCalendar && (needsStudentImport || needsTeacherImport) && (
+        <SchoolSetupAlerts
+          schoolType={schoolType}
+          needsStudentImport={needsStudentImport}
+          needsTeacherImport={needsTeacherImport}
+        />
+      )}
 
       {academicSetupRequired ? (
         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm" role="status" data-testid="academic-setup-required">
@@ -477,6 +497,93 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
         </FollowUpCard>
       </div>
     </>
+  );
+}
+
+function SchoolSetupAlerts({
+  schoolType,
+  needsStudentImport,
+  needsTeacherImport,
+}: {
+  schoolType: SchoolType;
+  needsStudentImport: boolean;
+  needsTeacherImport: boolean;
+}) {
+  return (
+    <section
+      className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5"
+      aria-labelledby="school-setup-alerts-title"
+      data-testid="school-setup-alerts"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
+          <AlertTriangle aria-hidden size={21} />
+        </span>
+        <div>
+          <h2 id="school-setup-alerts-title" className="font-black text-amber-950">
+            استكمل بيانات المدرسة
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-amber-900">
+            نفّذ الخطوات التالية لتصبح شاشة الإدارة والتشغيل جاهزة بالبيانات الفعلية.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {needsStudentImport && (
+          <SetupAlert
+            to="/students/import"
+            icon={GraduationCap}
+            title={`استورد بيانات ${studentPluralLabel(schoolType)} والفصول من ملف إكسل (نور)`}
+            description="سيتم إنشاء الصفوف والفصول وربط الطلاب بها بعد مراجعة الملف واعتماده."
+            testId="setup-alert-students"
+          />
+        )}
+        {needsTeacherImport && (
+          <SetupAlert
+            to="/staff/import"
+            icon={UsersRound}
+            title={`استورد بيانات ${roleGenitivePluralLabel("TEACHER", schoolType)} من ملف إكسل (نور)`}
+            description="راجع بيانات المعلمين وأدوارهم قبل اعتمادها وإضافتها إلى فريق المدرسة."
+            testId="setup-alert-teachers"
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SetupAlert({
+  to,
+  icon: Icon,
+  title,
+  description,
+  testId,
+}: {
+  to: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  testId: string;
+}) {
+  return (
+    <article className="rounded-2xl border border-amber-200 bg-white p-4" data-testid={testId}>
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700">
+          <Icon aria-hidden size={19} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-black leading-6 text-slate-900">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+          <Link
+            to={to}
+            className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-900 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-amber-950"
+          >
+            بدء الاستيراد <ArrowLeft aria-hidden size={15} />
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 

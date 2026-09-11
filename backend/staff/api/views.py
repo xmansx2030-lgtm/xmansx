@@ -55,6 +55,20 @@ class StaffPatchSerializer(serializers.Serializer):
         return value.strip()
 
 
+class SchoolAssignableRoleField(serializers.ChoiceField):
+    """يعرض أدوار الموظفين فقط، ويرد برسالة أعمال واضحة على محاولة تعيين مدير."""
+
+    def to_internal_value(self, data):
+        if data == SchoolRole.SCHOOL_MANAGER:
+            raise ApiError(
+                "SCHOOL_MANAGER_ASSIGNMENT_PLATFORM_ONLY",
+                "لا يمكن إضافة مدير آخر من إدارة موظفي المدرسة. "
+                "للمدرسة مدير واحد تتم إدارة حسابه من إدارة المنصة.",
+                403,
+            )
+        return super().to_internal_value(data)
+
+
 class StaffCreateSerializer(serializers.Serializer):
     display_name = serializers.CharField(max_length=200)
     mobile = serializers.CharField(max_length=30)
@@ -62,7 +76,7 @@ class StaffCreateSerializer(serializers.Serializer):
         max_length=30, required=False, allow_blank=True
     )
     job_title = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    role = serializers.ChoiceField(choices=sorted(management.MANAGEABLE_ROLES))
+    role = SchoolAssignableRoleField(choices=sorted(management.SCHOOL_ASSIGNABLE_ROLES))
     counselor_section_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         required=False,

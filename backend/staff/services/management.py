@@ -1,7 +1,9 @@
-"""إدارة أدوار وحالة الموظفين — بحمايات آخر مدير وآخر دور.
+"""إدارة أدوار وحالة الموظفين — مع عزل حساب مدير المدرسة عن إدارة الموظفين.
 
 السياسات الموثقة:
-- إزالة آخر SCHOOL_MANAGER فعال أو إيقافه → LAST_SCHOOL_MANAGER_REQUIRED.
+- تعيين/إزالة دور SCHOOL_MANAGER لا يتم من إدارة موظفي المدرسة.
+- حساب مدير المدرسة لا يوقف أو يعاد تفعيله أو يحذف إلا من إدارة المنصة.
+- إزالة آخر SCHOOL_MANAGER فعال أو إيقافه من المنصة → LAST_SCHOOL_MANAGER_REQUIRED.
 - إزالة آخر دور للعضوية مرفوضة — على المدير إيقاف العضوية صراحة بدلًا من
   تركها فعالة بلا دور تشغيلي (LAST_ROLE_SUSPEND_INSTEAD).
 - الإيقاف لا يمس User العالمي ولا عضوياته في مدارس أخرى (بنية العزل تضمنها).
@@ -27,6 +29,23 @@ from memberships.models import (
 from staff.services.credentials import initial_password_from_mobile
 
 MANAGEABLE_ROLES = {r.value for r in SchoolRole}
+SCHOOL_ASSIGNABLE_ROLES = MANAGEABLE_ROLES - {SchoolRole.SCHOOL_MANAGER}
+
+
+def _manager_account_requires_platform(
+    membership: SchoolMembership, actor, *, action: str
+) -> None:
+    """امنع لوحة المدرسة من إدارة حساب المدير حتى مع استدعاء الخدمة مباشرة."""
+    if (
+        SchoolRole.SCHOOL_MANAGER in membership.role_codes()
+        and not actor.is_platform_admin
+    ):
+        raise ApiError(
+            "SCHOOL_MANAGER_ACCOUNT_PLATFORM_ONLY",
+            f"لا يمكن {action} حساب مدير المدرسة من إدارة الموظفين. "
+            "تتم إدارته من إدارة المنصة فقط.",
+            403,
+        )
 
 
 def _is_last_active_manager(membership: SchoolMembership) -> bool:
@@ -49,6 +68,14 @@ def _is_last_active_manager(membership: SchoolMembership) -> bool:
 def add_role(*, membership: SchoolMembership, role: str, actor, request=None) -> None:
     if role not in MANAGEABLE_ROLES:
         raise ApiError("VALIDATION_ERROR", "الدور المحدد غير معروف.")
+    if role == SchoolRole.SCHOOL_MANAGER:
+        raise ApiError(
+            "SCHOOL_MANAGER_ASSIGNMENT_PLATFORM_ONLY",
+            "لا يمكن تعيين مدير آخر من إدارة موظفي المدرسة. "
+            "للمدرسة مدير واحد تتم إدارة حسابه من إدارة المنصة.",
+            403,
+        )
+    _manager_account_requires_platform(membership, actor, action="تعديل أدوار")
     _, created = SchoolMembershipRole.objects.get_or_create(membership=membership, role=role)
     if not created:
         raise ApiError("ROLE_ALREADY_ASSIGNED", "هذا الدور مسند للموظف بالفعل.", 409)
@@ -65,12 +92,7 @@ def remove_role(*, membership: SchoolMembership, role: str, actor, request=None)
     role_row = SchoolMembershipRole.objects.filter(membership=membership, role=role).first()
     if role_row is None:
         raise ApiError("ROLE_NOT_ASSIGNED", "هذا الدور غير مسند للموظف.", 409)
-    if role == SchoolRole.SCHOOL_MANAGER and _is_last_active_manager(membership):
-        raise ApiError(
-            "LAST_SCHOOL_MANAGER_REQUIRED",
-            "لا يمكن إزالة دور مدير المدرسة الوحيد — عيّن مديرًا آخر أولاً.",
-            409,
-        )
+    _manager_account_requires_platform(membership, actor, action="تعديل أدوار")
     if membership.roles.count() == 1:
         raise ApiError(
             "LAST_ROLE_SUSPEND_INSTEAD",
@@ -149,10 +171,11 @@ def revoke_morning_attendance(*, membership: SchoolMembership, actor, request=No
 def suspend(*, membership: SchoolMembership, actor, request=None) -> None:
     if membership.status != MembershipStatus.ACTIVE:
         raise ApiError("VALIDATION_ERROR", "العضوية ليست فعالة.")
+    _manager_account_requires_platform(membership, actor, action="إيقاف")
     if _is_last_active_manager(membership):
         raise ApiError(
             "LAST_SCHOOL_MANAGER_REQUIRED",
-            "لا يمكن إيقاف مدير المدرسة الوحيد — عيّن مديرًا آخر أولاً.",
+            "لا يمكن إيقاف مدير المدرسة الوحيد. أعد تفعيل حسابه أو حدّث بياناته من إدارة المنصة.",
             409,
         )
     membership.status = MembershipStatus.SUSPENDED
@@ -171,6 +194,7 @@ def suspend(*, membership: SchoolMembership, actor, request=None) -> None:
 def reactivate(*, membership: SchoolMembership, actor, request=None) -> None:
     if membership.status != MembershipStatus.SUSPENDED:
         raise ApiError("VALIDATION_ERROR", "العضوية ليست موقوفة.")
+    _manager_account_requires_platform(membership, actor, action="إعادة تفعيل")
     membership.status = MembershipStatus.ACTIVE
     membership.save(update_fields=["status", "updated_at"])
     record_event(
@@ -184,6 +208,7 @@ def reactivate(*, membership: SchoolMembership, actor, request=None) -> None:
 def reinvite(*, membership: SchoolMembership, actor, request=None) -> None:
     if membership.status != MembershipStatus.DECLINED:
         raise ApiError("VALIDATION_ERROR", "إعادة الدعوة متاحة فقط للدعوات المرفوضة.")
+    _manager_account_requires_platform(membership, actor, action="إعادة دعوة")
     membership.status = MembershipStatus.INVITED
     membership.save(update_fields=["status", "updated_at"])
     record_event(
@@ -197,6 +222,7 @@ def reinvite(*, membership: SchoolMembership, actor, request=None) -> None:
 @transaction.atomic
 def reset_teacher_password(*, membership: SchoolMembership, actor, request=None) -> str:
     """يعيد كلمة المعلم أو حارس البوابة ويفرض استبدالها عند الدخول التالي."""
+    _manager_account_requires_platform(membership, actor, action="إعادة ضبط كلمة مرور")
     roles = membership.role_codes()
     if not {SchoolRole.TEACHER, SchoolRole.GATE_GUARD}.intersection(roles):
         raise ApiError(
@@ -255,10 +281,11 @@ def delete_staff(*, profile, actor, request=None) -> None:
             "لا يمكنك حذف حسابك الحالي. اطلب من مدير آخر تنفيذ الإجراء.",
             409,
         )
+    _manager_account_requires_platform(membership, actor, action="حذف")
     if _is_last_active_manager(membership):
         raise ApiError(
             "LAST_SCHOOL_MANAGER_REQUIRED",
-            "لا يمكن حذف مدير المدرسة الوحيد — عيّن مديرًا آخر أولاً.",
+            "لا يمكن حذف مدير المدرسة الوحيد. حدّث بيانات حسابه من إدارة المنصة.",
             409,
         )
 

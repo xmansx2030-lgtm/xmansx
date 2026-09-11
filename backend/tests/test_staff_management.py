@@ -339,20 +339,58 @@ def test_role_add_remove_with_guards(role_client, make_user):
 
 
 @pytest.mark.django_db
-def test_last_manager_protection(role_client):
-    """المدير الوحيد: لا إزالة دوره ولا إيقافه."""
+def test_school_manager_cannot_create_or_assign_another_manager(role_client, make_user):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+
+    created = client.post(
+        STAFF_URL,
+        {
+            "display_name": "مدير ثان",
+            "mobile": "0558880198",
+            "role": "SCHOOL_MANAGER",
+        },
+        content_type="application/json",
+    )
+    assert created.status_code == 403
+    assert created.json()["code"] == "SCHOOL_MANAGER_ASSIGNMENT_PLATFORM_ONLY"
+    assert not User.objects.filter(mobile="+966558880198").exists()
+
+    membership, profile = _make_staff(
+        school, make_user("0558880199"), ["TEACHER"], "موظف قائم"
+    )
+    assigned = client.post(
+        f"{STAFF_URL}{profile.id}/roles/",
+        {"role": "SCHOOL_MANAGER"},
+        content_type="application/json",
+    )
+    assert assigned.status_code == 403
+    assert assigned.json()["code"] == "SCHOOL_MANAGER_ASSIGNMENT_PLATFORM_ONLY"
+    assert membership.role_codes() == ["TEACHER"]
+
+
+@pytest.mark.django_db
+def test_manager_account_is_protected_from_school_staff_management(role_client):
+    """لا تعديل للدور ولا إيقاف لحساب المدير من لوحة المدرسة."""
     client, school, manager_user = role_client(["SCHOOL_MANAGER"])
     membership = SchoolMembership.objects.get(user=manager_user, school=school)
     profile = StaffProfile.objects.create(
         school=school, membership=membership, display_name="المدير"
     )
     remove = client.delete(f"{STAFF_URL}{profile.id}/roles/SCHOOL_MANAGER/")
-    assert remove.status_code == 409
-    assert remove.json()["code"] == "LAST_SCHOOL_MANAGER_REQUIRED"
+    assert remove.status_code == 403
+    assert remove.json()["code"] == "SCHOOL_MANAGER_ACCOUNT_PLATFORM_ONLY"
+
+    add_extra_role = client.post(
+        f"{STAFF_URL}{profile.id}/roles/",
+        {"role": "TEACHER"},
+        content_type="application/json",
+    )
+    assert add_extra_role.status_code == 403
+    assert add_extra_role.json()["code"] == "SCHOOL_MANAGER_ACCOUNT_PLATFORM_ONLY"
 
     suspend = client.post(f"{STAFF_URL}{profile.id}/suspend/")
-    assert suspend.status_code == 409
-    assert suspend.json()["code"] == "LAST_SCHOOL_MANAGER_REQUIRED"
+    assert suspend.status_code == 403
+    assert suspend.json()["code"] == "SCHOOL_MANAGER_ACCOUNT_PLATFORM_ONLY"
 
 
 @pytest.mark.django_db

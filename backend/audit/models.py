@@ -30,7 +30,13 @@ class AuditAction(models.TextChoices):
     STUDENT_ENROLLMENT_CREATED = "STUDENT_ENROLLMENT_CREATED", "إنشاء قيد"
     STUDENT_ENROLLMENT_ENDED = "STUDENT_ENROLLMENT_ENDED", "إنهاء قيد"
     GRADE_CREATED = "GRADE_CREATED", "إنشاء صف"
+    GRADE_UPDATED = "GRADE_UPDATED", "تعديل صف"
+    GRADE_STATUS_CHANGED = "GRADE_STATUS_CHANGED", "تغيير حالة صف"
+    GRADE_DELETED = "GRADE_DELETED", "حذف صف"
     SECTION_CREATED = "SECTION_CREATED", "إنشاء فصل"
+    SECTION_UPDATED = "SECTION_UPDATED", "تعديل فصل"
+    SECTION_STATUS_CHANGED = "SECTION_STATUS_CHANGED", "تغيير حالة فصل"
+    SECTION_DELETED = "SECTION_DELETED", "حذف فصل"
     # المرحلة 4.1 — دورة الحياة والحذف النهائي (بلا PII في metadata)
     # المرحلة 6 — الحضور وQR
     ATTENDANCE_STARTED = "ATTENDANCE_STARTED", "بدء تحضير"

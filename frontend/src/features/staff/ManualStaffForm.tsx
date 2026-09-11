@@ -12,18 +12,19 @@ import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hook
 import { getSections } from "@/features/students/api";
 import { roleLabel } from "@/utils/roles";
 
-const ROLES = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL", "SCHOOL_MANAGER"] as const;
+const ROLES = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL"] as const;
 const ROLE_DESCRIPTIONS: Record<(typeof ROLES)[number], string> = {
   TEACHER: "تحضير الطلاب والوصول إلى الفصول المسندة إليه.",
   COUNSELOR: "متابعة الحالات والإحالات والسلوك والإنذارات.",
   GATE_GUARD: "عرض استئذانات اليوم وتأكيد خروج الطلاب من البوابة فقط.",
   VICE_PRINCIPAL: "الاطلاع الإداري والمتابعة دون تعديل إعدادات المدرسة.",
-  SCHOOL_MANAGER: "صلاحية كاملة لإدارة المدرسة والموظفين والإعدادات.",
 };
 
 export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void; onClose: () => void }) {
   const schoolId = useActiveSchoolId();
   const schoolType = useActiveSchoolType();
+  const managerLabel = schoolType === "GIRLS" ? "مديرة المدرسة" : "مدير المدرسة";
+  const singleManagerLabel = schoolType === "GIRLS" ? "مديرة واحدة" : "مدير واحد";
   const [displayName, setDisplayName] = useState("");
   const [mobile, setMobile] = useState("");
   const [employeeNumber, setEmployeeNumber] = useState("");
@@ -122,6 +123,10 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
 
       <div className="mt-4 rounded-2xl border border-slate-200 p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2"><ShieldCheck aria-hidden size={18} className="text-blue-700" /><h3 className="text-sm font-black text-slate-900">الدور والصلاحيات</h3></div>
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-900">
+          <p className="font-black">حساب {managerLabel} محمي</p>
+          <p className="mt-1">للمدرسة {singleManagerLabel} فقط، ولا يمكن إضافة مدير آخر أو تعيينه من إدارة الموظفين. تتم إدارة حساب {managerLabel} مركزيًا من إدارة المنصة.</p>
+        </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="manual-staff-role" className="text-sm font-bold text-slate-700">الدور الأول في المنصة *</label>
           <select id="manual-staff-role" value={role} onChange={(e) => { setRole(e.target.value as (typeof ROLES)[number]); setSectionConflicts([]); }} className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm">
