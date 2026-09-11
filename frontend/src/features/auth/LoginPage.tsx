@@ -82,16 +82,16 @@ export function LoginPage() {
     loginMutation.error instanceof ApiError ? loginMutation.error : null;
 
   return (
-    <main className="auth-shell flex min-h-dvh items-center justify-center p-4 sm:p-8">
-      <div className="grid w-full max-w-5xl min-w-0 items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden px-6 text-white lg:block">
+    <main className="auth-shell flex h-dvh items-center justify-center overflow-y-auto p-4 sm:p-8">
+      <div className="grid w-full max-w-4xl min-w-0 items-center gap-8 lg:grid-cols-[1fr_1fr]">
+        <section className="hidden px-4 text-white lg:block">
           <span className="mb-8 grid size-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
             <Building2 aria-hidden size={29} className="text-teal-200" />
           </span>
           <p className="mb-3 text-sm font-bold text-teal-200">منصة مدرسية متكاملة</p>
           <p className="text-xl font-black">منصة المواظبة</p>
-          <h2 className="mt-4 max-w-lg text-4xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
-          <p className="mt-5 max-w-lg text-base leading-8 text-slate-300">مساحة عمل موحدة تساعد الإدارة والهيئة التعليمية والإرشادية على متابعة الطالب أو الطالبة واتخاذ الإجراء المناسب بثقة.</p>
+          <h2 className="mt-4 max-w-md text-3xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
+          <p className="mt-4 max-w-md text-sm leading-7 text-slate-300">مساحة عمل موحدة تساعد الإدارة والهيئة التعليمية والإرشادية على متابعة الطالب أو الطالبة واتخاذ الإجراء المناسب بثقة.</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
             <span className="flex items-center gap-2"><CheckCircle2 size={17} className="text-teal-300" /> متابعة لحظية</span>
             <span className="flex items-center gap-2"><ShieldCheck size={17} className="text-teal-300" /> بيانات آمنة</span>

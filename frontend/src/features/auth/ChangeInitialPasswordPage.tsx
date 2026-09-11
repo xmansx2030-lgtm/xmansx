@@ -56,7 +56,7 @@ export function ChangeInitialPasswordPage() {
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
 
   return (
-    <main className="auth-shell flex min-h-dvh items-center justify-center p-4">
+    <main className="auth-shell flex h-dvh items-center justify-center overflow-y-auto p-4">
       <form
         onSubmit={handleSubmit}
         noValidate
