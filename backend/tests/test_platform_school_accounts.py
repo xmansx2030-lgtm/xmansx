@@ -140,3 +140,41 @@ def test_platform_rejects_second_manager_and_preserves_only_manager(
     assert "مدير واحد فقط" in second.json()["message"]
     assert not User.objects.filter(mobile="+966550099006").exists()
     assert school.memberships.filter(roles__role=SchoolRole.SCHOOL_MANAGER).count() == 1
+
+
+@pytest.mark.django_db
+def test_shared_manager_requires_explicit_cross_school_confirmation(
+    client, make_school, make_user, make_membership, platform_admin
+):
+    first_school = make_school("المدرسة الأولى")
+    second_school = make_school("المدرسة الثانية")
+    shared = make_user("0550099011", first_name="مدير مشترك")
+    membership = make_membership(shared, first_school, [SchoolRole.SCHOOL_MANAGER])
+    make_membership(shared, second_school, [SchoolRole.SCHOOL_MANAGER])
+    client.force_login(platform_admin)
+    url = f"/api/v1/platform/schools/{first_school.id}/managers/{membership.id}/"
+
+    blocked = client.patch(
+        url, {"name": "اسم جديد"}, content_type="application/json"
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "SHARED_ACCOUNT_CONFIRMATION_REQUIRED"
+    shared.refresh_from_db()
+    assert shared.display_name == "مدير مشترك"
+
+    updated = client.patch(
+        url,
+        {"name": "اسم جديد", "confirm_shared_account_impact": True},
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+
+    reset_url = f"{url}reset-password/"
+    reset_blocked = client.post(reset_url, {}, content_type="application/json")
+    assert reset_blocked.status_code == 409
+    reset = client.post(
+        reset_url,
+        {"confirm_shared_account_impact": True},
+        content_type="application/json",
+    )
+    assert reset.status_code == 200

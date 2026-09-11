@@ -21,10 +21,20 @@ logger = logging.getLogger("xmansx.imports")
 @shared_task(name="students.process_import_job")
 def process_import_job(job_id: int) -> str:
     from common.errors import ApiError
+    from common.tenant_rls import tenant_context
     from students.models import ImportJobStatus, StudentImportJob, StudentImportRow
     from students.services.imports import comparison, parser, validation
 
-    with transaction.atomic():
+    # The queue carries an opaque job id. Resolve its trusted tenant under the
+    # narrow system bypass, then do all business reads/writes inside that tenant.
+    with tenant_context(bypass=True):
+        school_id = StudentImportJob.objects.filter(id=job_id).values_list(
+            "school_id", flat=True
+        ).first()
+    if school_id is None:
+        return "skipped"
+
+    with tenant_context(school_id=school_id), transaction.atomic():
         job = (
             StudentImportJob.objects.select_for_update()
             .select_related("school", "academic_year")
@@ -115,10 +125,17 @@ def run_purge_job(job_id: int) -> str:
     """تنفيذ الحذف الجماعي بدفعات — tenant من الـ Job، idempotent بحالة الـ Job."""
     from django.utils import timezone
 
-    from students.models import PurgeJobStatus, Student, StudentPurgeJob
-    from students.services.purge import PURGE_BATCH_SIZE, purge_student
+    from common.tenant_rls import tenant_context
+    from students.models import PurgeJobStatus, StudentPurgeJob
 
-    with transaction.atomic():
+    with tenant_context(bypass=True):
+        school_id = StudentPurgeJob.objects.filter(id=job_id).values_list(
+            "school_id", flat=True
+        ).first()
+    if school_id is None:
+        return "skipped"
+
+    with tenant_context(school_id=school_id), transaction.atomic():
         job = (
             StudentPurgeJob.objects.select_for_update()
             .select_related("school")
@@ -130,6 +147,18 @@ def run_purge_job(job_id: int) -> str:
         job.status = PurgeJobStatus.RUNNING
         job.started_at = timezone.now()
         job.save(update_fields=["status", "started_at", "updated_at"])
+
+    with tenant_context(school_id=school_id):
+        return _run_scoped_purge(job)
+
+
+def _run_scoped_purge(job) -> str:
+    """Continue a purge while PostgreSQL is pinned to the job's school."""
+    from django.utils import timezone
+
+    from audit.services import record_event
+    from students.models import PurgeJobStatus, Student
+    from students.services.purge import PURGE_BATCH_SIZE, purge_student
 
     ids = list(job.student_ids)
     deleted = failed = db_rows = storage_ok = storage_failed = 0

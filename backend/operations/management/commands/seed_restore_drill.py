@@ -17,6 +17,7 @@ from attendance.models import (
     DailyCompleteness,
 )
 from common.security.identifiers import encrypt_national_id, national_id_lookup_hash
+from common.tenant_rls import tenant_context
 from counseling.models import CaseStatus, CounselorCase
 from devices.models import (
     ArrivalSource,
@@ -71,6 +72,10 @@ class Command(BaseCommand):
     help = "Seed deterministic representative data for the isolated Phase 18 restore drill."
 
     def handle(self, *args, **options):
+        with tenant_context(bypass=True):
+            return self._seed(*args, **options)
+
+    def _seed(self, *args, **options):
         password = os.environ.get("RESTORE_DRILL_MANAGER_PASSWORD", "")
         if len(password) < 12:
             raise CommandError("RESTORE_DRILL_MANAGER_PASSWORD must be at least 12 characters")

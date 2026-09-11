@@ -14,6 +14,7 @@ from config.env import env_bool, env_int, env_list, env_str
 from .base import *
 
 DEBUG = False
+DJANGO_ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", False)
 
 # ---- إلزامية بلا defaults ----
 SECRET_KEY = env_str("DJANGO_SECRET_KEY")
@@ -30,6 +31,9 @@ DATABASES = {
         "CONN_MAX_AGE": 60,
     }
 }
+# Activates request/task context management and readiness verification. PostgreSQL
+# policies themselves are always fail-closed for non-privileged database roles.
+DATABASE_RLS_ENFORCED = True
 
 REDIS_URL = env_str("REDIS_URL")
 CELERY_BROKER_URL = REDIS_URL

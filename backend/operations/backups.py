@@ -78,6 +78,11 @@ def _database_config() -> dict:
 def _postgres_env() -> dict[str, str]:
     env = os.environ.copy()
     env["PGPASSWORD"] = str(_database_config()["PASSWORD"])
+    # pg_dump opens a separate connection, so it cannot inherit the Django
+    # connection context. Backups are an explicit, audited cross-tenant operation.
+    existing_options = env.get("PGOPTIONS", "").strip()
+    bypass_option = "-c app.rls_bypass=on"
+    env["PGOPTIONS"] = f"{existing_options} {bypass_option}".strip()
     return env
 
 

@@ -88,7 +88,7 @@ ruff check .                                 # lint
 python manage.py check                       # Django system checks
 python manage.py makemigrations --check      # لا migrations ناقصة
 python manage.py migrate                     # تطبيق migrations
-celery -A config worker --loglevel=info      # worker (داخل Docker على Windows)
+celery -A config worker --loglevel=info -Q celery,imports,maintenance  # worker
 celery -A config beat --loglevel=info        # beat
 ```
 

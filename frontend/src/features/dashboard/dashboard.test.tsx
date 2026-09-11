@@ -453,7 +453,7 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.getByText("التشغيل مكتمل")).toBeInTheDocument();
   });
 
-  it("تعطي المدير لوحة مختصرة، والوكيل محطة تشغيل مختلفة", async () => {
+  it("تعطي الوكيل محطة تشغيل مختلفة مع نفس التحليلات والتقارير", async () => {
     mockDashboard();
     const managerView = renderApp("/dashboard");
     expect(await within(managerView.container).findByTestId("school-today-status-card")).toBeInTheDocument();
@@ -487,14 +487,15 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.queryByTestId("role-workspace-metric")).not.toBeInTheDocument();
     expect(screen.queryByTestId("daily-attendance-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("live-school-attendance")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("dashboard-preset")).not.toBeInTheDocument();
-    expect(screen.queryByText("اتجاه الغياب")).not.toBeInTheDocument();
-    expect(screen.queryByText("الفصول الأكثر احتياجًا للمتابعة")).not.toBeInTheDocument();
+    expect(screen.getByTestId("manager-analytics")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("dashboard-preset")).toBeInTheDocument();
+    expect(screen.getByText("اتجاه الغياب")).toBeInTheDocument();
+    expect(screen.getByText("الفصول الأكثر احتياجًا للمتابعة")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "ما يحتاج تدخلك" })).toBeInTheDocument();
     expect(screen.queryByTestId("attention-count-excuse_pending")).not.toBeInTheDocument();
-    expect(calls.some((call) => call.url.includes("/dashboard/overview/"))).toBe(false);
-    expect(calls.some((call) => call.url.includes("/dashboard/attendance-trend/"))).toBe(false);
-    expect(calls.some((call) => call.url.includes("/dashboard/sections/"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/dashboard/overview/"))).toBe(true);
+    expect(calls.some((call) => call.url.includes("/dashboard/attendance-trend/"))).toBe(true);
+    expect(calls.some((call) => call.url.includes("/dashboard/sections/"))).toBe(true);
     expect(calls.some((call) => call.url.includes("/staff/"))).toBe(false);
   });
 

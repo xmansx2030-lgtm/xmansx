@@ -72,7 +72,7 @@ services:
     build:
       context: ./backend
       target: dev
-    command: celery -A config worker --loglevel=info
+    command: celery -A config worker --loglevel=info -Q celery,imports,maintenance
     environment: *backend-env
     volumes:
       - ./backend:/app

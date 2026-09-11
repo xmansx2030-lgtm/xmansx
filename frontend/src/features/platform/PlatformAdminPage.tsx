@@ -18,6 +18,7 @@ import {
   Smartphone,
   Sparkles,
   Trash2,
+  UserRoundCog,
   UsersRound,
 } from "lucide-react";
 
@@ -53,6 +54,8 @@ import {
   type Usage,
 } from "@/features/platform/api";
 import type { SchoolType } from "@/types/auth";
+import type { PlatformCapability } from "@/types/auth";
+import { PlatformAccountPanel, PlatformTeamPanel } from "@/features/platform/PlatformTeamPanels";
 
 const LIMIT_KEYS = ["MAX_STUDENTS", "MAX_STAFF", "MAX_DEVICES", "MAX_STORAGE_GB"] as const;
 const LIMIT_FORM_KEYS = {
@@ -108,7 +111,7 @@ function statusClass(status: string | null | undefined) {
   return "bg-slate-100 text-slate-700";
 }
 
-type PlatformTab = "dashboard" | "schools" | "plans";
+type PlatformTab = "dashboard" | "schools" | "plans" | "team" | "account";
 type SubscriptionActionName =
   | "start-trial"
   | "extend-trial"
@@ -151,20 +154,37 @@ const PLATFORM_TABS = [
     label: "لوحة المؤشرات",
     description: "الصحة العامة والتنبيهات",
     icon: BarChart3,
+    capability: "DASHBOARD_VIEW" as PlatformCapability,
   },
   {
     id: "schools" as const,
     label: "المدارس",
     description: "الحسابات والاشتراكات",
     icon: Building2,
+    capability: "SCHOOLS_VIEW" as PlatformCapability,
   },
   {
     id: "plans" as const,
     label: "الباقات",
     description: "الحدود والمزايا",
     icon: PackageCheck,
+    capability: "PLANS_VIEW" as PlatformCapability,
   },
-] satisfies { id: PlatformTab; label: string; description: string; icon: typeof BarChart3 }[];
+  {
+    id: "team" as const,
+    label: "فريق المنصة",
+    description: "الموظفون والصلاحيات",
+    icon: UsersRound,
+    capability: "TEAM_VIEW" as PlatformCapability,
+  },
+  {
+    id: "account" as const,
+    label: "حسابي",
+    description: "الملف الشخصي والأمان",
+    icon: UserRoundCog,
+    capability: null,
+  },
+] satisfies { id: PlatformTab; label: string; description: string; icon: typeof BarChart3; capability: PlatformCapability | null }[];
 
 const numberFormat = new Intl.NumberFormat("ar-SA");
 
@@ -418,15 +438,18 @@ function ManagerAccountCard({
   schoolId,
   manager,
   schoolType,
+  canManage,
 }: {
   schoolId: number;
   manager: SchoolManagerAccount;
   schoolType: SchoolType;
+  canManage: boolean;
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(manager.name);
   const [mobile, setMobile] = useState(manager.mobile);
   const [confirmation, setConfirmation] = useState<"reset-password" | "suspend" | null>(null);
+  const [sharedImpactAcknowledged, setSharedImpactAcknowledged] = useState(false);
   const [credentials, setCredentials] = useState<ManagerCredentialResponse | null>(null);
 
   const refresh = async () => {
@@ -437,12 +460,24 @@ function ManagerAccountCard({
     ]);
   };
   const save = useMutation({
-    mutationFn: () => updateSchoolManager(schoolId, manager.membership_id, { name, mobile }),
-    onSuccess: refresh,
+    mutationFn: () => updateSchoolManager(schoolId, manager.membership_id, {
+      name,
+      mobile,
+      confirm_shared_account_impact: sharedImpactAcknowledged,
+    }),
+    onSuccess: async () => {
+      setSharedImpactAcknowledged(false);
+      await refresh();
+    },
   });
   const accountAction = useMutation({
     mutationFn: (action: "reset-password" | "suspend" | "reactivate") =>
-      runSchoolManagerAction(schoolId, manager.membership_id, action),
+      runSchoolManagerAction(
+        schoolId,
+        manager.membership_id,
+        action,
+        action === "reset-password" && manager.shared_with_other_schools,
+      ),
     onSuccess: async (result) => {
       if ("temporary_password" in result) setCredentials(result);
       setConfirmation(null);
@@ -468,26 +503,35 @@ function ManagerAccountCard({
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-semibold text-slate-600">
           اسم {managerLabel}
-          <input aria-label={`اسم ${managerLabel} ${manager.membership_id}`} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" value={name} onChange={(event) => setName(event.target.value)} />
+          <input disabled={!canManage} aria-label={`اسم ${managerLabel} ${manager.membership_id}`} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <label className="text-xs font-semibold text-slate-600">
           رقم الجوال للدخول
-          <input aria-label={`جوال ${managerLabel} ${manager.membership_id}`} dir="ltr" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-left" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+          <input disabled={!canManage} aria-label={`جوال ${managerLabel} ${manager.membership_id}`} dir="ltr" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-left disabled:bg-slate-100" value={mobile} onChange={(event) => setMobile(event.target.value)} />
         </label>
       </div>
-      {manager.shared_with_other_schools && <p className="mt-2 text-xs text-blue-700">هذا الحساب مرتبط بمدارس أخرى؛ تعديل الجوال يغيّر معرف دخوله إليها أيضًا.</p>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" className="px-3 py-1.5" disabled={save.isPending} onClick={() => save.mutate()}>حفظ بيانات الحساب</Button>
+      {manager.shared_with_other_schools && (
+        <label className="mt-2 flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+          <input
+            type="checkbox"
+            checked={sharedImpactAcknowledged}
+            onChange={(event) => setSharedImpactAcknowledged(event.target.checked)}
+          />
+          أؤكد أن تعديل الاسم أو الجوال سيؤثر في الحساب نفسه لدى جميع المدارس المرتبطة.
+        </label>
+      )}
+      {canManage && <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" className="px-3 py-1.5" disabled={save.isPending || (manager.shared_with_other_schools && !sharedImpactAcknowledged)} onClick={() => save.mutate()}>حفظ بيانات الحساب</Button>
         <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("reset-password")}>إعادة ضبط كلمة المرور</Button>
         {active ? (
           <Button type="button" variant="danger" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => setConfirmation("suspend")}>إيقاف {managerLabel}</Button>
         ) : (
           <Button type="button" variant="secondary" className="px-3 py-1.5" disabled={accountAction.isPending} onClick={() => accountAction.mutate("reactivate")}>إعادة تفعيل {managerLabel}</Button>
         )}
-      </div>
+      </div>}
       {confirmation && (
         <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-          <p>{confirmation === "reset-password" ? "سيتم إبطال كلمة المرور الحالية وإصدار كلمة مؤقتة جديدة." : `سيتوقف وصول ${managerLabel} إلى المدرسة. لا يمكن إيقاف الحساب الإداري الوحيد.`}</p>
+          <p>{confirmation === "reset-password" ? `سيتم إبطال كلمة المرور الحالية وإصدار كلمة مؤقتة جديدة${manager.shared_with_other_schools ? "، وسيؤثر ذلك في الدخول إلى جميع المدارس المرتبطة بهذا الحساب." : "."}` : `سيتوقف وصول ${managerLabel} إلى المدرسة. لا يمكن إيقاف الحساب الإداري الوحيد.`}</p>
           <div className="mt-2 flex gap-2">
             <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => accountAction.mutate(confirmation)}>تأكيد</Button>
             <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setConfirmation(null)}>تراجع</Button>
@@ -500,7 +544,7 @@ function ManagerAccountCard({
   );
 }
 
-function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
+function SchoolAccountManagement({ detail, canManageSchool, canManageAccounts }: { detail: SchoolDetail; canManageSchool: boolean; canManageAccounts: boolean }) {
   const queryClient = useQueryClient();
   const [schoolName, setSchoolName] = useState(detail.name);
   const [schoolStatus, setSchoolStatus] = useState(detail.school_status);
@@ -535,7 +579,7 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
         <h3 className="font-bold text-slate-900">بيانات المدرسة والدخول</h3>
         <p className="text-xs text-slate-500">المعرف: {detail.slug} · أضيفت {formatDate(detail.created_at)}</p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_130px_150px]">
+      {canManageSchool && <><div className="grid gap-2 sm:grid-cols-[1fr_130px_150px]">
         <label className="text-xs font-semibold text-slate-600">
           اسم المدرسة
           <input aria-label="اسم المدرسة المسجلة" className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} />
@@ -558,19 +602,19 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
       </div>
       <p className="text-xs text-slate-500">إيقاف المدرسة يمنع جميع حساباتها من الدخول حتى إعادة تفعيلها.</p>
       <Button type="button" className="px-3 py-1.5" disabled={saveSchool.isPending} onClick={() => saveSchool.mutate()}>حفظ بيانات المدرسة</Button>
-      <ErrorLine error={saveSchool.error} />
+      <ErrorLine error={saveSchool.error} /></>}
 
       <div className="border-t border-slate-200 pt-3">
         <h4 className="font-bold text-slate-900">حساب {schoolType === "GIRLS" ? "مديرة المدرسة" : "مدير المدرسة"}</h4>
         <p className="mb-3 text-xs text-slate-500">لكل مدرسة حساب مدير واحد فقط، ويمكن تحديث بياناته أو إعادة ضبط كلمة مروره من هنا.</p>
         <div className="space-y-3">
-          {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} schoolType={schoolType} />)}
+          {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} schoolType={schoolType} canManage={canManageAccounts} />)}
           {(detail.managers ?? []).length === 0 && <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">لا يوجد {managerNoun} مرتبط بهذه المدرسة.</p>}
           {(detail.managers ?? []).length > 1 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">يوجد تعارض قديم: ترتبط بهذه المدرسة عدة حسابات مدير. أوقف المعالجة الآلية وراجع الحسابات القائمة بعناية؛ لن يسمح النظام بإضافة أي مدير جديد.</p>}
         </div>
       </div>
 
-      {(detail.managers ?? []).length === 0 ? (
+      {canManageAccounts && ((detail.managers ?? []).length === 0 ? (
         <form className="border-t border-slate-200 pt-3" onSubmit={(event) => { event.preventDefault(); addManager.mutate(); }}>
           <h4 className="mb-1 font-bold text-slate-900">تعيين {managerNoun} المدرسة</h4>
           <p className="mb-3 text-xs text-slate-500">يظهر هذا الإجراء فقط لاسترداد مدرسة لا يوجد لها مدير. بعد التعيين لن يقبل النظام مديرًا ثانيًا.</p>
@@ -588,13 +632,13 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
             المدرسة محمية بحساب {schoolType === "GIRLS" ? "مديرة واحدة" : "مدير واحد"}. استخدم بطاقة الحساب أعلاه لتحديث بيانات {schoolType === "GIRLS" ? "المديرة الحالية" : "المدير الحالي"} بدل إضافة حساب آخر.
           </p>
         </div>
-      )}
+      ))}
       {credentials && <CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} managerLabel={schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCredentials(null)} />}
     </div>
   );
 }
 
-function PlanForm({ plans }: { plans: Plan[] }) {
+function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<number | null>(null);
   const editing = plans.find((plan) => plan.id === editingId);
@@ -661,7 +705,8 @@ function PlanForm({ plans }: { plans: Plan[] }) {
 
   return (
     <section className="space-y-4">
-      <form onSubmit={submit} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
+      {!canManage && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-800">عرض فقط — لا يتضمن دورك إنشاء الباقات أو تعديلها.</div>}
+      {canManage && <form onSubmit={submit} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
         <div className="md:col-span-4"><h2 className="font-black text-slate-950">{editing ? `تعديل باقة ${editing.name_ar}` : "إنشاء باقة جديدة"}</h2><p className="mt-1 text-xs text-slate-500">حدد السعر والحدود ثم اختر المزايا المتاحة للمدرسة.</p></div>
         <label className="text-sm font-medium text-slate-700">رمز الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="مثال: PRO" value={form.code} disabled={Boolean(editing)} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
         <label className="text-sm font-medium text-slate-700">اسم الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} /></label>
@@ -687,7 +732,7 @@ function PlanForm({ plans }: { plans: Plan[] }) {
           {editing && <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setEditingId(null)}>إلغاء</Button>}
         </div>
         <div className="md:col-span-4"><ErrorLine error={save.error} /></div>
-      </form>
+      </form>}
       <div className="grid gap-3 md:grid-cols-2">
         {plans.map((plan) => (
           <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -698,10 +743,10 @@ function PlanForm({ plans }: { plans: Plan[] }) {
               </div>
               <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex">
+            {canManage && <div className="mt-3 grid grid-cols-2 gap-2 sm:flex">
               <Button variant="secondary" onClick={() => load(plan)}>تعديل</Button>
               <Button variant="danger" disabled={!plan.is_active} onClick={() => void disablePlan(plan.id).then(() => queryClient.invalidateQueries({ queryKey: ["platform", "plans"] }))}>تعطيل</Button>
-            </div>
+            </div>}
           </article>
         ))}
       </div>
@@ -709,7 +754,7 @@ function PlanForm({ plans }: { plans: Plan[] }) {
   );
 }
 
-function SchoolsPanel({ plans }: { plans: Plan[] }) {
+function SchoolsPanel({ plans, canManageSchools, canManageAccounts, canManageSubscriptions }: { plans: Plan[]; canManageSchools: boolean; canManageAccounts: boolean; canManageSubscriptions: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -736,7 +781,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
   const preview = useQuery({
     queryKey: ["platform", "plan-preview", selected?.id, actionPlanId],
     queryFn: ({ signal }) => getPlanChangePreview(selected!.id, Number(actionPlanId), signal),
-    enabled: Boolean(selected && actionPlanId && subscriptionAction === "change-plan"),
+    enabled: Boolean(canManageSubscriptions && selected && actionPlanId && subscriptionAction === "change-plan"),
   });
   const [createdCredentials, setCreatedCredentials] = useState<{
     mobile: string;
@@ -828,7 +873,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
     <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_560px]">
       <div className="order-2 min-w-0 space-y-3 xl:order-1">
         {deleteNotice && <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">{deleteNotice}</p>}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {canManageSchools && <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-black text-slate-950">إضافة مدرسة واشتراكها</h2>
@@ -859,7 +904,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
             </form>
           )}
           {createdCredentials && <div className="mt-4"><CredentialNotice mobile={createdCredentials.mobile} password={createdCredentials.password} managerLabel={createdCredentials.schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCreatedCredentials(null)} /></div>}
-        </section>
+        </section>}
         <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2 xl:grid-cols-5">
           <input className="min-h-11 rounded-xl border border-slate-300 px-3 py-2" placeholder="بحث في المدارس" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select aria-label="حالة الاشتراك" className="min-h-11 rounded-xl border border-slate-300 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -901,7 +946,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                 <div><dt className="text-slate-500">الأيام المتبقية</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.days_remaining ?? "—"}</dd></div>
                 <div><dt className="text-slate-500">صلاحية الاستخدام</dt><dd className="font-semibold text-slate-800">{detail.data.subscription.access_mode === "FULL" ? "كاملة" : detail.data.subscription.access_mode === "READ_ONLY" ? "قراءة فقط" : "محجوبة"}</dd></div>
               </dl>
-              <form className="mt-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-3" onSubmit={(event) => { event.preventDefault(); runPrimarySubscriptionAction(); }}>
+              {canManageSubscriptions && <form className="mt-4 rounded-2xl border border-teal-100 bg-teal-50/60 p-3" onSubmit={(event) => { event.preventDefault(); runPrimarySubscriptionAction(); }}>
                 <p className="mb-3 text-sm font-black text-teal-950">إضافة أو تحديث الاشتراك</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-medium text-slate-700">الإجراء<select aria-label="إجراء الاشتراك" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" value={subscriptionAction} onChange={(event) => { setSubscriptionAction(event.target.value as SubscriptionActionName); setActionNotice(""); }}>
@@ -920,26 +965,26 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                 </div>
               )}
                 <Button className="mt-3 w-full" type="submit" disabled={action.isPending || (actionNeedsPlan && !actionPlanId) || (actionNeedsDuration && actionDays < 1)}>{action.isPending ? "جارٍ الحفظ..." : SUBSCRIPTION_ACTION_LABELS[subscriptionAction]}</Button>
-              </form>
+              </form>}
               {actionNotice && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{actionNotice}</p>}
-              <details className="mt-3 rounded-xl border border-slate-200 p-3">
+              {canManageSubscriptions && <details className="mt-3 rounded-xl border border-slate-200 p-3">
                 <summary className="cursor-pointer text-sm font-bold text-slate-700">إجراءات متقدمة</summary>
                 <label className="mt-3 block text-sm font-medium text-slate-700">سبب الإجراء<input aria-label="سبب إجراء الاشتراك" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" value={actionReason} onChange={(event) => setActionReason(event.target.value)} /></label>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {detail.data.subscription.has_subscription && detail.data.subscription.status !== "SUSPENDED" && <Button variant="danger" disabled={action.isPending || !actionReason.trim()} onClick={() => action.mutate({ name: "suspend", body: { reason: actionReason } })}>إيقاف</Button>}
                   {detail.data.subscription.has_subscription && <Button variant="danger" disabled={action.isPending || !actionReason.trim()} onClick={() => action.mutate({ name: "cancel", body: { reason: actionReason } })}>إلغاء</Button>}
                 </div>
-              </details>
+              </details>}
               <ErrorLine error={action.error} />
             </div>
-            <SchoolAccountManagement key={detail.data.id} detail={detail.data} />
+            <SchoolAccountManagement key={detail.data.id} detail={detail.data} canManageSchool={canManageSchools} canManageAccounts={canManageAccounts} />
             <UsageGrid usage={detail.data.usage} />
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h4 className="mb-2 font-bold">السجل</h4>
               {(history.data?.history ?? []).slice(0, 4).map((row) => <p key={row.id} className="text-sm text-slate-600">{row.plan_name} · {statusLabel(row.status)}</p>)}
               {(events.data ?? []).slice(0, 5).map((event) => <p key={event.id} className="mt-1 text-xs text-slate-500">{event.event_type} · {new Date(event.created_at).toLocaleDateString("ar-SA")}</p>)}
             </div>
-            <div className="rounded-2xl border border-red-200 bg-red-50/60 p-4">
+            {canManageSchools && <div className="rounded-2xl border border-red-200 bg-red-50/60 p-4">
               <div className="flex items-start gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-red-100 text-red-700"><Trash2 aria-hidden size={19} /></span>
                 <div className="min-w-0 flex-1">
@@ -967,7 +1012,7 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
                   <ErrorLine error={deleteSchool.error} />
                 </form>
               )}
-            </div>
+            </div>}
           </>
         )}
       </aside>
@@ -977,13 +1022,20 @@ function SchoolsPanel({ plans }: { plans: Plan[] }) {
 
 export function PlatformAdminPage() {
   const [tab, setTab] = useState<PlatformTab>("dashboard");
-  const overview = useQuery({ queryKey: ["platform", "overview"], queryFn: ({ signal }) => getPlatformOverview(signal) });
-  const plans = useQuery({ queryKey: ["platform", "plans"], queryFn: ({ signal }) => getPlans(signal) });
-  const activePlans = useMemo(() => plans.data ?? [], [plans.data]);
   const logout = useLogout();
   const navigate = useNavigate();
   const me = useMe();
-  const activeTab = PLATFORM_TABS.find((item) => item.id === tab) ?? PLATFORM_TABS[0]!;
+  const hasCapability = (capability: PlatformCapability) => {
+    const declared = me.data?.platform_capabilities;
+    return Boolean(me.data?.is_platform_owner) ||
+      ((declared?.length ?? 0) > 0 ? Boolean(declared?.includes(capability)) : Boolean(me.data?.is_platform_admin));
+  };
+  const visibleTabs = PLATFORM_TABS.filter((item) => item.capability === null || hasCapability(item.capability));
+  const overview = useQuery({ queryKey: ["platform", "overview"], queryFn: ({ signal }) => getPlatformOverview(signal), enabled: hasCapability("DASHBOARD_VIEW") });
+  const plans = useQuery({ queryKey: ["platform", "plans"], queryFn: ({ signal }) => getPlans(signal), enabled: hasCapability("PLANS_VIEW") });
+  const activePlans = useMemo(() => plans.data ?? [], [plans.data]);
+  const currentTab = visibleTabs.some((item) => item.id === tab) ? tab : (visibleTabs[0]?.id ?? "account");
+  const activeTab = visibleTabs.find((item) => item.id === currentTab) ?? PLATFORM_TABS[4]!;
   const today = new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const handleLogout = () => void logout().then(() => navigate("/login", { replace: true }));
 
@@ -1000,9 +1052,9 @@ export function PlatformAdminPage() {
 
           <nav aria-label="أقسام إدارة المنصة" className="flex-1 space-y-2 p-4">
             <p className="mb-3 px-3 text-[11px] font-bold tracking-wide text-slate-500">مساحة العمل</p>
-            {PLATFORM_TABS.map((item) => {
+            {visibleTabs.map((item) => {
               const Icon = item.icon;
-              const selected = tab === item.id;
+              const selected = currentTab === item.id;
               return (
                 <button key={item.id} type="button" aria-current={selected ? "page" : undefined} onClick={() => setTab(item.id)} className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start transition ${selected ? "bg-white/10 text-white ring-1 ring-white/10" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
                   <span className={`grid size-10 shrink-0 place-items-center rounded-xl transition ${selected ? "bg-teal-400 text-slate-950" : "bg-white/5 text-slate-400 group-hover:text-teal-300"}`}><Icon aria-hidden size={19} /></span>
@@ -1013,10 +1065,10 @@ export function PlatformAdminPage() {
           </nav>
 
           <div className="border-t border-white/10 p-4">
-            <div className="mb-3 flex items-center gap-3 rounded-2xl bg-white/5 p-3">
+            <button type="button" onClick={() => setTab("account")} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-white/5 p-3 text-start transition hover:bg-white/10">
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-400/15 text-sm font-black text-teal-200">{me.data?.name?.trim().charAt(0) || "م"}</span>
-              <div className="min-w-0"><p className="truncate text-sm font-bold">{me.data?.name ?? "مشرف المنصة"}</p><p className="mt-0.5 text-[11px] text-slate-500">صلاحية إدارية كاملة</p></div>
-            </div>
+              <div className="min-w-0"><p className="truncate text-sm font-bold">{me.data?.name ?? "مشرف المنصة"}</p><p className="mt-0.5 text-[11px] text-slate-500">{me.data?.platform_role_label || "إدارة المنصة"}</p></div>
+            </button>
             <button type="button" onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"><LogOut aria-hidden size={17} />تسجيل الخروج</button>
           </div>
         </aside>
@@ -1030,7 +1082,7 @@ export function PlatformAdminPage() {
                 <p className="mt-1 hidden text-sm text-slate-500 sm:block">{activeTab.description} · دون تصفح بيانات الطلاب</p>
               </div>
               <div className="flex items-center gap-2">
-                {tab === "dashboard" && (
+                {currentTab === "dashboard" && (
                   <button type="button" onClick={() => void overview.refetch()} disabled={overview.isFetching} className="inline-flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 sm:w-auto sm:px-3" aria-label="تحديث المؤشرات">
                     <RefreshCw aria-hidden size={17} className={overview.isFetching ? "animate-spin" : ""} /><span className="ms-2 hidden text-sm font-bold sm:inline">تحديث</span>
                   </button>
@@ -1038,21 +1090,23 @@ export function PlatformAdminPage() {
                 <button type="button" onClick={handleLogout} className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /></button>
               </div>
             </div>
-            <nav aria-label="أقسام إدارة المنصة" className="mt-3 grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
-              {PLATFORM_TABS.map((item) => {
+            <nav aria-label="أقسام إدارة المنصة" className="mt-3 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
+              {visibleTabs.map((item) => {
                 const Icon = item.icon;
-                return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold transition sm:text-sm ${tab === item.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon aria-hidden size={16} />{item.label}</button>;
+                return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition sm:text-sm ${currentTab === item.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon aria-hidden size={16} />{item.label}</button>;
               })}
             </nav>
           </header>
 
-          {tab === "dashboard" && (
+          {currentTab === "dashboard" && (
             overview.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل لوحة المنصة..." /></div> : overview.isError || !overview.data ? (
               <section className="rounded-2xl border border-red-200 bg-white p-6 text-center"><AlertTriangle aria-hidden className="mx-auto text-red-500" /><h2 className="mt-3 font-black text-slate-900">تعذر تحميل مؤشرات المنصة</h2><p className="mt-1 text-sm text-slate-500">تحقق من الاتصال ثم أعد المحاولة.</p><Button className="mt-4" onClick={() => void overview.refetch()}>إعادة المحاولة</Button></section>
             ) : <DashboardPanel overview={overview.data} onOpenSchools={() => setTab("schools")} />
           )}
-          {tab === "schools" && <SchoolsPanel plans={activePlans} />}
-          {tab === "plans" && (plans.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل الباقات..." /></div> : <PlanForm plans={activePlans} />)}
+          {currentTab === "schools" && <SchoolsPanel plans={activePlans} canManageSchools={hasCapability("SCHOOLS_MANAGE")} canManageAccounts={hasCapability("SCHOOL_ACCOUNTS_MANAGE")} canManageSubscriptions={hasCapability("SUBSCRIPTIONS_MANAGE")} />}
+          {currentTab === "plans" && (plans.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل الباقات..." /></div> : <PlanForm plans={activePlans} canManage={hasCapability("PLANS_MANAGE")} />)}
+          {currentTab === "team" && <PlatformTeamPanel canManage={hasCapability("TEAM_MANAGE")} currentUserId={me.data?.id} />}
+          {currentTab === "account" && <PlatformAccountPanel />}
         </div>
       </div>
     </main>

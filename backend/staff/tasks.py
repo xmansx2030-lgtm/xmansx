@@ -16,10 +16,18 @@ logger = logging.getLogger("xmansx.imports")
 def process_staff_import_job(job_id: int) -> str:
     from common.errors import ApiError
     from common.excel_security import read_rows
+    from common.tenant_rls import tenant_context
     from staff.models import StaffImportJob, StaffImportRow, StaffImportStatus
     from staff.services.imports import pipeline
 
-    with transaction.atomic():
+    with tenant_context(bypass=True):
+        school_id = StaffImportJob.objects.filter(id=job_id).values_list(
+            "school_id", flat=True
+        ).first()
+    if school_id is None:
+        return "skipped"
+
+    with tenant_context(school_id=school_id), transaction.atomic():
         job = (
             StaffImportJob.objects.select_for_update()
             .select_related("school")

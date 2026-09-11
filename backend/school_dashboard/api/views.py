@@ -21,6 +21,7 @@ from school_dashboard.ranges import (
 from school_dashboard.selectors import attendance as attendance_selectors
 from school_dashboard.selectors import attention as attention_selectors
 from school_dashboard.selectors import followup as followup_selectors
+from school_dashboard.selectors import reports as report_selectors
 
 #: اللوحة التنفيذية للمدير والوكيل — المرشد والمعلم خارجها (بنود 82-85)
 DASHBOARD_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
@@ -191,3 +192,55 @@ class DashboardAttentionView(_DashboardView):
     @extend_schema(responses=None)
     def get(self, request):
         return Response(attention_selectors.attention_queue(school=request.school))
+
+
+class AttendanceReportView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        return Response(
+            {
+                "context": {"range": date_range.as_dict(), "scope": scope},
+                **report_selectors.absence_report(
+                    school=request.school,
+                    date_range=date_range,
+                    scope=scope,
+                    params=request.query_params,
+                ),
+            }
+        )
+
+
+class LatenessReportView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        return Response(
+            {
+                "context": {"range": date_range.as_dict(), "scope": scope},
+                **report_selectors.lateness_report(
+                    school=request.school,
+                    date_range=date_range,
+                    scope=scope,
+                    params=request.query_params,
+                ),
+            }
+        )
+
+
+class ReferralsReportView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        return Response(
+            {
+                "context": {"range": date_range.as_dict(), "scope": scope},
+                **report_selectors.referrals_report(
+                    school=request.school,
+                    membership=request.membership,
+                    roles=request.school_roles,
+                    date_range=date_range,
+                    params=request.query_params,
+                ),
+            }
+        )

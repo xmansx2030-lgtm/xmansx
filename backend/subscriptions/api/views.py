@@ -7,7 +7,12 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import (
     BigIntegerField,
+    Case,
+    CharField,
     Count,
+    DateTimeField,
+    ExpressionWrapper,
+    F,
     IntegerField,
     OuterRef,
     Prefetch,
@@ -15,8 +20,10 @@ from django.db.models import (
     Subquery,
     Sum,
     Value,
+    When,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Cast, Coalesce
+from django.db.models.lookups import GreaterThan
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from rest_framework import serializers, status
@@ -31,6 +38,7 @@ from devices.models import AttendanceDevice
 from documents.models import GeneratedDocument
 from excuses.models import AbsenceExcuseAttachment
 from memberships.models import MembershipStatus, SchoolMembership, SchoolRole
+from platform_team.access import PlatformCapability
 from schools.models import School, SchoolStatus, SchoolType
 from students.models import Student, StudentStatus
 from subscriptions.access import effective_status, live_subscription, subscription_state
@@ -82,7 +90,79 @@ def _sum_for_school(model, field: str):
     )
 
 
-def _platform_school_queryset():
+def _latest_subscription_annotations(now):
+    latest = SchoolSubscription.objects.filter(school_id=OuterRef("pk")).order_by(
+        "-starts_at", "-id"
+    )
+    annotations = {
+        "platform_subscription_id": Subquery(latest.values("id")[:1]),
+        "platform_stored_status": Subquery(
+            latest.values("status")[:1], output_field=CharField()
+        ),
+        "platform_plan_code": Subquery(
+            latest.values("plan__code")[:1], output_field=CharField()
+        ),
+        "platform_ends_at": Subquery(
+            latest.values("ends_at")[:1], output_field=DateTimeField()
+        ),
+        "platform_trial_ends_at": Subquery(
+            latest.values("trial_ends_at")[:1], output_field=DateTimeField()
+        ),
+        "platform_grace_ends_at": Subquery(
+            latest.values("grace_ends_at")[:1], output_field=DateTimeField()
+        ),
+    }
+    effective = Case(
+        When(
+            platform_stored_status=SubscriptionStatus.SUSPENDED,
+            then=Value(SubscriptionStatus.SUSPENDED),
+        ),
+        When(
+            platform_stored_status=SubscriptionStatus.CANCELLED,
+            then=Value(SubscriptionStatus.CANCELLED),
+        ),
+        When(
+            platform_stored_status=SubscriptionStatus.EXPIRED,
+            then=Value(SubscriptionStatus.EXPIRED),
+        ),
+        When(
+            Q(platform_stored_status=SubscriptionStatus.TRIAL)
+            & (
+                Q(platform_trial_ends_at__gt=now)
+                | Q(platform_trial_ends_at__isnull=True, platform_ends_at__gt=now)
+            ),
+            then=Value(SubscriptionStatus.TRIAL),
+        ),
+        When(
+            Q(
+                platform_stored_status__in=[
+                    SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.GRACE_PERIOD,
+                ]
+            )
+            & Q(platform_ends_at__gt=now),
+            then=Value(SubscriptionStatus.ACTIVE),
+        ),
+        When(platform_grace_ends_at__gt=now, then=Value(SubscriptionStatus.GRACE_PERIOD)),
+        When(platform_stored_status__isnull=False, then=Value(SubscriptionStatus.EXPIRED)),
+        default=Value(None),
+        output_field=CharField(),
+    )
+    return annotations, effective
+
+
+def _entitlement_limit(key: str):
+    from subscriptions.models import SubscriptionEntitlement
+
+    query = SubscriptionEntitlement.objects.filter(
+        subscription_id=OuterRef("platform_subscription_id"), key=key
+    ).values("numeric_value")[:1]
+    return Subquery(query, output_field=IntegerField())
+
+
+def _platform_school_queryset(*, include_usage: bool = True):
+    now = dj_timezone.now()
+    subscription_annotations, effective = _latest_subscription_annotations(now)
     subscriptions = (
         SchoolSubscription.objects.select_related("plan")
         .prefetch_related("entitlements")
@@ -96,8 +176,22 @@ def _platform_school_queryset():
         .select_related("user")
         .distinct()
     )
+    schools = School.objects.annotate(**subscription_annotations).annotate(
+        platform_effective_status=effective,
+        platform_access_ends_at=Case(
+            When(
+                platform_effective_status=SubscriptionStatus.GRACE_PERIOD,
+                then=F("platform_grace_ends_at"),
+            ),
+            default=F("platform_ends_at"),
+            output_field=DateTimeField(),
+        ),
+    )
+    if not include_usage:
+        return schools.order_by("name")
+
     return (
-        School.objects.annotate(
+        schools.annotate(
             platform_active_students=_count_for_school(
                 Student, status=StudentStatus.ACTIVE
             ),
@@ -111,6 +205,10 @@ def _platform_school_queryset():
                 AbsenceExcuseAttachment, "size_bytes"
             ),
             platform_document_bytes=_sum_for_school(GeneratedDocument, "size_bytes"),
+            platform_max_students=_entitlement_limit("MAX_STUDENTS"),
+            platform_max_staff=_entitlement_limit("MAX_STAFF"),
+            platform_max_devices=_entitlement_limit("MAX_DEVICES"),
+            platform_max_storage_gb=_entitlement_limit("MAX_STORAGE_GB"),
         )
         .prefetch_related(
             Prefetch("subscriptions", queryset=subscriptions, to_attr="prefetched_subscriptions"),
@@ -151,6 +249,10 @@ def _plan_payload(plan: SaaSPlan) -> dict:
 
 
 class PlanListView(PlatformAPIView):
+    platform_capabilities_by_method = {
+        "GET": PlatformCapability.PLANS_VIEW,
+        "POST": PlatformCapability.PLANS_MANAGE,
+    }
     class InputSerializer(serializers.Serializer):
         code = serializers.SlugField(max_length=40)
         name_ar = serializers.CharField(max_length=100)
@@ -185,6 +287,11 @@ class PlanListView(PlatformAPIView):
 
 
 class PlanDetailView(PlatformAPIView):
+    platform_capabilities_by_method = {
+        "GET": PlatformCapability.PLANS_VIEW,
+        "PATCH": PlatformCapability.PLANS_MANAGE,
+        "DELETE": PlatformCapability.PLANS_MANAGE,
+    }
     class PatchSerializer(serializers.Serializer):
         name_ar = serializers.CharField(max_length=100, required=False)
         name_en = serializers.CharField(max_length=100, required=False, allow_blank=True)
@@ -303,6 +410,10 @@ def _school_row(school: School) -> dict:
 
 
 class SchoolListView(PlatformAPIView):
+    platform_capabilities_by_method = {
+        "GET": PlatformCapability.SCHOOLS_VIEW,
+        "POST": PlatformCapability.SCHOOLS_MANAGE,
+    }
     class InputSerializer(serializers.Serializer):
         school_name = serializers.CharField(max_length=200)
         school_type = serializers.ChoiceField(choices=SchoolType.choices)
@@ -330,34 +441,47 @@ class SchoolListView(PlatformAPIView):
         over_limit_filter = request.query_params.get("over_limit", "").lower() in {
             "1", "true", "yes",
         }
-        rows = [_school_row(school) for school in schools]
         if status_filter:
-            rows = [row for row in rows if row["subscription_status"] == status_filter]
+            schools = schools.filter(platform_effective_status=status_filter)
         if plan_filter:
-            rows = [row for row in rows if row["plan"] == plan_filter]
+            schools = schools.filter(platform_plan_code=plan_filter)
         if trial_filter:
-            rows = [row for row in rows if row["subscription_status"] == SubscriptionStatus.TRIAL]
+            schools = schools.filter(platform_effective_status=SubscriptionStatus.TRIAL)
         if expires_filter:
+            now = dj_timezone.now()
             soon = dj_timezone.now() + dj_timezone.timedelta(days=EXPIRING_SOON_DAYS)
-            rows = [
-                row
-                for row in rows
-                if row["_access_ends_at"] is not None
-                and dj_timezone.now() <= row["_access_ends_at"] <= soon
-            ]
+            schools = schools.filter(
+                platform_effective_status__in=[
+                    SubscriptionStatus.TRIAL,
+                    SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.GRACE_PERIOD,
+                ],
+                platform_access_ends_at__gte=now,
+                platform_access_ends_at__lte=soon,
+            )
         if over_limit_filter:
-            rows = [
-                row
-                for row in rows
-                if any(entry["over_limit"] for entry in row["usage"].values())
-            ]
-
-        for row in rows:
-            row.pop("_access_ends_at", None)
+            storage_bytes = F("platform_attachment_bytes") + F("platform_document_bytes")
+            storage_limit_bytes = ExpressionWrapper(
+                Cast(F("platform_max_storage_gb"), BigIntegerField())
+                * Value(1024**3, output_field=BigIntegerField()),
+                output_field=BigIntegerField(),
+            )
+            schools = schools.filter(
+                Q(platform_active_students__gt=F("platform_max_students"))
+                | Q(platform_active_staff__gt=F("platform_max_staff"))
+                | Q(platform_active_devices__gt=F("platform_max_devices"))
+                | (
+                    Q(platform_max_storage_gb__isnull=False)
+                    & Q(GreaterThan(storage_bytes, storage_limit_bytes))
+                )
+            )
 
         paginator = DefaultPagination()
-        page = paginator.paginate_queryset(rows, request)
-        return paginator.get_paginated_response(page)
+        page = paginator.paginate_queryset(schools, request)
+        rows = [_school_row(school) for school in page]
+        for row in rows:
+            row.pop("_access_ends_at", None)
+        return paginator.get_paginated_response(rows)
 
     def post(self, request: Request) -> Response:
         serializer = self.InputSerializer(data=request.data)
@@ -380,6 +504,11 @@ class SchoolListView(PlatformAPIView):
 
 
 class SchoolDetailView(PlatformAPIView):
+    platform_capabilities_by_method = {
+        "GET": PlatformCapability.SCHOOLS_VIEW,
+        "PATCH": PlatformCapability.SCHOOLS_MANAGE,
+        "DELETE": PlatformCapability.SCHOOLS_MANAGE,
+    }
     class PatchSerializer(serializers.Serializer):
         name = serializers.CharField(max_length=200, required=False)
         school_status = serializers.ChoiceField(
@@ -458,6 +587,10 @@ class SchoolDetailView(PlatformAPIView):
 
 
 class SchoolManagersView(PlatformAPIView):
+    platform_capabilities_by_method = {
+        "GET": PlatformCapability.SCHOOLS_VIEW,
+        "POST": PlatformCapability.SCHOOL_ACCOUNTS_MANAGE,
+    }
     class InputSerializer(serializers.Serializer):
         name = serializers.CharField(max_length=150)
         mobile = serializers.CharField(max_length=20)
@@ -491,9 +624,13 @@ class SchoolManagersView(PlatformAPIView):
 
 
 class SchoolManagerDetailView(PlatformAPIView):
+    platform_capability = PlatformCapability.SCHOOL_ACCOUNTS_MANAGE
     class PatchSerializer(serializers.Serializer):
         name = serializers.CharField(max_length=150, required=False)
         mobile = serializers.CharField(max_length=20, required=False)
+        confirm_shared_account_impact = serializers.BooleanField(
+            required=False, default=False, write_only=True
+        )
 
         def validate_mobile(self, value):
             try:
@@ -502,7 +639,7 @@ class SchoolManagerDetailView(PlatformAPIView):
                 raise serializers.ValidationError(exc.messages[0]) from exc
 
         def validate(self, attrs):
-            if not attrs:
+            if not {key for key in attrs if key != "confirm_shared_account_impact"}:
                 raise serializers.ValidationError("أرسل حقلًا واحدًا على الأقل.")
             return attrs
 
@@ -517,20 +654,36 @@ class SchoolManagerDetailView(PlatformAPIView):
             request=request,
             name=serializer.validated_data.get("name"),
             mobile=serializer.validated_data.get("mobile"),
+            confirm_shared_account_impact=serializer.validated_data[
+                "confirm_shared_account_impact"
+            ],
         )
         return Response(school_account_service.manager_payload(membership))
 
 
 class SchoolManagerActionView(PlatformAPIView):
+    platform_capability = PlatformCapability.SCHOOL_ACCOUNTS_MANAGE
+    class SharedAccountConfirmationSerializer(serializers.Serializer):
+        confirm_shared_account_impact = serializers.BooleanField(
+            required=False, default=False
+        )
+
     def post(
         self, request: Request, school_id: int, membership_id: int, action: str
     ) -> Response:
         school = get_object_or_404(School, id=school_id)
         membership = school_account_service.get_manager(school, membership_id)
         if action == "reset-password":
+            serializer = self.SharedAccountConfirmationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
             return Response(
                 school_account_service.reset_manager_password(
-                    membership=membership, actor=request.user, request=request
+                    membership=membership,
+                    actor=request.user,
+                    request=request,
+                    confirm_shared_account_impact=serializer.validated_data[
+                        "confirm_shared_account_impact"
+                    ],
                 )
             )
 
@@ -557,6 +710,7 @@ class SchoolManagerActionView(PlatformAPIView):
 
 
 class SchoolUsageView(PlatformAPIView):
+    platform_capability = PlatformCapability.SCHOOLS_VIEW
     def get(self, request: Request, school_id: int) -> Response:
         school = get_object_or_404(School, id=school_id)
         return Response(get_school_usage(school))
@@ -583,6 +737,7 @@ def _subscription_payload(subscription: SchoolSubscription) -> dict:
 
 
 class SubscriptionView(PlatformAPIView):
+    platform_capability = PlatformCapability.SCHOOLS_VIEW
     def get(self, request: Request, school_id: int) -> Response:
         school = get_object_or_404(School, id=school_id)
         subscriptions = SchoolSubscription.objects.filter(school=school).select_related("plan")
@@ -596,6 +751,7 @@ class SubscriptionView(PlatformAPIView):
 
 
 class SubscriptionActionView(PlatformAPIView):
+    platform_capability = PlatformCapability.SUBSCRIPTIONS_MANAGE
     """كل انتقال إجراء صريح — لا PATCH يغيّر الحالة مباشرة (بند 147)."""
 
     class ActionSerializer(serializers.Serializer):
@@ -652,6 +808,7 @@ class SubscriptionActionView(PlatformAPIView):
 
 
 class SubscriptionEventsView(PlatformAPIView):
+    platform_capability = PlatformCapability.SCHOOLS_VIEW
     def get(self, request: Request, school_id: int) -> Response:
         school = get_object_or_404(School, id=school_id)
         events = school.subscription_events.select_related("actor")[:100]
@@ -670,6 +827,7 @@ class SubscriptionEventsView(PlatformAPIView):
 
 
 class PlanChangePreviewView(PlatformAPIView):
+    platform_capability = PlatformCapability.SUBSCRIPTIONS_MANAGE
     """معاينة أثر تغيير الباقة قبل التنفيذ — لا تغيير صامت (بنود 85-87)."""
 
     def get(self, request: Request, school_id: int) -> Response:
@@ -709,23 +867,11 @@ class PlanChangePreviewView(PlatformAPIView):
 
 
 class PlatformOverviewView(PlatformAPIView):
+    platform_capability = PlatformCapability.DASHBOARD_VIEW
     def get(self, request: Request) -> Response:
         now = dj_timezone.now()
         soon = now + dj_timezone.timedelta(days=EXPIRING_SOON_DAYS)
-        current = list(
-            SchoolSubscription.objects.select_related("school", "plan")
-            .order_by("school_id", "-starts_at", "-id")
-            .distinct("school_id")
-        )
-        totals = {
-            "trial": 0,
-            "active": 0,
-            "grace": 0,
-            "expired": 0,
-            "suspended": 0,
-            "cancelled": 0,
-        }
-        expiring = []
+        schools = _platform_school_queryset(include_usage=False)
         status_keys = {
             SubscriptionStatus.TRIAL: "trial",
             SubscriptionStatus.ACTIVE: "active",
@@ -734,25 +880,25 @@ class PlatformOverviewView(PlatformAPIView):
             SubscriptionStatus.SUSPENDED: "suspended",
             SubscriptionStatus.CANCELLED: "cancelled",
         }
-        for row in current:
-            status_value = effective_status(row, now=now)
-            totals[status_keys[status_value]] += 1
-            access_end = (
-                row.grace_ends_at
-                if status_value == SubscriptionStatus.GRACE_PERIOD and row.grace_ends_at
-                else row.ends_at
-            )
-            if status_value in {
+        aggregate = schools.aggregate(
+            **{
+                key: Count("id", filter=Q(platform_effective_status=status_value))
+                for status_value, key in status_keys.items()
+            }
+        )
+        expiring = schools.filter(
+            platform_effective_status__in=[
                 SubscriptionStatus.TRIAL,
                 SubscriptionStatus.ACTIVE,
                 SubscriptionStatus.GRACE_PERIOD,
-            } and now <= access_end <= soon:
-                expiring.append((access_end, row))
-        expiring.sort(key=lambda value: value[0])
+            ],
+            platform_access_ends_at__gte=now,
+            platform_access_ends_at__lte=soon,
+        ).order_by("platform_access_ends_at")[:20]
         return Response(
             {
                 "schools_total": School.objects.count(),
-                "subscriptions": totals,
+                "subscriptions": aggregate,
                 "usage_totals": {
                     "active_students": Student.objects.filter(
                         status=StudentStatus.ACTIVE
@@ -764,19 +910,20 @@ class PlatformOverviewView(PlatformAPIView):
                 },
                 "expiring_soon": [
                     {
-                        "school_id": row.school_id,
-                        "school_name": row.school.name,
-                        "plan": row.plan.code,
-                        "ends_at": access_end.isoformat(),
-                        "days_remaining": max((access_end - now).days, 0),
+                        "school_id": row.id,
+                        "school_name": row.name,
+                        "plan": row.platform_plan_code,
+                        "ends_at": row.platform_access_ends_at.isoformat(),
+                        "days_remaining": max((row.platform_access_ends_at - now).days, 0),
                     }
-                    for access_end, row in expiring[:20]
+                    for row in expiring
                 ],
             }
         )
 
 
 class EntitlementOverrideView(PlatformAPIView):
+    platform_capability = PlatformCapability.SUBSCRIPTIONS_MANAGE
     class InputSerializer(serializers.Serializer):
         key = serializers.CharField(max_length=32)
         numeric_value = serializers.IntegerField(required=False, allow_null=True)

@@ -5,7 +5,13 @@ from datetime import date
 import pytest
 
 from academics.models import AcademicYear, AcademicYearStatus
-from students.models import EnrollmentStatus, Student, StudentEnrollment
+from students.models import (
+    EnrollmentStatus,
+    ImportJobStatus,
+    Student,
+    StudentEnrollment,
+    StudentImportJob,
+)
 from tests.xlsx_helper import (
     build_noor_report_upload,
     build_official_noor_upload,
@@ -37,6 +43,23 @@ def process(client, job_id, mapping=None):
     return client.post(
         f"{IMPORTS_URL}{job_id}/process/", body, content_type="application/json"
     )
+
+
+@pytest.mark.django_db
+def test_second_processing_import_returns_conflict_instead_of_database_error(import_manager):
+    client, school, _ = import_manager
+    first = upload(client, [noor_row("1012345601", "الطالب الأول")]).json()
+    second = upload(client, [noor_row("1012345602", "الطالب الثاني")]).json()
+    StudentImportJob.objects.filter(id=first["id"]).update(status=ImportJobStatus.PROCESSING)
+
+    response = process(client, second["id"])
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "IMPORT_ALREADY_RUNNING"
+    assert StudentImportJob.objects.get(id=second["id"]).status == ImportJobStatus.UPLOADED
+    assert StudentImportJob.objects.filter(
+        school=school, status=ImportJobStatus.PROCESSING
+    ).count() == 1
 
 
 def run_import(client, rows):

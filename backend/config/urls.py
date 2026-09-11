@@ -28,7 +28,6 @@ class DocsView(_DynamicServePermissionsMixin, SpectacularSwaggerView):
 
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("api/v1/", include("common.urls")),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/session/", include("memberships.urls")),
@@ -47,10 +46,17 @@ urlpatterns = [
     path("api/v1/", include("counseling.urls")),
     path("api/v1/", include("school_dashboard.urls")),
     path("api/v1/", include("subscriptions.urls")),
+    path("api/v1/platform/", include("platform_team.urls")),
     path("api/v1/platform/", include("operations.urls")),
     path("api/v1/schema/", SchemaView.as_view(), name="schema"),
     path("api/v1/docs/", DocsView.as_view(url_name="schema"), name="docs"),
 ]
+
+# The generic Django admin is intentionally absent from production by default:
+# platform operations use the audited API and tenant data must not gain a
+# second, globally-scoped access path.
+if settings.DJANGO_ADMIN_ENABLED:
+    urlpatterns.insert(0, path("admin/", admin.site.urls))
 
 # Media للتطوير فقط (شعارات المدارس) — الإنتاج عبر Object Storage لاحقًا
 if settings.DEBUG:

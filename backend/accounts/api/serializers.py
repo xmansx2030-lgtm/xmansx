@@ -57,11 +57,18 @@ def build_me_payload(
     invitations=(),
 ) -> dict:
     """الاستجابة الموحدة لـ /me وlogin وswitch — لا حقول حساسة (hash/permissions داخلية)."""
+    from platform_team.access import get_platform_access
+
+    platform_access = get_platform_access(user)
     return {
         "id": user.id,
         "mobile": user.mobile,
         "name": user.display_name,
-        "is_platform_admin": user.is_platform_admin,
+        "is_platform_admin": platform_access["is_platform_user"],
+        "is_platform_owner": platform_access["is_owner"],
+        "platform_role": platform_access["role"],
+        "platform_role_label": platform_access["role_label"],
+        "platform_capabilities": platform_access["capabilities"],
         "must_change_password": user.must_change_password,
         "active_school": (
             serialize_school(active_membership.school) if active_membership else None

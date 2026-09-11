@@ -12,8 +12,9 @@ def test_me_query_count_constant_regardless_of_schools(
         make_membership(user, make_school(), ["TEACHER", "COUNSELOR"])
     client, _ = login_client("0550000400")
 
-    # session + user + memberships(select_related school) + roles(prefetch) — بلا نمو خطي
-    with django_assert_max_num_queries(6):
+    # session + user + platform access + memberships/select_related + two prefetches.
+    # The count remains constant regardless of the number of schools.
+    with django_assert_max_num_queries(7):
         response = client.get("/api/v1/auth/me/")
     assert response.status_code == 200
     assert len(response.json()["memberships"]) == 4

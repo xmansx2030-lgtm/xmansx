@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from common.tenant_rls import tenant_context
 from operations.restore_verification import capture_restore_manifest, write_manifest
 
 
@@ -14,8 +15,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            manifest = capture_restore_manifest(options["school_slug"])
-            write_manifest(options["output"], manifest)
+            with tenant_context(bypass=True):
+                manifest = capture_restore_manifest(options["school_slug"])
+                write_manifest(options["output"], manifest)
         except Exception as exc:
             raise CommandError(f"restore manifest capture failed: {type(exc).__name__}") from exc
         self.stdout.write(self.style.SUCCESS("restore verification manifest captured"))

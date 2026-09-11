@@ -1,0 +1,286 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+#
+# Scalable cutover target. This is intentionally separate from render.yaml:
+# switching away from its attached disk requires copying private media/backups
+# to R2 first. See docs/SCALABLE_PRODUCTION_CUTOVER.md.
+
+services:
+  - type: keyvalue
+    name: xmansx-scalable-redis
+    region: frankfurt
+    plan: 1g
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+  - type: pserv
+    name: xmansx-scalable-core
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 1c-2g
+    numInstances: 2
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: gunicorn config.wsgi:application --config config/gunicorn.conf.py
+    preDeployCommand: python manage.py migrate --noinput
+    initialDeployHook: python manage.py bootstrap_platform_admin
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: PORT
+        value: "8000"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: xmansx-web.onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://xmansx-web.onrender.com
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DJANGO_HSTS_SECONDS
+        value: "2592000"
+      - key: DJANGO_ADMIN_ENABLED
+        value: "false"
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-redis
+          property: connectionString
+      - key: FIELD_ENCRYPTION_KEYS
+        generateValue: true
+      - key: NATIONAL_ID_HMAC_KEY
+        generateValue: true
+      - key: INITIAL_ADMIN_MOBILE
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: INITIAL_ADMIN_NAME
+        value: مشرف المنصة
+      - key: R2_ENABLED
+        value: "true"
+      - key: R2_ENDPOINT_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PRIVATE_BUCKET_NAME
+        sync: false
+      - key: R2_BACKUP_BUCKET_NAME
+        sync: false
+      - key: DATABASE_BACKUP_ROOT
+        value: /tmp/backup-staging
+      - key: BACKUP_ENVIRONMENT
+        value: render-scalable-production
+      - key: BACKUP_REMOTE_ENABLED
+        value: "true"
+      - key: BACKUP_REQUIRE_REMOTE
+        value: "true"
+      - key: BACKUP_SCHEDULE_ENABLED
+        value: "true"
+      - key: GUNICORN_WORKERS
+        value: "3"
+      - key: GUNICORN_THREADS
+        value: "1"
+      - key: GUNICORN_TIMEOUT
+        value: "60"
+      - key: PDF_RENDER_CONCURRENCY
+        value: "2"
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+  - type: worker
+    name: xmansx-import-worker
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 1c-2g
+    numInstances: 2
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: >-
+      celery -A config worker --loglevel=info --queues=imports
+      --concurrency=3 --pool=prefork --max-tasks-per-child=100 --hostname=imports@%h
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 300
+    envVars: &worker-env
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: DJANGO_SECRET_KEY
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: DJANGO_ALLOWED_HOSTS
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: DJANGO_CSRF_TRUSTED_ORIGINS
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: xmansx-scalable-postgres
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-redis
+          property: connectionString
+      - key: FIELD_ENCRYPTION_KEYS
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: FIELD_ENCRYPTION_KEYS
+      - key: NATIONAL_ID_HMAC_KEY
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: NATIONAL_ID_HMAC_KEY
+      - key: R2_ENABLED
+        value: "true"
+      - key: R2_ENDPOINT_URL
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: R2_ENDPOINT_URL
+      - key: R2_ACCESS_KEY_ID
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: R2_ACCESS_KEY_ID
+      - key: R2_SECRET_ACCESS_KEY
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: R2_SECRET_ACCESS_KEY
+      - key: R2_PRIVATE_BUCKET_NAME
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: R2_PRIVATE_BUCKET_NAME
+      - key: R2_BACKUP_BUCKET_NAME
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          envVarKey: R2_BACKUP_BUCKET_NAME
+      - key: DATABASE_BACKUP_ROOT
+        value: /tmp/backup-staging
+      - key: BACKUP_ENVIRONMENT
+        value: render-scalable-production
+      - key: BACKUP_REMOTE_ENABLED
+        value: "true"
+      - key: BACKUP_REQUIRE_REMOTE
+        value: "true"
+      - key: BACKUP_SCHEDULE_ENABLED
+        value: "true"
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+  - type: worker
+    name: xmansx-maintenance-worker
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 0.5c-512mb
+    numInstances: 1
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: >-
+      celery -A config worker --loglevel=info --queues=celery,maintenance
+      --concurrency=1 --pool=solo --hostname=maintenance@%h
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 300
+    envVars: *worker-env
+
+  - type: worker
+    name: xmansx-beat
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 0.5c-512mb
+    numInstances: 1
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: celery -A config beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    autoDeployTrigger: checksPass
+    envVars: *worker-env
+
+  - type: web
+    name: xmansx-scalable-web
+    runtime: docker
+    repo: https://github.com/xmansx2030-lgtm/xmansx.git
+    branch: main
+    region: frankfurt
+    plan: 0.5c-512mb
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/v1/readiness/
+    envVars:
+      - key: BACKEND_HOSTPORT
+        fromService:
+          type: pserv
+          name: xmansx-scalable-core
+          property: hostport
+      - key: PUBLIC_SCHEME
+        value: https
+
+databases:
+  - name: xmansx-scalable-postgres
+    region: frankfurt
+    plan: 1c-2g
+    postgresMajorVersion: "18"
+    databaseName: xmansx
+    user: xmansx
+    diskSizeGB: 50
+    storageAutoscalingEnabled: true
+    highAvailability:
+      enabled: true
+    ipAllowList: []

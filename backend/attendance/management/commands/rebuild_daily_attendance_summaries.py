@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 from django.core.management.base import BaseCommand, CommandError
 
+from common.tenant_rls import tenant_context
 from schools.models import School
 
 
@@ -39,35 +40,39 @@ class Command(BaseCommand):
         else:
             raise CommandError("حدد --date أو (--from و --to).")
 
-        schools = School.objects.all()
-        if options["school_slug"]:
-            schools = schools.filter(slug=options["school_slug"])
-            if not schools.exists():
-                raise CommandError("مدرسة غير موجودة.")
+        with tenant_context(bypass=True):
+            schools_query = School.objects.all()
+            if options["school_slug"]:
+                schools_query = schools_query.filter(slug=options["school_slug"])
+            schools = list(schools_query)
+        if options["school_slug"] and not schools:
+            raise CommandError("مدرسة غير موجودة.")
 
         total_rows = 0
         for school in schools:
-            for target_date in dates:
-                # الفصول ذات جلسات ذلك اليوم — ما بلا جلسات يبقى بلا صفوف (ناقص بالتعريف)
-                section_ids = (
-                    AttendanceSession.objects.filter(
+            with tenant_context(school_id=school.id):
+                for target_date in dates:
+                    # الفصول ذات جلسات ذلك اليوم — ما بلا جلسات يبقى بلا صفوف
+                    section_ids = (
+                        AttendanceSession.objects.filter(
+                            school=school, attendance_date=target_date
+                        )
+                        .values_list("section_id", flat=True)
+                        .distinct()
+                    )
+                    from excuses.services.coverage import (
+                        reconcile_excuse_coverage_for_date,
+                    )
+                    from students.models import Section
+
+                    # أداة الإصلاح تصلح التغطية قبل إعادة خبزها في الملخصات.
+                    reconcile_excuse_coverage_for_date(
                         school=school, attendance_date=target_date
                     )
-                    .values_list("section_id", flat=True)
-                    .distinct()
-                )
-                from excuses.services.coverage import (
-                    reconcile_excuse_coverage_for_date,
-                )
-                from students.models import Section
-
-                # أداة الإصلاح يجب أن تصلح التغطية أيضًا: إعادة الحساب وحدها تعيد
-                # خبز تغطية قديمة في الملخصات بدل تصحيحها (نفس ترتيب مسار الاعتماد)
-                reconcile_excuse_coverage_for_date(
-                    school=school, attendance_date=target_date
-                )
-                for section in Section.objects.filter(id__in=list(section_ids)):
-                    total_rows += recalculate_daily_attendance_for_section(
-                        school=school, section=section, attendance_date=target_date
-                    )
+                    for section in Section.objects.filter(id__in=list(section_ids)):
+                        total_rows += recalculate_daily_attendance_for_section(
+                            school=school,
+                            section=section,
+                            attendance_date=target_date,
+                        )
         self.stdout.write(self.style.SUCCESS(f"rebuilt rows: {total_rows}"))

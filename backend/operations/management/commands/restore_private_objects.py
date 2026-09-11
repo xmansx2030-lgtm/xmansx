@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from common.tenant_rls import tenant_context
 from operations.storage_integrity import restore_private_objects
 
 
@@ -17,7 +18,10 @@ class Command(BaseCommand):
         if not options["confirm_restore"]:
             raise CommandError("--confirm-restore is required")
         try:
-            result = restore_private_objects(options["source"], overwrite=options["overwrite"])
+            with tenant_context(bypass=True):
+                result = restore_private_objects(
+                    options["source"], overwrite=options["overwrite"]
+                )
         except (OSError, RuntimeError, ValueError, KeyError) as exc:
             raise CommandError(f"private object restore failed: {type(exc).__name__}") from exc
         self.stdout.write(

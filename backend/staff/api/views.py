@@ -6,6 +6,7 @@ COUNSELOR/TEACHER محجوبان. التفاصيل بالجوال الكامل �
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework import status as http_status
@@ -505,7 +506,21 @@ class StaffImportProcessView(SchoolScopedAPIView):
         job.column_mapping = mapping
         job.status = StaffImportStatus.PROCESSING
         job.error_code = ""
-        job.save(update_fields=["column_mapping", "status", "error_code", "updated_at"])
+        try:
+            with transaction.atomic():
+                job.save(
+                    update_fields=["column_mapping", "status", "error_code", "updated_at"]
+                )
+        except IntegrityError as exc:
+            if StaffImportJob.objects.filter(
+                school=request.school, status=StaffImportStatus.PROCESSING
+            ).exclude(id=job.id).exists():
+                raise ApiError(
+                    "IMPORT_ALREADY_RUNNING",
+                    "يوجد استيراد موظفين آخر قيد التنفيذ لهذه المدرسة.",
+                    409,
+                ) from exc
+            raise
         process_staff_import_job.delay(job.id)
         return Response(_serialize_job(job), status=http_status.HTTP_202_ACCEPTED)
 
