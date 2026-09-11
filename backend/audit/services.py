@@ -2,9 +2,11 @@
 
 import logging
 
+from django.conf import settings
 from django.http import HttpRequest
 
 from audit.models import AuditLog
+from common.tenant_rls import tenant_context
 
 logger = logging.getLogger("xmansx.audit")
 
@@ -45,14 +47,24 @@ def record_event(
             if request.user.is_authenticated:
                 actor = request.user
 
-    return AuditLog.objects.create(
-        action=action,
-        actor=actor,
-        school=school,
-        target_type=target_type,
-        target_id=str(target_id),
-        metadata=metadata,
-        request_id=request_id,
-        ip_address=ip,
-        user_agent=user_agent,
-    )
+    event = {
+        "action": action,
+        "actor": actor,
+        "school": school,
+        "target_type": target_type,
+        "target_id": str(target_id),
+        "metadata": metadata,
+        "request_id": request_id,
+        "ip_address": ip,
+        "user_agent": user_agent,
+    }
+
+    if settings.DATABASE_RLS_ENFORCED and school is None:
+        # Login and platform events have no tenant yet. PostgreSQL applies the
+        # SELECT policy to Django's INSERT ... RETURNING, so use a tightly
+        # scoped bypass for this single write and immediately restore context.
+        # School-owned events never take this path and remain tenant-enforced.
+        with tenant_context(bypass=True):
+            return AuditLog.objects.create(**event)
+
+    return AuditLog.objects.create(**event)

@@ -18,6 +18,9 @@ describe("LoginPage", () => {
     expect(await screen.findByLabelText("رقم الجوال")).toBeInTheDocument();
     expect(screen.getByLabelText("كلمة المرور")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "تواصل معنا عبر واتساب على الرقم 0537720207" }),
+    ).toHaveAttribute("href", "https://wa.me/966537720207");
   });
 
   it("validates mobile before calling the API", async () => {

@@ -4,6 +4,8 @@ import pytest
 from django.db import DatabaseError, connection, transaction
 from django.test import override_settings
 
+from audit.models import AuditAction, AuditLog
+from audit.services import record_event
 from common.health import _check_database
 from common.tenant_rls import clear_tenant_context, tenant_context
 from students.models import Grade, Section, Student
@@ -72,6 +74,55 @@ def test_postgres_rls_fails_closed_and_isolates_each_school(
                 student_a.id,
                 student_b.id,
             }
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute("RESET ROLE")
+            cursor.execute(f"DROP OWNED BY {quoted_role}")
+            cursor.execute(f"DROP ROLE IF EXISTS {quoted_role}")
+        clear_tenant_context()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_postgres_rls_accepts_global_audit_writes_but_hides_them_from_tenants(
+    make_school,
+):
+    school = make_school("مدرسة سجل التدقيق")
+    role_name = f"audit_rls_test_{uuid4().hex}"
+    quoted_role = connection.ops.quote_name(role_name)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"CREATE ROLE {quoted_role} NOSUPERUSER NOBYPASSRLS")
+            cursor.execute(f"GRANT USAGE ON SCHEMA public TO {quoted_role}")
+            cursor.execute(f"GRANT SELECT, INSERT ON audit_auditlog TO {quoted_role}")
+            cursor.execute(
+                f"GRANT USAGE, SELECT ON SEQUENCE audit_auditlog_id_seq TO {quoted_role}"
+            )
+            cursor.execute(f"SET ROLE {quoted_role}")
+
+        clear_tenant_context()
+        # A raw global INSERT cannot pass INSERT ... RETURNING because tenant
+        # reads deliberately hide global authentication events.
+        with pytest.raises(DatabaseError, match="row-level security policy"):
+            with transaction.atomic():
+                AuditLog.objects.create(action=AuditAction.LOGIN_FAILED)
+
+        clear_tenant_context()
+        with override_settings(DATABASE_RLS_ENFORCED=True):
+            global_event = record_event(AuditAction.LOGIN_FAILED)
+
+        # School sessions cannot read global authentication events.
+        with tenant_context(school_id=school.id):
+            assert not AuditLog.objects.filter(id=global_event.id).exists()
+            with override_settings(DATABASE_RLS_ENFORCED=True):
+                school_event = record_event(AuditAction.LOGIN_SUCCESS, school=school)
+            assert list(AuditLog.objects.values_list("id", flat=True)) == [school_event.id]
+
+        # Missing tenant scope cannot forge a school-owned audit row.
+        clear_tenant_context()
+        with pytest.raises(DatabaseError, match="row-level security policy"):
+            with transaction.atomic():
+                with override_settings(DATABASE_RLS_ENFORCED=True):
+                    record_event(AuditAction.LOGIN_SUCCESS, school=school)
     finally:
         with connection.cursor() as cursor:
             cursor.execute("RESET ROLE")
