@@ -28,6 +28,7 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Modal } from "@/components/Modal";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { TextField } from "@/components/TextField";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
@@ -105,40 +106,27 @@ export function StaffPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-blue-950 p-5 text-white shadow-xl shadow-slate-900/10 sm:p-7">
-        <div aria-hidden className="absolute -left-12 -top-20 size-52 rounded-full bg-blue-500/15 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-          <div className="flex items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-blue-200 ring-1 ring-white/15">
-              <UsersRound aria-hidden size={25} />
-            </span>
-            <div>
-              <p className="text-xs font-bold text-blue-200">إدارة المدرسة</p>
-              <h1 className="mt-1 text-2xl font-black sm:text-3xl">موظفو المدرسة</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                دليل موحد للموظفين والأدوار وحالات الوصول إلى المنصة.
-              </p>
-            </div>
-          </div>
-          {isManager ? (
-            <div className="flex flex-wrap gap-2">
+    <div className="ds-page">
+      <PageHeader
+        icon={UsersRound}
+        eyebrow="إدارة المدرسة"
+        title="موظفو المدرسة"
+        description="دليل موحد للموظفين والأدوار وحالات الوصول إلى المنصة."
+        tone="executive"
+        badge={!isManager ? <span className="inline-flex items-center gap-1.5"><CircleUserRound aria-hidden size={14} /> عرض الدليل فقط</span> : undefined}
+        actions={isManager ? (
+          <div className="flex flex-wrap gap-2">
               <Link to="/staff/import">
-                <Button variant="secondary" className="border-white/15 bg-white/10 text-white shadow-none hover:bg-white/15">
+                <Button variant="headerGhost">
                   <Upload aria-hidden size={17} /> استيراد
                 </Button>
               </Link>
-              <Button onClick={() => setManualOpen(true)} className="bg-blue-500 hover:bg-blue-400">
+              <Button variant="header" onClick={() => setManualOpen(true)}>
                 <Plus aria-hidden size={17} /> إدخال يدوي
               </Button>
-            </div>
-          ) : (
-            <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 ring-1 ring-white/10">
-              <CircleUserRound aria-hidden size={16} /> عرض الدليل فقط
-            </span>
-          )}
-        </div>
-      </header>
+          </div>
+        ) : undefined}
+      />
 
       <section aria-label="البحث والتصفية" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

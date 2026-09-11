@@ -6,9 +6,9 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { purgeSensitiveBrowserCaches } from "@/app/cacheSafety";
+import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
-import { Spinner } from "@/components/Spinner";
 import { TextField } from "@/components/TextField";
 import { safeReturnTo, withReturnTo } from "@/features/auth/returnTo";
 import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
@@ -47,7 +47,7 @@ export function LoginPage() {
 
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
-  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ mobile?: string; password?: string }>({});
 
   const loginMutation = useMutation({
     mutationFn: () => login(toInternationalMobile(mobile), password),
@@ -66,13 +66,13 @@ export function LoginPage() {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setFieldError(null);
+    setFieldErrors({});
     if (!LOCAL_MOBILE_RE.test(mobile)) {
-      setFieldError("أدخل رقم الجوال بصيغة 05XXXXXXXX المكوّنة من 10 أرقام");
+      setFieldErrors({ mobile: "أدخل رقم الجوال بصيغة 05XXXXXXXX المكوّنة من 10 أرقام" });
       return;
     }
     if (password.length === 0) {
-      setFieldError("أدخل كلمة المرور");
+      setFieldErrors({ password: "أدخل كلمة المرور" });
       return;
     }
     loginMutation.mutate();
@@ -89,7 +89,7 @@ export function LoginPage() {
             <Building2 aria-hidden size={29} className="text-teal-200" />
           </span>
           <p className="mb-3 text-sm font-bold text-teal-200">منصة مدرسية متكاملة</p>
-          <h1 className="text-xl font-black">منصة المواظبة</h1>
+          <p className="text-xl font-black">منصة المواظبة</p>
           <h2 className="mt-4 max-w-lg text-4xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
           <p className="mt-5 max-w-lg text-base leading-8 text-slate-300">مساحة عمل موحدة تساعد الإدارة والهيئة التعليمية والإرشادية على متابعة الطالب أو الطالبة واتخاذ الإجراء المناسب بثقة.</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
@@ -102,7 +102,8 @@ export function LoginPage() {
           <div className="mb-7">
             <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 lg:hidden"><Building2 aria-hidden size={24} /></span>
             <p className="mb-1 text-sm font-bold text-blue-700">مرحبًا بعودتك</p>
-            <h2 className="text-2xl font-black text-slate-900">تسجيل الدخول</h2>
+            <h1 className="text-2xl font-black text-slate-900">منصة المواظبة</h1>
+            <h2 className="mt-2 text-lg font-extrabold text-slate-700">تسجيل الدخول</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">أدخل بيانات حسابك للوصول إلى لوحة مدرستك.</p>
           </div>
 
@@ -116,7 +117,9 @@ export function LoginPage() {
             maxLength={10}
             pattern="05[0-9]{8}"
             autoComplete="tel"
+            required
             value={mobile}
+            error={fieldErrors.mobile}
             onChange={(e) => {
               const normalized = normalizeLocalMobileInput(e.target.value);
               if (normalized !== null) setMobile(normalized);
@@ -128,25 +131,18 @@ export function LoginPage() {
             label="كلمة المرور"
             name="password"
             autoComplete="current-password"
+            required
             value={password}
+            error={fieldErrors.password}
             onChange={(e) => setPassword(e.target.value)}
             className="mb-5"
           />
 
-          {fieldError && (
-            <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
-              {fieldError}
-            </p>
-          )}
           {apiError && (
-            <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
-              {apiError.message}
-            </p>
+            <Alert tone="danger" title="تعذر تسجيل الدخول" className="mb-4">{apiError.message}</Alert>
           )}
 
-          <Button type="submit" className="mt-1 w-full py-3" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? <Spinner label="جارٍ الدخول..." /> : "تسجيل الدخول"}
-          </Button>
+          <Button type="submit" size="lg" fullWidth className="mt-1" loading={loginMutation.isPending} loadingLabel="جارٍ الدخول...">تسجيل الدخول</Button>
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400"><ShieldCheck aria-hidden size={15} /> اتصال آمن ومحمي</p>
         </form>
       </div>

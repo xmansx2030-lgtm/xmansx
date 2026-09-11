@@ -81,10 +81,10 @@ function SchoolInfoForm({
   const staff = initial.staff;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
       >
         <div className="mb-5 flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 aria-hidden size={20} /></span>
@@ -171,7 +171,7 @@ function SchoolInfoForm({
         )}
       </form>
 
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><ImagePlus aria-hidden size={20} /></span><div><h3 className="font-bold">شعار المدرسة</h3><p className="text-xs text-slate-500">يستخدم في المستندات والتقارير.</p></div></div>
           {initial.logo_url ? (
@@ -189,6 +189,7 @@ function SchoolInfoForm({
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                aria-label="ملف شعار المدرسة"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

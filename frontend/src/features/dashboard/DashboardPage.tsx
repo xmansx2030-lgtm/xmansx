@@ -27,6 +27,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
@@ -188,37 +189,23 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-5" data-testid="dashboard-page">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-blue-950 p-5 text-white shadow-xl shadow-slate-950/10 sm:p-7">
-        <div aria-hidden className="absolute -left-16 -top-20 size-64 rounded-full bg-blue-500/20 blur-3xl" />
-        <div aria-hidden className="absolute -bottom-24 right-1/3 size-52 rounded-full bg-teal-400/10 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div className="flex items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-blue-200 ring-1 ring-white/15">
-              <Sparkles aria-hidden size={24} />
-            </span>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-bold text-blue-200">مركز قيادة المدرسة</p>
-                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-200 ring-1 ring-white/10">{workspaceRoleLabel}</span>
-              </div>
-              <h1 className="mt-2 text-2xl font-black sm:text-3xl">
-                {me.data?.active_school?.name ?? "لوحة إدارة المدرسة"}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                متابعة مباشرة لما يحدث الآن، وما يحتاج إلى إجراء إداري دون تأخير.
-              </p>
-              {overviewQuery.isSuccess && (
-                <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400" data-testid="dashboard-context">
-                  <CalendarDays aria-hidden size={14} />
-                  {overviewQuery.data.context.academic_year?.name ?? "لا يوجد عام دراسي نشط"}
-                  {overviewQuery.data.context.semester ? ` · ${overviewQuery.data.context.semester.name}` : ""}
-                  <span>· {overviewQuery.data.context.today}</span>
-                </p>
-              )}
-            </div>
-          </div>
-
+    <div className="ds-page" data-testid="dashboard-page">
+      <PageHeader
+        icon={Sparkles}
+        eyebrow="مركز قيادة المدرسة"
+        title={me.data?.active_school?.name ?? "لوحة إدارة المدرسة"}
+        description="متابعة مباشرة لما يحدث الآن، وما يحتاج إلى إجراء إداري دون تأخير."
+        tone="executive"
+        badge={workspaceRoleLabel}
+        meta={overviewQuery.isSuccess ? (
+          <span className="flex flex-wrap items-center gap-2" data-testid="dashboard-context">
+            <CalendarDays aria-hidden size={14} />
+            {overviewQuery.data.context.academic_year?.name ?? "لا يوجد عام دراسي نشط"}
+            {overviewQuery.data.context.semester ? ` · ${overviewQuery.data.context.semester.name}` : ""}
+            <span>· {overviewQuery.data.context.today}</span>
+          </span>
+        ) : undefined}
+        actions={(
           <div className="flex flex-col items-start gap-3 lg:items-end">
             <div className="flex flex-wrap items-center gap-2">
               {highPriorityCount > 0 && (
@@ -226,7 +213,7 @@ export function DashboardPage() {
                   <ShieldAlert aria-hidden size={16} /> {highPriorityCount} إجراء عالي الأولوية
                 </span>
               )}
-              <Button variant="secondary" onClick={refreshOperationalData} disabled={isRefreshing} className="border-white/15 bg-white/10 text-white shadow-none hover:bg-white/15">
+              <Button variant="headerGhost" onClick={refreshOperationalData} disabled={isRefreshing}>
                 <RefreshCw aria-hidden size={16} className={isRefreshing ? "animate-spin" : ""} />
                 تحديث الآن
               </Button>
@@ -237,16 +224,16 @@ export function DashboardPage() {
               {lastUpdatedAt > 0 && ` · آخر تحديث ${new Date(lastUpdatedAt).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}`}
             </p>
           </div>
-        </div>
-
+        )}
+      >
         {canManageCalendar && (
-          <nav aria-label="إجراءات سريعة" className="relative mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          <nav aria-label="إجراءات سريعة" className="relative flex flex-wrap gap-2">
             <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
             <QuickLink to="/staff" icon={UsersRound}>فريق المدرسة</QuickLink>
             <QuickLink to="/settings" icon={Settings}>إعدادات المدرسة</QuickLink>
           </nav>
         )}
-      </header>
+      </PageHeader>
 
       {canManageCalendar && (needsStudentImport || needsTeacherImport) && (
         <SchoolSetupAlerts

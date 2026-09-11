@@ -13,9 +13,11 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:release": "playwright test --workers=1 --retries=1 --shard=1/8 && playwright test --workers=1 --retries=1 --shard=2/8 && playwright test --workers=1 --retries=1 --shard=3/8 && playwright test --workers=1 --retries=1 --shard=4/8 && playwright test --workers=1 --retries=1 --shard=5/8 && playwright test --workers=1 --retries=1 --shard=6/8 && playwright test --workers=1 --retries=1 --shard=7/8 && playwright test --workers=1 --retries=1 --shard=8/8",
+    "e2e:pwa-standalone": "node e2e/pwa-standalone.mjs",
     "e2e:pwa-update": "node e2e/pwa-update.mjs"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
     "@tanstack/react-query": "^5.101.4",
     "@zxing/browser": "^0.2.1",
     "lucide-react": "^1.33.0",

@@ -12,15 +12,12 @@ import { SelectSchoolPage } from "@/features/auth/SelectSchoolPage";
 import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { RouteErrorPage } from "@/routes/RouteErrorPage";
+import { PageSkeleton } from "@/components/Skeleton";
 
 export const routes = [
   {
     errorElement: <RouteErrorPage />,
-    hydrateFallbackElement: (
-      <div className="grid min-h-screen place-items-center bg-slate-50 text-sm font-bold text-slate-600">
-        جارٍ تحميل المنصة...
-      </div>
-    ),
+    hydrateFallbackElement: <div className="min-h-screen bg-slate-50 p-4 sm:p-8"><PageSkeleton label="جارٍ تحميل المنصة" /></div>,
     children: [
       { path: "/login", element: <LoginPage /> },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },

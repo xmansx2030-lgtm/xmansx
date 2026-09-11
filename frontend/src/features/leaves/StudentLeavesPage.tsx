@@ -104,7 +104,7 @@ export function StudentLeavesPage() {
   const summary = leaves.data?.summary ?? { total: 0, active: 0, cancelled: 0 };
 
   return (
-    <div className="space-y-5" data-testid="student-leaves-page">
+    <div className="ds-page" data-testid="student-leaves-page">
       <PageHeader
         icon={DoorOpen}
         eyebrow={`شؤون ${students}`}

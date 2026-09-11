@@ -125,10 +125,10 @@ export function SelectSchoolPage() {
                     switchMutation.mutate(membership.school.id);
                   }}
                   disabled={switchMutation.isPending}
+                  loading={pendingId === membership.school.id && switchMutation.isPending}
+                  loadingLabel="جارٍ الدخول..."
                 >
-                  {pendingId === membership.school.id && switchMutation.isPending
-                    ? "جارٍ الدخول..."
-                    : "دخول"}
+                  دخول
                 </Button>
               </div>
             </li>

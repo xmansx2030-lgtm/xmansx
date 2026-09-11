@@ -133,7 +133,7 @@ export function WarningsDashboardPage() {
   if (!data) return null;
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={BellRing}
         eyebrow="الحوكمة والانضباط"

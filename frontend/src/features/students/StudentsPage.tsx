@@ -115,7 +115,7 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={UsersRound}
         eyebrow={schoolType === "GIRLS" ? "سجل الطالبات" : "السجل الطلابي"}
@@ -164,10 +164,10 @@ export function StudentsPage() {
       )}
 
       {/* الفلاتر */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2"><Filter aria-hidden size={18} className="text-slate-500" /><h2 className="font-black text-slate-900">البحث والتصفية</h2></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="flex flex-col gap-1">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor="search-name" className="text-sm font-medium text-slate-700">
             بحث بالاسم
           </label>
@@ -178,11 +178,11 @@ export function StudentsPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             placeholder={`اسم ${student}`}
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor="search-nid" className="text-sm font-medium text-slate-700">
             بحث برقم الهوية (مطابقة تامة)
           </label>
@@ -194,11 +194,11 @@ export function StudentsPage() {
               setNationalId(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             placeholder="1XXXXXXXXX"
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor="filter-grade" className="text-sm font-medium text-slate-700">
             الصف
           </label>
@@ -210,7 +210,7 @@ export function StudentsPage() {
               setSectionFilter("");
               setPage(1);
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">الكل</option>
             {(grades.data ?? []).map((g) => (
@@ -220,7 +220,7 @@ export function StudentsPage() {
             ))}
           </select>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor="filter-section" className="text-sm font-medium text-slate-700">
             الفصل
           </label>
@@ -231,7 +231,7 @@ export function StudentsPage() {
               setSectionFilter(e.target.value ? Number(e.target.value) : "");
               setPage(1);
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">الكل</option>
             {visibleSections.map((s) => (

@@ -1,8 +1,12 @@
 """واجهات إعدادات المدرسة — /api/v1/school/settings/"""
 
+import mimetypes
 from zoneinfo import ZoneInfo
 
+from django.http import FileResponse
+from django.urls import reverse
 from rest_framework import serializers
+from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -69,7 +73,9 @@ def _staff_by_role(school) -> dict:
 def serialize_settings(school, settings_obj, request) -> dict:
     logo_url = None
     if settings_obj.logo:
-        logo_url = request.build_absolute_uri(settings_obj.logo.url)
+        # Same-origin, authorised delivery works behind the frontend reverse proxy
+        # and does not expose the rest of MEDIA_ROOT.
+        logo_url = f'{reverse("school-logo")}?v={int(settings_obj.updated_at.timestamp())}'
     return {
         "school": {
             "id": school.id,
@@ -112,6 +118,14 @@ class SchoolSettingsView(SchoolScopedAPIView):
 
 
 class SchoolLogoView(SchoolScopedAPIView):
+    def get(self, request: Request) -> FileResponse:
+        settings_obj = settings_service.get_or_create_settings(school=request.school)
+        if not settings_obj.logo:
+            raise NotFound("لا يوجد شعار مرفوع لهذه المدرسة.")
+
+        content_type = mimetypes.guess_type(settings_obj.logo.name)[0] or "application/octet-stream"
+        return FileResponse(settings_obj.logo.open("rb"), content_type=content_type)
+
     def post(self, request: Request) -> Response:
         uploaded = request.FILES.get("logo")
         if uploaded is None:

@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 const DISMISS_UNTIL_KEY = "pwa-install-dismissed-until";
 const DISMISS_FOR_MS = 14 * 24 * 60 * 60 * 1000;
@@ -106,6 +107,7 @@ export function PwaInstallPrompt() {
     }
     setOpen(false);
   };
+  const dialogRef = useDialogA11y<HTMLElement>(open, snooze);
 
   const install = async () => {
     if (!installEvent) {
@@ -135,11 +137,13 @@ export function PwaInstallPrompt() {
       }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="pwa-install-title"
         aria-describedby="pwa-install-description"
-        className="relative max-h-[94dvh] w-full overflow-y-auto rounded-t-[2rem] border border-white/15 bg-white shadow-[0_-24px_80px_rgba(7,27,25,0.35)] sm:max-w-lg sm:rounded-[2rem]"
+        tabIndex={-1}
+        className="ds-surface-elevated relative max-h-[94dvh] w-full overflow-y-auto rounded-b-none sm:max-w-lg sm:rounded-3xl"
       >
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-teal-950 to-teal-800 px-6 pb-7 pt-6 text-white sm:px-8 sm:pb-8">
           <div className="absolute -end-16 -top-20 size-56 rounded-full bg-teal-300/15 blur-2xl" />
@@ -148,7 +152,7 @@ export function PwaInstallPrompt() {
             type="button"
             aria-label="تذكيري لاحقًا"
             onClick={snooze}
-            className="absolute end-4 top-4 z-10 grid size-10 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-white/15 transition hover:bg-white/20 hover:text-white"
+            className="absolute end-4 top-4 z-10 grid size-11 place-items-center rounded-full bg-white/10 text-white/80 ring-1 ring-white/15 transition hover:bg-white/20 hover:text-white"
           >
             <X aria-hidden size={19} />
           </button>
@@ -214,7 +218,7 @@ export function PwaInstallPrompt() {
 
 function Benefit({ icon: Icon, label }: { icon: typeof Download; label: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+    <div className="ds-surface p-3 text-center">
       <Icon aria-hidden size={19} className="mx-auto text-teal-700" />
       <p className="mt-2 text-[11px] font-black text-slate-700">{label}</p>
     </div>

@@ -116,7 +116,7 @@ export function MonitoringPage() {
   if (!data) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="ds-page">
       <PageHeader
         icon={Activity}
         eyebrow="غرفة العمليات المباشرة"

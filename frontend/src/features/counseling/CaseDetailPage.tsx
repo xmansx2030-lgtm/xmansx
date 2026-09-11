@@ -196,7 +196,7 @@ export function CaseDetailPage() {
   );
 
   return (
-    <div className="space-y-5" data-testid="case-detail">
+    <div className="ds-page" data-testid="case-detail">
       <PageHeader
         icon={ClipboardList}
         eyebrow="ملف متابعة إرشادي"

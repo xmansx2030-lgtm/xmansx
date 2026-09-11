@@ -12,7 +12,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, icon: Icon = Inbox, action, testId, compact = false }: EmptyStateProps) {
   return (
-    <div className={`rounded-2xl border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50 text-center ${compact ? "p-5" : "p-8"}`} data-testid={testId}>
+    <div className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 text-center ${compact ? "p-5" : "p-8"}`} data-testid={testId}>
       <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-500 ring-1 ring-slate-200">
         <Icon aria-hidden size={22} />
       </span>

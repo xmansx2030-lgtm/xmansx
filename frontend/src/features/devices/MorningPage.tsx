@@ -82,7 +82,7 @@ export function MorningPage() {
   ]);
 
   return (
-    <div className="space-y-5" data-testid="morning-attendance-page">
+    <div className="ds-page" data-testid="morning-attendance-page">
       <PageHeader
         icon={Sunrise}
         eyebrow={isDelegatedOperator ? "تكليف تشغيلي مستقل" : "الاستقبال الصباحي"}

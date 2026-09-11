@@ -1040,7 +1040,9 @@ export function PlatformAdminPage() {
   const handleLogout = () => void logout().then(() => navigate("/login", { replace: true }));
 
   return (
-    <main className="min-h-screen bg-slate-100/70 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+    <>
+    <a className="skip-link" href="#platform-main-content">الانتقال إلى المحتوى</a>
+    <main id="platform-main-content" tabIndex={-1} className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
       <div className="mx-auto flex max-w-screen-2xl gap-6">
         <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-72 shrink-0 flex-col overflow-hidden rounded-3xl bg-slate-950 text-white shadow-2xl shadow-slate-950/15 xl:flex">
           <div className="border-b border-white/10 px-5 py-6">
@@ -1083,11 +1085,11 @@ export function PlatformAdminPage() {
               </div>
               <div className="flex items-center gap-2">
                 {currentTab === "dashboard" && (
-                  <button type="button" onClick={() => void overview.refetch()} disabled={overview.isFetching} className="inline-flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 sm:w-auto sm:px-3" aria-label="تحديث المؤشرات">
+                  <button type="button" onClick={() => void overview.refetch()} disabled={overview.isFetching} className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-teal-300 hover:text-teal-700 disabled:opacity-60 sm:w-auto sm:px-3" aria-label="تحديث المؤشرات">
                     <RefreshCw aria-hidden size={17} className={overview.isFetching ? "animate-spin" : ""} /><span className="ms-2 hidden text-sm font-bold sm:inline">تحديث</span>
                   </button>
                 )}
-                <button type="button" onClick={handleLogout} className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /></button>
+                <button type="button" onClick={handleLogout} className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /></button>
               </div>
             </div>
             <nav aria-label="أقسام إدارة المنصة" className="mt-3 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
@@ -1110,5 +1112,6 @@ export function PlatformAdminPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }
