@@ -20,7 +20,7 @@ export function TextField({ label, error, description, className = "", id: idPro
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={`min-h-11 rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition-all focus:ring-2 ${
+        className={`min-h-11 w-full min-w-0 rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition-all focus:ring-2 ${
           error
             ? "border-red-400 focus:border-red-500 focus:ring-red-100"
             : "border-slate-300 focus:border-blue-500 focus:ring-blue-100"

@@ -53,7 +53,7 @@ export function SelectSchoolPage() {
 
   return (
     <main className="auth-shell flex min-h-dvh items-center justify-center p-4 sm:p-8">
-      <div className="auth-card w-full max-w-xl rounded-3xl p-6 sm:p-9">
+      <div className="auth-card w-full min-w-0 max-w-xl rounded-3xl p-6 sm:p-9">
         <span className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><Building2 aria-hidden size={24} /></span>
         <p className="mb-1 text-center text-sm font-bold text-blue-700">مساحة العمل</p>
         <h1 className="text-center text-2xl font-black text-slate-900">اختر المدرسة</h1>

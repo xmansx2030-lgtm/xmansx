@@ -83,7 +83,7 @@ export function LoginPage() {
 
   return (
     <main className="auth-shell flex min-h-dvh items-center justify-center p-4 sm:p-8">
-      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid w-full max-w-5xl min-w-0 items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden px-6 text-white lg:block">
           <span className="mb-8 grid size-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
             <Building2 aria-hidden size={29} className="text-teal-200" />
@@ -98,7 +98,7 @@ export function LoginPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="auth-card w-full rounded-3xl p-6 sm:p-9" noValidate>
+        <form onSubmit={handleSubmit} className="auth-card w-full min-w-0 max-w-md justify-self-center rounded-3xl p-6 sm:p-9" noValidate>
           <div className="mb-7">
             <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 lg:hidden"><Building2 aria-hidden size={24} /></span>
             <p className="mb-1 text-sm font-bold text-blue-700">مرحبًا بعودتك</p>

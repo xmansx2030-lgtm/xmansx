@@ -60,7 +60,7 @@ export function ChangeInitialPasswordPage() {
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="auth-card w-full max-w-md rounded-3xl p-6 sm:p-9"
+        className="auth-card w-full min-w-0 max-w-md rounded-3xl p-6 sm:p-9"
       >
         <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><KeyRound aria-hidden size={23} /></span>
         <p className="mb-1 text-sm font-bold text-blue-700">خطوة أمان مطلوبة</p>
