@@ -31,8 +31,6 @@ const PROFILE = {
     partial_absence_days: 2,
     undetermined_days: 1,
     absent_periods: 10,
-    period_late_occurrences: 1,
-    period_late_minutes: 8,
     excused_absent_periods: 4,
     unexcused_absent_periods: 6,
     excused_full_absence_days: 1,
@@ -52,7 +50,7 @@ describe("student attendance profile (Phase 9)", () => {
     document.cookie = "csrftoken=test-token";
   });
 
-  it("renders header, metrics, and keeps morning late separate from period late", async () => {
+  it("renders header, metrics, and morning lateness", async () => {
     mockApi({
       "/auth/me/": { body: managerMe() },
       "/attendance-profile/": { body: PROFILE },
@@ -62,14 +60,10 @@ describe("student attendance profile (Phase 9)", () => {
     expect(await screen.findByRole("heading", { name: "محمد أحمد" })).toBeInTheDocument();
     expect(screen.getByText("******5678")).toBeInTheDocument();
 
-    // تأخر الحصص: 1 مرة و8 دقائق — عداد مستقل
-    expect(screen.getByText("تأخر عن الحصص").nextSibling).toHaveTextContent("1 مرة");
-    expect(screen.getByText("إجمالي التأخر").nextSibling).toHaveTextContent("8 دقيقة");
-    // التأخر الصباحي: 1 مرة و13 دقيقة — صندوق منفصل، لا 2/21 موحدة
+    // التأخر الصباحي: 1 مرة و13 دقيقة.
     const morningBox = screen.getByText("التأخر عن الدوام الصباحي").parentElement;
     expect(morningBox).toHaveTextContent("1 مرات");
     expect(morningBox).toHaveTextContent("13 دقيقة");
-    expect(document.body.textContent).not.toContain("21 دقيقة");
     // تحذير الأيام غير المكتملة
     expect(screen.getByRole("status")).toHaveTextContent("لم تكتمل فيها بيانات التحضير");
   });
@@ -210,16 +204,12 @@ describe("student attendance profile (Phase 9)", () => {
           absent_periods: 2,
           excused_absent_periods: 1,
           unexcused_absent_periods: 1,
-          late_periods: 0,
-          total_late_minutes: 0,
           periods: [
             {
               sequence: 2,
               name: "الحصة 2",
               status: "ABSENT",
               status_label: "غائب",
-              arrival_time: null,
-              late_minutes: null,
               excused: true,
             },
             {
@@ -227,8 +217,6 @@ describe("student attendance profile (Phase 9)", () => {
               name: "الحصة 4",
               status: "ABSENT",
               status_label: "غائب",
-              arrival_time: null,
-              late_minutes: null,
               excused: false,
             },
           ],
@@ -248,8 +236,6 @@ describe("student attendance profile (Phase 9)", () => {
               absent_periods: 2,
               excused_absent_periods: 1,
               unexcused_absent_periods: 1,
-              late_periods: 0,
-              total_late_minutes: 0,
             },
           ],
         },

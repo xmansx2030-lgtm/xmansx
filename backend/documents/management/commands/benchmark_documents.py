@@ -112,7 +112,7 @@ class Command(BaseCommand):
                             academic_year=year, attendance_date=base + timedelta(days=i),
                             absence_status=DailyAbsenceStatus.FULL, absent_periods=7,
                             unexcused_absent_periods=7, expected_periods=7,
-                            submitted_periods=7, late_periods=0, present_periods=0,
+                            submitted_periods=7, present_periods=0,
                             completeness_status=DailyCompleteness.COMPLETE,
                             calculated_at=dj_timezone.now(),
                         )

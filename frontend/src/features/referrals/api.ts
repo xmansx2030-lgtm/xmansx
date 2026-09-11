@@ -89,8 +89,6 @@ export interface ReferralMetrics {
   unexcused_full_absence_days?: number;
   partial_absence_days?: number;
   absent_periods?: number;
-  period_late_occurrences?: number;
-  period_late_minutes?: number;
   morning_late_occurrences?: number;
   morning_late_minutes?: number;
   highest_absence_warning_level?: string | null;

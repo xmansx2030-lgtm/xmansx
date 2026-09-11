@@ -73,10 +73,9 @@ def make_session(env, seq, *, day=DAY, status="SUBMITTED", section=None):
     )
 
 
-def mark(env, session, student, status, minutes=None):
+def mark(env, session, student, status):
     return AttendanceMark.objects.create(
         school=env["school"], session=session, student=student, status=status,
-        late_minutes=minutes, arrival_time=time(8, 30) if status == "LATE" else None,
     )
 
 

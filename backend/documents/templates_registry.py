@@ -105,13 +105,6 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         template_name="documents/morning_late_report.html",
     ),
     DocumentTemplate(
-        key="period_late_report",
-        version="v1",
-        document_type=DocumentType.PERIOD_LATE_DETAIL_REPORT,
-        title="كشف تفصيلي لتأخر الحصص",
-        template_name="documents/period_late_report.html",
-    ),
-    DocumentTemplate(
         key="student_attendance_report",
         version="v1",
         document_type=DocumentType.STUDENT_ATTENDANCE_REPORT,

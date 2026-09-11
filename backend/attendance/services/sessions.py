@@ -6,7 +6,6 @@
 - Roster يثبت عند البدء (بصمة)؛ تغير جوهري قبل الاعتماد → ATTENDANCE_ROSTER_CHANGED
   والواجهة تحدّث — لا تسجيل غياب لطالب خرج من الفصل.
 - التحضير الصفي ثنائي: حاضر ضمنيًا أو غائب؛ التأخر الصباحي يبقى في SchoolArrival.
-- سجلات LATE القديمة قابلة للقراءة والتحليل، لكن لا تنشأ من جلسات التحضير الجديدة.
 - نافذة تعديل المعلم من إعداد المدرسة؛ الوكيل/المدير تصحيح إداري بلا نافذة.
 """
 
@@ -198,8 +197,6 @@ def _validate_marks(
             {
                 "student_id": student_id,
                 "status": status,
-                "arrival_time": None,
-                "late_minutes": None,
             }
         )
     return validated
@@ -282,8 +279,6 @@ def _submit_locked(*, session_id: int, school, membership, marks: list[dict]):
             session=session,
             student_id=m["student_id"],
             status=m["status"],
-            arrival_time=m["arrival_time"],
-            late_minutes=m["late_minutes"],
         )
         for m in validated
     )
@@ -355,9 +350,7 @@ def edit_session(
             new = new_marks.get(student_id)
             old_status = old.status if old else "PRESENT"
             new_status = new["status"] if new else "PRESENT"
-            old_late = old.late_minutes if old else None
-            new_late = new["late_minutes"] if new else None
-            if old_status != new_status or old_late != new_late:
+            if old_status != new_status:
                 changes.append(
                     AttendanceChange(
                         school=school,
@@ -366,8 +359,6 @@ def edit_session(
                         actor_membership=membership,
                         previous_status=old_status,
                         new_status=new_status,
-                        previous_late_minutes=old_late,
-                        new_late_minutes=new_late,
                         reason=reason[:300],
                     )
                 )
@@ -381,8 +372,6 @@ def edit_session(
                     session=session,
                     student_id=m["student_id"],
                     status=m["status"],
-                    arrival_time=m["arrival_time"],
-                    late_minutes=m["late_minutes"],
                 )
                 for m in validated
             )

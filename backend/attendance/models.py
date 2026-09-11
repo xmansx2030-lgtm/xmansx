@@ -4,7 +4,7 @@
 - الجلسة تخص (مدرسة، فصل، تاريخ، حصة) — قيد UNIQUE على period_sequence من الـ
   snapshot (لا على FK الحصة) ليصمد حتى لو استبدلت المدرسة حصص جدولها لاحقًا.
 - bell_period_snapshot هو المرجع التاريخي الوحيد (ADR-010): تعديل الجدول لاحقًا
-  لا يغير جلسات قديمة ولا حسابات تأخرها. FK الحصة SET_NULL للمرجعية الحية فقط.
+  لا يغير جلسات قديمة. FK الحصة SET_NULL للمرجعية الحية فقط.
 - الهوية: submitted_by_membership (لا user وحده) — المستخدم متعدد المدارس.
 - لا Mark للحاضر: بعد اعتماد الجلسة، الطالب بلا Mark = حاضر في هذه الجلسة فقط.
   غياب الجلسة نفسها لا يعني حضور أحد.
@@ -161,7 +161,7 @@ class DailyAbsenceStatus(models.TextChoices):
 class DailyAttendanceSummary(TimestampedModel):
     """ملخص يوم الطالب (م8) — يعاد حسابه idempotent عند الاعتماد/التعديل.
 
-    - present + absent + late = submitted (‏LATE ليست حضورًا كاملًا ولا غيابًا).
+    - present + absent = submitted؛ تحضير الحصة ثنائي، والتأخر صباحي فقط.
     - ‏FULL فقط عند اكتمال كل الحصص وغيابها كلها — الناقص UNDETERMINED أبدًا لا FULL.
     - ‏section = فصل الطالب ذلك اليوم (من تاريخ القيد) — النقل لاحقًا لا يغير الماضي.
     - ‏student بـ PROTECT: نسيان تسجيل الحذف النهائي يفشل صاخبًا (نمط م4.1).
@@ -189,9 +189,7 @@ class DailyAttendanceSummary(TimestampedModel):
     expected_periods = models.PositiveSmallIntegerField()
     submitted_periods = models.PositiveSmallIntegerField()
     absent_periods = models.PositiveSmallIntegerField()
-    late_periods = models.PositiveSmallIntegerField()
     present_periods = models.PositiveSmallIntegerField()
-    total_late_minutes = models.PositiveIntegerField(default=0)
 
     # م10 — التصنيف الإداري للغياب: excused + unexcused = absent دائمًا (invariant)
     excused_absent_periods = models.PositiveSmallIntegerField(default=0)
@@ -223,12 +221,11 @@ class DailyAttendanceSummary(TimestampedModel):
 
 class AttendanceMarkStatus(models.TextChoices):
     ABSENT = "ABSENT", "غائب"
-    LATE = "LATE", "متأخر"
     # EXCUSED يأتي في المرحلة 10 — التصميم يتسع له (حقل excuse_status لاحقًا)
 
 
 class AttendanceMark(TimestampedModel):
-    """استثناء فقط (غائب/متأخر) — الحاضر لا سجل له."""
+    """استثناء الغياب فقط — الحاضر لا سجل له، والتأخر مصدره الوصول الصباحي."""
 
     school = models.ForeignKey(
         "schools.School", on_delete=models.CASCADE, related_name="attendance_marks"
@@ -240,8 +237,6 @@ class AttendanceMark(TimestampedModel):
         "students.Student", on_delete=models.PROTECT, related_name="attendance_marks"
     )
     status = models.CharField(max_length=10, choices=AttendanceMarkStatus.choices)
-    arrival_time = models.TimeField(null=True, blank=True)  # للمتأخر
-    late_minutes = models.PositiveSmallIntegerField(null=True, blank=True)  # يحسب خادميًا
 
     class Meta:
         verbose_name = "علامة حضور"
@@ -275,10 +270,8 @@ class AttendanceChange(models.Model):
     actor_membership = models.ForeignKey(
         "memberships.SchoolMembership", on_delete=models.PROTECT, related_name="+"
     )
-    previous_status = models.CharField(max_length=10)  # PRESENT/ABSENT/LATE
+    previous_status = models.CharField(max_length=10)  # PRESENT/ABSENT
     new_status = models.CharField(max_length=10)
-    previous_late_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
-    new_late_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     reason = models.CharField(max_length=300, blank=True, default="")
     changed_at = models.DateTimeField(auto_now_add=True)
 

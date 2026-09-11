@@ -33,7 +33,7 @@ class DailyAttendanceSummaryAdmin(admin.ModelAdmin):
 
     list_display = [
         "student", "attendance_date", "absence_status", "completeness_status",
-        "absent_periods", "late_periods", "school",
+        "absent_periods", "school",
     ]
     list_filter = ["absence_status", "completeness_status", "school", "attendance_date"]
     readonly_fields = [f.name for f in DailyAttendanceSummary._meta.fields]
@@ -60,7 +60,7 @@ class AttendanceSessionAdmin(admin.ModelAdmin):
 
 @admin.register(AttendanceMark)
 class AttendanceMarkAdmin(admin.ModelAdmin):
-    list_display = ["session", "student", "status", "late_minutes", "school"]
+    list_display = ["session", "student", "status", "school"]
     list_filter = ["status", "school"]
     readonly_fields = [f.name for f in AttendanceMark._meta.fields]
 

@@ -153,7 +153,7 @@ test("import + seed, then single-period and multi-period reports behave exactly"
   await expect(page.getByTestId("report-summary")).toContainText("1 طالبًا");
   await expect(page.getByTestId("analytics-students")).toContainText(mohammed);
   await expect(page.getByTestId("analytics-students")).not.toContainText(khaled);
-  await expect(page.getByTestId("analytics-students")).not.toContainText(saad); // متأخر ≠ غائب
+  await expect(page.getByTestId("analytics-students")).not.toContainText(saad); // غائب في الأولى فقط
   await expect(page.getByTestId("analytics-students")).not.toContainText(fahd);
   await expect(page.getByTestId("incomplete-warning")).toContainText(m.analytics_section_2);
   await expect(page.getByTestId("incomplete-warning")).toContainText("لم يتم التحضير");
@@ -177,7 +177,7 @@ test("import + seed, then single-period and multi-period reports behave exactly"
   await expect(page.getByTestId("analytics-students")).not.toContainText(fahd);
 });
 
-test("daily summary: full, partial, incomplete, and late totals", async ({ page }) => {
+test("daily summary: full, partial, and incomplete totals", async ({ page }) => {
   const m = meta();
   const [mohammed, khaled, saad] = m.analytics_students_1;
   const [fahd] = m.analytics_students_2;
@@ -194,15 +194,12 @@ test("daily summary: full, partial, incomplete, and late totals", async ({ page 
   });
   await expect(page.getByTestId("daily-students")).not.toContainText(fahd);
 
-  // غياب جزئي: خالد (حصة) وسعد (حصة + تأخر) — التأخر لا يجعل اليوم غيابًا
+  // غياب جزئي: خالد وسعد، لكل منهما حصة غياب واحدة
   await page.getByTestId("daily-status-filter").selectOption("PARTIAL");
   await expect(page.getByTestId("daily-students")).toContainText(khaled, {
     timeout: 15_000,
   });
   await expect(page.getByTestId("daily-students")).toContainText(saad);
-  const saadRow = page.locator('[data-testid^="daily-student-"]', { hasText: saad });
-  await expect(saadRow).toContainText("تأخر 1 (10 د)");
-
   // بيانات غير مكتملة: فهد غائب في كل المسجل لفصله لكن 23 حصة لم تحضر → UNDETERMINED
   await page.getByTestId("daily-status-filter").selectOption("UNDETERMINED");
   await expect(page.getByTestId("daily-students")).toContainText(fahd, {

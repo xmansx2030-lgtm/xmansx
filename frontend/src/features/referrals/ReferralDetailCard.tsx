@@ -26,7 +26,6 @@ const METRIC_LABELS: Array<[keyof ReferralMetrics, string]> = [
   ["unexcused_full_absence_days", "غياب كامل بدون عذر"],
   ["absent_periods", "حصص الغياب"],
   ["morning_late_occurrences", "مرات التأخر الصباحي"],
-  ["period_late_occurrences", "مرات التأخر عن الحصص"],
 ];
 
 /** تفاصيل الحالة: اللقطة وقت الإحالة مقابل المؤشرات الحالية + الملاحظات + الخط الزمني. */

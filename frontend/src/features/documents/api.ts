@@ -35,7 +35,6 @@ export type DocumentType =
   | "ATTENDANCE_COMMITMENT"
   | "ABSENCE_DETAIL_REPORT"
   | "MORNING_LATE_DETAIL_REPORT"
-  | "PERIOD_LATE_DETAIL_REPORT"
   | "STUDENT_ATTENDANCE_REPORT";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
@@ -45,7 +44,6 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   ATTENDANCE_COMMITMENT: "تعهد الالتزام بالحضور",
   ABSENCE_DETAIL_REPORT: "كشف تفصيلي للغياب",
   MORNING_LATE_DETAIL_REPORT: "كشف تفصيلي للتأخر الصباحي",
-  PERIOD_LATE_DETAIL_REPORT: "كشف تفصيلي لتأخر الحصص",
   STUDENT_ATTENDANCE_REPORT: "تقرير مواظبة الطالب",
 };
 
@@ -54,7 +52,6 @@ export const RANGE_DOCUMENT_TYPES: DocumentType[] = [
   "ATTENDANCE_COMMITMENT",
   "ABSENCE_DETAIL_REPORT",
   "MORNING_LATE_DETAIL_REPORT",
-  "PERIOD_LATE_DETAIL_REPORT",
   "STUDENT_ATTENDANCE_REPORT",
 ];
 

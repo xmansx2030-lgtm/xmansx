@@ -337,7 +337,6 @@ class Command(BaseCommand):
             target = date.today() - timedelta(days=offset + 1)
             for index, student in enumerate(sample):
                 absent = 7 if (index + offset) % 19 == 0 else 0
-                late = 1 if not absent and (index + offset) % 11 == 0 else 0
                 rows.append(
                     DailyAttendanceSummary(
                         school=school,
@@ -348,9 +347,7 @@ class Command(BaseCommand):
                         expected_periods=7,
                         submitted_periods=7,
                         absent_periods=absent,
-                        late_periods=late,
-                        present_periods=7 - absent - late,
-                        total_late_minutes=late * 8,
+                        present_periods=7 - absent,
                         excused_absent_periods=0,
                         unexcused_absent_periods=absent,
                         completeness_status=DailyCompleteness.COMPLETE,

@@ -1,13 +1,12 @@
 """مؤشرات الحضور والمواظبة للوحة الإدارة — قراءة من الملخصات القائمة.
 
 **لا مصدر حقيقة جديد** (بند 6): كل رقم هنا مشتق من `DailyAttendanceSummary`
-و`SchoolArrival` عبر نفس التعريفات المعتمدة في المراحل 8 و10 و11:
+و`SchoolArrival` عبر نفس التعريفات المعتمدة:
 
 - `UNEXCUSED_FULL_DAY_FILTER` من `excuses.selectors` هو التعريف الوحيد لليوم
   «كامل بدون عذر» — لا يُعاد كتابته هنا.
 - `UNDETERMINED` ليس غيابًا ولا حضورًا (بند 22) — عداد مستقل دائمًا.
-- التأخر الصباحي من `SchoolArrival` فقط، وتأخر الحصص من `DailyAttendanceSummary`،
-  ولا يُجمعان في رقم واحد أبدًا (بند 25/26/95).
+- التأخر الصباحي من `SchoolArrival` فقط.
 """
 
 from datetime import date as date_cls
@@ -112,8 +111,6 @@ def attendance_kpis(*, school, date_range, scope=None) -> dict:
         absent_periods=Sum("absent_periods"),
         unexcused_absent_periods=Sum("unexcused_absent_periods"),
         excused_absent_periods=Sum("excused_absent_periods"),
-        period_late_occurrences=Sum("late_periods"),
-        period_late_minutes=Sum("total_late_minutes"),
         complete_days=Count(
             "id", filter=~Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
         ),
@@ -144,8 +141,6 @@ def attendance_kpis(*, school, date_range, scope=None) -> dict:
         "absent_periods": totals["absent_periods"] or 0,
         "unexcused_absent_periods": totals["unexcused_absent_periods"] or 0,
         "excused_absent_periods": totals["excused_absent_periods"] or 0,
-        "period_late_occurrences": totals["period_late_occurrences"] or 0,
-        "period_late_minutes": totals["period_late_minutes"] or 0,
         "morning_late_occurrences": arrivals["morning_late_occurrences"] or 0,
         "morning_late_minutes": arrivals["morning_late_minutes"] or 0,
         "morning_arrivals": arrivals["morning_arrivals"] or 0,
@@ -260,7 +255,6 @@ def section_breakdown(*, school, date_range, scope=None) -> dict:
             partial_absence=Count(
                 "id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)
             ),
-            period_late=Sum("late_periods"),
         )
         .order_by("-unexcused_full", "section__grade__name", "section__name")
     )
@@ -279,7 +273,6 @@ def section_breakdown(*, school, date_range, scope=None) -> dict:
                 "full_absence_days": row["full_absence"],
                 "partial_absence_days": row["partial_absence"],
                 "unexcused_full_absence_days": row["unexcused_full"],
-                "period_late_occurrences": row["period_late"] or 0,
                 "morning_late_occurrences": late_by_section.get(row["section_id"], 0),
             }
             for row in grouped
@@ -415,7 +408,7 @@ def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
         submitted_periods__gt=0,
     )
     present_student_ids = set(
-        summary_rows.filter(Q(present_periods__gt=0) | Q(late_periods__gt=0))
+        summary_rows.filter(present_periods__gt=0)
         .values_list("student_id", flat=True)
         .distinct()
     )
@@ -457,7 +450,7 @@ def live_attendance_snapshot(
     حاضر/غائب/مستأذن/متأخر تصف **الحصة الحالية فقط**؛ لذلك يكفي اعتماد جلسة
     الحصة الحالية للفصل حتى يدخل طلابه في الأرقام. أما ``daily_absent_students``
     فلا يصنّف الطالب غائبًا اليوم حتى تكتمل جلسات فصله من أول حصة إلى الحالية
-    ويكون غائبًا في جميعها دون حضور أو تأخر في أي حصة.
+    ويكون غائبًا في جميعها.
 
     «مستأذن» مشتق من سجل استئذان ساري حان وقت خروجه؛ وهو حالة تشغيلية مستقلة
     لا تحول سجل الحضور الخام إلى عذر غياب ولا تعدله.
@@ -470,7 +463,6 @@ def live_attendance_snapshot(
         "present_students": 0,
         "absent_students": 0,
         "leave_students": 0,
-        "late_students": 0,
         "morning_late_students": 0,
         "daily_absent_students": 0,
         "daily_covered_students": 0,
@@ -562,14 +554,6 @@ def live_attendance_snapshot(
             status=AttendanceMarkStatus.ABSENT,
         ).values_list("student_id", flat=True)
     )
-    late_ids = set(
-        AttendanceMark.objects.filter(
-            session_id__in=current_session_ids,
-            student_id__in=covered_student_ids,
-            status=AttendanceMarkStatus.LATE,
-        ).values_list("student_id", flat=True)
-    )
-
     from student_leaves.models import StudentLeavePermission, StudentLeaveStatus
 
     leave_ids = set(
@@ -583,13 +567,8 @@ def live_attendance_snapshot(
     )
     # الاستئذان حالة تشغيلية آنية تتقدم في العرض على علامة الحصة، من دون تغييرها.
     absent_ids = current_absent_ids - leave_ids
-    # القيود تمنع الجمع بين غائب ومتأخر، والاستبعاد دفاعي للبيانات التاريخية.
-    late_ids -= current_absent_ids | leave_ids
-    present_students = len(
-        covered_student_ids - absent_ids - leave_ids - late_ids
-    )
-    # التأخر الصباحي مصدره الوصول من البوابة فقط، ويظل عدادًا مستقلًا عن
-    # «متأخر في الحصة» وعن الاستئذان والغياب بعذر.
+    present_students = len(covered_student_ids - absent_ids - leave_ids)
+    # التأخر الصباحي مصدره الوصول من البوابة فقط.
     morning_late_students = SchoolArrival.objects.filter(
         school=school,
         attendance_date=attendance_date,
@@ -598,7 +577,7 @@ def live_attendance_snapshot(
     ).values("student_id").distinct().count()
 
     # الغياب اليومي المتتابع يحتاج اكتمال كل الحصص حتى الحالية، بخلاف أرقام
-    # الحصة أعلاه. المتأخر حضر، لذلك لا يمكن أن يكون ضمن هذا العداد.
+    # الحصة أعلاه.
     required_sequences = set(sequences)
     daily_covered_section_ids = {
         section_id
@@ -637,7 +616,6 @@ def live_attendance_snapshot(
         "present_students": present_students,
         "absent_students": len(absent_ids),
         "leave_students": len(leave_ids),
-        "late_students": len(late_ids),
         "morning_late_students": morning_late_students,
         "daily_absent_students": len(daily_absent_ids),
         "daily_covered_students": len(daily_covered_student_ids),

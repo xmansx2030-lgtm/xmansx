@@ -171,7 +171,6 @@ def _day_preview(excuse, day: date_cls, day_scope, marks) -> dict:
         and m.session.period_sequence in scope_sequences
     ]
     absent = [m for m in day_marks if m.status == AttendanceMarkStatus.ABSENT]
-    late = [m for m in day_marks if m.status == AttendanceMarkStatus.LATE]
     submitted_in_scope = scope_sequences & submitted_sequences
     missing_in_scope = scope_sequences - submitted_sequences
     present = len(submitted_in_scope) - len(day_marks)
@@ -185,7 +184,6 @@ def _day_preview(excuse, day: date_cls, day_scope, marks) -> dict:
         "missing_periods": len(missing_in_scope),
         "absent_periods": len(absent),
         "present_periods": max(present, 0),
-        "late_periods": len(late),
         "complete": not missing_in_scope and bool(scope_sequences),
     }
 

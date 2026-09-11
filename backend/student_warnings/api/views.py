@@ -224,8 +224,6 @@ class WarningDetailView(SchoolScopedAPIView):
                 "unexcused_absent_periods": warning.unexcused_absent_periods_at_issue,
                 "morning_late_occurrences": warning.morning_late_occurrences_at_issue,
                 "morning_late_minutes": warning.morning_late_minutes_at_issue,
-                "period_late_occurrences": warning.period_late_occurrences_at_issue,
-                "period_late_minutes": warning.period_late_minutes_at_issue,
                 "national_id_masked": warning.national_id_masked_snapshot,
             },
         })

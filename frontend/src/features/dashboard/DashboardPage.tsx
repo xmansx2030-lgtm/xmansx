@@ -405,11 +405,6 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
           value={a.morning_late_occurrences}
           comparison={data.comparison.morning_late_occurrences}
         />
-        <Kpi
-          testId="kpi-period-late"
-          label="تأخر داخل الحصص (مرات)"
-          value={a.period_late_occurrences}
-        />
         <Kpi testId="kpi-absent-periods" label="حصص غياب" value={a.absent_periods} />
         <Kpi
           testId="kpi-undetermined"
@@ -421,7 +416,7 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
       </section>
       <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500" data-testid="unit-note">
         الوحدة: أيام-{studentLabel(schoolType)} (لا عدد {studentPluralLabel(schoolType)} متفردين) · {a.distinct_students} {studentCountLabel(schoolType)} ضمن الفترة ·
-        التأخر الصباحي والتأخر داخل الحصص مؤشران منفصلان لا يُجمعان.
+        مصدر التأخر: سجل الوصول الصباحي.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -796,7 +791,7 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
       <div className="space-y-2 border-t border-slate-100 bg-slate-50/70 px-4 py-4 text-xs leading-5 text-slate-700 sm:px-5">
         {live ? (
           <p data-testid="school-current-period-line">
-            <strong>{periodLabel} الآن:</strong> {live.present_students} حاضرًا · {live.absent_students} غائبًا عن الحصة · {live.leave_students} مستأذنًا{live.late_students > 0 ? ` · ${live.late_students} متأخرًا` : ""}.
+            <strong>{periodLabel} الآن:</strong> {live.present_students} حاضرًا · {live.absent_students} غائبًا عن الحصة · {live.leave_students} مستأذنًا.
             {live.pending_students > 0 ? ` التغطية ${live.covered_students} من ${live.total_students}؛ بانتظار تحضير ${live.pending_sections} فصل.` : ""}
           </p>
         ) : (
@@ -1080,7 +1075,6 @@ function SectionsTable({ data, schoolType }: { data: SectionsResponse; schoolTyp
             <th className="p-2 text-start">غياب كامل (الكل)</th>
             <th className="p-2 text-start">غياب جزئي</th>
             <th className="p-2 text-start">تأخر صباحي</th>
-            <th className="p-2 text-start">تأخر حصص</th>
           </tr>
         </thead>
         <tbody className="grid gap-3 p-3 md:table-row-group md:p-0">
@@ -1102,7 +1096,6 @@ function SectionsTable({ data, schoolType }: { data: SectionsResponse; schoolTyp
               <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الغياب الكامل</span>{row.full_absence_days}</td>
               <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الغياب الجزئي</span>{row.partial_absence_days}</td>
               <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التأخر الصباحي</span>{row.morning_late_occurrences}</td>
-              <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">تأخر الحصص</span>{row.period_late_occurrences}</td>
             </tr>
           ))}
         </tbody>

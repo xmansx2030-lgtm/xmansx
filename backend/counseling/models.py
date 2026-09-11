@@ -276,7 +276,6 @@ class CounselorFollowUpPlan(TimestampedModel):
 class GoalType(models.TextChoices):
     ATTENDANCE = "ATTENDANCE", "المواظبة"
     MORNING_LATENESS = "MORNING_LATENESS", "التأخر الصباحي"
-    PERIOD_LATENESS = "PERIOD_LATENESS", "التأخر عن الحصص"
     ACADEMIC = "ACADEMIC", "الأداء الدراسي"
     CLASSROOM_BEHAVIOR = "CLASSROOM_BEHAVIOR", "السلوك الصفي"
     PARTICIPATION = "PARTICIPATION", "المشاركة"

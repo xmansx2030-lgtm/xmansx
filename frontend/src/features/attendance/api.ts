@@ -29,14 +29,11 @@ export interface RosterStudent {
   national_id_masked: string;
 }
 
-/** حالات محفوظة سابقًا؛ LATE للقراءة التاريخية فقط. */
-export type SessionMarkStatus = "ABSENT" | "LATE";
+export type SessionMarkStatus = "ABSENT";
 
 export interface SessionMark {
   student_id: number;
   status: SessionMarkStatus;
-  arrival_time: string | null;
-  late_minutes: number | null;
 }
 
 export interface AttendanceSessionData {
@@ -176,7 +173,7 @@ export interface AnalyticsStudent {
   full_name: string;
   grade_name: string;
   section_name: string;
-  period_statuses: { sequence: number; status: "ABSENT" | "LATE" | "PRESENT" }[];
+  period_statuses: { sequence: number; status: "ABSENT" | "PRESENT" }[];
 }
 
 export interface IncompleteSection {
@@ -233,9 +230,6 @@ export interface DailyAnalyticsResponse {
     partial_absent: number;
     no_absence: number;
     undetermined: number;
-    late_students: number;
-    late_occurrences: number;
-    late_minutes: number;
   };
   students: {
     student_id: number;
@@ -243,8 +237,6 @@ export interface DailyAnalyticsResponse {
     grade_name: string;
     section_name: string;
     absent_periods: number;
-    late_periods: number;
-    total_late_minutes: number;
     submitted_periods: number;
     expected_periods: number;
   }[];

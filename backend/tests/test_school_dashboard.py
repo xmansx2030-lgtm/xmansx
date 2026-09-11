@@ -106,10 +106,9 @@ def make_session(env, seq, *, day=DAY, section=None, status="SUBMITTED"):
     )
 
 
-def mark(env, session, student, status, minutes=None):
+def mark(env, session, student, status):
     return AttendanceMark.objects.create(
         school=env["school"], session=session, student=student, status=status,
-        late_minutes=minutes, arrival_time=time(8, 30) if status == "LATE" else None,
     )
 
 
@@ -188,9 +187,6 @@ def test_each_student_lands_in_exactly_one_bucket(env):
     assert kpis["no_absence_days"] == 2              # D و E حضرا
     assert kpis["undetermined_days"] == 1            # اليوم الناقص — ليس غيابًا
     assert kpis["morning_late_occurrences"] == 1     # E
-    # التأخر الصباحي لا يُجمع مع تأخر الحصص إطلاقًا (بند 95)
-    assert kpis["period_late_occurrences"] == 0
-    assert "morning_late_occurrences" != "period_late_occurrences"
 
 
 @pytest.mark.django_db
@@ -247,7 +243,7 @@ def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(e
     from excuses.services.excuses import create_excuse
     from student_leaves.models import StudentLeavePermission
 
-    continuously_absent, absent_then_present, late_now, absent_then_late, leave_now = (
+    continuously_absent, absent_then_present, present_now, second_present, leave_now = (
         env["students"]
     )
     for seq in (1, 2):
@@ -255,10 +251,8 @@ def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(e
         mark(env, session, continuously_absent, "ABSENT")
         if seq == 1:
             mark(env, session, absent_then_present, "ABSENT")
-            mark(env, session, absent_then_late, "ABSENT")
+            mark(env, session, second_present, "ABSENT")
         else:
-            mark(env, session, late_now, "LATE", minutes=8)
-            mark(env, session, absent_then_late, "LATE", minutes=11)
             mark(env, session, leave_now, "ABSENT")
 
     StudentLeavePermission.objects.create(
@@ -300,10 +294,9 @@ def test_live_attendance_snapshot_is_current_and_excludes_unsubmitted_sections(e
         "total_students": 6,
         "covered_students": 6,
         "pending_students": 0,
-        "present_students": 2,
+        "present_students": 4,
         "absent_students": 1,
         "leave_students": 1,
-        "late_students": 2,
         "morning_late_students": 1,
         "daily_absent_students": 1,
         "daily_covered_students": 5,

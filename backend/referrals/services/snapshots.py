@@ -96,8 +96,6 @@ def attendance_metrics(*, school, student) -> dict:
         "unexcused_full_absence_days": summary["unexcused_full_absence_days"],
         "partial_absence_days": summary["partial_absence_days"],
         "absent_periods": summary["absent_periods"],
-        "period_late_occurrences": summary["period_late_occurrences"],
-        "period_late_minutes": summary["period_late_minutes"],
         "morning_late_occurrences": morning.get("morning_late_occurrences", 0),
         "morning_late_minutes": morning.get("morning_late_minutes", 0),
         **_highest_warning_levels(school=school, student=student),

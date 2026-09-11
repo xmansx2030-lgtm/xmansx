@@ -75,7 +75,6 @@ const METRIC_LABELS: Record<string, string> = {
   partial_absence_days: "غياب جزئي (أيام)",
   absent_periods: "حصص الغياب",
   morning_late_occurrences: "التأخر الصباحي (مرات)",
-  period_late_occurrences: "التأخر عن الحصص (مرات)",
   warnings_count: "الإنذارات",
   actions_count: "الإجراءات",
 };

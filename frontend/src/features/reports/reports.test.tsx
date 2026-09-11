@@ -64,7 +64,7 @@ describe("school reports", () => {
       "/reports/lateness/": {
         body: {
           context: range,
-          summary: { students: 1, morning_occurrences: 3, morning_minutes: 22, period_occurrences: 1, period_minutes: 4 },
+          summary: { students: 1, morning_occurrences: 3, morning_minutes: 22 },
           results: [], count: 0, page: 1, page_size: 25,
         },
       },

@@ -33,8 +33,6 @@ const PROFILE = {
     partial_absence_days: 0,
     undetermined_days: 0,
     absent_periods: 35,
-    period_late_occurrences: 0,
-    period_late_minutes: 0,
     excused_absent_periods: 0,
     unexcused_absent_periods: 35,
     excused_full_absence_days: 0,

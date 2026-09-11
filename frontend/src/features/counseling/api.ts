@@ -52,7 +52,6 @@ export const SESSION_TYPES = Object.keys(SESSION_TYPE_LABELS) as SessionType[];
 export type GoalType =
   | "ATTENDANCE"
   | "MORNING_LATENESS"
-  | "PERIOD_LATENESS"
   | "ACADEMIC"
   | "CLASSROOM_BEHAVIOR"
   | "PARTICIPATION"
@@ -61,7 +60,6 @@ export type GoalType =
 export const GOAL_TYPE_LABELS: Record<GoalType, string> = {
   ATTENDANCE: "المواظبة",
   MORNING_LATENESS: "التأخر الصباحي",
-  PERIOD_LATENESS: "التأخر عن الحصص",
   ACADEMIC: "الأداء الدراسي",
   CLASSROOM_BEHAVIOR: "السلوك الصفي",
   PARTICIPATION: "المشاركة",

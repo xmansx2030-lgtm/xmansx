@@ -18,7 +18,6 @@ class StartSessionSerializer(serializers.Serializer):
 class MarkInputSerializer(serializers.Serializer):
     student_id = serializers.IntegerField(min_value=1)
     # التحضير الصفي ثنائي فقط: الحاضر لا يرسل كسجل، والغائب هو الاستثناء الوحيد.
-    # تبقى LATE في نماذج الإخراج لقراءة السجلات التاريخية، ولا تقبل في إدخال جديد.
     status = serializers.ChoiceField(
         choices=[AttendanceMarkStatus.ABSENT],
         error_messages={
@@ -74,8 +73,6 @@ class RosterStudentSerializer(serializers.Serializer):
 class MarkSerializer(serializers.Serializer):
     student_id = serializers.IntegerField()
     status = serializers.CharField()
-    arrival_time = serializers.TimeField(allow_null=True)
-    late_minutes = serializers.IntegerField(allow_null=True)
 
 
 class SessionSerializer(serializers.Serializer):
@@ -125,7 +122,7 @@ class MultiPeriodRequestSerializer(serializers.Serializer):
 
 class PeriodStatusSerializer(serializers.Serializer):
     sequence = serializers.IntegerField()
-    status = serializers.ChoiceField(choices=["ABSENT", "LATE", "PRESENT"])
+    status = serializers.ChoiceField(choices=["ABSENT", "PRESENT"])
 
 
 class AnalyticsStudentSerializer(serializers.Serializer):
@@ -178,9 +175,6 @@ class DailySummaryKpisSerializer(serializers.Serializer):
     partial_absent = serializers.IntegerField()
     no_absence = serializers.IntegerField()
     undetermined = serializers.IntegerField()
-    late_students = serializers.IntegerField()
-    late_occurrences = serializers.IntegerField()
-    late_minutes = serializers.IntegerField()
 
 
 class DailyStudentSerializer(serializers.Serializer):
@@ -189,8 +183,6 @@ class DailyStudentSerializer(serializers.Serializer):
     grade_name = serializers.CharField()
     section_name = serializers.CharField()
     absent_periods = serializers.IntegerField()
-    late_periods = serializers.IntegerField()
-    total_late_minutes = serializers.IntegerField()
     submitted_periods = serializers.IntegerField()
     expected_periods = serializers.IntegerField()
 
@@ -287,8 +279,6 @@ def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edi
             {
                 "student_id": m.student_id,
                 "status": m.status,
-                "arrival_time": m.arrival_time.strftime("%H:%M") if m.arrival_time else None,
-                "late_minutes": m.late_minutes,
             }
             for m in session.marks.all()
         ],

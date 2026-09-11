@@ -45,7 +45,6 @@ const OVERVIEW = {
       present_students: 250,
       absent_students: 18,
       leave_students: 5,
-      late_students: 12,
       morning_late_students: 7,
       daily_absent_students: 9,
       daily_covered_students: 260,
@@ -75,8 +74,6 @@ const OVERVIEW = {
     absent_periods: 260,
     unexcused_absent_periods: 200,
     excused_absent_periods: 60,
-    period_late_occurrences: 14,
-    period_late_minutes: 90,
     morning_late_occurrences: 25,
     morning_late_minutes: 180,
     morning_arrivals: 350,
@@ -191,7 +188,6 @@ const SECTIONS = {
       full_absence_days: 18,
       partial_absence_days: 7,
       unexcused_full_absence_days: 13,
-      period_late_occurrences: 6,
       morning_late_occurrences: 11,
     },
   ],
@@ -264,9 +260,8 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.getByTestId("kpi-undetermined")).toHaveTextContent("18");
     expect(screen.getByTestId("unit-note")).toHaveTextContent("أيام-طالب");
 
-    // المؤشران الصباحي والحصصي منفصلان — رقمان مختلفان لا مجموع واحد
+    // التأخر المدرسي مصدره الحضور الصباحي وحده.
     expect(screen.getByTestId("kpi-morning-late")).toHaveTextContent("25");
-    expect(screen.getByTestId("kpi-period-late")).toHaveTextContent("14");
 
     expect(
       within(screen.getByTestId("kpi-unexcused-full")).getByTestId("comparison-pct"),
@@ -400,7 +395,6 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.getByTestId("school-current-leave")).toHaveTextContent("5");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("250 حاضرًا");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("18 غائبًا عن الحصة");
-    expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("12 متأخرًا");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("بانتظار تحضير 2 فصل");
     expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("260 من 320 طالبًا");
     expect(card).not.toHaveTextContent("الغياب اليوم");
@@ -552,7 +546,6 @@ describe("لوحة إدارة المدرسة", () => {
         present_students: 420,
         absent_students: 330,
         leave_students: 50,
-        late_students: 0,
         daily_absent_students: 300,
         daily_covered_students: 800,
         daily_pending_sections: 0,

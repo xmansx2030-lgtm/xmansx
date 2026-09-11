@@ -38,9 +38,6 @@ function dailyBody(overrides: Partial<DailyAnalyticsResponse> = {}): DailyAnalyt
       partial_absent: 5,
       no_absence: 43,
       undetermined: 8,
-      late_students: 4,
-      late_occurrences: 6,
-      late_minutes: 73,
     },
     students: [],
     page: 1,
@@ -211,7 +208,7 @@ describe("attendance analytics", () => {
     expect(screen.queryByTestId("incomplete-warning")).not.toBeInTheDocument();
   });
 
-  it("daily tab shows KPI cards including late totals and incomplete", async () => {
+  it("daily tab shows attendance KPI cards including incomplete records", async () => {
     mockApi({
       "/auth/me/": { body: viceMe() },
       "/attendance/analytics/daily/": { body: dailyBody() },
@@ -226,8 +223,6 @@ describe("attendance analytics", () => {
     expect(within(kpis).getByTestId("daily-full")).toHaveTextContent("2");
     expect(within(kpis).getByTestId("daily-partial")).toHaveTextContent("5");
     expect(within(kpis).getByTestId("daily-incomplete")).toHaveTextContent("10");
-    expect(within(kpis).getByTestId("daily-late-occurrences")).toHaveTextContent("6");
-    expect(within(kpis).getByTestId("daily-late-minutes")).toHaveTextContent("73");
   });
 
   it("daily tab lists students for a selected absence status", async () => {
@@ -251,8 +246,6 @@ describe("attendance analytics", () => {
               grade_name: "الأول الثانوي",
               section_name: "1",
               absent_periods: 3,
-              late_periods: 0,
-              total_late_minutes: 0,
               submitted_periods: 3,
               expected_periods: 3,
             },

@@ -228,7 +228,6 @@ export function ExcuseDetailCard({
               <li key={day.attendance_date} data-testid={`preview-day-${day.attendance_date}`}>
                 <strong>{formatDate(day.attendance_date)}:</strong> إجمالي الغياب المسجل {day.absent_periods}، والنطاق المشمول {day.scope_periods} حصة
                 {day.present_periods > 0 && ` • ${day.present_periods} حاضر (لن تتأثر)`}
-                {day.late_periods > 0 && ` • ${day.late_periods} تأخر (لا يتحول)`}
                 {!day.complete && (
                   <span className="text-amber-800">
                     {" "}

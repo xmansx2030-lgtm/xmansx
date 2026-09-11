@@ -10,12 +10,7 @@ from datetime import date, timedelta
 from django.db.models import Count, Q, Sum
 from django.utils import timezone as dj_timezone
 
-from attendance.models import (
-    AttendanceMark,
-    AttendanceMarkStatus,
-    DailyAbsenceStatus,
-    DailyAttendanceSummary,
-)
+from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
 from common.errors import ApiError
 from devices.models import ArrivalSource, ArrivalStatus, SchoolArrival
 from documents.models import DocumentType
@@ -201,13 +196,9 @@ def warning_snapshot(*, school, warning: StudentWarning, membership, title: str)
             "excused_full_absence_days": warning.excused_full_absence_days_at_issue,
             "absent_periods": warning.absent_periods_at_issue,
             "unexcused_absent_periods": warning.unexcused_absent_periods_at_issue,
-            # عدادان منفصلان — لا يجمعان أبدًا (البند 113)
             "morning_late_occurrences": warning.morning_late_occurrences_at_issue,
             "morning_late_minutes": warning.morning_late_minutes_at_issue,
             "morning_late_duration": format_minutes(warning.morning_late_minutes_at_issue),
-            "period_late_occurrences": warning.period_late_occurrences_at_issue,
-            "period_late_minutes": warning.period_late_minutes_at_issue,
-            "period_late_duration": format_minutes(warning.period_late_minutes_at_issue),
         },
     }
 
@@ -328,7 +319,7 @@ def absence_report_snapshot(*, school, student, membership, from_date: date, to_
 
 
 def morning_late_snapshot(*, school, student, membership, from_date: date, to_date: date) -> dict:
-    """مصدره `SchoolArrival` وحده — تأخر الحصص لا يدخله إطلاقًا (البند 40)."""
+    """مصدره `SchoolArrival` وحده."""
     validate_range(from_date, to_date)
     arrivals = SchoolArrival.objects.filter(
         school=school,
@@ -370,55 +361,6 @@ def morning_late_snapshot(*, school, student, membership, from_date: date, to_da
                 "raw_late_minutes": raw_minutes,
                 "counted_late_minutes": counted_minutes,
                 "duration": format_minutes(counted_minutes),
-            },
-            "truncated": len(rows) >= MAX_REPORT_ROWS,
-        },
-    )
-
-
-# ---------------------------------------------------------------- تأخر الحصص
-
-
-def period_late_snapshot(*, school, student, membership, from_date: date, to_date: date) -> dict:
-    """مصدره `AttendanceMark.LATE` — مستقل تمامًا عن التأخر الصباحي (البند 41)."""
-    validate_range(from_date, to_date)
-    marks = (
-        AttendanceMark.objects.filter(
-            school=school,
-            student=student,
-            status=AttendanceMarkStatus.LATE,
-            session__attendance_date__range=(from_date, to_date),
-        )
-        .select_related("session")
-        .order_by("session__attendance_date", "session__period_sequence")[:MAX_REPORT_ROWS]
-    )
-    rows = []
-    minutes = 0
-    for mark in marks:
-        rows.append(
-            {
-                "date": mark.session.attendance_date.isoformat(),
-                "weekday": WEEKDAY_NAMES[mark.session.attendance_date.weekday()],
-                "period_sequence": mark.session.period_sequence,
-                "period_name": (mark.session.bell_period_snapshot or {}).get("name", ""),
-                "arrival_time": mark.arrival_time.strftime("%H:%M") if mark.arrival_time else "",
-                "late_minutes": mark.late_minutes or 0,
-            }
-        )
-        minutes += mark.late_minutes or 0
-
-    return _base(
-        school=school,
-        student=student,
-        membership=membership,
-        title="كشف تفصيلي لتأخر الحصص",
-        extra={
-            "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
-            "rows": rows,
-            "totals": {
-                "occurrences": len(rows),
-                "late_minutes": minutes,
-                "duration": format_minutes(minutes),
             },
             "truncated": len(rows) >= MAX_REPORT_ROWS,
         },
@@ -478,11 +420,9 @@ def attendance_report_snapshot(
             "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
             "summary": {
                 **summary,
-                # الصباحي منفصل عن تأخر الحصص في العرض والحساب معًا
                 "morning_late_occurrences": arrivals["occurrences"] or 0,
                 "morning_late_minutes": arrivals["minutes"] or 0,
                 "morning_late_duration": format_minutes(arrivals["minutes"] or 0),
-                "period_late_duration": format_minutes(summary["period_late_minutes"]),
             },
             "warnings": warnings,
             "actions": actions,
@@ -506,6 +446,5 @@ BUILDERS = {
     DocumentType.ATTENDANCE_COMMITMENT: commitment_snapshot,
     DocumentType.ABSENCE_DETAIL_REPORT: absence_report_snapshot,
     DocumentType.MORNING_LATE_DETAIL_REPORT: morning_late_snapshot,
-    DocumentType.PERIOD_LATE_DETAIL_REPORT: period_late_snapshot,
     DocumentType.STUDENT_ATTENDANCE_REPORT: attendance_report_snapshot,
 }

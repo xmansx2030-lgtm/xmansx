@@ -6,8 +6,6 @@ class AttendanceProfileSummarySerializer(serializers.Serializer):
     partial_absence_days = serializers.IntegerField()
     undetermined_days = serializers.IntegerField()
     absent_periods = serializers.IntegerField()
-    period_late_occurrences = serializers.IntegerField()
-    period_late_minutes = serializers.IntegerField()
     # م10 — التصنيف الإداري: الإجماليات أعلاه تبقى كما هي (بند 69)
     excused_absent_periods = serializers.IntegerField()
     unexcused_absent_periods = serializers.IntegerField()
@@ -42,8 +40,6 @@ class AttendanceDaySerializer(serializers.Serializer):
     absent_periods = serializers.IntegerField()
     excused_absent_periods = serializers.IntegerField()
     unexcused_absent_periods = serializers.IntegerField()
-    late_periods = serializers.IntegerField()
-    total_late_minutes = serializers.IntegerField()
 
 
 class AttendancePeriodSerializer(serializers.Serializer):
@@ -51,8 +47,6 @@ class AttendancePeriodSerializer(serializers.Serializer):
     sequence = serializers.IntegerField(source="session.period_sequence")
     period = serializers.DictField(source="session.bell_period_snapshot")
     section = serializers.DictField()
-    arrival_time = serializers.CharField(allow_null=True)
-    late_minutes = serializers.IntegerField(allow_null=True)
 
 
 class AttendanceChangeSerializer(serializers.Serializer):
@@ -61,8 +55,6 @@ class AttendanceChangeSerializer(serializers.Serializer):
     period = serializers.DictField(source="session.bell_period_snapshot")
     previous_status = serializers.CharField()
     new_status = serializers.CharField()
-    previous_late_minutes = serializers.IntegerField(allow_null=True)
-    new_late_minutes = serializers.IntegerField(allow_null=True)
     reason = serializers.CharField(allow_blank=True)
     actor = serializers.CharField(allow_null=True)
     changed_at = serializers.DateTimeField()

@@ -166,14 +166,12 @@ def test_no_session_means_nothing(teacher_env):
 
 
 @pytest.mark.django_db
-def test_period_late_status_is_rejected(teacher_env):
-    """لا تستطيع أي عميلة API إعادة خيار التأخر المحذوف من الواجهة."""
+def test_unknown_attendance_status_is_rejected(teacher_env):
     students = teacher_env["students"]
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
     response = _submit(
         teacher_env["client"], session["id"],
-        [{"student_id": students[0].id, "status": "LATE",
-          "arrival_time": "08:15", "late_minutes": 1}],
+        [{"student_id": students[0].id, "status": "UNKNOWN"}],
     )
     assert response.status_code == 400
     assert response.json()["code"] == "VALIDATION_ERROR"
@@ -182,19 +180,16 @@ def test_period_late_status_is_rejected(teacher_env):
 
 
 @pytest.mark.django_db
-def test_absent_never_stores_arrival_or_late_minutes(teacher_env):
+def test_absent_creates_one_exception_mark(teacher_env):
     students = teacher_env["students"]
     session = _start(teacher_env["client"], teacher_env["section"].id).json()
     response = _submit(
         teacher_env["client"], session["id"],
-        [{"student_id": students[0].id, "status": "ABSENT",
-          "arrival_time": "08:15", "late_minutes": 9}],
+        [{"student_id": students[0].id, "status": "ABSENT"}],
     )
     assert response.status_code == 200
     mark = AttendanceMark.objects.get(session_id=session["id"])
     assert mark.status == "ABSENT"
-    assert mark.arrival_time is None
-    assert mark.late_minutes is None
 
 
 @pytest.mark.django_db
@@ -328,7 +323,6 @@ def test_teacher_edit_within_window_and_history(teacher_env):
     assert ("ABSENT", "PRESENT") in changes  # الطالب 0 عاد حاضرًا
     assert ("PRESENT", "ABSENT") in changes  # الطالب 1 صار غائبًا
     change = AttendanceChange.objects.get(previous_status="PRESENT", new_status="ABSENT")
-    assert change.new_late_minutes is None
     assert change.reason == "تصحيح خطأ"
 
 

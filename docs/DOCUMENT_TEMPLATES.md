@@ -13,7 +13,6 @@
 | `attendance_commitment` | v1 | تعهد الالتزام بالحضور | `commitment.html` |
 | `absence_detail_report` | v1 | كشف تفصيلي للغياب | `absence_report.html` |
 | `morning_late_report` | v1 | كشف التأخر الصباحي | `morning_late_report.html` |
-| `period_late_report` | v1 | كشف تأخر الحصص | `period_late_report.html` |
 | `student_attendance_report` | v1 | تقرير مواظبة الطالب | `attendance_report.html` |
 
 ## الإصدارات

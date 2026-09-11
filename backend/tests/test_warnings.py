@@ -249,17 +249,10 @@ def test_morning_late_metric_counts_occurrences_only(env):
 
 
 @pytest.mark.django_db
-def test_on_time_arrival_and_period_late_do_not_count(env):
-    """الوصول في الوقت لا يحتسب، وتأخر الحصص عداد منفصل تمامًا (106-107)."""
+def test_on_time_arrival_does_not_count(env):
     student = env["students"][0]
     set_rules(env, MORNING, 3, 5, 10)
     morning_late(env, student, 3, status=ArrivalStatus.ON_TIME)
-    # ثلاث حالات تأخر حصص
-    for seq in (1, 2, 3):
-        session = make_session(env, seq, day=DAY2)
-        mark(env, session, student, "LATE", minutes=9)
-    recalc(env, day=DAY2)
-
     state = evaluate(env, student, MORNING)
     assert state["current_value"] == 0
     assert state["highest_due_level"] is None
@@ -296,9 +289,7 @@ def test_issue_level_1_creates_warning_with_snapshot(env):
     assert warning.grade_name_snapshot == env["grade"].name
     assert warning.section_name_snapshot == env["section"].name
     assert warning.unexcused_full_absence_days_at_issue == 3
-    # عدادان منفصلان في نفس الـsnapshot — لا جمع بينهما
     assert warning.morning_late_occurrences_at_issue == 2
-    assert warning.period_late_occurrences_at_issue == 0
     assert warning.issued_by_membership_id == env["vice"].id
     assert warning.academic_year_id == env["year"].id
     assert len(warning.detail_rows_snapshot) == 3

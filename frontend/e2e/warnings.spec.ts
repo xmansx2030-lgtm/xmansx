@@ -4,7 +4,7 @@
  * 1) 3 أيام غياب كامل بدون عذر → المستوى الأول مستحق → الوكيل يصدر → يظهر في الملف.
  * 2) 5 أيام → المستوى الثاني مستحق مع بقاء الأول صادرًا → إصدار الثاني.
  * 3) اعتماد عذر ليومين → القيمة الحالية تنخفض والإنذار يبقى (عند الإصدار 5 / حاليًا 3).
- * 4) 3 تأخرات صباحية → إنذار تأخر مستقل (لا يخلط بتأخر الحصص).
+ * 4) 3 تأخرات صباحية → إنذار تأخر.
  * 5) تغيير القواعد يعيد التقييم ولا يمس الإنذارات الصادرة.
  * 6) العزل: مدير A لا يصل لإنذارات B.
  *
@@ -248,7 +248,7 @@ test("absence warnings: level 1 then level 2, excuse lowers current metric only"
   await expect(detail).toContainText("الإنذار يبقى كما صدر");
 });
 
-test("morning late warning is independent from period late", async ({ page }) => {
+test("morning late warning is derived from morning arrivals", async ({ page }) => {
   const m = meta();
   const [, bandar] = m.warnings_students;
   await login(page, "0550000002", "ثانوية الأندلس");

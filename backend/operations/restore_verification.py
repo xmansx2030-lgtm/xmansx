@@ -81,7 +81,6 @@ def capture_restore_manifest(school_slug: str) -> dict:
             "expected": attendance.expected_periods,
             "submitted": attendance.submitted_periods,
             "absent": attendance.absent_periods,
-            "late": attendance.late_periods,
             "status": attendance.absence_status,
         },
         "arrival": {

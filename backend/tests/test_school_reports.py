@@ -54,9 +54,7 @@ def report_env(make_school, role_client):
         expected_periods=7,
         submitted_periods=7,
         absent_periods=7,
-        late_periods=2,
         present_periods=0,
-        total_late_minutes=9,
         excused_absent_periods=2,
         unexcused_absent_periods=5,
         completeness_status=DailyCompleteness.COMPLETE,
@@ -98,9 +96,9 @@ def test_manager_and_vice_principal_receive_filtered_absence_report(report_env):
 
 
 @pytest.mark.django_db
-def test_lateness_report_keeps_morning_and_period_metrics_separate(report_env):
+def test_lateness_report_uses_morning_arrivals_only(report_env):
     response = report_env["vice"].get(
-        "/api/v1/reports/lateness/?preset=TODAY&lateness_type=ALL&min_occurrences=1"
+        "/api/v1/reports/lateness/?preset=TODAY&min_occurrences=1"
     )
     assert response.status_code == 200
     payload = response.json()
@@ -108,11 +106,8 @@ def test_lateness_report_keeps_morning_and_period_metrics_separate(report_env):
         "students": 1,
         "morning_occurrences": 1,
         "morning_minutes": 10,
-        "period_occurrences": 2,
-        "period_minutes": 9,
     }
     assert payload["results"][0]["morning_occurrences"] == 1
-    assert payload["results"][0]["period_occurrences"] == 2
 
 
 @pytest.mark.django_db

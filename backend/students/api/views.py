@@ -740,8 +740,6 @@ class StudentAttendanceDaysView(SchoolScopedAPIView):
                     "absent_periods": row.absent_periods,
                     "excused_absent_periods": row.excused_absent_periods,
                     "unexcused_absent_periods": row.unexcused_absent_periods,
-                    "late_periods": row.late_periods,
-                    "total_late_minutes": row.total_late_minutes,
                 }
                 for row in page
             ]
@@ -831,10 +829,6 @@ class _StudentAttendanceMarksView(SchoolScopedAPIView):
                         "name": mark.session.section.name,
                         "grade_name": mark.session.section.grade.name,
                     },
-                    "arrival_time": mark.arrival_time.strftime("%H:%M")
-                    if mark.arrival_time
-                    else None,
-                    "late_minutes": mark.late_minutes,
                 }
                 for mark in page
             ]
@@ -843,10 +837,6 @@ class _StudentAttendanceMarksView(SchoolScopedAPIView):
 
 class StudentAttendanceAbsencesView(_StudentAttendanceMarksView):
     mark_status = "ABSENT"
-
-
-class StudentAttendanceLatesView(_StudentAttendanceMarksView):
-    mark_status = "LATE"
 
 
 class StudentAttendanceChangesView(SchoolScopedAPIView):
@@ -882,8 +872,6 @@ class StudentAttendanceChangesView(SchoolScopedAPIView):
                     "new_status_label": attendance_profile_service.MARK_LABELS.get(
                         change.new_status, change.new_status
                     ),
-                    "previous_late_minutes": change.previous_late_minutes,
-                    "new_late_minutes": change.new_late_minutes,
                     "reason": change.reason or None,
                     "actor": (
                         change.actor_membership.staff_profile.display_name
