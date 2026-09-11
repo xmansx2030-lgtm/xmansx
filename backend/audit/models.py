@@ -134,6 +134,16 @@ class AuditAction(models.TextChoices):
         "PLATFORM_MANAGER_PASSWORD_RESET",
         "إعادة ضبط كلمة مرور مدير مدرسة من المنصة",
     )
+    PLATFORM_STAFF_CREATED = "PLATFORM_STAFF_CREATED", "إضافة موظف منصة"
+    PLATFORM_STAFF_UPDATED = "PLATFORM_STAFF_UPDATED", "تحديث موظف منصة"
+    PLATFORM_STAFF_SUSPENDED = "PLATFORM_STAFF_SUSPENDED", "إيقاف موظف منصة"
+    PLATFORM_STAFF_REACTIVATED = "PLATFORM_STAFF_REACTIVATED", "إعادة تفعيل موظف منصة"
+    PLATFORM_STAFF_PASSWORD_RESET = "PLATFORM_STAFF_PASSWORD_RESET", "إعادة ضبط كلمة مرور موظف منصة"
+    PLATFORM_ACCOUNT_UPDATED = "PLATFORM_ACCOUNT_UPDATED", "تحديث حساب المنصة"
+    PLATFORM_ACCOUNT_PASSWORD_CHANGED = (
+        "PLATFORM_ACCOUNT_PASSWORD_CHANGED",
+        "تغيير كلمة مرور حساب المنصة",
+    )
     PLAN_CREATED = "PLAN_CREATED", "إنشاء باقة"
     PLAN_UPDATED = "PLAN_UPDATED", "تعديل باقة"
     PLAN_DISABLED = "PLAN_DISABLED", "تعطيل باقة"

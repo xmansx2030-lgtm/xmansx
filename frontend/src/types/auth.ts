@@ -34,6 +34,10 @@ export interface Me {
   mobile: string;
   name: string;
   is_platform_admin: boolean;
+  is_platform_owner?: boolean;
+  platform_role?: "OWNER" | "OPERATIONS_MANAGER" | "SUPPORT" | "BILLING" | "AUDITOR" | null;
+  platform_role_label?: string;
+  platform_capabilities?: PlatformCapability[];
   must_change_password: boolean;
   active_school: SchoolSummary | null;
   roles: SchoolRole[];
@@ -41,3 +45,14 @@ export interface Me {
   memberships: MembershipSummary[];
   invitations: Invitation[];
 }
+
+export type PlatformCapability =
+  | "DASHBOARD_VIEW"
+  | "SCHOOLS_VIEW"
+  | "SCHOOLS_MANAGE"
+  | "SCHOOL_ACCOUNTS_MANAGE"
+  | "SUBSCRIPTIONS_MANAGE"
+  | "PLANS_VIEW"
+  | "PLANS_MANAGE"
+  | "TEAM_VIEW"
+  | "TEAM_MANAGE";

@@ -15,7 +15,7 @@ from datetime import datetime as datetime_cls
 from datetime import time as time_cls
 from datetime import timedelta
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 
 from attendance.models import (
     AttendanceMark,
@@ -77,10 +77,18 @@ def arrivals_queryset(*, school, date_range, scope=None):
     )
     scope = scope or {}
     if scope.get("section_id") or scope.get("grade_id"):
-        scoped = summaries_queryset(school=school, date_range=date_range, scope=scope)
-        pairs = scoped.values_list("student_id", "attendance_date")
-        student_ids = {student_id for student_id, _ in pairs}
-        arrivals = arrivals.filter(student_id__in=student_ids)
+        scoped = DailyAttendanceSummary.objects.filter(
+            school=school,
+            student_id=OuterRef("student_id"),
+            attendance_date=OuterRef("attendance_date"),
+        )
+        if scope.get("section_id"):
+            scoped = scoped.filter(section_id=scope["section_id"])
+        else:
+            scoped = scoped.filter(section__grade_id=scope["grade_id"])
+        arrivals = arrivals.annotate(_in_historical_scope=Exists(scoped)).filter(
+            _in_historical_scope=True
+        )
     return arrivals
 
 

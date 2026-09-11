@@ -71,6 +71,9 @@ def get_students(*, school, actor):  # school و actor صريحان دائمًا
 4. **`school_id` supplied by the client is never trusted as authorization** (الاستثناء الوحيد: switch، وبتحقق كامل).
 5. **Frontend isolation is UX only; backend isolation is authoritative.**
 
-## PostgreSQL RLS (الاستراتيجية)
+## PostgreSQL RLS
 
-Defense-in-Depth مستقبلي، ليس بديلًا عن Django scoping — انظر ملحق ADR-002. الـ schema الحالي جاهز له (كل جدول مدرسي يحمل school_id قابلاً للربط بـ `current_setting`).
+مفعّل ومفروض كـ Defense-in-Depth، وليس بديلًا عن Django scoping — انظر ملحق
+ADR-002. تحمي السياسات جذر المدرسة والجداول المباشرة والتابعة، وتفشل إلى
+الإغلاق عند غياب `app.current_school_id`. كما تمنع constraint triggers أي FK
+يربط صفين من مدرستين مختلفتين.

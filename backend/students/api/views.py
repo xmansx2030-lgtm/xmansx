@@ -5,7 +5,7 @@ TEACHER لا يملك قائمة طلاب عامة في هذه المرحلة (�
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from drf_spectacular.utils import extend_schema
@@ -561,7 +561,23 @@ class ImportProcessView(SchoolScopedAPIView):
         job.column_mapping = mapping
         job.status = ImportJobStatus.PROCESSING
         job.error_code = ""
-        job.save(update_fields=["column_mapping", "status", "error_code", "updated_at"])
+        try:
+            # Savepoint is required because Django's test/request transaction is
+            # otherwise left unusable after a unique-constraint violation.
+            with transaction.atomic():
+                job.save(
+                    update_fields=["column_mapping", "status", "error_code", "updated_at"]
+                )
+        except IntegrityError as exc:
+            # PostgreSQL's partial unique constraint is the final arbiter under
+            # simultaneous clicks/replicas. Never turn this expected race into 500.
+            if StudentImportJob.objects.filter(
+                school=request.school, status=ImportJobStatus.PROCESSING
+            ).exclude(id=job.id).exists():
+                raise ApiError(
+                    "IMPORT_ALREADY_RUNNING", "يوجد استيراد آخر قيد التنفيذ لهذه المدرسة.", 409
+                ) from exc
+            raise
         process_import_job.delay(job.id)
         return Response(_serialize_job(job), status=http_status.HTTP_202_ACCEPTED)
 

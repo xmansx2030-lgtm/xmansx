@@ -1,5 +1,5 @@
 import {
-  BarChart3, BellRing, BookOpenCheck, Building2, CreditCard, Fingerprint,
+  BarChart3, BellRing, BookOpenCheck, Building2, CreditCard, FileSpreadsheet, Fingerprint,
   ChevronDown, DoorOpen, GraduationCap, HeartHandshake, LayoutDashboard, LogOut, Menu,
   MessageSquareMore, QrCode, RefreshCw, Send, Settings, Sunrise,
   UsersRound, X, type LucideIcon,
@@ -28,12 +28,14 @@ const MANAGER_VP: Role[] = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 const MANAGER_VP_COUNSELOR: Role[] = [...MANAGER_VP, "COUNSELOR"];
 const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/dashboard",
+  "/reports",
   "/attendance/monitoring",
   "/excuses",
   "/student-leaves",
 ]);
 const MANAGER_PRIMARY_PATHS = new Set([
   "/dashboard",
+  "/reports",
   "/students",
   "/attendance/monitoring",
   "/staff",
@@ -49,6 +51,7 @@ const GROUP_LABELS: Record<NavigationGroup, string> = {
 
 const NAVIGATION: NavigationItem[] = [
   { to: "/dashboard", label: "لوحة الإدارة", roles: MANAGER_VP, icon: LayoutDashboard, group: "overview" },
+  { to: "/reports", label: "التقارير", roles: MANAGER_VP, icon: FileSpreadsheet, group: "overview" },
   { to: "/", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
   { to: "/students", label: "الطلاب", roles: MANAGER_VP_COUNSELOR, icon: GraduationCap, group: "students" },
   { to: "/warnings", label: "الإنذارات", roles: MANAGER_VP, icon: BellRing, group: "students" },

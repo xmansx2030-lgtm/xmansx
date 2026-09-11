@@ -61,6 +61,10 @@ export const routes = [
                         lazy: async () => ({ Component: (await import("@/features/dashboard/DashboardPage")).DashboardPage }),
                       },
                       {
+                        path: "reports",
+                        lazy: async () => ({ Component: (await import("@/features/reports/ReportsPage")).ReportsPage }),
+                      },
+                      {
                         path: "warnings",
                         lazy: async () => ({ Component: (await import("@/features/warnings/WarningsDashboardPage")).WarningsDashboardPage }),
                       },

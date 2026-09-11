@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from threading import Event
+from unittest.mock import patch
 
 import pytest
 from django.core.exceptions import ObjectDoesNotExist
@@ -794,6 +795,27 @@ def test_platform_school_list_has_manager_usage_filters_privacy_and_constant_que
         f"/api/v1/platform/schools/?plan={plan.code}"
     ).json()["results"]
     assert len(by_plan) == 12
+
+
+@pytest.mark.django_db
+def test_platform_school_list_serializes_only_requested_page(client, platform_admin):
+    from subscriptions.api import views as platform_views
+
+    School.objects.bulk_create(
+        School(name=f"مدرسة توسع {index:04d}", slug=f"scale-{index:04d}")
+        for index in range(250)
+    )
+    client.force_login(platform_admin)
+
+    with patch.object(
+        platform_views, "_school_row", wraps=platform_views._school_row
+    ) as serialize_row:
+        response = client.get("/api/v1/platform/schools/?page_size=25")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 250
+    assert len(response.json()["results"]) == 25
+    assert serialize_row.call_count == 25
 
 
 @pytest.mark.django_db

@@ -8,6 +8,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 
 from common.errors import ApiError
+from platform_team.access import has_platform_capability
 
 
 class PlatformAdminRequired(BasePermission):
@@ -15,10 +16,13 @@ class PlatformAdminRequired(BasePermission):
         user = request.user
         if not (user and user.is_authenticated):
             return False  # → AUTHENTICATION_REQUIRED
-        if not user.is_platform_admin:
+        capability = getattr(view, "platform_capabilities_by_method", {}).get(
+            request.method, getattr(view, "platform_capability", None)
+        )
+        if not has_platform_capability(user, capability):
             raise ApiError(
                 "PERMISSION_DENIED",
-                "هذه الواجهة مخصصة لإدارة المنصة.",
+                "لا تملك الصلاحية المطلوبة لتنفيذ هذا الإجراء في المنصة.",
                 status_code=403,
             )
         if user.must_change_password:

@@ -8,4 +8,7 @@ urlpatterns = [
     path("dashboard/attendance-trend/", views.DashboardTrendView.as_view()),
     path("dashboard/sections/", views.DashboardSectionsView.as_view()),
     path("dashboard/attention/", views.DashboardAttentionView.as_view()),
+    path("reports/absence/", views.AttendanceReportView.as_view()),
+    path("reports/lateness/", views.LatenessReportView.as_view()),
+    path("reports/referrals/", views.ReferralsReportView.as_view()),
 ]

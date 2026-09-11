@@ -85,6 +85,8 @@ def main() -> int:
             os.environ.get("CELERY_WORKER_POOL", "solo"),
             "--hostname",
             "render-worker@%h",
+            "--queues",
+            "celery,imports,maintenance",
         ],
         "beat": [
             "celery",

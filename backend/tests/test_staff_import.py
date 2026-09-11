@@ -8,7 +8,7 @@ from memberships.models import (
     MembershipStatus,
     SchoolMembership,
 )
-from staff.models import StaffProfile
+from staff.models import StaffImportJob, StaffImportStatus, StaffProfile
 from tests.xlsx_helper import build_ministry_staff_upload, build_xlsx_upload
 
 IMPORTS_URL = "/api/v1/staff-imports/"
@@ -28,6 +28,23 @@ def upload(client, rows, headers=None):
 
 def process(client, job_id):
     return client.post(f"{IMPORTS_URL}{job_id}/process/", {}, content_type="application/json")
+
+
+@pytest.mark.django_db
+def test_second_staff_import_returns_conflict_instead_of_500(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    first = upload(client, [staff_row("المعلم الأول", "0559990081")]).json()
+    second = upload(client, [staff_row("المعلم الثاني", "0559990082")]).json()
+    StaffImportJob.objects.filter(id=first["id"]).update(status=StaffImportStatus.PROCESSING)
+
+    response = process(client, second["id"])
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "IMPORT_ALREADY_RUNNING"
+    assert StaffImportJob.objects.get(id=second["id"]).status == StaffImportStatus.UPLOADED
+    assert StaffImportJob.objects.filter(
+        school=school, status=StaffImportStatus.PROCESSING
+    ).count() == 1
 
 
 def run_import(client, rows):

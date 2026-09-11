@@ -158,15 +158,18 @@ class Command(BaseCommand):
             batch_size=1000,
         )
 
-        for size in (100, 500, 1000):
+        for total_schools in (100, 500, 1000):
             queryset = _platform_school_queryset().filter(
-                slug__startswith="phase16-benchmark-list-"
-            )[:size]
+                slug__gte="phase16-benchmark-list-0000",
+                slug__lt=f"phase16-benchmark-list-{total_schools:04d}",
+            )
             with CaptureQueriesContext(connection) as queries:
                 started = perf_counter()
-                rows = [_school_row(school) for school in queryset]
+                measured_total = queryset.count()
+                rows = [_school_row(school) for school in queryset[:100]]
                 duration_ms = (perf_counter() - started) * 1000
             self.stdout.write(
-                f"platform_schools={size} duration_ms={duration_ms:.2f} "
-                f"queries={len(queries)} measured={len(rows)}"
+                f"platform_total={total_schools} page_size=100 "
+                f"duration_ms={duration_ms:.2f} queries={len(queries)} "
+                f"measured_total={measured_total} serialized={len(rows)}"
             )

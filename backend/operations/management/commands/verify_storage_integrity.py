@@ -2,6 +2,7 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
+from common.tenant_rls import tenant_context
 from operations.storage_integrity import verify_storage_integrity
 
 
@@ -12,7 +13,10 @@ class Command(BaseCommand):
         parser.add_argument("--existence-only", action="store_true")
 
     def handle(self, *args, **options):
-        result = verify_storage_integrity(verify_checksums=not options["existence_only"])
+        with tenant_context(bypass=True):
+            result = verify_storage_integrity(
+                verify_checksums=not options["existence_only"]
+            )
         self.stdout.write(json.dumps(result, sort_keys=True))
         if result["missing"] or result["checksum_mismatch"] or result["errors"]:
             raise CommandError("storage integrity verification failed")

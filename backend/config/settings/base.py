@@ -14,6 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = env_str("DJANGO_SECRET_KEY", "django-insecure-dev-only-key-do-not-use")
 
 DEBUG = False  # كل بيئة تحدد قيمتها صراحةً
+DJANGO_ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", True)
 
 ALLOWED_HOSTS: list[str] = []
 
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     "counseling",
     "school_dashboard",
     "subscriptions",
+    "platform_team",
     "audit",
     "operations",
     "django.contrib.admin",
@@ -102,6 +104,7 @@ DATABASES = {
         "CONN_MAX_AGE": 60,
     }
 }
+DATABASE_RLS_ENFORCED = False
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -261,6 +264,17 @@ CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TIMEZONE = TIME_ZONE
+# Fair scheduling prevents one large school's imports from reserving a whole
+# worker's future task capacity. Jobs are idempotent and acknowledged on finish.
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_TASK_ROUTES = {
+    "students.process_import_job": {"queue": "imports"},
+    "staff.process_import_job": {"queue": "imports"},
+    "students.run_purge_job": {"queue": "maintenance"},
+    "operations.scheduled_database_backup": {"queue": "maintenance"},
+}
 CELERY_BEAT_SCHEDULE = {
     "system-operational-heartbeat": {
         "task": "operations.system_heartbeat",

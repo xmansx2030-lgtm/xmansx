@@ -52,6 +52,15 @@ correctness and observed latency rather than relabeling the target.
 | Warning metrics | 5,000 | 81-86 ms, one query |
 | Student profile | 365 days | summary 3.2 ms / one query; daily 4.2 ms / one query |
 | Platform list | 1,000 schools | 1,491.25 ms / four queries |
+| Platform page after SQL pagination | 100 / 500 / 1,000 total schools | 249 / 233 / 217 ms; 100 serialized; five queries |
+
+The 2026-09-11 scaling hardening moved platform status/plan/expiry/limit filters,
+counts, and pagination into PostgreSQL. Serialization is now bounded by the
+requested page (maximum 100) instead of the total school count. A 2026-09-11
+local rerun stayed effectively flat while the tenant registry grew from 100 to
+1,000 schools (249/233/217 ms, five queries); the historical 1,000-row timing
+above intentionally remains as the pre-fix comparison. The target Render
+topology still needs its own release benchmark before setting an external SLA.
 
 Attendance analytics retained constant query counts at 500, 1,000, 3,000, and 5,000 students.
 Period reads ranged from 22 to 280 ms; full rebuild ranged from 1.76 to 23.03 seconds.
@@ -66,4 +75,3 @@ Redis restart initially caused 59 HTTP 500 responses. After the cache fail-open 
 requests completed with zero failures. A backend restart caused 416 expected connection resets
 during the 3.63-second outage; the immediate recovery run completed 1,728 requests without a
 failure. These outage errors are not counted as application correctness passes.
-

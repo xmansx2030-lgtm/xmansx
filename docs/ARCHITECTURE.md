@@ -107,9 +107,10 @@ frontend/src/
 - **الاستراتيجية:** قاعدة بيانات واحدة + عمود `school_id` في كل جدول مرتبط ببيانات مدرسة (Shared DB, Shared Schema, Row-Level Isolation).
 - **الإنفاذ بطبقات متراكبة:**
   1. **Middleware** يحدد `request.school` من `active_school_id` المخزن في الجلسة، ويتحقق أن للمستخدم `SchoolMembership` فعالة فيها. لا يُقبل `school_id` من المستخدم أبدًا دون هذا التحقق.
-  2. **Custom Manager** (`SchoolScopedManager`) لكل Model مدرسي: الوصول القياسي يكون عبر `Model.objects.for_school(school)`; الوصول غير المحدود متاح فقط عبر manager صريح باسم مميز (`all_schools`) لاستخدامات المنصة والمهام الخلفية.
-  3. **Base ViewSet/Permission** يفرض التقاطع: `queryset = queryset.filter(school=request.school)` في مكان واحد.
-  4. **اختبارات عزل إلزامية** لكل Endpoint جديد (مدرسة A لا ترى بيانات B).
+  2. **API scope:** كل lookup/list مدرسي يرشح بـ`school=request.school`، والـ school لا يؤخذ من payload.
+  3. **PostgreSQL RLS:** اتصال الإنتاج fail-closed؛ Middleware/المهمة يثبت `app.current_school_id`، وغيابه لا يعيد بيانات أي مدرسة.
+  4. **Cross-school FK guards:** triggers تقارن `school_id` على طرفي كل علاقة مدرسية وترفض عدم التطابق في قاعدة البيانات.
+  5. **اختبارات عزل إلزامية** لكل Endpoint جديد، مع اختبار RLS فعلي بدور PostgreSQL لا يملك `BYPASSRLS`.
 - **مدير المنصة** لا يملك Membership في المدارس ولا يرى بيانات الطلاب في التشغيل الاعتيادي؛ نطاقه وحدة `subscriptions/` وبيانات المدارس التعريفية فقط.
 
 ## 6. نموذج الهوية والعضوية (ADR-003)

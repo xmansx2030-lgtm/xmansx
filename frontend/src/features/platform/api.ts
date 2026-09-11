@@ -1,5 +1,47 @@
 import { apiRequest } from "@/api/client";
 import type { SchoolType } from "@/types/auth";
+import type { PlatformCapability } from "@/types/auth";
+
+export type PlatformStaffRole = "OPERATIONS_MANAGER" | "SUPPORT" | "BILLING" | "AUDITOR";
+
+export interface PlatformTeamMember {
+  user_id: number;
+  name: string;
+  mobile: string;
+  role: "OWNER" | PlatformStaffRole;
+  role_label: string;
+  job_title: string;
+  status: "ACTIVE" | "SUSPENDED";
+  status_label: string;
+  capabilities: PlatformCapability[];
+  must_change_password: boolean;
+  last_login: string | null;
+  created_at: string;
+  school_memberships_count: number;
+  is_owner: boolean;
+}
+
+export interface PlatformAccount {
+  id: number;
+  name: string;
+  mobile: string;
+  role: "OWNER" | PlatformStaffRole;
+  role_label: string;
+  is_owner: boolean;
+  capabilities: PlatformCapability[];
+  school_memberships_count: number;
+  last_login: string | null;
+}
+
+export interface PlatformTeamResponse {
+  members: PlatformTeamMember[];
+  roles: { value: PlatformStaffRole; label: string }[];
+}
+
+export interface PlatformCredentialResponse {
+  member: PlatformTeamMember;
+  temporary_password: string | null;
+}
 
 export type SubscriptionStatus =
   | "TRIAL"
@@ -214,6 +256,38 @@ export interface PlanInput {
 export const getPlatformOverview = (signal?: AbortSignal) =>
   apiRequest<Overview>("/platform/overview/", { signal });
 
+export const getPlatformTeam = (signal?: AbortSignal) =>
+  apiRequest<PlatformTeamResponse>("/platform/team/", { signal });
+
+export const createPlatformTeamMember = (body: {
+  name: string;
+  mobile: string;
+  role: PlatformStaffRole;
+  job_title?: string;
+}) => apiRequest<PlatformCredentialResponse>("/platform/team/", { method: "POST", body });
+
+export const updatePlatformTeamMember = (
+  userId: number,
+  body: Partial<{ name: string; mobile: string; role: PlatformStaffRole; job_title: string }>,
+) => apiRequest<PlatformTeamMember>(`/platform/team/${userId}/`, { method: "PATCH", body });
+
+export const runPlatformTeamMemberAction = (
+  userId: number,
+  action: "suspend" | "reactivate" | "reset-password",
+) => apiRequest<PlatformCredentialResponse>(`/platform/team/${userId}/${action}/`, { method: "POST", body: {} });
+
+export const getPlatformAccount = (signal?: AbortSignal) =>
+  apiRequest<PlatformAccount>("/platform/account/", { signal });
+
+export const updatePlatformAccount = (body: { name: string; mobile: string; current_password?: string }) =>
+  apiRequest<PlatformAccount>("/platform/account/", { method: "PATCH", body });
+
+export const changePlatformPassword = (body: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}) => apiRequest<{ detail: string }>("/platform/account/change-password/", { method: "POST", body });
+
 export const getPlatformSchools = (filters: SchoolFilters = {}, signal?: AbortSignal) => {
   const query = new URLSearchParams();
   if (filters.search) query.set("search", filters.search);
@@ -258,7 +332,7 @@ export const addSchoolManager = (
 export const updateSchoolManager = (
   schoolId: number,
   membershipId: number,
-  body: { name?: string; mobile?: string },
+  body: { name?: string; mobile?: string; confirm_shared_account_impact?: boolean },
 ) =>
   apiRequest<SchoolManagerAccount>(
     `/platform/schools/${schoolId}/managers/${membershipId}/`,
@@ -269,10 +343,11 @@ export const runSchoolManagerAction = (
   schoolId: number,
   membershipId: number,
   action: "reset-password" | "suspend" | "reactivate",
+  confirmSharedAccountImpact = false,
 ) =>
   apiRequest<SchoolManagerAccount | ManagerCredentialResponse>(
     `/platform/schools/${schoolId}/managers/${membershipId}/${action}/`,
-    { method: "POST" },
+    { method: "POST", body: { confirm_shared_account_impact: confirmSharedAccountImpact } },
   );
 
 export const getSubscriptionHistory = (schoolId: number, signal?: AbortSignal) =>

@@ -42,7 +42,9 @@ class User(AbstractUser, TimestampedModel):
     @property
     def is_platform_admin(self) -> bool:
         """صلاحية إدارة المنصة (SaaS) — Platform-Level وليست عضوية مدرسية."""
-        return self.is_superuser
+        from platform_team.access import get_platform_access
+
+        return bool(get_platform_access(self)["is_platform_user"])
 
     @property
     def display_name(self) -> str:

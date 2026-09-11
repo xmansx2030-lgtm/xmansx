@@ -18,12 +18,13 @@
 
 ## 2. عزل المستأجرين (Tenant Isolation)
 
-أربع طبقات متراكبة — سقوط واحدة لا يسقط العزل:
+خمس طبقات متراكبة — سقوط فلتر تطبيقي لا يفتح بيانات مدرسة أخرى:
 
 1. **Middleware:** يقرأ `active_school_id` من الجلسة (ليس من العميل)، يتحقق من `SchoolMembership` فعالة، ويثبت `request.school`. طلب مدرسي بلا مدرسة فعالة → 403 برمز `NO_ACTIVE_SCHOOL`.
-2. **Managers:** `SchoolScopedManager.for_school(school)` هو المسار القياسي؛ `Model.all_schools` الصريح فقط للمنصة والمهام الخلفية (وكل استخدام له يوثق سببه).
-3. **Base ViewSet:** فلترة `school=request.school` في مكان واحد موروث؛ الـ `perform_create` يحقن `school` من الطلب لا من البيانات.
-4. **اختبارات:** لكل endpoint اختبار «مدرسة A لا ترى B» — إلزامي في تعريف Done لكل مرحلة.
+2. **API scope:** كل lookup وlist مدرسي يفلتر `school=request.school`، والإنشاء يحقن المدرسة من السياق لا payload العميل.
+3. **PostgreSQL RLS:** سياسات `FORCE ROW LEVEL SECURITY` على الجداول المدرسية المباشرة والتابعة؛ سياق مفقود في الإنتاج = لا صفوف.
+4. **سلامة FK:** constraint triggers تمنع ربط صف بمرجع من مدرسة أخرى حتى لو تطابق كل FK منفردًا.
+5. **اختبارات:** لكل endpoint اختبار «مدرسة A لا ترى B»، إضافة لاختبار RLS بدور `NOBYPASSRLS` واختبار علاقة عابرة مرفوضة.
 
 قاعدة صلبة: **ممنوع** `Student.objects.all()` وأمثالها داخل مسارات المدارس، و**ممنوع** قبول `school_id` من العميل.
 

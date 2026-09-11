@@ -94,7 +94,7 @@ export function DashboardPage() {
   const filterKey = [preset, fromDate, toDate, gradeId, sectionId];
   const enabled = activeSchoolId > 0;
   const canManageCalendar = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
-  const analyticsEnabled = enabled && canManageCalendar;
+  const analyticsEnabled = enabled;
 
   const sectionsListQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
@@ -105,7 +105,7 @@ export function DashboardPage() {
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "setup", "teachers"),
     queryFn: ({ signal }) =>
       getStaff({ page: 1, role: "TEACHER", status: "ACTIVE" }, signal),
-    enabled: analyticsEnabled,
+    enabled: enabled && canManageCalendar,
   });
   const overviewQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "overview", ...filterKey),
@@ -295,7 +295,7 @@ export function DashboardPage() {
 
           <AttentionSection query={attentionQuery} schoolType={schoolType} compact />
 
-          {canManageCalendar && <details className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="manager-analytics">
+          {analyticsEnabled && <details className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="manager-analytics">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 transition hover:bg-slate-50 sm:p-6">
             <span className="flex items-start gap-3">
               <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-violet-50 text-violet-700"><BarChart3 aria-hidden size={21} /></span>

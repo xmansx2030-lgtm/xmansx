@@ -88,6 +88,14 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
             409,
         )
     user = User.objects.select_for_update().filter(mobile=normalized).first()
+    if user is not None and (
+        user.is_superuser or hasattr(user, "platform_staff_membership")
+    ):
+        raise ApiError(
+            "PLATFORM_ACCOUNT_NOT_ALLOWED",
+            "حسابات فريق المنصة مستقلة ولا يمكن تعيينها لإدارة مدرسة.",
+            409,
+        )
     membership = (
         SchoolMembership.objects.select_for_update()
         .filter(user=user, school=school)
@@ -144,9 +152,22 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
 
 @transaction.atomic
 def update_manager(
-    *, membership: SchoolMembership, name: str | None, mobile: str | None, actor, request=None
+    *,
+    membership: SchoolMembership,
+    name: str | None,
+    mobile: str | None,
+    actor,
+    request=None,
+    confirm_shared_account_impact: bool = False,
 ) -> SchoolMembership:
     user = User.objects.select_for_update().get(id=membership.user_id)
+    shared_account = user.memberships.exclude(id=membership.id).exists()
+    if shared_account and not confirm_shared_account_impact:
+        raise ApiError(
+            "SHARED_ACCOUNT_CONFIRMATION_REQUIRED",
+            "هذا حساب مشترك مع مدارس أخرى؛ يلزم تأكيد أثر التعديل على جميع عضوياته.",
+            409,
+        )
     changed = []
     if name is not None:
         clean_name = name.strip()
@@ -177,14 +198,27 @@ def update_manager(
             school=membership.school,
             target_type="SchoolMembership",
             target_id=membership.id,
-            metadata={"changed_fields": changed},
+            metadata={"changed_fields": changed, "shared_account": shared_account},
         )
     return get_manager(membership.school, membership.id)
 
 
 @transaction.atomic
-def reset_manager_password(*, membership: SchoolMembership, actor, request=None) -> dict:
+def reset_manager_password(
+    *,
+    membership: SchoolMembership,
+    actor,
+    request=None,
+    confirm_shared_account_impact: bool = False,
+) -> dict:
     user = User.objects.select_for_update().get(id=membership.user_id)
+    shared_account = user.memberships.exclude(id=membership.id).exists()
+    if shared_account and not confirm_shared_account_impact:
+        raise ApiError(
+            "SHARED_ACCOUNT_CONFIRMATION_REQUIRED",
+            "إعادة الضبط ستبطل كلمة المرور في جميع المدارس المرتبطة؛ يلزم تأكيد صريح.",
+            409,
+        )
     temporary_password = generate_temporary_password()
     user.set_password(temporary_password)
     user.must_change_password = True
@@ -196,7 +230,10 @@ def reset_manager_password(*, membership: SchoolMembership, actor, request=None)
         school=membership.school,
         target_type="SchoolMembership",
         target_id=membership.id,
-        metadata={"reset_at": timezone.now().isoformat()},
+        metadata={
+            "reset_at": timezone.now().isoformat(),
+            "shared_account": shared_account,
+        },
     )
     return {
         "manager": manager_payload(get_manager(membership.school, membership.id)),

@@ -31,6 +31,25 @@ def _check_database() -> bool:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
+            if settings.DATABASE_RLS_ENFORCED:
+                cursor.execute(
+                    "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+                )
+                privileged = cursor.fetchone()
+                cursor.execute(
+                    "SELECT COUNT(*) "
+                    "FROM pg_class AS table_info "
+                    "JOIN pg_namespace AS namespace "
+                    "ON namespace.oid = table_info.relnamespace "
+                    "WHERE namespace.nspname = current_schema() "
+                    "AND table_info.relkind = 'r' "
+                    "AND table_info.relrowsecurity "
+                    "AND table_info.relforcerowsecurity"
+                )
+                policy_count = cursor.fetchone()[0]
+                if privileged is None or any(privileged) or policy_count < 59:
+                    logger.error("readiness_tenant_isolation_failed")
+                    return False
         return True
     except Exception:
         logger.error("readiness_database_failed")

@@ -8,6 +8,7 @@
 - school_id يقبل فقط في switch، ويتحقق من العضوية — لا يوثق به كسلطة في أي endpoint آخر.
 """
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -29,6 +30,7 @@ from accounts.mobile import mask_mobile
 from audit.models import AuditAction
 from audit.services import client_ip, record_event
 from common.errors import ApiError
+from common.tenant_rls import set_tenant_context
 from memberships.middleware import ACTIVE_SCHOOL_SESSION_KEY
 from memberships.models import MembershipStatus, SchoolMembership
 from memberships.selectors import (
@@ -89,6 +91,8 @@ class LoginView(APIView):
             )
 
         login(request, user)  # يدوّر مفتاح الجلسة (session fixation protection)
+        if settings.DATABASE_RLS_ENFORCED:
+            set_tenant_context(user_id=user.id)
         rate_limit.register_success(mobile)
 
         memberships = list(active_memberships_for_user(user))

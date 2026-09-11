@@ -530,4 +530,60 @@ describe("platform and subscription UI", () => {
       expect(calls.some(({ url, init }) => url.includes("/platform/plans/1/") && init?.method === "PATCH")).toBe(true);
     });
   });
+
+  it("adds a platform employee with a scoped role and one-time credential", async () => {
+    const user = userEvent.setup();
+    const member = {
+      user_id: 22,
+      name: "سارة الدعم",
+      mobile: "+966522222222",
+      role: "SUPPORT",
+      role_label: "خدمة المدارس",
+      job_title: "أخصائية نجاح المدارس",
+      status: "ACTIVE",
+      status_label: "نشط",
+      capabilities: ["DASHBOARD_VIEW", "SCHOOLS_VIEW", "SCHOOL_ACCOUNTS_MANAGE", "TEAM_VIEW"],
+      must_change_password: true,
+      last_login: null,
+      created_at: "2026-09-11T00:00:00Z",
+      school_memberships_count: 0,
+      is_owner: false,
+    };
+    const owner = { ...member, user_id: 1, name: "مالك المنصة", role: "OWNER", role_label: "مالك المنصة", is_owner: true, capabilities: ["TEAM_MANAGE"] };
+    const { calls } = mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true, is_platform_owner: true, platform_role: "OWNER", platform_role_label: "مالك المنصة", platform_capabilities: ["DASHBOARD_VIEW", "PLANS_VIEW", "SCHOOLS_VIEW", "TEAM_VIEW", "TEAM_MANAGE"] }) },
+      "/platform/overview/": { body: { schools_total: 0, subscriptions: {}, usage_totals: {}, expiring_soon: [] } },
+      "/platform/plans/": { body: [] },
+      "/platform/team/": (init) => init?.method === "POST"
+        ? { status: 201, body: { member, temporary_password: "Xm-One-Time" } }
+        : { body: { members: [owner], roles: [{ value: "SUPPORT", label: "خدمة المدارس" }] } },
+    });
+
+    renderApp("/platform");
+    await user.click((await screen.findAllByRole("button", { name: /فريق المنصة/ }))[0]!);
+    await user.click(await screen.findByRole("button", { name: "إضافة موظف" }));
+    await user.type(screen.getByLabelText("الاسم الكامل"), member.name);
+    await user.type(screen.getByLabelText("رقم الجوال"), "0522222222");
+    await user.type(screen.getByLabelText("المسمى الوظيفي"), member.job_title);
+    await user.click(screen.getByRole("button", { name: "إنشاء حساب الموظف" }));
+
+    expect(await screen.findByText("Xm-One-Time")).toBeInTheDocument();
+    await waitFor(() => expect(calls.some(({ url, init }) => url.includes("/platform/team/") && init?.method === "POST")).toBe(true));
+  });
+
+  it("shows a dedicated platform account and security workspace", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true, is_platform_owner: true, platform_role: "OWNER", platform_role_label: "مالك المنصة" }) },
+      "/platform/overview/": { body: { schools_total: 0, subscriptions: {}, usage_totals: {}, expiring_soon: [] } },
+      "/platform/plans/": { body: [] },
+      "/platform/account/": { body: { id: 1, name: "فهد الفهد", mobile: "+966511111111", role: "OWNER", role_label: "مالك المنصة", is_owner: true, capabilities: ["TEAM_MANAGE"], school_memberships_count: 0, last_login: null } },
+    });
+
+    renderApp("/platform");
+    await user.click((await screen.findAllByRole("button", { name: /حسابي/ }))[0]!);
+    expect(await screen.findByTestId("platform-account-panel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "الأمان وكلمة المرور" })).toBeInTheDocument();
+    expect(screen.getByText(/حساب المالك محمي/)).toBeInTheDocument();
+  });
 });
