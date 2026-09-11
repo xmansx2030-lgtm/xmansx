@@ -75,7 +75,6 @@ const PREVIEW = {
       missing_periods: 0,
       absent_periods: 7,
       present_periods: 0,
-      late_periods: 0,
       complete: true,
     },
     {
@@ -87,7 +86,6 @@ const PREVIEW = {
       missing_periods: 3,
       absent_periods: 4,
       present_periods: 0,
-      late_periods: 0,
       complete: false,
     },
   ],

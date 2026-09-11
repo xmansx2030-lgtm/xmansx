@@ -9,7 +9,7 @@
   "school": "school-a",
   "sections": [
     {"code": "A1-x", "periods": [
-      {"sequence": 1, "absent": ["اسم"], "late": [{"name": "اسم", "minutes": 10}]}
+      {"sequence": 1, "absent": ["اسم"]}
     ]}
   ]
 }
@@ -18,7 +18,7 @@
 
 import json
 import sys
-from datetime import date, datetime, time, timedelta
+from datetime import date
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -144,19 +144,6 @@ class Command(BaseCommand):
                         AttendanceMark(
                             school=school, session=session,
                             student_id=by_name[name], status="ABSENT",
-                        )
-                    )
-                for late in period_plan.get("late", []):
-                    minutes = int(late.get("minutes", 10))
-                    arrival = (
-                        datetime.combine(local_date, time(start_h, start_m))
-                        + timedelta(minutes=minutes)
-                    ).time()
-                    marks.append(
-                        AttendanceMark(
-                            school=school, session=session,
-                            student_id=by_name[late["name"]], status="LATE",
-                            arrival_time=arrival, late_minutes=minutes,
                         )
                     )
                 AttendanceMark.objects.bulk_create(marks)

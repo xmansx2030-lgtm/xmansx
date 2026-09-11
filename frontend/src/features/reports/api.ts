@@ -62,16 +62,12 @@ export interface LatenessRow {
   section_name: string | null;
   morning_occurrences: number;
   morning_minutes: number;
-  period_occurrences: number;
-  period_minutes: number;
 }
 
 export interface LatenessSummary {
   students: number;
   morning_occurrences: number;
   morning_minutes: number;
-  period_occurrences: number;
-  period_minutes: number;
 }
 
 export interface ReferralReportSummary {
@@ -115,11 +111,10 @@ export const getAbsenceReport = (
 
 export const getLatenessReport = (
   filters: CommonReportFilters,
-  extra: { latenessType: string; minOccurrences: number; minMinutes: number },
+  extra: { minOccurrences: number; minMinutes: number },
   signal?: AbortSignal,
 ) => apiRequest<ReportResponse<LatenessSummary, LatenessRow>>(
   `/reports/lateness/?${query(filters, {
-    lateness_type: extra.latenessType,
     min_occurrences: extra.minOccurrences || undefined,
     min_minutes: extra.minMinutes || undefined,
   })}`,

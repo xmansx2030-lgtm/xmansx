@@ -48,8 +48,6 @@ export interface AttendanceKpis {
   absent_periods: number;
   unexcused_absent_periods: number;
   excused_absent_periods: number;
-  period_late_occurrences: number;
-  period_late_minutes: number;
   morning_late_occurrences: number;
   morning_late_minutes: number;
   morning_arrivals: number;
@@ -89,7 +87,6 @@ export interface TodayOperations {
     present_students: number;
     absent_students: number;
     leave_students: number;
-    late_students: number;
     morning_late_students: number;
     daily_absent_students: number;
     daily_covered_students: number;
@@ -186,7 +183,6 @@ export interface SectionRow {
   full_absence_days: number;
   partial_absence_days: number;
   unexcused_full_absence_days: number;
-  period_late_occurrences: number;
   morning_late_occurrences: number;
 }
 

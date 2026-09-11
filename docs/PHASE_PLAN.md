@@ -16,7 +16,7 @@
 | 3 | School Settings | SchoolSettings, AcademicYear, Semester, SchoolDay, BellSchedule(+Periods)؛ واجهة الإعدادات كاملة | جدول نشط واحد، validation الأوقات، صلاحية MANAGER فقط |
 | 4 | Student Import | Student(هوية مشفرة+hash), StudentEnrollment, Grade, Section؛ مسار Upload→Validate→Preview→Approve→Import عبر Celery؛ التحديث بالمطابقة وعرض الفروقات | ملفات صحيحة/خاطئة/مكررة؛ لا حذف تاريخ؛ Idempotency |
 | 5 | Staff Import | استيراد اسم+جوال؛ إعادة استخدام User العالمي؛ إنشاء Membership+TEACHER | معلم بمدرستين = User واحد وعضويتان |
-| 6 | Teacher Attendance | شاشة المعلم Mobile-First؛ استنتاج الحصة الحالية؛ AttendanceSession+AttendanceMark؛ منع التكرار؛ late_minutes؛ نافذة التعديل | قيد Unique تحت التزامن؛ حساب التأخر؛ Audit |
+| 6 | Teacher Attendance | شاشة المعلم Mobile-First؛ استنتاج الحصة الحالية؛ AttendanceSession+AttendanceMark؛ منع التكرار؛ نافذة التعديل | قيد Unique تحت التزامن؛ الغياب بالاستثناء؛ Audit |
 | 7 | Monitoring Dashboard | لوحة الوكيل: حالة الحصة الحالية لكل فصل، مؤشرات اليوم؛ Celery Beat لتنبيه `unprepared_period_alert_minutes` | الفصول غير المحضرة تظهر بعد المهلة فقط |
 | 8 | Attendance Analytics | فلترة غائب بحصة/عدة حصص/كلها (AND)؛ غياب جزئي/كامل؛ INCOMPLETE؛ DailyAttendanceSummary | حصة غير محضرة تمنع FULL_DAY وتستثني الفصل من فلتر «كل الحصص» |
 | 9 | Student Profile | بحث بالهوية (hash) والاسم؛ ملف الطالب الكامل بمؤشراته | تقنيع الهوية؛ صلاحيات العرض حسب الدور |

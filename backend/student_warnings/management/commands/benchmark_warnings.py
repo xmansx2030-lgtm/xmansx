@@ -71,7 +71,7 @@ class Command(BaseCommand):
                             school=school, student=student, academic_year=year,
                             section=section, attendance_date=day + timedelta(days=offset),
                             expected_periods=7, submitted_periods=7, absent_periods=7,
-                            late_periods=0, present_periods=0, total_late_minutes=0,
+                            present_periods=0,
                             excused_absent_periods=0, unexcused_absent_periods=7,
                             completeness_status="COMPLETE",
                             absence_status=DailyAbsenceStatus.FULL,

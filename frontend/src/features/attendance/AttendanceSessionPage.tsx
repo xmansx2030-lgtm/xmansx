@@ -31,19 +31,16 @@ type TeacherAttendanceStatus = "PRESENT" | "ABSENT";
 
 interface LocalMark {
   status: LocalStatus;
-  arrival_time: string;
 }
 
 const STATUS_LABELS: Record<LocalStatus, string> = {
   PRESENT: "حاضر",
   ABSENT: "غائب",
-  LATE: "متأخر",
 };
 
 const FEMININE_STATUS_LABELS: Record<LocalStatus, string> = {
   PRESENT: "حاضرة",
   ABSENT: "غائبة",
-  LATE: "متأخرة",
 };
 
 function marksFromSession(session: AttendanceSessionData): Record<number, LocalMark> {
@@ -51,7 +48,6 @@ function marksFromSession(session: AttendanceSessionData): Record<number, LocalM
   for (const mark of session.marks) {
     map[mark.student_id] = {
       status: mark.status,
-      arrival_time: mark.arrival_time ?? "",
     };
   }
   return map;
@@ -127,13 +123,11 @@ export function AttendanceSessionPage() {
   const roster = useMemo(() => session?.roster ?? [], [session]);
   const summary = useMemo(() => {
     let absent = 0;
-    let late = 0;
     for (const student of roster) {
       const status = marks[student.student_id]?.status ?? "PRESENT";
       if (status === "ABSENT") absent += 1;
-      if (status === "LATE") late += 1;
     }
-    return { absent, late, present: roster.length - absent - late };
+    return { absent, present: roster.length - absent };
   }, [roster, marks]);
   const displayedRoster = useMemo(() => {
     const term = rosterSearch.trim().toLocaleLowerCase("ar");
@@ -238,22 +232,11 @@ export function AttendanceSessionPage() {
       ...prev,
       [studentId]: {
         status,
-        arrival_time: "",
       },
     }));
   };
 
   const beginEditing = () => {
-    // أي LATE تاريخية تظهر عند القراءة فقط؛ عند بدء التصحيح تعامل كحضور
-    // ما لم يختر المصحح «غائب» صراحةً.
-    setMarks((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).map(([studentId, mark]) => [
-          studentId,
-          mark.status === "LATE" ? { status: "PRESENT", arrival_time: "" } : mark,
-        ]),
-      ),
-    );
     setEditing(true);
   };
 
@@ -320,9 +303,6 @@ export function AttendanceSessionPage() {
         <div className="flex flex-wrap gap-2 text-sm" data-testid="live-summary">
           <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-100 ring-1 ring-emerald-300/20">{statusLabels.PRESENT} {summary.present}</span>
           <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">{statusLabels.ABSENT} {summary.absent}</span>
-          {summary.late > 0 && (
-            <span className="rounded-full bg-amber-400/15 px-3 py-1 font-bold text-amber-100 ring-1 ring-amber-300/20">تأخر تاريخي {summary.late}</span>
-          )}
         </div>
       </PageHeader>
 
@@ -407,13 +387,7 @@ export function AttendanceSessionPage() {
             return (
               <li
                 key={student.student_id}
-                className={`flex flex-col items-stretch justify-between gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:p-5 ${
-                  status === "ABSENT"
-                    ? "bg-red-50/50"
-                    : status === "LATE"
-                      ? "bg-amber-50/60"
-                      : "hover:bg-slate-50/70"
-                }`}
+                  className={`flex flex-col items-stretch justify-between gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:p-5 ${status === "ABSENT" ? "bg-red-50/50" : "hover:bg-slate-50/70"}`}
                 data-testid={`roster-student-${student.student_id}`}
               >
                 <div className="min-w-0">
@@ -447,16 +421,10 @@ export function AttendanceSessionPage() {
                     className={`self-start rounded-full px-3 py-1 text-sm ${
                       status === "PRESENT"
                         ? "bg-green-100 text-green-800"
-                        : status === "ABSENT"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-amber-100 text-amber-800"
+                        : "bg-red-100 text-red-800"
                     }`}
                   >
                     {statusLabels[status]}
-                    {status === "LATE" &&
-                      session.marks.find((m) => m.student_id === student.student_id)
-                        ?.late_minutes != null &&
-                      ` (${session.marks.find((m) => m.student_id === student.student_id)?.late_minutes} د)`}
                   </span>
                 )}
               </li>

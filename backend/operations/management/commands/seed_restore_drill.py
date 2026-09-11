@@ -159,7 +159,6 @@ class Command(BaseCommand):
                 expected_periods=1,
                 submitted_periods=1,
                 absent_periods=1,
-                late_periods=0,
                 present_periods=0,
                 unexcused_absent_periods=1,
                 completeness_status=DailyCompleteness.COMPLETE,

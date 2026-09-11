@@ -32,7 +32,7 @@ from documents.services.generation import (
 from memberships.models import MembershipStatus, SchoolRole
 from staff.models import StaffProfile
 from student_warnings.models import StudentWarning, WarningLevel, WarningRuleType, WarningStatus
-from tests.excuse_env import DAY, DAY2, build_env, full_day_absent, make_session, mark, recalc
+from tests.excuse_env import DAY, DAY2, build_env, full_day_absent
 
 pytestmark = pytest.mark.django_db
 
@@ -110,8 +110,6 @@ def make_warning(
         unexcused_absent_periods_at_issue=35,
         morning_late_occurrences_at_issue=8,
         morning_late_minutes_at_issue=137,
-        period_late_occurrences_at_issue=3,
-        period_late_minutes_at_issue=25,
         detail_rows_snapshot=detail_rows,
         issued_by_membership=env["vice"],
         issued_at=dj_timezone.now(),
@@ -495,7 +493,6 @@ def _summary(env, student, day, *, status, absent=7, excused=0, unexcused=0):
         unexcused_absent_periods=unexcused,
         expected_periods=7,
         submitted_periods=7 if complete else 3,
-        late_periods=0,
         present_periods=max(0, (7 if complete else 3) - absent),
         completeness_status=(
             DailyCompleteness.COMPLETE if complete else DailyCompleteness.INCOMPLETE
@@ -592,20 +589,6 @@ def test_morning_late_report_sums_occurrences_and_minutes(env):
     assert snapshot["rows"][0]["source_label"] == "جهاز"
 
 
-def test_morning_report_excludes_period_lateness(env):
-    """البند 40: علامات تأخر الحصص لا تدخل تقرير الدوام الصباحي."""
-    student = env["students"][0]
-    session = make_session(env, 1, day=DAY)
-    mark(env, session, student, "LATE", minutes=30)
-    recalc(env, day=DAY)
-    snapshot = snapshot_service.morning_late_snapshot(
-        school=env["school"], student=student, membership=env["vice"],
-        from_date=DAY, to_date=DAY,
-    )
-    assert snapshot["totals"]["occurrences"] == 0
-    assert snapshot["totals"]["counted_late_minutes"] == 0
-
-
 def test_morning_report_excludes_on_time_arrivals(env):
     student = env["students"][0]
     SchoolArrival.objects.create(
@@ -621,37 +604,11 @@ def test_morning_report_excludes_on_time_arrivals(env):
     assert snapshot["totals"]["occurrences"] == 0
 
 
-# ---------------------------------------------------------------- تأخر الحصص
-
-
-def test_period_late_report_is_independent(env):
-    """البند 112: مصدره علامات الحصص وحدها ولا يدخله الوصول الصباحي."""
-    student = env["students"][0]
-    for seq, minutes in ((1, 10), (2, 15)):
-        session = make_session(env, seq, day=DAY)
-        mark(env, session, student, "LATE", minutes=minutes)
-    recalc(env, day=DAY)
-    _arrival(env, student, DAY, 40)  # تأخر صباحي كبير لا يجب أن يظهر هنا
-
-    snapshot = snapshot_service.period_late_snapshot(
-        school=env["school"], student=student, membership=env["vice"],
-        from_date=DAY, to_date=DAY,
-    )
-    assert snapshot["totals"]["occurrences"] == 2
-    assert snapshot["totals"]["late_minutes"] == 25
-    assert snapshot["rows"][0]["period_sequence"] == 1
-
-
 # ---------------------------------------------------------------- تقرير المواظبة
 
 
-def test_attendance_report_keeps_the_two_late_counters_separate(env):
-    """البند 113: الصباحي والحصص لا يجمعان في التقرير الشامل."""
+def test_attendance_report_uses_morning_lateness(env):
     student = env["students"][0]
-    for seq, minutes in ((1, 10), (2, 15)):
-        session = make_session(env, seq, day=DAY)
-        mark(env, session, student, "LATE", minutes=minutes)
-    recalc(env, day=DAY)
     _arrival(env, student, DAY, 40)
 
     snapshot = snapshot_service.attendance_report_snapshot(
@@ -661,9 +618,6 @@ def test_attendance_report_keeps_the_two_late_counters_separate(env):
     summary = snapshot["summary"]
     assert summary["morning_late_occurrences"] == 1
     assert summary["morning_late_minutes"] == 40
-    assert summary["period_late_occurrences"] == 2
-    assert summary["period_late_minutes"] == 25
-    assert summary["morning_late_minutes"] + summary["period_late_minutes"] == 65
 
 
 def test_attendance_report_has_no_counseling_data(env):
@@ -713,7 +667,7 @@ def test_long_report_produces_multipage_pdf(env):
                 academic_year=env["year"], attendance_date=base + timedelta(days=index),
                 absence_status=DailyAbsenceStatus.FULL, absent_periods=7,
                 unexcused_absent_periods=7, expected_periods=7, submitted_periods=7,
-                late_periods=0, present_periods=0,
+                present_periods=0,
                 completeness_status=DailyCompleteness.COMPLETE,
                 calculated_at=dj_timezone.now(),
             )

@@ -195,7 +195,7 @@ describe("attendance", () => {
           submitted_by: "أحمد المعلم",
           submitted_at: "2026-08-19T08:20:00Z",
           marks: [
-            { student_id: 11, status: "ABSENT", arrival_time: null, late_minutes: null },
+            { student_id: 11, status: "ABSENT" },
           ],
         }),
       },
@@ -230,33 +230,12 @@ describe("attendance", () => {
     expect(JSON.stringify(body)).not.toContain("late_minutes");
   });
 
-  it("keeps a legacy late mark readable but does not offer late as an option", async () => {
-    const submitted = sessionBody({
-      status: "SUBMITTED",
-      submitted_by: "خالد المدير",
-      submitted_at: "2026-08-19T08:20:00Z",
-      can_edit: false,
-      marks: [{ student_id: 12, status: "LATE", arrival_time: "08:15", late_minutes: 10 }],
-    });
-    mockApi({
-      "/auth/me/": { body: teacherMe() },
-      "/attendance/sections/3/preview/": { body: previewBody(submitted) },
-    });
-
-    renderApp("/attendance/section/3");
-    expect(await screen.findByTestId("submitted-banner")).toHaveTextContent("خالد المدير");
-    expect(screen.getByTestId("roster-student-12")).toHaveTextContent("متأخر (10 د)");
-    expect(screen.queryByRole("button", { name: "متأخر" })).toBeNull();
-    expect(screen.queryByTestId("edit-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("submit-attendance")).not.toBeInTheDocument();
-  });
-
   it("edits a submitted session with a reason via PATCH", async () => {
     const submitted = sessionBody({
       status: "SUBMITTED",
       submitted_by: "أحمد المعلم",
       submitted_at: "2026-08-19T08:20:00Z",
-      marks: [{ student_id: 11, status: "ABSENT", arrival_time: null, late_minutes: null }],
+      marks: [{ student_id: 11, status: "ABSENT" }],
     });
     const { calls } = mockApi({
       "/auth/me/": { body: teacherMe() },

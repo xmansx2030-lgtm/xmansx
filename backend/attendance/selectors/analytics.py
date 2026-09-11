@@ -173,7 +173,7 @@ def get_multi_period_report(
     else:
         matched_ids = [row["student_id"] for row in absent_counts]
 
-    # علامات الطلاب المطابقين في الحصص المحددة (غياب/تأخر) — لبطاقات الحالة والفصل
+    # علامات الغياب للطلاب المطابقين — الحاضر هو غياب العلامة.
     marks = list(
         AttendanceMark.objects.filter(
             session_id__in=complete_session_ids, student_id__in=matched_ids
@@ -274,9 +274,6 @@ def get_daily_report(
         undetermined=Count(
             "id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
         ),
-        late_students=Count("id", filter=Q(late_periods__gt=0)),
-        late_occurrences=Sum("late_periods"),
-        late_minutes=Sum("total_late_minutes"),
         # م10 — التصنيف الإداري للغياب (alias مختلف عن اسم العمود لتفادي التظليل)
         excused_periods_total=Sum("excused_absent_periods"),
         unexcused_periods_total=Sum("unexcused_absent_periods"),
@@ -305,8 +302,6 @@ def get_daily_report(
                 "absent_periods": r.absent_periods,
                 "excused_absent_periods": r.excused_absent_periods,
                 "unexcused_absent_periods": r.unexcused_absent_periods,
-                "late_periods": r.late_periods,
-                "total_late_minutes": r.total_late_minutes,
                 "submitted_periods": r.submitted_periods,
                 "expected_periods": r.expected_periods,
             }
@@ -331,9 +326,6 @@ def get_daily_report(
             "partial_absent": aggregates["partial"],
             "no_absence": aggregates["none"],
             "undetermined": aggregates["undetermined"],
-            "late_students": aggregates["late_students"],
-            "late_occurrences": aggregates["late_occurrences"] or 0,
-            "late_minutes": aggregates["late_minutes"] or 0,
             "excused_absent_periods": aggregates["excused_periods_total"] or 0,
             "unexcused_absent_periods": aggregates["unexcused_periods_total"] or 0,
         },

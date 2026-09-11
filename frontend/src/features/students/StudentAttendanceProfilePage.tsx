@@ -24,7 +24,6 @@ import {
   getAttendanceDayDetail,
   getAttendanceDays,
   getAttendancePeriodAbsences,
-  getAttendancePeriodLates,
   getAttendanceProfile,
   getMorningAttendance,
 } from "@/features/students/api";
@@ -40,7 +39,6 @@ const DAY_LABELS: Record<string, string> = {
 };
 const MARK_LABELS: Record<string, string> = {
   ABSENT: "غائب",
-  LATE: "متأخر",
   PRESENT: "حاضر",
   NOT_RECORDED: "لم يتم تسجيل الحضور",
 };
@@ -57,7 +55,6 @@ type Tab =
   | "summary"
   | "days"
   | "absences"
-  | "lates"
   | "leaves"
   | "morning"
   | "excuses"
@@ -128,11 +125,6 @@ export function StudentAttendanceProfilePage() {
     queryFn: ({ signal }) => getAttendancePeriodAbsences(id, { ...range, page }, signal),
     enabled: tab === "absences" && schoolId > 0,
   });
-  const lates = useQuery({
-    queryKey: schoolScopedKey(schoolId, "student-period-lates", id, fromDate, toDate, page),
-    queryFn: ({ signal }) => getAttendancePeriodLates(id, { ...range, page }, signal),
-    enabled: tab === "lates" && schoolId > 0,
-  });
   const changes = useQuery({
     queryKey: schoolScopedKey(schoolId, "student-attendance-changes", id, fromDate, toDate, page),
     queryFn: ({ signal }) => getAttendanceChanges(id, { ...range, page }, signal),
@@ -175,7 +167,6 @@ export function StudentAttendanceProfilePage() {
     ["summary", "الملخص"],
     ["days", "سجل الأيام"],
     ["absences", "غياب الحصص"],
-    ["lates", "تأخر الحصص"],
     ["morning", "الحضور الصباحي"],
     ...(canSeeLeaves ? [["leaves", "الاستئذانات"] as [Tab, string]] : []),
     ["excuses", "الأعذار"],
@@ -236,8 +227,6 @@ export function StudentAttendanceProfilePage() {
         <Metric label="غياب كامل" value={`${attendance.full_absence_days} يوم`} />
         <Metric label="غياب جزئي" value={`${attendance.partial_absence_days} يوم`} />
         <Metric label="حصص غياب" value={`${attendance.absent_periods} حصة`} />
-        <Metric label="تأخر عن الحصص" value={`${attendance.period_late_occurrences} مرة`} />
-        <Metric label="إجمالي التأخر" value={formatMinutes(attendance.period_late_minutes)} className="col-span-2 md:col-span-1" />
       </div>
 
       {/* م10 — التصنيف الإداري: إضافة فوق الإجماليات لا بديل عنها (بند 69) */}
@@ -286,7 +275,6 @@ export function StudentAttendanceProfilePage() {
       {tab === "summary" && <p className="text-sm text-slate-500">الفترة: {formatDate(fromDate)} إلى {formatDate(toDate)}</p>}
       {tab === "days" && <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={selectedDay} onSelect={setSelectedDay} detail={dayDetail.data} canManageExcuses={canManageExcuses} onQuickExcuse={(date, period) => { setQuickExcuse({ date, period }); setTab("excuses"); }} />}
       {tab === "absences" && <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />}
-      {tab === "lates" && <PeriodTab rows={lates.data?.results ?? []} count={lates.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حالات تأخر عن الحصص في الفترة." showLate />}
       {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
       {tab === "leaves" && canSeeLeaves && <StudentLeavesTab studentId={id} />}
       {tab === "warnings" && <StudentWarningsTab studentId={id} />}
@@ -447,8 +435,6 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
             <span className="text-sm leading-6 text-slate-500 sm:text-end">
               {day.absent_periods} غياب
               {day.excused_absent_periods > 0 && ` (${day.excused_absent_periods} بعذر)`}
-              {" • "}
-              {day.late_periods} تأخر
             </span>
           </button>
         ))}
@@ -483,7 +469,6 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
                 <span className="flex flex-wrap items-center gap-2 text-slate-600 sm:justify-end">
                   <span>
                     {MARK_LABELS[period.status]}
-                    {period.late_minutes ? ` (${period.late_minutes} دقيقة)` : ""}
                     {period.excused === true && " — بعذر"}
                     {period.excused === false && " — بدون عذر"}
                   </span>
@@ -507,8 +492,8 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
   );
 }
 
-function PeriodTab({ rows, count, page, onPage, empty, showLate = false }: { rows: Awaited<ReturnType<typeof getAttendancePeriodAbsences>>["results"]; count: number; page: number; onPage: (page: number) => void; empty: string; showLate?: boolean }) {
-  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="block w-full text-sm md:table"><thead className="hidden bg-slate-50 md:table-header-group"><tr className="border-b text-slate-500"><th className="p-3 text-start">التاريخ</th><th className="p-3 text-start">الحصة</th><th className="p-3 text-start">الصف/الفصل</th>{showLate && <th className="p-3 text-start">الوصول / الدقائق</th>}</tr></thead><tbody className="grid gap-3 p-3 md:table-row-group md:p-0">{rows.map((row) => <tr key={`${row.date}-${row.sequence}`} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0"><td className="col-span-2 p-0 font-bold md:table-cell md:p-3 md:font-normal"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التاريخ</span>{formatDate(row.date)}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحصة</span>{row.period.name}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف والفصل</span>{row.section.grade_name} / {row.section.name}</td>{showLate && <td className="col-span-2 p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الوصول والدقائق</span>{row.arrival_time ?? "-"} / {row.late_minutes ?? 0} دقيقة</td>}</tr>)}</tbody></table>{rows.length === 0 && <p className="p-6 text-sm text-slate-500">{empty}</p>}<Pager count={count} page={page} onPage={onPage} /></div>;
+function PeriodTab({ rows, count, page, onPage, empty }: { rows: Awaited<ReturnType<typeof getAttendancePeriodAbsences>>["results"]; count: number; page: number; onPage: (page: number) => void; empty: string }) {
+  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="block w-full text-sm md:table"><thead className="hidden bg-slate-50 md:table-header-group"><tr className="border-b text-slate-500"><th className="p-3 text-start">التاريخ</th><th className="p-3 text-start">الحصة</th><th className="p-3 text-start">الصف/الفصل</th></tr></thead><tbody className="grid gap-3 p-3 md:table-row-group md:p-0">{rows.map((row) => <tr key={`${row.date}-${row.sequence}`} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0"><td className="col-span-2 p-0 font-bold md:table-cell md:p-3 md:font-normal"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التاريخ</span>{formatDate(row.date)}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحصة</span>{row.period.name}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف والفصل</span>{row.section.grade_name} / {row.section.name}</td></tr>)}</tbody></table>{rows.length === 0 && <p className="p-6 text-sm text-slate-500">{empty}</p>}<Pager count={count} page={page} onPage={onPage} /></div>;
 }
 
 function ChangesTab({ rows, count, page, onPage }: { rows: Awaited<ReturnType<typeof getAttendanceChanges>>["results"]; count: number; page: number; onPage: (page: number) => void }) {

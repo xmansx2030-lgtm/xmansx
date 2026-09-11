@@ -23,8 +23,6 @@ MAX_THRESHOLD = 200  # حد أعلى منطقي — أيام/مرات ضمن ع�
 class WarningRuleType(models.TextChoices):
     UNEXCUSED_FULL_DAY_ABSENCE = "UNEXCUSED_FULL_DAY_ABSENCE", "غياب يوم كامل بدون عذر"
     MORNING_LATE_OCCURRENCES = "MORNING_LATE_OCCURRENCES", "التأخر عن الدوام الصباحي"
-    # قابل للتوسعة لاحقًا (PERIOD_LATE_OCCURRENCES / UNEXCUSED_ABSENT_PERIODS)
-    # دون تعديل بنية القواعد — لم تنفذ الآن عمدًا.
 
 
 class WarningLevel(models.TextChoices):
@@ -129,8 +127,6 @@ class StudentWarning(TimestampedModel):
     unexcused_absent_periods_at_issue = models.PositiveSmallIntegerField(default=0)
     morning_late_occurrences_at_issue = models.PositiveSmallIntegerField(default=0)
     morning_late_minutes_at_issue = models.PositiveIntegerField(default=0)
-    period_late_occurrences_at_issue = models.PositiveSmallIntegerField(default=0)
-    period_late_minutes_at_issue = models.PositiveIntegerField(default=0)
     # تفاصيل النوع نفسه لحظة الإصدار فقط: أيام الغياب الكامل أو حالات التأخر
     # الصباحي. لا تخلط الأنواع ولا يعاد حسابها عند الطباعة لاحقًا.
     detail_rows_snapshot = models.JSONField(default=list, blank=True)

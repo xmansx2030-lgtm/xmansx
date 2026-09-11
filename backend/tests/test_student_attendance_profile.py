@@ -14,7 +14,7 @@ PROFILE_URL = "/api/v1/students/{}/attendance-profile/"
 SEARCH_URL = "/api/v1/students/search/"
 
 
-def _summary(school, enrollment, attendance_date, status, absent, late, minutes):
+def _summary(school, enrollment, attendance_date, status, absent):
     return DailyAttendanceSummary.objects.create(
         school=school,
         student=enrollment.student,
@@ -24,9 +24,7 @@ def _summary(school, enrollment, attendance_date, status, absent, late, minutes)
         expected_periods=7,
         submitted_periods=7 if status != DailyAbsenceStatus.UNDETERMINED else 3,
         absent_periods=absent,
-        late_periods=late,
-        present_periods=max(7 - absent - late, 0),
-        total_late_minutes=minutes,
+        present_periods=max(7 - absent, 0),
         completeness_status=(
             "COMPLETE" if status != DailyAbsenceStatus.UNDETERMINED else "INCOMPLETE"
         ),
@@ -40,9 +38,9 @@ def test_profile_summary_aggregates_phase8_daily_summaries(make_school):
     school = make_school()
     student = _make_student(school, "1012345678", "محمد")
     enrollment = _enroll(school, student)
-    _summary(school, enrollment, date(2026, 8, 24), DailyAbsenceStatus.FULL, 7, 0, 0)
-    _summary(school, enrollment, date(2026, 8, 25), DailyAbsenceStatus.PARTIAL, 2, 2, 35)
-    _summary(school, enrollment, date(2026, 8, 26), DailyAbsenceStatus.UNDETERMINED, 1, 1, 8)
+    _summary(school, enrollment, date(2026, 8, 24), DailyAbsenceStatus.FULL, 7)
+    _summary(school, enrollment, date(2026, 8, 25), DailyAbsenceStatus.PARTIAL, 2)
+    _summary(school, enrollment, date(2026, 8, 26), DailyAbsenceStatus.UNDETERMINED, 1)
 
     result = get_profile_summary(
         school=school, student=student, from_date=date(2026, 8, 24), to_date=date(2026, 8, 26)
@@ -53,8 +51,6 @@ def test_profile_summary_aggregates_phase8_daily_summaries(make_school):
         "partial_absence_days": 1,
         "undetermined_days": 1,
         "absent_periods": 10,
-        "period_late_occurrences": 3,
-        "period_late_minutes": 43,
         # م10 — صفوف هذا الاختبار كتبت مباشرة بلا تصنيف (لا أعذار): أصفار
         "excused_absent_periods": 0,
         "unexcused_absent_periods": 0,
@@ -111,7 +107,7 @@ def test_profile_idor_returns_404(role_client, make_school):
 
 
 @pytest.mark.django_db
-def test_profile_separates_morning_late_from_period_late(role_client):
+def test_profile_reports_morning_lateness(role_client):
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     student = _make_student(school, "1012345678", "محمد")
     _enroll(school, student)
@@ -137,4 +133,3 @@ def test_profile_separates_morning_late_from_period_late(role_client):
         "morning_late_occurrences": 1,
         "morning_late_minutes": 13,
     }
-    assert body["attendance"]["period_late_occurrences"] == 0

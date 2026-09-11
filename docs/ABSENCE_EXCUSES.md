@@ -53,7 +53,7 @@ attendance_date, period_sequence_snapshot, status)`.
 - ترتبط بـ**الجلسة** لا بالعلامة: التعديل الإداري يحذف العلامات ويعيد إنشاءها
   (`edit_session`) فمعرفاتها غير مستقرة، بينما `(الجلسة، الطالب)` ثابتان.
 - الحالات: `ACTIVE` / `VOIDED` (مع `voided_at` و`void_reason`).
-- **لا تُنشأ إلا لغياب حقيقي**: `PRESENT` و`LATE` و`NOT_RECORDED` لا تُغطى أبدًا،
+- **لا تُنشأ إلا لغياب حقيقي**: `PRESENT` و`NOT_RECORDED` لا تُغطى أبدًا،
   والجلسة يجب أن تكون `SUBMITTED` (المسودة `IN_PROGRESS` ليست غيابًا رسميًا).
 - **قيد DB جزئي** `uniq_active_coverage_per_absence` على
   `(attendance_session, student) WHERE status='ACTIVE'` — هذا القيد وحده يضمن:
@@ -82,7 +82,7 @@ get_effective_absence_classification(student=..., attendance_session=...)
 ## المعاينة قبل الاعتماد
 
 `POST /api/v1/excuses/{id}/preview/` يحل الأهداف مقابل الحالة الفعلية ويعيد لكل
-يوم: عدد حصص النطاق، المعتمدة، الناقصة، الغياب، الحضور، التأخر، وهل اليوم مكتمل.
+يوم: عدد حصص النطاق، المعتمدة، الناقصة، الغياب، الحضور، وهل اليوم مكتمل.
 
 مثال ما يراه الوكيل:
 
@@ -93,7 +93,6 @@ get_effective_absence_classification(student=..., attendance_session=...)
 ```
 
 - الحصص التي كان الطالب فيها **حاضرًا لا تتأثر** ولو كان الهدف يومًا كاملًا.
-- **التأخر لا يتحول** إلى غياب بعذر — التأخر ليس غيابًا في هذه المرحلة.
 - اليوم الناقص يُعلَن ناقصًا ولا يُفترض فيه الغياب.
 
 ### حماية المعاينة القديمة (Stale Preview)
@@ -143,7 +142,6 @@ get_effective_absence_classification(student=..., attendance_session=...)
 | ما حدث | النتيجة |
 |---|---|
 | `ABSENT → PRESENT` | التغطية `ACTIVE → VOIDED` بسبب `ATTENDANCE_CHANGED` |
-| `ABSENT → LATE` | كذلك — العذر لم يعد يغطي غيابًا |
 | `PRESENT → ABSENT` وثمة عذر معتمد يستهدف اليوم/الحصة | تُنشأ تغطية جديدة تلقائيًا |
 | جلسة ناقصة تُعتمد لاحقًا والطالب غائب فيها | تُنشأ تغطية جديدة تلقائيًا |
 

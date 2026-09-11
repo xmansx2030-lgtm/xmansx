@@ -229,7 +229,7 @@ erDiagram
 | status | enum | IN_PROGRESS / SUBMITTED (لا NOT_STARTED — عدم الوجود هو «لم يبدأ») |
 | started_by_membership / submitted_by_membership | FK→SchoolMembership PROTECT | |
 | started_at / submitted_at | datetime | |
-| bell_period_snapshot | json | وقت بداية/نهاية الحصة وقت التحضير (يثبت حساب late_minutes حتى لو تغير الجدول) |
+| bell_period_snapshot | json | وقت بداية/نهاية الحصة وقت التحضير لأغراض التتبع التاريخي والتنبيه التشغيلي |
 | roster_fingerprint | char(64) | SHA-256 لقائمة الفصل وقت الفتح — كشف تغيرها قبل الإرسال |
 | unprepared_alert_minutes_snapshot | smallint | ✅ م7: مهلة التنبيه وقت الفتح — تقييم «اعتمد متأخرًا» تاريخيًا لا يتأثر بتغيير الإعداد (ATTENDANCE_MONITORING.md) |
 
@@ -244,9 +244,7 @@ erDiagram
 | school | FK | denormalized |
 | session | FK | |
 | student | FK **PROTECT** | **Unique (session, student)** — PROTECT يفشل الحذف النهائي بصوت عالٍ إن نسي التسجيل في PURGE_STEPS |
-| status | enum | ABSENT / LATE — **ولا شيء غيرهما أبدًا**: م10 أثبتت أن EXCUSED تصنيف إداري منفصل لا حالة حضور |
-| arrival_time | time null | مطلوب عند LATE |
-| late_minutes | int null | محسوب خادميًا: arrival − بداية الحصة (من snapshot)؛ قيمة العميل ترفض |
+| status | enum | ABSENT فقط — `EXCUSED` تصنيف إداري منفصل لا حالة حضور، والتأخر مصدره الوصول الصباحي |
 
 فهارس: `(school, student)`, `(school, status)`. **لا حقل `excuse_status`** — ألغي عمدًا
 في م10: التصنيف يُشتق من `AbsenceExcuseCoverage` (مصدر حقيقة واحد).
@@ -263,8 +261,7 @@ erDiagram
 | school / student / attendance_date | | **Unique (school, student, attendance_date)**؛ ‏student **PROTECT** (حارس Purge) |
 | academic_year / section | FK PROTECT | الفصل التاريخي ذلك اليوم — النقل لاحقًا لا يغير الماضي |
 | expected_periods | int | من سياق اليوم المجمد لا الجدول الحي |
-| submitted_periods / absent_periods / late_periods / present_periods | int | ‏present+absent+late = submitted |
-| total_late_minutes | int | دقائق Integer — لا تحويل لساعات في DB |
+| submitted_periods / absent_periods / present_periods | int | ‏present+absent = submitted |
 | completeness_status | enum | COMPLETE / INCOMPLETE |
 | absence_status | enum | UNDETERMINED / NONE / PARTIAL / FULL — الناقص UNDETERMINED أبدًا لا FULL |
 | calculated_at | datetime | إعادة الحساب idempotent متزامنة مع الاعتماد/التعديل |
@@ -274,7 +271,7 @@ erDiagram
 
 ### AttendanceChange (اسم التنفيذ لـ AttendanceMarkChange — ADR-010)
 `school`, `session FK`, `student FK PROTECT`, `actor_membership`, `previous_status/new_status`
-(تشمل `PRESENT`), `previous_late_minutes/new_late_minutes`, `reason`, `changed_at`.
+(تشمل `PRESENT` و`ABSENT`), `reason`, `changed_at`.
 سجل علائقي append-only (قراءة فقط في الإدارة)، مسجل في PURGE_STEPS مع العلامات.
 
 > ‏DailyAttendanceSummary نفذت في م8 أعلاه بحساب متزامن (لا Celery) وحالة
@@ -362,8 +359,7 @@ Validation: `LEVEL_1 < LEVEL_2 < LEVEL_3` لكل نوع، والتحديث ذر�
 | student_name/grade_name/section_name/national_id_masked _snapshot | varchar | للمستند التاريخي (لا هوية plaintext) |
 | full_absence_days / unexcused_full_absence_days / excused_full_absence_days _at_issue | smallint | Snapshot |
 | absent_periods / unexcused_absent_periods _at_issue | smallint | Snapshot |
-| morning_late_occurrences / morning_late_minutes _at_issue | int | **عداد مستقل** |
-| period_late_occurrences / period_late_minutes _at_issue | int | **عداد مستقل** (لا يجمع مع الصباحي) |
+| morning_late_occurrences / morning_late_minutes _at_issue | int | مصدر التأخر الوحيد: الوصول الصباحي |
 | issued_by_membership / issued_at / notes | | |
 | voided_by_membership / voided_at / void_reason | | لا حذف نهائي لسجل صادر |
 
@@ -465,7 +461,7 @@ ACKNOWLEDGED / CONTRIBUTION_ADDED / CLOSED / CANCELLED), `actor_membership SET_N
 | school / student | FK | student **PROTECT** (حارس Purge) |
 | warning | FK null **PROTECT** | لمستندات الإنذار |
 | action | FK null SET_NULL | الإجراء المرتبط (تعهد) |
-| document_type | enum | WARNING_LEVEL_1/2/3 / ATTENDANCE_COMMITMENT / ABSENCE_DETAIL_REPORT / MORNING_LATE_DETAIL_REPORT / PERIOD_LATE_DETAIL_REPORT / STUDENT_ATTENDANCE_REPORT |
+| document_type | enum | WARNING_LEVEL_1/2/3 / ATTENDANCE_COMMITMENT / ABSENCE_DETAIL_REPORT / MORNING_LATE_DETAIL_REPORT / STUDENT_ATTENDANCE_REPORT |
 | template_key / template_version | varchar | القالب المثبت وقت الإصدار (سجل مُصدَّر بإصدارات) |
 | snapshot_schema_version | smallint | قراءة المستندات القديمة بعد تطور بنية اللقطة |
 | status | enum | PENDING / READY / FAILED / VOIDED |

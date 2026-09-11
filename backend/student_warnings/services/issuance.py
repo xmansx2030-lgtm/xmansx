@@ -122,8 +122,6 @@ def _metrics_snapshot(*, school, student, year, warning_type: str) -> dict:
     ).aggregate(
         full_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.FULL)),
         absent_periods=Sum("absent_periods"),
-        period_late_occurrences=Sum("late_periods"),
-        period_late_minutes=Sum("total_late_minutes"),
     )
     arrivals = SchoolArrival.objects.filter(
         school=school, student=student, status=ArrivalStatus.LATE, **window
@@ -140,11 +138,8 @@ def _metrics_snapshot(*, school, student, year, warning_type: str) -> dict:
         "unexcused_absent_periods_at_issue": count_unexcused_absent_periods(
             school=school, student=student, academic_year=year
         ),
-        # الصباحي والحصص عدادان منفصلان تمامًا — لا جمع بينهما أبدًا
         "morning_late_occurrences_at_issue": arrivals["occurrences"] or 0,
         "morning_late_minutes_at_issue": arrivals["minutes"] or 0,
-        "period_late_occurrences_at_issue": summary["period_late_occurrences"] or 0,
-        "period_late_minutes_at_issue": summary["period_late_minutes"] or 0,
         "detail_rows_snapshot": _detail_rows_snapshot(
             school=school,
             student=student,

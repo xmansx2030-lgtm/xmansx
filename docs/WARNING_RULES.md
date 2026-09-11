@@ -10,7 +10,7 @@ SchoolSettings** (قابلية التوسعة والفهرسة والقيود).
 | `UNEXCUSED_FULL_DAY_ABSENCE` | أيام الغياب الكامل **بدون عذر** | أيام |
 | `MORNING_LATE_OCCURRENCES` | **عدد مرات** التأخر عن الدوام الصباحي | مرات |
 
-البنية تتسع لأنواع لاحقة (`PERIOD_LATE_OCCURRENCES`, `UNEXCUSED_ABSENT_PERIODS`)
+البنية تتسع لأنواع لاحقة (`UNEXCUSED_ABSENT_PERIODS`)
 دون تعديل الجداول — **لم تنفذ الآن عمدًا**.
 
 ## المستويات والحدود
@@ -42,8 +42,7 @@ absence_status = FULL  AND  excused_absent_periods = 0  AND  unexcused_absent_pe
 ## مقياس التأخر الصباحي
 
 `SchoolArrival.status = LATE` — **عدد المرات لا مجموع الدقائق**. الوصول في الوقت
-لا يحتسب، و**تأخر الحصص (`AttendanceMark.LATE`) منفصل تمامًا** ولا يدخل هذا العداد
-(اختباران خلفيان + E2E). القاعدة الدائمة: `Morning Late ≠ Period Late`.
+لا يحتسب، و`SchoolArrival` هو المصدر الوحيد للتأخر.
 
 ## النطاق الأكاديمي — قرار موثق بالأدلة
 

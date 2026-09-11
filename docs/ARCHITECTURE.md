@@ -145,7 +145,7 @@ membership متعددة؟     → شاشة «اختر المدرسة» → POST 
 ## 8. قرارات نطاق الحضور الجوهرية
 
 - **لا جدول حصص للمعلمين في MVP** (ADR-005): الحصة الحالية تُستنتج من وقت الخادم مقابل `BellSchedule` النشط، والمعلم يختار الفصل بنفسه (مع دعم QR بالـ Token لاحقًا).
-- **التحضير بالاستثناء** (ADR-006): `AttendanceSession` معتمدة تعني أن كل طالب بلا `AttendanceMark` حاضر. نخزن فقط `ABSENT` و `LATE` (مع `arrival_time` → `late_minutes` محسوبة).
+- **التحضير بالاستثناء** (ADR-006): `AttendanceSession` معتمدة تعني أن كل طالب بلا `AttendanceMark` حاضر. نخزن استثناء `ABSENT` فقط؛ التأخر مصدره الوصول الصباحي.
 - **غياب السجل ≠ حضور:** لا استنتاج لأي حالة طالب ما لم تكن الجلسة `SUBMITTED`. الفصول غير المحضرة حالتها `INCOMPLETE` في كل التحليلات، ويوم الطالب لا يصنف `FULL_DAY_ABSENCE` إن وُجدت حصة غير محضرة.
 - **منع التكرار بقيود قاعدة البيانات:** Unique على `(school, section, date, period)` + `transaction.atomic` + معالجة `IntegrityError` برسالة عربية (`ATTENDANCE_ALREADY_SUBMITTED`).
 - **نافذة تعديل المعلم:** `attendance_edit_window_minutes` من إعدادات المدرسة؛ بعدها التعديل للوكيل فقط، وكل تعديل حدث Audit.

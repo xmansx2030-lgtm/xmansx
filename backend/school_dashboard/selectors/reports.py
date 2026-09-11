@@ -17,7 +17,6 @@ from students.models import EnrollmentStatus, Student, StudentEnrollment
 
 ABSENCE_TYPES = {"ALL", "FULL", "PARTIAL"}
 EXCUSE_TYPES = {"ALL", "EXCUSED", "UNEXCUSED", "MIXED"}
-LATENESS_TYPES = {"ALL", "MORNING", "PERIOD"}
 
 
 def _positive_int(value, *, field: str, default: int = 0) -> int:
@@ -190,85 +189,45 @@ def _student_labels(school, student_ids: set[int]) -> dict[int, dict]:
 
 
 def lateness_report(*, school, date_range, scope, params) -> dict:
-    lateness_type = _choice(
-        params.get("lateness_type"),
-        allowed=LATENESS_TYPES,
-        field="lateness_type",
-        default="ALL",
-    )
     student_id = _student_id(school=school, value=params.get("student"))
     min_occurrences = _positive_int(
         params.get("min_occurrences"), field="min_occurrences", default=0
     )
     min_minutes = _positive_int(params.get("min_minutes"), field="min_minutes", default=0)
 
-    period_rows = summaries_queryset(school=school, date_range=date_range, scope=scope).filter(
-        late_periods__gt=0
-    )
     morning_rows = arrivals_queryset(school=school, date_range=date_range, scope=scope).filter(
         status=ArrivalStatus.LATE
     )
     if student_id:
-        period_rows = period_rows.filter(student_id=student_id)
         morning_rows = morning_rows.filter(student_id=student_id)
 
-    period = {
-        row["student_id"]: row
-        for row in period_rows.values("student_id").annotate(
-            occurrences=Sum("late_periods"), minutes=Sum("total_late_minutes")
-        )
-    }
     morning = {
         row["student_id"]: row
         for row in morning_rows.values("student_id").annotate(
             occurrences=Count("id"), minutes=Sum("counted_late_minutes")
         )
     }
-    if lateness_type == "MORNING":
-        student_ids = set(morning)
-    elif lateness_type == "PERIOD":
-        student_ids = set(period)
-    else:
-        student_ids = set(morning) | set(period)
+    student_ids = set(morning)
 
     labels = _student_labels(school, student_ids)
     items = []
     for current_id in student_ids:
         morning_row = morning.get(current_id, {})
-        period_row = period.get(current_id, {})
         morning_occurrences = morning_row.get("occurrences", 0) or 0
-        period_occurrences = period_row.get("occurrences", 0) or 0
         morning_minutes = morning_row.get("minutes", 0) or 0
-        period_minutes = period_row.get("minutes", 0) or 0
-        selected_occurrences = (
-            morning_occurrences
-            if lateness_type == "MORNING"
-            else period_occurrences
-            if lateness_type == "PERIOD"
-            else morning_occurrences + period_occurrences
-        )
-        selected_minutes = (
-            morning_minutes
-            if lateness_type == "MORNING"
-            else period_minutes
-            if lateness_type == "PERIOD"
-            else morning_minutes + period_minutes
-        )
-        if selected_occurrences < min_occurrences or selected_minutes < min_minutes:
+        if morning_occurrences < min_occurrences or morning_minutes < min_minutes:
             continue
         items.append(
             {
                 **labels[current_id],
                 "morning_occurrences": morning_occurrences,
                 "morning_minutes": morning_minutes,
-                "period_occurrences": period_occurrences,
-                "period_minutes": period_minutes,
             }
         )
     items.sort(
         key=lambda row: (
-            -(row["morning_occurrences"] + row["period_occurrences"]),
-            -(row["morning_minutes"] + row["period_minutes"]),
+            -row["morning_occurrences"],
+            -row["morning_minutes"],
             row["full_name"],
         )
     )
@@ -278,8 +237,6 @@ def lateness_report(*, school, date_range, scope, params) -> dict:
             "students": count,
             "morning_occurrences": sum(row["morning_occurrences"] for row in items),
             "morning_minutes": sum(row["morning_minutes"] for row in items),
-            "period_occurrences": sum(row["period_occurrences"] for row in items),
-            "period_minutes": sum(row["period_minutes"] for row in items),
         },
         "results": page_items,
         "count": count,

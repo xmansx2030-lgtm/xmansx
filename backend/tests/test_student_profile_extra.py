@@ -1,6 +1,6 @@
 """تدقيق مستقل م9 — تغطية ناقصة: البحث بالاسم، الترقيم، الخط الزمني، الفصل التاريخي."""
 
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -15,16 +15,14 @@ from students.models import Section
 from tests.test_students_api import _enroll, _make_student
 
 
-def _summary_row(school, enrollment, day, *, absent=0, late=0, minutes=0,
-                 status="PARTIAL", section=None):
+def _summary_row(school, enrollment, day, *, absent=0, status="PARTIAL", section=None):
     return DailyAttendanceSummary.objects.create(
         school=school, student=enrollment.student,
         academic_year=enrollment.academic_year,
         section=section or enrollment.section,
         attendance_date=day, expected_periods=7, submitted_periods=7,
-        absent_periods=absent, late_periods=late,
-        present_periods=max(7 - absent - late, 0),
-        total_late_minutes=minutes,
+        absent_periods=absent,
+        present_periods=max(7 - absent, 0),
         completeness_status="COMPLETE", absence_status=status,
         calculated_at=datetime.now(UTC),
     )
@@ -148,55 +146,26 @@ def test_days_history_keeps_historical_section_after_transfer(role_client):
 
 
 @pytest.mark.django_db
-def test_morning_history_endpoint_separate_from_period_lates(role_client):
-    """مساران منفصلان: ‏morning-attendance من SchoolArrival وattendance-period-lates
-    من العلامات — لا عداد موحد."""
+def test_morning_history_endpoint_uses_school_arrivals(role_client):
     from devices.models import SchoolArrival
 
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     student = _make_student(school, "1012345678", "محمد")
-    enrollment = _enroll(school, student)
+    _enroll(school, student)
     day = date(2026, 8, 24)
     SchoolArrival.objects.create(
         school=school, student=student, attendance_date=day,
         first_arrival_at=datetime(2026, 8, 24, 4, 13, tzinfo=UTC),
         raw_late_minutes=18, counted_late_minutes=13, status="LATE", source="BIOMETRIC",
     )
-    membership = SchoolMembership.objects.filter(school=school).first()
-    session = AttendanceSession.objects.create(
-        school=school, academic_year=enrollment.academic_year,
-        section=enrollment.section, attendance_date=day, period_sequence=2,
-        bell_period_snapshot={"sequence": 2, "name": "الثانية", "start_time": "08:00",
-                              "end_time": "08:45", "timezone": "Asia/Riyadh",
-                              "attendance_date": day.isoformat()},
-        status="SUBMITTED", roster_fingerprint="fp",
-        unprepared_alert_minutes_snapshot=25,
-        started_by_membership=membership, submitted_by_membership=membership,
-        submitted_at=datetime.now(UTC),
-    )
-    AttendanceMark.objects.create(
-        school=school, session=session, student=student, status="LATE",
-        arrival_time=time(8, 8), late_minutes=8,
-    )
-    # ملخص اليوم (مصدر مجاميع الملف) — تأخر حصة واحدة بـ8 دقائق، بلا غياب
-    _summary_row(school, enrollment, day, late=1, minutes=8, status="NONE")
-
     query = f"?from_date={day}&to_date={day}"
     morning = client.get(
         f"/api/v1/students/{student.id}/morning-attendance/{query}"
-    ).json()
-    lates = client.get(
-        f"/api/v1/students/{student.id}/attendance-period-lates/{query}"
     ).json()
     profile = client.get(
         f"/api/v1/students/{student.id}/attendance-profile/{query}"
     ).json()
 
     assert len(morning) == 1 and morning[0]["counted_late_minutes"] == 13
-    late_rows = lates["results"] if isinstance(lates, dict) else lates
-    assert len(late_rows) == 1 and late_rows[0]["late_minutes"] == 8
-    # الفصل الصارم: 1+13 صباحي و1+8 حصص — لا 2+21 موحدة
     assert profile["morning_attendance"]["morning_late_occurrences"] == 1
     assert profile["morning_attendance"]["morning_late_minutes"] == 13
-    assert profile["attendance"]["period_late_occurrences"] == 1
-    assert profile["attendance"]["period_late_minutes"] == 8

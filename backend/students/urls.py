@@ -33,10 +33,6 @@ urlpatterns = [
         views.StudentAttendanceAbsencesView.as_view(),
     ),
     path(
-        "students/<int:student_id>/attendance-period-lates/",
-        views.StudentAttendanceLatesView.as_view(),
-    ),
-    path(
         "students/<int:student_id>/attendance-changes/",
         views.StudentAttendanceChangesView.as_view(),
     ),

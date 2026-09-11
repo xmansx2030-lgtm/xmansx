@@ -29,12 +29,10 @@ function todayIso(): string {
 
 const STATUS_BADGE: Record<string, string> = {
   ABSENT: "غائب",
-  LATE: "متأخر",
   PRESENT: "حاضر",
 };
 const FEMININE_STATUS_BADGE: Record<string, string> = {
   ABSENT: "غائبة",
-  LATE: "متأخرة",
   PRESENT: "حاضرة",
 };
 
@@ -372,9 +370,7 @@ function ReportResults({
                         className={`rounded-full px-2 py-1 ${
                           ps.status === "ABSENT"
                             ? "bg-red-100 text-red-800"
-                            : ps.status === "LATE"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-green-100 text-green-800"
+                            : "bg-green-100 text-green-800"
                         }`}
                       >
                         {label}: {(schoolType === "GIRLS" ? FEMININE_STATUS_BADGE : STATUS_BADGE)[ps.status]}
@@ -446,9 +442,6 @@ function DailyTab({
     ["daily-full", "غياب يوم كامل", s.full_absent],
     ["daily-partial", "غياب جزئي", s.partial_absent],
     ["daily-incomplete", "بيانات غير مكتملة", s.incomplete_students],
-    ["daily-late-students", schoolType === "GIRLS" ? "طالبات متأخرات" : "طلاب متأخرون", s.late_students],
-    ["daily-late-occurrences", "مرات التأخر", s.late_occurrences],
-    ["daily-late-minutes", "دقائق التأخر", s.late_minutes],
   ];
 
   return (
@@ -523,8 +516,7 @@ function DailyTab({
                   </p>
                 </div>
                 <p className="text-sm text-slate-600">
-                  غياب {student.absent_periods} من {student.expected_periods} · تأخر{" "}
-                  {student.late_periods} ({student.total_late_minutes} د) · معتمد{" "}
+                  غياب {student.absent_periods} من {student.expected_periods} · معتمد{" "}
                   {student.submitted_periods}/{student.expected_periods}
                 </p>
               </li>

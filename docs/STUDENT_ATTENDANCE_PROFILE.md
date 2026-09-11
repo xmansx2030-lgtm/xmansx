@@ -44,7 +44,7 @@ The profile is tenant-scoped by `request.school`. A student purged from the data
 
 ## Attendance Semantics
 
-The summary is aggregated from `DailyAttendanceSummary`; it does not recalculate FULL or PARTIAL in the view. FULL and PARTIAL exclude UNDETERMINED. The latter has an independent count and produces an incomplete-data banner. Period absence and lateness use submitted sessions and `AttendanceMark`; late minutes remain numeric in the API and are formatted in the frontend.
+The summary is aggregated from `DailyAttendanceSummary`; it does not recalculate FULL or PARTIAL in the view. FULL and PARTIAL exclude UNDETERMINED. The latter has an independent count and produces an incomplete-data banner. Period absence uses submitted sessions and `AttendanceMark`; morning lateness comes only from `SchoolArrival`.
 
 Daily history is newest first. Day detail uses `AttendanceDayContext.schedule_snapshot` and `AttendanceSession.bell_period_snapshot`, never the current bell schedule. A submitted session without a mark derives PRESENT. A missing or IN_PROGRESS session derives NOT_RECORDED. Historical section names come from the summary's dated section snapshot.
 
@@ -52,9 +52,9 @@ Attendance changes are history only and do not calculate current state. Actors u
 
 ## Frontend
 
-The profile is at `/students/{studentId}/attendance` and is linked from student search results. Tabs are lazy TanStack Query requests: summary, days, period absences, period lates, and manager/vice-principal-only changes. Keys include school ID, student ID, and both date boundaries. School switching removes all non-`me` queries, preventing a stale profile flash. The UI shows the student's current status and enrollment, but historical rows retain their dated section.
+The profile is at `/students/{studentId}/attendance` and is linked from student search results. Tabs are lazy TanStack Query requests: summary, days, period absences, morning attendance, and manager/vice-principal-only changes. Keys include school ID, student ID, and both date boundaries. School switching removes all non-`me` queries, preventing a stale profile flash. The UI shows the student's current status and enrollment, but historical rows retain their dated section.
 
-Morning attendance is integrated from `SchoolArrival` as `{ "status": "AVAILABLE", "morning_late_occurrences": 0, "morning_late_minutes": 0 }` when the source is available. The UI keeps morning lateness separate from period lateness and exposes a lazy morning history tab.
+Morning attendance is integrated from `SchoolArrival` as `{ "status": "AVAILABLE", "morning_late_occurrences": 0, "morning_late_minutes": 0 }` when the source is available. `SchoolArrival` is the sole lateness source, and the UI exposes its history in a lazy tab.
 
 ## Integration With Phase 8.5
 
@@ -63,7 +63,7 @@ After merging Phase 8.5:
 1. Rebase Phase 9 and resolve documentation/navigation conflicts.
 2. Connect the summary service to `SchoolArrival` data.
 3. Add morning late cards and a morning-late history section.
-4. Keep morning and period lateness as separate metrics.
+4. Keep `SchoolArrival` as the sole lateness metric.
 5. Run full backend/frontend regression and combined E2E scenarios.
 
 The expected change boundary is the profile summary service plus the morning section; the page and existing period tabs should remain intact.

@@ -1,6 +1,6 @@
 """اختبارات نطاق الأعذار (م10) — التصنيف الإداري لا يمس سجل الحضور الخام أبدًا."""
 
-from datetime import datetime, time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -82,10 +82,9 @@ def make_session(env, seq, *, day=DAY, status="SUBMITTED", section=None):
     )
 
 
-def mark(env, session, student, status, minutes=None):
+def mark(env, session, student, status):
     return AttendanceMark.objects.create(
         school=env["school"], session=session, student=student, status=status,
-        late_minutes=minutes, arrival_time=time(8, 30) if status == "LATE" else None,
     )
 
 
@@ -208,14 +207,12 @@ def test_multi_day_excuse_covers_only_actual_absences(env):
 
 
 @pytest.mark.django_db
-def test_present_and_late_not_covered(env):
+def test_present_periods_are_not_covered(env):
     student = env["students"][0]
     for seq in range(1, PERIOD_COUNT + 1):
         session = make_session(env, seq)
         if seq == 1:
             mark(env, session, student, "ABSENT")
-        elif seq == 2:
-            mark(env, session, student, "LATE", minutes=10)
         # البقية حاضر (لا علامة)
     recalc(env)
     excuse = excuse_for(env, student, [{"attendance_date": DAY}])
@@ -223,9 +220,7 @@ def test_present_and_late_not_covered(env):
     coverages = AbsenceExcuseCoverage.objects.filter(excuse=excuse)
     assert coverages.count() == 1
     assert coverages.first().period_sequence_snapshot == 1
-    row = summary(env, student)
-    assert row.late_periods == 1  # ‏LATE لا تتحول (بند 32)
-    assert row.excused_absent_periods == 1
+    assert summary(env, student).excused_absent_periods == 1
 
 
 @pytest.mark.django_db
@@ -281,8 +276,7 @@ def test_attendance_edit_absent_to_present_voids_coverage(env):
 
     # تصحيح إداري: الحصة الأولى تصبح حضورًا (حذف العلامة = PRESENT)
     other_marks = [
-        {"student_id": m.student_id, "status": m.status,
-         "arrival_time": None, "late_minutes": None}
+        {"student_id": m.student_id, "status": m.status}
         for m in sessions[0].marks.exclude(student=student)
     ]
     edit_session(
@@ -318,8 +312,7 @@ def test_attendance_edit_present_to_absent_creates_coverage(env):
     edit_session(
         session_id=sessions[0].id, school=env["school"], membership=env["vice"],
         roles=["VICE_PRINCIPAL"],
-        marks=[{"student_id": student.id, "status": "ABSENT",
-                "arrival_time": None, "late_minutes": None}],
+        marks=[{"student_id": student.id, "status": "ABSENT"}],
         reason="تصحيح إلى غياب",
     )
     assert AbsenceExcuseCoverage.objects.filter(
@@ -608,8 +601,7 @@ def test_stale_preview_rejected(env):
 
     # الحضور يتغير بين المعاينة والاعتماد
     other_marks = [
-        {"student_id": m.student_id, "status": m.status,
-         "arrival_time": None, "late_minutes": None}
+        {"student_id": m.student_id, "status": m.status}
         for m in sessions[0].marks.exclude(student=student)
     ]
     edit_session(

@@ -116,14 +116,12 @@ def make_session(env, section, seq, *, status="SUBMITTED"):
     )
 
 
-def mark(env, session, student, status, minutes=None):
+def mark(env, session, student, status):
     return AttendanceMark.objects.create(
         school=env["school"],
         session=session,
         student=student,
         status=status,
-        late_minutes=minutes,
-        arrival_time=time(8, 30) if status == "LATE" else None,
     )
 
 
@@ -148,13 +146,12 @@ def names(report):
 def test_period_absentees_and_incomplete_sections(env):
     s1 = make_session(env, env["a"], 1)
     mark(env, s1, env["sa"][0], "ABSENT")
-    mark(env, s1, env["sa"][1], "LATE", minutes=10)
     s2 = make_session(env, env["b"], 1)
     mark(env, s2, env["sb"][0], "ABSENT")
     # ‏c: لا جلسة إطلاقًا
 
     report = multi(env, [1])
-    assert report["summary"]["matching_students"] == 2  # المتأخر ليس غائبًا
+    assert report["summary"]["matching_students"] == 2
     assert sorted(names(report)) == sorted([env["sa"][0].full_name, env["sb"][0].full_name])
     assert report["summary"]["complete_sections"] == 2
     assert report["summary"]["incomplete_sections"] == 1
@@ -184,7 +181,7 @@ def test_in_progress_not_official_and_reason_shown(env):
 
 @pytest.fixture
 def multi_env(env):
-    """‏a: حصتان معتمدتان — محمد (A,A)، خالد (A,P)، سعد (A,L)."""
+    """‏a: حصتان معتمدتان — محمد (A,A)، خالد (A,P)، سعد (A,P)."""
     s1 = make_session(env, env["a"], 1)
     s2 = make_session(env, env["a"], 2)
     mohammed, khaled, saad = env["sa"]
@@ -192,7 +189,6 @@ def multi_env(env):
     mark(env, s2, mohammed, "ABSENT")
     mark(env, s1, khaled, "ABSENT")
     mark(env, s1, saad, "ABSENT")
-    mark(env, s2, saad, "LATE", minutes=5)
     # ‏b: الأولى فقط معتمدة وفيها غائب — الفصل ناقص لاختيار [1,2]
     sb1 = make_session(env, env["b"], 1)
     mark(env, sb1, env["sb"][0], "ABSENT")
@@ -230,7 +226,7 @@ def test_any_absent_matching(multi_env):
     # الكل غائب في الأولى على الأقل — لكن فقط طلاب الفصول المكتملة
     assert sorted(names(report)) == sorted(s.full_name for s in env["sa"])
     saad_row = next(s for s in report["students"] if s["student_id"] == env["sa"][2].id)
-    assert {"sequence": 2, "status": "LATE"} in saad_row["period_statuses"]
+    assert {"sequence": 2, "status": "PRESENT"} in saad_row["period_statuses"]
 
 
 @pytest.mark.django_db
@@ -280,19 +276,17 @@ def build_full_day(env, absent_map, *, periods=PERIOD_COUNT):
             state = spec.get(seq)
             if state == "A":
                 mark(env, session, student, "ABSENT")
-            elif isinstance(state, int):
-                mark(env, session, student, "LATE", minutes=state)
 
 
 @pytest.mark.django_db
-def test_daily_full_partial_none_late(env):
+def test_daily_full_partial_and_no_absence(env):
     mohammed, khaled, saad = env["sa"]
     build_full_day(
         env,
         {
             mohammed: dict.fromkeys(range(1, 8), "A"),  # غائب اليوم كله
             khaled: {3: "A", 4: "A"},  # غياب جزئي
-            saad: {1: 12, 2: 18, 5: 7},  # تأخر فقط
+            saad: {},
         },
     )
     recalculate_daily_attendance_for_section(
@@ -304,17 +298,13 @@ def test_daily_full_partial_none_late(env):
     partial = rows[khaled.id]
     assert partial.absence_status == "PARTIAL" and partial.absent_periods == 2
     assert partial.present_periods == 5
-    late = rows[saad.id]
-    assert late.absence_status == "NONE"  # التأخر لا يحول اليوم إلى غياب (البند 51)
-    assert late.late_periods == 3 and late.total_late_minutes == 37
-    assert late.present_periods + late.absent_periods + late.late_periods == 7
+    present = rows[saad.id]
+    assert present.absence_status == "NONE"
+    assert present.present_periods + present.absent_periods == 7
 
     report = get_daily_report(school=env["school"], attendance_date=DAY)
     assert report["summary"]["full_absent"] == 1
     assert report["summary"]["partial_absent"] == 1
-    assert report["summary"]["late_students"] == 1
-    assert report["summary"]["late_occurrences"] == 3
-    assert report["summary"]["late_minutes"] == 37
 
 
 @pytest.mark.django_db
@@ -434,7 +424,7 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
         marks=[{"student_id": target.id, "status": "ABSENT"}],
     )
     row = DailyAttendanceSummary.objects.get(student=target)
-    assert (row.absent_periods, row.late_periods) == (1, 0)
+    assert row.absent_periods == 1
     other = DailyAttendanceSummary.objects.get(student=env2["students"][1])
     assert other.absence_status == "NONE"  # حاضر واليوم مكتمل (حصة واحدة متوقعة)
 
@@ -448,7 +438,7 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
         reason="تصحيح",
     )
     row.refresh_from_db()
-    assert (row.absent_periods, row.late_periods, row.total_late_minutes) == (0, 0, 0)
+    assert row.absent_periods == 0
     assert row.absence_status == "NONE"
 
 

@@ -97,7 +97,6 @@ export interface PreviewDay {
   missing_periods: number;
   absent_periods: number;
   present_periods: number;
-  late_periods: number;
   complete: boolean;
 }
 

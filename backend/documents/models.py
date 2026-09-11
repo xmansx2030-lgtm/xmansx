@@ -25,7 +25,6 @@ class DocumentType(models.TextChoices):
     ATTENDANCE_COMMITMENT = "ATTENDANCE_COMMITMENT", "تعهد الالتزام بالحضور"
     ABSENCE_DETAIL_REPORT = "ABSENCE_DETAIL_REPORT", "كشف تفصيلي للغياب"
     MORNING_LATE_DETAIL_REPORT = "MORNING_LATE_DETAIL_REPORT", "كشف تفصيلي للتأخر الصباحي"
-    PERIOD_LATE_DETAIL_REPORT = "PERIOD_LATE_DETAIL_REPORT", "كشف تفصيلي لتأخر الحصص"
     STUDENT_ATTENDANCE_REPORT = "STUDENT_ATTENDANCE_REPORT", "تقرير مواظبة الطالب"
 
 
@@ -39,7 +38,6 @@ WARNING_DOCUMENT_TYPES = {
 RANGE_DOCUMENT_TYPES = {
     DocumentType.ABSENCE_DETAIL_REPORT,
     DocumentType.MORNING_LATE_DETAIL_REPORT,
-    DocumentType.PERIOD_LATE_DETAIL_REPORT,
     DocumentType.STUDENT_ATTENDANCE_REPORT,
 }
 

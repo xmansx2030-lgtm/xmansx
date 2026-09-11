@@ -33,7 +33,6 @@ ABSENCE_LABELS = {
 }
 MARK_LABELS = {
     AttendanceMarkStatus.ABSENT: "غائب",
-    AttendanceMarkStatus.LATE: "متأخر",
     "PRESENT": "حاضر",
     "NOT_RECORDED": "لم يتم تسجيل الحضور",
 }
@@ -104,8 +103,6 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
         partial_absence_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)),
         undetermined_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)),
         absent_periods=Sum("absent_periods"),
-        late_occurrences=Sum("late_periods"),
-        late_minutes=Sum("total_late_minutes"),
         # م10 — الإجمالي يبقى كما هو (بند 69)؛ التصنيف بعذر/بدون عذر إضافة فوقه.
         # ‏alias مختلف عن اسم الحقل: تسميته بنفس الاسم تجعل الفلاتر التالية تشير
         # إلى الـaggregate لا إلى العمود (FieldError).
@@ -128,8 +125,6 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
         "partial_absence_days": totals["partial_absence_days"] or 0,
         "undetermined_days": totals["undetermined_days"] or 0,
         "absent_periods": totals["absent_periods"] or 0,
-        "period_late_occurrences": totals["late_occurrences"] or 0,
-        "period_late_minutes": totals["late_minutes"] or 0,
         "excused_absent_periods": totals["excused_periods_total"] or 0,
         "unexcused_absent_periods": totals["unexcused_periods_total"] or 0,
         "excused_full_absence_days": totals["excused_full_days"] or 0,
@@ -157,8 +152,6 @@ def _mark_payload(mark: AttendanceMark | None, *, submitted: bool) -> dict:
     return {
         "status": status,
         "status_label": MARK_LABELS[status],
-        "arrival_time": mark.arrival_time.strftime("%H:%M") if mark and mark.arrival_time else None,
-        "late_minutes": mark.late_minutes if mark else None,
     }
 
 

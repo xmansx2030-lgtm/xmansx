@@ -6,7 +6,7 @@
  * 2) تعهد ← PDF + إجراء «أخذ تعهد» يظهران في ملف الطالب.
  * 3) تسجيل «التواصل مع ولي الأمر» يبقى بعد إعادة التحميل.
  * 4) كشف غياب لفترة → التصنيف بعذر/بدون عذر صحيح داخل اللقطة.
- * 5) كشف التأخر الصباحي منفصل عن تأخر الحصص.
+ * 5) كشف التأخر يعتمد على الوصول الصباحي وحده.
  * 6) العزل: مديرة مدرسة أخرى لا ترى ولا تنزل مستندات هذه المدرسة.
  *
  * صف/فصل فريد لكل تشغيل (noor-9) يعزل اللقطات عن بقية بيانات المدرسة.
@@ -366,7 +366,7 @@ test("absence report keeps excused and unexcused classification, morning report 
   const pdf = await downloadDocument(page, report.body.id);
   expect(pdf.header).toBe("%PDF-");
 
-  // تأخر صباحي يدوي ×3 ثم كشف صباحي منفصل عن تأخر الحصص
+  // تأخر صباحي يدوي ×3 ثم كشف التأخر الصباحي
   for (const day of seededDays.slice(0, 3)) {
     const arrival = await api(page, "/morning/arrivals/", {
       method: "POST",
@@ -394,21 +394,6 @@ test("absence report keeps excused and unexcused classification, morning report 
   expect(morningDetail.body.snapshot.totals.occurrences).toBe(3);
   expect(morningDetail.body.snapshot.totals.counted_late_minutes).toBeGreaterThan(0);
 
-  // كشف تأخر الحصص مستقل: لا تأخر حصص مسجل لهذا الطالب
-  const periodLate = await api<{ id: number }>(page, "/documents/generate/", {
-    method: "POST",
-    body: {
-      student_id: turkiId,
-      document_type: "PERIOD_LATE_DETAIL_REPORT",
-      from_date: seededDays[4],
-      to_date: seededDays[0],
-    },
-  });
-  const periodDetail = await api<{ snapshot: { totals: { occurrences: number } } }>(
-    page,
-    `/documents/${periodLate.body.id}/`,
-  );
-  expect(periodDetail.body.snapshot.totals.occurrences).toBe(0);
 });
 
 test("isolation: a manager of another school sees and downloads nothing", async ({ page }) => {
