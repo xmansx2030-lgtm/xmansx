@@ -1,5 +1,7 @@
 """خدمات إعدادات المدرسة — school وactor صريحان دائمًا (نمط MULTI_TENANCY.md)."""
 
+from datetime import time
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 
@@ -21,6 +23,13 @@ SETTINGS_EDITABLE_FIELDS = {
     "school_day_start_time",
     "morning_late_grace_minutes",
 }
+
+
+def _audit_value(value):
+    """حوّل الأنواع غير المدعومة في JSON إلى قيمة مقروءة في سجل التدقيق."""
+    if isinstance(value, time):
+        return value.strftime("%H:%M")
+    return value
 
 
 def get_or_create_settings(*, school: School) -> SchoolSettings:
@@ -68,7 +77,10 @@ def update_school_info(*, school: School, actor, data: dict, request=None) -> Sc
             old = getattr(settings_obj, field)
             new = data[field]
             if old != new:
-                settings_changed[field] = {"from": old, "to": new}
+                settings_changed[field] = {
+                    "from": _audit_value(old),
+                    "to": _audit_value(new),
+                }
                 setattr(settings_obj, field, new)
 
     if settings_changed:

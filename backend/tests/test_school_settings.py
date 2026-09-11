@@ -17,6 +17,8 @@ def test_get_settings_creates_defaults(role_client):
     assert body["school"]["school_type"] == "BOYS"
     assert body["attendance_edit_window_minutes"] == 15
     assert body["unprepared_period_alert_minutes"] == 25
+    assert body["school_day_start_time"] == "07:00"
+    assert body["morning_late_grace_minutes"] == 5
     assert body["timezone"] == "Asia/Riyadh"
     assert body["staff"]["managers"]  # المدير الحالي يظهر من العضويات
 
@@ -33,6 +35,8 @@ def test_manager_can_patch_settings_with_audit(role_client):
             "education_stage": "SECONDARY",
             "attendance_edit_window_minutes": 20,
             "unprepared_period_alert_minutes": 30,
+            "school_day_start_time": "07:15",
+            "morning_late_grace_minutes": 10,
         },
         content_type="application/json",
     )
@@ -41,12 +45,18 @@ def test_manager_can_patch_settings_with_audit(role_client):
     assert body["school"]["name"] == "ثانوية النور"
     assert body["city"] == "الرياض"
     assert body["attendance_edit_window_minutes"] == 20
+    assert body["school_day_start_time"] == "07:15"
+    assert body["morning_late_grace_minutes"] == 10
 
     actions = set(AuditLog.objects.values_list("action", flat=True))
     assert "SCHOOL_NAME_UPDATED" in actions
     assert "SCHOOL_SETTINGS_UPDATED" in actions
     log = AuditLog.objects.get(action="SCHOOL_SETTINGS_UPDATED")
     assert "city" in log.metadata["changed"]
+    assert log.metadata["changed"]["school_day_start_time"] == {
+        "from": "07:00",
+        "to": "07:15",
+    }
 
 
 @pytest.mark.django_db
@@ -109,6 +119,10 @@ def test_teacher_denied_settings_entirely(role_client):
         ("attendance_edit_window_minutes", 120, True),
         ("attendance_edit_window_minutes", 121, False),
         ("attendance_edit_window_minutes", -1, False),
+        ("morning_late_grace_minutes", 0, True),
+        ("morning_late_grace_minutes", 120, True),
+        ("morning_late_grace_minutes", 121, False),
+        ("morning_late_grace_minutes", -1, False),
     ],
 )
 def test_minutes_boundary_values(role_client, field, value, ok):

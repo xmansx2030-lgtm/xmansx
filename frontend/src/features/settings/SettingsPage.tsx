@@ -28,7 +28,7 @@ const TABS = [
   { key: "structure", label: "الصفوف والفصول", shortDescription: "الهيكل الدراسي وخيارات تسجيل الطلاب", icon: LayoutGrid },
   { key: "week-days", label: "أيام الدراسة", shortDescription: "أيام العمل والجدول المطبق", icon: CalendarDays },
   { key: "bell-schedules", label: "أوقات الحصص", shortDescription: "الجداول والحصص اليومية", icon: Clock3 },
-  { key: "attendance", label: "إعدادات التحضير", shortDescription: "التنبيهات ومهلة التعديل", icon: CheckCircle2 },
+  { key: "attendance", label: "سياسات الحضور", shortDescription: "التأخر الصباحي والتحضير", icon: CheckCircle2 },
   { key: "warnings", label: "الإنذارات", shortDescription: "حدود إنذارات الغياب والتأخر", icon: BellRing },
 ] as const satisfies ReadonlyArray<{
   key: string;

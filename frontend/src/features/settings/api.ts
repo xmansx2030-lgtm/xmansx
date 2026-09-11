@@ -13,6 +13,8 @@ export interface SchoolSettingsPayload {
   logo_url: string | null;
   attendance_edit_window_minutes: number;
   unprepared_period_alert_minutes: number;
+  school_day_start_time: string;
+  morning_late_grace_minutes: number;
   staff: { managers: string[]; vice_principals: string[]; counselors: string[] };
 }
 
