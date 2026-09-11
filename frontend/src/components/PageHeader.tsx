@@ -55,11 +55,11 @@ export function PageHeader({
   const colors = toneClasses[tone];
   return (
     <header
-      className={`relative isolate overflow-hidden rounded-3xl bg-gradient-to-l ${colors.shell} px-5 py-6 text-white shadow-xl shadow-slate-950/10 sm:px-7 sm:py-7`}
+      className={`relative isolate overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-l ${colors.shell} px-5 py-6 text-white shadow-lg shadow-slate-950/10 sm:px-7 sm:py-7`}
       data-testid={testId}
     >
-      <div aria-hidden className={`absolute -start-20 -top-24 -z-10 size-72 rounded-full ${colors.glow} blur-3xl`} />
-      <div aria-hidden className="absolute -bottom-28 end-1/3 -z-10 size-60 rounded-full bg-white/5 blur-3xl" />
+      <div aria-hidden className={`absolute -start-20 -top-24 -z-10 size-64 rounded-full ${colors.glow} blur-3xl`} />
+      <div aria-hidden className="absolute -bottom-28 end-1/3 -z-10 size-52 rounded-full bg-white/5 blur-3xl" />
       <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div className="flex min-w-0 items-start gap-4">
           <span className={`grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 ${colors.accent} ring-1 ring-white/15`}>

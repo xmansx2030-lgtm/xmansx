@@ -26,7 +26,13 @@ def test_valid_png_accepted(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])
     response = _upload(client, "logo.png", _image_bytes("PNG"))
     assert response.status_code == 200
-    assert response.json()["logo_url"] is not None
+    assert response.json()["logo_url"].startswith(f"{LOGO_URL}?v=")
+
+    delivered = client.get(response.json()["logo_url"])
+    assert delivered.status_code == 200
+    assert delivered["Content-Type"] == "image/png"
+    assert "no-store" in delivered["Cache-Control"]
+    assert b"".join(delivered.streaming_content).startswith(b"\x89PNG\r\n\x1a\n")
 
 
 @pytest.mark.django_db
@@ -80,3 +86,10 @@ def test_remove_logo(role_client):
     response = client.delete(LOGO_URL)
     assert response.status_code == 200
     assert response.json()["logo_url"] is None
+
+
+@pytest.mark.django_db
+def test_missing_logo_delivery_returns_404(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    response = client.get(LOGO_URL)
+    assert response.status_code == 404

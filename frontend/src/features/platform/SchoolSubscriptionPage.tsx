@@ -75,7 +75,7 @@ export function SchoolSubscriptionPage() {
     : subscription.status_label ?? (subscription.status ? STATUS_LABELS[subscription.status] : "لا يوجد اشتراك");
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={ShieldCheck}
         eyebrow="الحساب والحدود التشغيلية"

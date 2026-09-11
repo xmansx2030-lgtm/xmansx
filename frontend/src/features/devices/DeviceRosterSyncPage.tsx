@@ -98,7 +98,7 @@ export function DeviceRosterSyncPage() {
   const error = analyze.error ?? approve.error ?? retry.error;
   const activeDevices = (devices.data ?? []).filter((device) => device.is_active);
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={RefreshCw}
         eyebrow="سلامة بيانات الأجهزة"

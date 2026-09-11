@@ -15,8 +15,10 @@ import {
 import { useDeferredValue, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { Alert } from "@/components/Alert";
 import { ErrorState } from "@/components/ErrorState";
 import { Modal } from "@/components/Modal";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import {
@@ -101,33 +103,24 @@ export function GatePage() {
     : null;
 
   return (
-    <div className="space-y-5" data-testid="gate-page">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-teal-950 to-emerald-900 p-4 text-white shadow-xl shadow-emerald-950/15 sm:p-7">
-        <div aria-hidden className="absolute -left-12 -top-20 size-56 rounded-full bg-emerald-300/10 blur-3xl" />
-        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15 sm:size-13">
-              <DoorOpen aria-hidden size={27} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-emerald-200">محطة حارس البوابة</p>
-              <h1 className="mt-1 text-2xl font-black sm:text-3xl">خروج {students}</h1>
-              <p className="mt-2 text-sm leading-6 text-emerald-50/80">تحقق من البيانات ثم سجّل الخروج الفعلي من المدرسة.</p>
-              {leaves.data?.date && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-100/80"><CalendarDays aria-hidden size={14} />قائمة {dateLabel(leaves.data.date)}</p>}
-            </div>
-          </div>
-          <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-xs font-black ring-1 ${online ? "bg-emerald-400/15 text-emerald-100 ring-emerald-300/25" : "bg-red-400/15 text-red-100 ring-red-300/25"}`}>
+    <div className="ds-page" data-testid="gate-page">
+      <PageHeader
+        icon={DoorOpen}
+        eyebrow="محطة حارس البوابة"
+        title={<>خروج {students}</>}
+        description="تحقق من البيانات ثم سجّل الخروج الفعلي من المدرسة."
+        tone="operational"
+        meta={leaves.data?.date ? <><CalendarDays aria-hidden size={14} /> قائمة {dateLabel(leaves.data.date)}</> : undefined}
+        badge={<span className="inline-flex items-center gap-1.5">
             {online ? <Wifi aria-hidden size={15} /> : <WifiOff aria-hidden size={15} />}
             {online ? (leaves.isFetching ? "متصل — جارٍ التحديث" : "متصل") : "غير متصل — التأكيد متوقف"}
-          </span>
-        </div>
-      </header>
+        </span>}
+      />
 
       {!online && (
-        <div role="status" className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-          <WifiOff aria-hidden size={20} className="mt-0.5 shrink-0" />
-          <div><p className="font-black">تعذر الاتصال بالخادم</p><p className="mt-1">لا تعتمد البيانات الظاهرة، ولن يُسمح بتسجيل أي خروج حتى يعود الاتصال.</p></div>
-        </div>
+        <Alert tone="warning" title="تعذر الاتصال بالخادم" live>
+          لا تعتمد البيانات الظاهرة، ولن يُسمح بتسجيل أي خروج حتى يعود الاتصال.
+        </Alert>
       )}
 
       <section className="grid grid-cols-2 gap-3" aria-label="ملخص البوابة اليوم" aria-live="polite">

@@ -138,7 +138,7 @@ export function InactiveStudentsPage() {
     jobData && ["COMPLETED", "PARTIALLY_FAILED", "FAILED"].includes(jobData.status);
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={Archive}
         eyebrow="السجل الأكاديمي"

@@ -23,7 +23,7 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, hint, icon: Icon, tone = "neutral", testId, valueFirst = false }: MetricCardProps) {
   return (
-    <article className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" data-testid={testId}>
+    <article className="ds-surface group p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" data-testid={testId}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {valueFirst ? <><p className="text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">{value}</p><p className="mt-1 text-xs font-bold leading-5 text-slate-500">{label}</p></> : <><p className="text-xs font-bold leading-5 text-slate-500">{label}</p><p className="mt-1 text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">{value}</p></>}

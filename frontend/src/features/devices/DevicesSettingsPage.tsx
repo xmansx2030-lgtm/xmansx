@@ -162,7 +162,7 @@ export function DevicesSettingsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={Fingerprint}
         eyebrow="التكاملات التشغيلية"

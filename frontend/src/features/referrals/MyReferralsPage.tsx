@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Clock3,
@@ -17,6 +16,7 @@ import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
+import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
@@ -142,7 +142,7 @@ export function MyReferralsPage() {
   const counselorLabel = roleLabel("COUNSELOR", schoolType);
 
   return (
-    <div className="space-y-6" data-testid="teacher-referrals-page">
+    <div className="ds-page" data-testid="teacher-referrals-page">
       <PageHeader
         icon={Send}
         eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)}`}
@@ -289,7 +289,7 @@ export function MyReferralsPage() {
                 page={candidatePage}
                 hasNext={Boolean(candidates.data.next)}
                 hasPrevious={Boolean(candidates.data.previous)}
-                onChange={(page) => {
+                onChange={(page: number) => {
                   setCandidatePage(page);
                   setSelectedStudent(null);
                 }}
@@ -344,7 +344,7 @@ export function MyReferralsPage() {
               page={referralPage}
               hasNext={Boolean(list.data.next)}
               hasPrevious={Boolean(list.data.previous)}
-              onChange={(page) => {
+              onChange={(page: number) => {
                 setReferralPage(page);
                 setSelectedReferral(null);
               }}
@@ -363,30 +363,5 @@ export function MyReferralsPage() {
         />
       )}
     </div>
-  );
-}
-
-function Pagination({
-  page,
-  hasNext,
-  hasPrevious,
-  onChange,
-}: {
-  page: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
-  onChange: (page: number) => void;
-}) {
-  if (!hasNext && !hasPrevious) return null;
-  return (
-    <nav className="flex items-center justify-center gap-3" aria-label="التنقل بين الصفحات">
-      <Button type="button" variant="secondary" disabled={!hasPrevious} onClick={() => onChange(page - 1)}>
-        <ArrowRight aria-hidden size={16} /> السابق
-      </Button>
-      <span className="text-sm font-bold text-slate-600">صفحة {page}</span>
-      <Button type="button" variant="secondary" disabled={!hasNext} onClick={() => onChange(page + 1)}>
-        التالي <ArrowLeft aria-hidden size={16} />
-      </Button>
-    </nav>
   );
 }

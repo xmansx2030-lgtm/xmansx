@@ -112,7 +112,7 @@ export function SectionQrPage() {
   };
 
   return (
-    <div className="space-y-5" data-testid="section-qr-page">
+    <div className="ds-page" data-testid="section-qr-page">
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-teal-950 p-5 text-white shadow-xl shadow-slate-950/10 print:hidden sm:p-7">
         <div aria-hidden className="absolute -left-16 -top-20 size-64 rounded-full bg-teal-400/15 blur-3xl" />
         <div aria-hidden className="absolute -bottom-24 right-1/3 size-52 rounded-full bg-blue-500/10 blur-3xl" />

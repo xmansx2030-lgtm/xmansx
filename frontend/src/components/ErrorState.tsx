@@ -1,5 +1,5 @@
 import { ApiError } from "@/api/client";
-import { AlertCircle } from "lucide-react";
+import { Alert } from "@/components/Alert";
 
 interface ErrorStateProps {
   error: unknown;
@@ -11,11 +11,8 @@ export function ErrorState({ error }: ErrorStateProps) {
   const requestId = error instanceof ApiError ? error.requestId : null;
 
   return (
-    <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-red-100 text-red-700"><AlertCircle aria-hidden size={19} /></span>
-      <div className="min-w-0">
-      <p className="font-bold">تعذر إكمال الطلب</p>
-      <p className="mt-1 leading-6">{message}</p>
+    <Alert tone="danger" title="تعذر إكمال الطلب">
+      <p>{message}</p>
       {requestId && (
         <details className="mt-2 text-xs text-slate-500">
           <summary className="w-fit cursor-pointer select-none font-medium hover:text-slate-700">
@@ -26,7 +23,6 @@ export function ErrorState({ error }: ErrorStateProps) {
           </p>
         </details>
       )}
-      </div>
-    </div>
+    </Alert>
   );
 }

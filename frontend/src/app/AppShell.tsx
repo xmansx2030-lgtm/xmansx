@@ -5,12 +5,13 @@ import {
   UsersRound, X, type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigation } from "react-router-dom";
 
 import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
 import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels, studentPluralLabel } from "@/utils/roles";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 type Role = SchoolRole;
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -149,7 +150,7 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
         <p className={`truncate text-sm font-bold ${mobile ? "text-slate-900" : "text-white"}`} data-testid={mobile ? "user-name-mobile" : "user-name"}>{me.data.name}</p>
         <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles, me.data.active_school?.school_type)}</p>
       </div>
-      <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" title="تسجيل الخروج" className={`grid size-9 shrink-0 place-items-center rounded-lg transition-colors focus-visible:outline-2 ${mobile ? "text-slate-500 hover:bg-slate-100 hover:text-red-700" : "text-slate-400 hover:bg-white/10 hover:text-white"}`}>
+      <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" title="تسجيل الخروج" className={`grid size-11 shrink-0 place-items-center rounded-xl transition-colors focus-visible:outline-2 ${mobile ? "text-slate-500 hover:bg-slate-100 hover:text-red-700" : "text-slate-400 hover:bg-white/10 hover:text-white"}`}>
         <LogOut aria-hidden size={17} />
       </button>
     </div>
@@ -159,6 +160,8 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
 /** غلاف موحّد لكل شاشات المدرسة مع تنقل واضح ومتجاوب حسب الصلاحيات. */
 export function AppShell() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigation = useNavigation();
   const me = useMe();
   const doLogout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -173,6 +176,10 @@ export function AppShell() {
   const primaryItems = primaryPaths ? items.filter((item) => primaryPaths.has(item.to)) : items;
   const additionalItems = primaryPaths ? items.filter((item) => !primaryPaths.has(item.to)) : [];
   const handleLogout = () => { void doLogout().then(() => navigate("/login", { replace: true })); };
+  const drawerRef = useDialogA11y<HTMLElement>(mobileMenuOpen, () => setMobileMenuOpen(false));
+  const currentItem = items.find((item) => item.to === location.pathname) ?? items.find((item) => item.to !== "/" && location.pathname.startsWith(`${item.to}/`));
+  const currentLabel = currentItem?.to === "/students" ? studentPluralLabel(schoolType) : currentItem?.label ?? "مساحة العمل";
+  const isNavigating = navigation.state !== "idle";
 
   return (
     <div className="min-h-dvh bg-slate-50 lg:flex">
@@ -187,10 +194,18 @@ export function AppShell() {
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-xl lg:px-8">
+        <header className="app-shell-header sticky top-0 z-40 border-b border-slate-200/80 bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl lg:px-8">
+          {isNavigating && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-brand-100" role="progressbar" aria-label="جارٍ تحميل الصفحة"><span className="block h-full w-2/5 animate-pulse bg-brand-600" /></div>}
           <div className="mx-auto flex max-w-7xl items-center gap-3">
             <div className="rounded-xl bg-slate-950 p-1.5 lg:hidden"><Brand compact /></div>
-            <div className="min-w-0 flex-1"><SchoolSwitcher /></div>
+            <div className="min-w-0 flex-1">
+              <SchoolSwitcher />
+              <nav aria-label="مسار الصفحة" className="mt-1 hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
+                <Link to="/" className="rounded-md font-medium hover:text-brand-800">الرئيسية</Link>
+                <span aria-hidden>/</span>
+                <span aria-current="page" className="truncate font-bold text-slate-700">{currentLabel}</span>
+              </nav>
+            </div>
             <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
               {mobileMenuOpen ? <X aria-hidden size={20} /> : <Menu aria-hidden size={20} />}
             </button>
@@ -198,8 +213,8 @@ export function AppShell() {
         </header>
 
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-30 bg-slate-950/35 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
-            <nav id="mobile-navigation" aria-label="التنقل الرئيسي" className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden bg-slate-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="fixed inset-0 z-30 bg-slate-950/40 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
+            <nav ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="التنقل الرئيسي" tabIndex={-1} className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden bg-slate-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex-1 overflow-y-auto px-4 py-5">
                 <NavigationLinks items={primaryItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
                 <AdditionalNavigation items={additionalItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
@@ -209,7 +224,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[94rem] px-4 py-6 sm:px-6 sm:py-8 xl:px-8"><Outlet /></main>
+        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-4 py-6 sm:px-6 sm:py-8 xl:px-8"><Outlet /></main>
       </div>
     </div>
   );

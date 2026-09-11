@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
+import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
@@ -94,17 +96,15 @@ export function StaffImportWizard() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-slate-900/10 sm:p-7">
-        <div aria-hidden className="absolute -left-10 -top-16 size-48 rounded-full bg-emerald-400/15 blur-3xl" />
-        <div className="relative">
-          <Link to="/staff" className="mb-5 inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white"><ArrowRight aria-hidden size={15} /> العودة إلى الموظفين</Link>
-          <div className="flex items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15"><FileSpreadsheet aria-hidden size={24} /></span>
-            <div><p className="text-xs font-bold text-emerald-200">إضافة جماعية</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">استيراد الموظفين</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">ارفع ملف Excel، راجع المطابقة والنتائج، ثم اعتمد الإضافة بعد التحقق.</p></div>
-          </div>
-        </div>
-      </header>
+    <div className="ds-page mx-auto max-w-5xl">
+      <PageHeader
+        icon={FileSpreadsheet}
+        eyebrow="إضافة جماعية"
+        title="استيراد الموظفين"
+        description="ارفع ملف Excel، راجع المطابقة والنتائج، ثم اعتمد الإضافة بعد التحقق."
+        tone="operational"
+        actions={<Link to="/staff"><Button variant="headerGhost"><ArrowRight aria-hidden size={16} /> العودة إلى الموظفين</Button></Link>}
+      />
 
       <ol className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-sm sm:grid-cols-5" aria-label="خطوات الاستيراد">
         {STEPS.map((label, index) => (
@@ -124,11 +124,7 @@ export function StaffImportWizard() {
         ))}
       </ol>
 
-      {error && (
-        <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger" title="تعذر إكمال خطوة الاستيراد">{error}</Alert>}
 
       {step === 0 && (
         <UploadStep pending={uploadMutation.isPending} onUpload={uploadMutation.mutate} />
@@ -191,6 +187,7 @@ function UploadStep({
         <input
           ref={inputRef}
           type="file"
+          aria-label="اختيار ملف استيراد الموظفين"
           accept=".xlsx"
           className="hidden"
           data-testid="staff-file-input"

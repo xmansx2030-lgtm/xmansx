@@ -84,7 +84,7 @@ export function TeacherFollowUpPage() {
   const answeredCount = rows.filter((row) => row.response).length;
 
   return (
-    <div className="space-y-5" data-testid="teacher-follow-ups">
+    <div className="ds-page" data-testid="teacher-follow-ups">
       <PageHeader icon={MessageSquareReply} eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)}`} title="طلبات المتابعة" description={`طلبات ملاحظة عن ${schoolType === "GIRLS" ? "طالباتك" : "طلابك"} من ${roleLabel("COUNSELOR", schoolType)}؛ ملاحظتك المهنية تصل إلى ملف المتابعة مباشرة.`} tone="teacher" badge={`${pendingCount} بانتظار ردك`} />
 
       {error != null && <ErrorState error={error} />}

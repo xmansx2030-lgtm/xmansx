@@ -71,6 +71,7 @@ export function ChangeInitialPasswordPage() {
 
         <PasswordInput
           label="كلمة المرور الحالية"
+          required
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           autoComplete="current-password"
@@ -78,6 +79,8 @@ export function ChangeInitialPasswordPage() {
         />
         <PasswordInput
           label="كلمة المرور الجديدة"
+          required
+          description="ثمانية أحرف على الأقل، ويفضل أن تكون فريدة لهذا الحساب."
           value={next}
           onChange={(e) => setNext(e.target.value)}
           autoComplete="new-password"
@@ -85,6 +88,7 @@ export function ChangeInitialPasswordPage() {
         />
         <PasswordInput
           label="تأكيد كلمة المرور"
+          required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"
@@ -102,9 +106,7 @@ export function ChangeInitialPasswordPage() {
           </p>
         )}
 
-        <Button type="submit" className="mt-1 w-full py-3" disabled={mutation.isPending}>
-          {mutation.isPending ? "جارٍ الحفظ..." : "حفظ كلمة المرور"}
-        </Button>
+        <Button type="submit" size="lg" fullWidth className="mt-1" loading={mutation.isPending} loadingLabel="جارٍ الحفظ...">حفظ كلمة المرور</Button>
         <p className="mt-5 flex items-center justify-center gap-2 text-xs text-slate-400"><ShieldCheck aria-hidden size={15} /> اختر كلمة مرور فريدة لا تستخدمها في مكان آخر</p>
       </form>
     </main>

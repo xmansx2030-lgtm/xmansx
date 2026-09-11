@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+import { PageHeader } from "@/components/PageHeader";
 import { useMe } from "@/features/auth/useMe";
 import { AttendanceSettingsTab } from "@/features/settings/tabs/AttendanceSettingsTab";
 import { BellSchedulesTab } from "@/features/settings/tabs/BellSchedulesTab";
@@ -68,25 +69,15 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-w-0 space-y-6" data-testid="settings-page">
-      <header className="overflow-hidden rounded-3xl border border-teal-900/10 bg-gradient-to-l from-slate-950 via-slate-900 to-teal-950 px-5 py-6 text-white shadow-xl shadow-slate-950/10 sm:px-7">
-        <div className="flex flex-wrap items-center justify-between gap-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-teal-200 ring-1 ring-white/10">
-              <Settings2 aria-hidden size={25} />
-            </span>
-            <div className="min-w-0">
-              <p className="mb-1 text-xs font-bold text-teal-300">لوحة التحكم</p>
-              <h1 className="text-2xl font-black sm:text-3xl">إعدادات المدرسة</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">اضبط بيانات المدرسة والتقويم والحصص وسياسات المتابعة من مكان واحد.</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200 ring-1 ring-emerald-300/20">
-            <ShieldCheck aria-hidden size={15} />
-            يمكنك التعديل والحفظ
-          </span>
-        </div>
-      </header>
+    <div className="ds-page min-w-0" data-testid="settings-page">
+      <PageHeader
+        icon={Settings2}
+        eyebrow="لوحة التحكم"
+        title="إعدادات المدرسة"
+        description="اضبط بيانات المدرسة والتقويم والحصص وسياسات المتابعة من مكان واحد."
+        tone="executive"
+        badge={<span className="inline-flex items-center gap-1.5"><ShieldCheck aria-hidden size={14} /> يمكنك التعديل والحفظ</span>}
+      />
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="min-w-0 lg:sticky lg:top-24">

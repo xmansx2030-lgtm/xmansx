@@ -115,7 +115,7 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={UsersRound}
         eyebrow={schoolType === "GIRLS" ? "سجل الطالبات" : "السجل الطلابي"}

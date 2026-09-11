@@ -52,7 +52,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
   }, [sectionSearch, sectionsQuery.data]);
 
   return (
-    <div className="space-y-5">
+    <div className="ds-page">
       <PageHeader
         icon={BookOpenCheck}
         eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)} اليومية`}
