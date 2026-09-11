@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -146,7 +146,7 @@ describe("referrals (Phase 13)", () => {
     );
   });
 
-  it("searches referral candidates by name, grade, and section", async () => {
+  it("searches referral candidates automatically by name, grade, and section", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["TEACHER"]) },
       "/attendance/sections/": { body: SECTIONS },
@@ -160,14 +160,15 @@ describe("referrals (Phase 13)", () => {
     await user.type(await screen.findByTestId("referral-student-search"), "طالب أول");
     await user.selectOptions(screen.getByTestId("referral-grade-filter"), "9");
     await user.selectOptions(screen.getByTestId("referral-section-filter"), "3");
-    await user.click(screen.getByRole("button", { name: "بحث" }));
 
-    expect(calls.some((call) =>
-      call.url.includes("/referrals/students/") &&
-      call.url.includes("search=") &&
-      call.url.includes("grade=9") &&
-      call.url.includes("section=3"),
-    )).toBe(true);
+    await waitFor(() => {
+      expect(calls.some((call) =>
+        call.url.includes("/referrals/students/") &&
+        call.url.includes("search=") &&
+        call.url.includes("grade=9") &&
+        call.url.includes("section=3"),
+      )).toBe(true);
+    });
   });
 
   it("teacher refers a student from the dedicated referrals page", async () => {

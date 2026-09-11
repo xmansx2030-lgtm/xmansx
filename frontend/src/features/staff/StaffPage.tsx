@@ -54,7 +54,8 @@ import { getSections } from "@/features/students/api";
 import type { SchoolRole, SchoolType } from "@/types/auth";
 import { roleLabel } from "@/utils/roles";
 
-const MANAGEABLE_ROLES: SchoolRole[] = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
+const ROLE_FILTERS: SchoolRole[] = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL", "SCHOOL_MANAGER"];
+const ASSIGNABLE_ROLES: SchoolRole[] = ["TEACHER", "COUNSELOR", "GATE_GUARD", "VICE_PRINCIPAL"];
 const STATUS_OPTIONS = ["ACTIVE", "SUSPENDED", "INVITED", "DECLINED"];
 
 export function StaffPage() {
@@ -174,7 +175,7 @@ export function StaffPage() {
             <label htmlFor="staff-role" className="sr-only">تصفية حسب الدور</label>
             <select id="staff-role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700">
               <option value="">جميع الأدوار</option>
-              {MANAGEABLE_ROLES.map((role) => <option key={role} value={role}>{roleLabel(role, schoolType)}</option>)}
+              {ROLE_FILTERS.map((role) => <option key={role} value={role}>{roleLabel(role, schoolType)}</option>)}
             </select>
           </div>
           <div>
@@ -268,6 +269,8 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
 
   const initials = member.display_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
   const isActive = member.membership_status === "ACTIVE";
+  const isSchoolManagerAccount = member.roles.includes("SCHOOL_MANAGER");
+  const managerLabel = schoolType === "GIRLS" ? "مديرة المدرسة" : "مدير المدرسة";
   const resetSubject = member.roles.includes("GATE_GUARD") && !member.roles.includes("TEACHER")
     ? (schoolType === "GIRLS" ? "الحارسة" : "الحارس")
     : (schoolType === "GIRLS" ? "المعلمة" : "المعلم");
@@ -345,6 +348,15 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
       </div>
 
       {isManager && expanded && (
+        isSchoolManagerAccount ? (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950 shadow-sm">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-violet-700 shadow-sm"><ShieldCheck aria-hidden size={20} /></span>
+            <div>
+              <h4 className="text-sm font-black">حساب {managerLabel} محمي</h4>
+              <p className="mt-1 text-xs leading-6">لا يمكن تعديل دور {managerLabel} أو إيقاف الحساب أو حذفه من إدارة موظفي المدرسة. تتم إدارة بيانات دخوله مركزيًا من إدارة المنصة.</p>
+            </div>
+          </div>
+        ) : (
         <div className="mt-5 grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_18rem]">
           <section aria-label={`أدوار ${member.display_name}`}>
             <StaffProfileEditor member={member} onError={(message) => { setRowError(message); onError(message); }} />
@@ -353,7 +365,7 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
               <p className="mt-1 text-xs text-slate-500">يمكن إسناد أكثر من دور للموظف حسب مسؤولياته.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              {MANAGEABLE_ROLES.map((role) => {
+              {ASSIGNABLE_ROLES.map((role) => {
                 const hasRole = member.roles.includes(role);
                 return (
                   <label key={role} className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 text-sm font-bold transition ${hasRole ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
@@ -427,6 +439,7 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
             </div>
           )}
         </div>
+        )
       )}
 
       {confirmAction === "reset-password" && (

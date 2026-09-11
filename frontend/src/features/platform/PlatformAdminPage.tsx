@@ -561,23 +561,34 @@ function SchoolAccountManagement({ detail }: { detail: SchoolDetail }) {
       <ErrorLine error={saveSchool.error} />
 
       <div className="border-t border-slate-200 pt-3">
-        <h4 className="font-bold text-slate-900">حسابات {schoolType === "GIRLS" ? "مديرات المدرسة" : "مديري المدرسة"}</h4>
-        <p className="mb-3 text-xs text-slate-500">إدارة معرفات الدخول دون الاطلاع على كلمة المرور الحالية.</p>
+        <h4 className="font-bold text-slate-900">حساب {schoolType === "GIRLS" ? "مديرة المدرسة" : "مدير المدرسة"}</h4>
+        <p className="mb-3 text-xs text-slate-500">لكل مدرسة حساب مدير واحد فقط، ويمكن تحديث بياناته أو إعادة ضبط كلمة مروره من هنا.</p>
         <div className="space-y-3">
           {(detail.managers ?? []).map((manager) => <ManagerAccountCard key={`${manager.membership_id}:${manager.name}:${manager.mobile}`} schoolId={detail.id} manager={manager} schoolType={schoolType} />)}
           {(detail.managers ?? []).length === 0 && <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">لا يوجد {managerNoun} مرتبط بهذه المدرسة.</p>}
+          {(detail.managers ?? []).length > 1 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">يوجد تعارض قديم: ترتبط بهذه المدرسة عدة حسابات مدير. أوقف المعالجة الآلية وراجع الحسابات القائمة بعناية؛ لن يسمح النظام بإضافة أي مدير جديد.</p>}
         </div>
       </div>
 
-      <form className="border-t border-slate-200 pt-3" onSubmit={(event) => { event.preventDefault(); addManager.mutate(); }}>
-        <h4 className="mb-2 font-bold text-slate-900">إضافة {managerNoun} {schoolType === "GIRLS" ? "أخرى" : "آخر"}</h4>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input aria-label={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"}`} value={newManager.name} onChange={(event) => setNewManager({ ...newManager, name: event.target.value })} />
-          <input aria-label={`جوال ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} dir="ltr" className="rounded border border-slate-300 px-3 py-2 text-left text-sm" placeholder="05XXXXXXXX" value={newManager.mobile} onChange={(event) => setNewManager({ ...newManager, mobile: event.target.value })} />
+      {(detail.managers ?? []).length === 0 ? (
+        <form className="border-t border-slate-200 pt-3" onSubmit={(event) => { event.preventDefault(); addManager.mutate(); }}>
+          <h4 className="mb-1 font-bold text-slate-900">تعيين {managerNoun} المدرسة</h4>
+          <p className="mb-3 text-xs text-slate-500">يظهر هذا الإجراء فقط لاسترداد مدرسة لا يوجد لها مدير. بعد التعيين لن يقبل النظام مديرًا ثانيًا.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input aria-label={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder={`اسم ${schoolType === "GIRLS" ? "المديرة" : "المدير"}`} value={newManager.name} onChange={(event) => setNewManager({ ...newManager, name: event.target.value })} />
+            <input aria-label={`جوال ${schoolType === "GIRLS" ? "المديرة" : "المدير"} الجديد`} dir="ltr" className="rounded border border-slate-300 px-3 py-2 text-left text-sm" placeholder="05XXXXXXXX" value={newManager.mobile} onChange={(event) => setNewManager({ ...newManager, mobile: event.target.value })} />
+          </div>
+          <Button type="submit" className="mt-2 px-3 py-1.5" disabled={addManager.isPending}>تعيين {managerNoun}</Button>
+          <div className="mt-2"><ErrorLine error={addManager.error} /></div>
+        </form>
+      ) : (
+        <div className="border-t border-slate-200 pt-3">
+          <p className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
+            <ShieldCheck aria-hidden size={16} className="mt-0.5 shrink-0" />
+            المدرسة محمية بحساب {schoolType === "GIRLS" ? "مديرة واحدة" : "مدير واحد"}. استخدم بطاقة الحساب أعلاه لتحديث بيانات {schoolType === "GIRLS" ? "المديرة الحالية" : "المدير الحالي"} بدل إضافة حساب آخر.
+          </p>
         </div>
-        <Button type="submit" className="mt-2 px-3 py-1.5" disabled={addManager.isPending}>إضافة {managerNoun}</Button>
-        <div className="mt-2"><ErrorLine error={addManager.error} /></div>
-      </form>
+      )}
       {credentials && <CredentialNotice mobile={credentials.manager.mobile} password={credentials.temporary_password} managerLabel={schoolType === "GIRLS" ? "المديرة" : "المدير"} onClose={() => setCredentials(null)} />}
     </div>
   );

@@ -260,6 +260,8 @@ describe("platform and subscription UI", () => {
     renderApp("/platform");
     await user.click(await screen.findByRole("button", { name: "المدارس" }));
     await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
+    expect(await screen.findByLabelText("اسم المدير الجديد")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تعيين مدير" })).toBeInTheDocument();
     await user.selectOptions(await screen.findByLabelText("الباقة الجديدة"), "1");
     const duration = screen.getByLabelText("المدة");
     await user.clear(duration);
@@ -471,13 +473,8 @@ describe("platform and subscription UI", () => {
       manager: { ...manager, must_change_password: true },
       temporary_password: "Xm-Reset-Once",
     };
-    const addedResult = {
-      manager: { ...manager, membership_id: 42, user_id: 52, name: "المدير الثاني", mobile: "+966550654321", must_change_password: true },
-      temporary_password: "Xm-New-Once",
-    };
     const { calls } = mockApi({
       "/platform/schools/7/managers/41/reset-password/": { body: resetResult },
-      "/platform/schools/7/managers/": { body: addedResult },
       "/platform/schools/7/subscription/events/": { body: [] },
       "/platform/schools/7/subscription/": { body: { current: null, history: [] } },
       "/platform/schools/7/": { body: detail },
@@ -504,11 +501,10 @@ describe("platform and subscription UI", () => {
     await user.click(screen.getByRole("button", { name: "تأكيد" }));
     expect(await screen.findByText("Xm-Reset-Once")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("اسم المدير الجديد"), "المدير الثاني");
-    await user.type(screen.getByLabelText("جوال المدير الجديد"), "0550654321");
-    await user.click(screen.getByRole("button", { name: "إضافة مدير" }));
-    expect(await screen.findByText("Xm-New-Once")).toBeInTheDocument();
-    expect(calls.some(({ url, init }) => url.includes("/platform/schools/7/managers/") && init?.method === "POST")).toBe(true);
+    expect(screen.getByText(/المدرسة محمية بحساب مدير واحد/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("اسم المدير الجديد")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "تعيين مدير" })).not.toBeInTheDocument();
+    expect(calls.some(({ url, init }) => url.endsWith("/platform/schools/7/managers/") && init?.method === "POST")).toBe(false);
   });
 
   it("edits plan limits through the plan editor", async () => {

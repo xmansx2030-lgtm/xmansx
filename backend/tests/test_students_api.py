@@ -6,6 +6,7 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from academics.models import AcademicYear, AcademicYearStatus
+from audit.models import AuditAction, AuditLog
 from common.security.identifiers import (
     decrypt_national_id,
     encrypt_national_id,
@@ -359,6 +360,147 @@ def test_only_manager_can_create_structure_and_codes_are_unique(role_client):
         ).status_code
         == 403
     )
+
+
+@pytest.mark.django_db
+def test_manager_edits_and_safely_changes_structure_status(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    grade = Grade.objects.create(
+        school=school, name="الأول المتوسط", code="MID-1", sequence=1
+    )
+    section = Section.objects.create(school=school, grade=grade, name="أ", code="A")
+
+    updated = manager.patch(
+        f"/api/v1/grades/{grade.id}/",
+        {"name": "الصف الأول المتوسط", "code": "MID-01", "sequence": 2},
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "id": grade.id,
+        "name": "الصف الأول المتوسط",
+        "code": "MID-01",
+        "sequence": 2,
+        "is_active": True,
+    }
+
+    stopped = manager.patch(
+        f"/api/v1/grades/{grade.id}/",
+        {"is_active": False},
+        content_type="application/json",
+    )
+    assert stopped.status_code == 200
+    section.refresh_from_db()
+    assert section.is_active is False
+    assert manager.get("/api/v1/grades/").json() == []
+    assert manager.get("/api/v1/sections/").json() == []
+    assert manager.get("/api/v1/grades/?include_inactive=1").json()[0]["is_active"] is False
+    assert manager.get("/api/v1/sections/?include_inactive=1").json()[0]["is_active"] is False
+
+    blocked = manager.patch(
+        f"/api/v1/sections/{section.id}/",
+        {"is_active": True},
+        content_type="application/json",
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "SECTION_GRADE_INACTIVE"
+
+    assert manager.patch(
+        f"/api/v1/grades/{grade.id}/",
+        {"is_active": True},
+        content_type="application/json",
+    ).status_code == 200
+    reactivated = manager.patch(
+        f"/api/v1/sections/{section.id}/",
+        {"name": "1", "code": "01", "is_active": True},
+        content_type="application/json",
+    )
+    assert reactivated.status_code == 200
+    assert reactivated.json()["is_active"] is True
+    assert reactivated.json()["name"] == "1"
+    inactive_target = Grade.objects.create(
+        school=school, name="صف متوقف", code="STOPPED", sequence=9, is_active=False
+    )
+    blocked_move = manager.patch(
+        f"/api/v1/sections/{section.id}/",
+        {"grade_id": inactive_target.id},
+        content_type="application/json",
+    )
+    assert blocked_move.status_code == 409
+    assert blocked_move.json()["code"] == "SECTION_GRADE_INACTIVE"
+    assert AuditLog.objects.filter(
+        school=school, action=AuditAction.GRADE_STATUS_CHANGED, target_id=str(grade.id)
+    ).count() == 2
+    assert AuditLog.objects.filter(
+        school=school, action=AuditAction.SECTION_STATUS_CHANGED, target_id=str(section.id)
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_structure_delete_is_only_for_unused_items(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    grade = Grade.objects.create(school=school, name="صف مستخدم", code="USED", sequence=1)
+    section = Section.objects.create(school=school, grade=grade, name="1", code="1")
+    student = _make_student(school, "1012345678", "طالب مرتبط")
+    year = AcademicYear.objects.create(
+        school=school,
+        name="عام الحذف الآمن",
+        start_date=date(2026, 8, 23),
+        end_date=date(2027, 6, 25),
+        status=AcademicYearStatus.ACTIVE,
+    )
+    StudentEnrollment.objects.create(
+        school=school,
+        student=student,
+        academic_year=year,
+        grade=grade,
+        section=section,
+        enrolled_at=year.start_date,
+    )
+
+    blocked_section = manager.delete(f"/api/v1/sections/{section.id}/")
+    assert blocked_section.status_code == 409
+    assert blocked_section.json()["code"] == "SECTION_IN_USE"
+    blocked_grade = manager.delete(f"/api/v1/grades/{grade.id}/")
+    assert blocked_grade.status_code == 409
+    assert blocked_grade.json()["code"] == "GRADE_HAS_SECTIONS"
+
+    empty_grade = Grade.objects.create(school=school, name="صف فارغ", code="EMPTY", sequence=9)
+    empty_section = Section.objects.create(
+        school=school, grade=empty_grade, name="فارغ", code="EMPTY"
+    )
+    assert manager.delete(f"/api/v1/sections/{empty_section.id}/").status_code == 204
+    assert manager.delete(f"/api/v1/grades/{empty_grade.id}/").status_code == 204
+    assert not Section.objects.filter(id=empty_section.id).exists()
+    assert not Grade.objects.filter(id=empty_grade.id).exists()
+    assert AuditLog.objects.filter(
+        school=school, action=AuditAction.SECTION_DELETED, target_id=str(empty_section.id)
+    ).exists()
+    assert AuditLog.objects.filter(
+        school=school, action=AuditAction.GRADE_DELETED, target_id=str(empty_grade.id)
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_structure_management_is_manager_only_and_tenant_isolated(role_client):
+    manager_a, school_a, _ = role_client(["SCHOOL_MANAGER"])
+    vice_a, _, _ = role_client(["VICE_PRINCIPAL"], school=school_a)
+    _, school_b, _ = role_client(["SCHOOL_MANAGER"])
+    own_grade = Grade.objects.create(school=school_a, name="صف أ", code="A", sequence=1)
+    foreign_grade = Grade.objects.create(school=school_b, name="صف ب", code="B", sequence=1)
+
+    assert vice_a.patch(
+        f"/api/v1/grades/{own_grade.id}/",
+        {"name": "غير مسموح"},
+        content_type="application/json",
+    ).status_code == 403
+    assert vice_a.delete(f"/api/v1/grades/{own_grade.id}/").status_code == 403
+    assert manager_a.patch(
+        f"/api/v1/grades/{foreign_grade.id}/",
+        {"name": "محاولة عابرة"},
+        content_type="application/json",
+    ).status_code == 404
+    assert manager_a.delete(f"/api/v1/grades/{foreign_grade.id}/").status_code == 404
 
 
 @pytest.mark.django_db

@@ -22,6 +22,14 @@ def create_staff(*, school, data: dict, actor, request=None) -> tuple[StaffProfi
     from subscriptions.models import EntitlementKey
     from subscriptions.usage import count_active_staff
 
+    if data["role"] == SchoolRole.SCHOOL_MANAGER:
+        raise ApiError(
+            "SCHOOL_MANAGER_ASSIGNMENT_PLATFORM_ONLY",
+            "لا يمكن إضافة مدير آخر من إدارة موظفي المدرسة. "
+            "للمدرسة مدير واحد تتم إدارة حسابه من إدارة المنصة.",
+            403,
+        )
+
     mobile = data["mobile"]
     user = User.objects.filter(mobile=mobile).first()
     membership = (

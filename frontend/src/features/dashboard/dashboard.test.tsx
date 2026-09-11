@@ -245,6 +245,7 @@ function mockDashboard(overrides: Record<string, unknown> = {}) {
     "/dashboard/attendance-trend/": { body: TREND },
     "/dashboard/sections/": { body: SECTIONS },
     "/dashboard/attention/": { body: ATTENTION },
+    "/staff/": { body: { count: 4, next: null, previous: null, results: [] } },
     ...overrides,
   });
 }
@@ -494,6 +495,40 @@ describe("لوحة إدارة المدرسة", () => {
     expect(calls.some((call) => call.url.includes("/dashboard/overview/"))).toBe(false);
     expect(calls.some((call) => call.url.includes("/dashboard/attendance-trend/"))).toBe(false);
     expect(calls.some((call) => call.url.includes("/dashboard/sections/"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/staff/"))).toBe(false);
+  });
+
+  it("تنبه المدير إلى استيراد الطلاب والفصول والمعلمين عند غياب بياناتهم", async () => {
+    mockDashboard({
+      "/attendance/sections/": { body: [] },
+      "/staff/": { body: { count: 0, next: null, previous: null, results: [] } },
+    });
+    renderApp("/dashboard");
+
+    const alerts = await screen.findByTestId("school-setup-alerts");
+    expect(alerts).toHaveTextContent("استكمل بيانات المدرسة");
+    expect(within(alerts).getByTestId("setup-alert-students")).toHaveTextContent(
+      "استورد بيانات الطلاب والفصول من ملف إكسل (نور)",
+    );
+    expect(within(alerts).getByTestId("setup-alert-teachers")).toHaveTextContent(
+      "استورد بيانات المعلمين من ملف إكسل (نور)",
+    );
+    expect(within(alerts).getAllByRole("link", { name: "بدء الاستيراد" })[0]).toHaveAttribute(
+      "href",
+      "/students/import",
+    );
+    expect(within(alerts).getAllByRole("link", { name: "بدء الاستيراد" })[1]).toHaveAttribute(
+      "href",
+      "/staff/import",
+    );
+  });
+
+  it("لا تعرض تنبيهات الاستيراد للمدير بعد توفر الطلاب والمعلمين", async () => {
+    mockDashboard();
+    renderApp("/dashboard");
+
+    await screen.findByTestId("school-today-status-card");
+    expect(screen.queryByTestId("school-setup-alerts")).not.toBeInTheDocument();
   });
 
   it("تعرض للمدير والوكيل الحضور اليومي والغياب المتتابع والاستئذان بالدلالة نفسها", async () => {

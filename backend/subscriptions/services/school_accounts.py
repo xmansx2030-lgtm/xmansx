@@ -16,6 +16,7 @@ from memberships.models import (
     SchoolMembershipRole,
     SchoolRole,
 )
+from schools.models import SchoolType
 from schools.role_labels import school_role_label
 from subscriptions.entitlements import lock_school_capacity, require_capacity
 from subscriptions.models import EntitlementKey
@@ -74,7 +75,18 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
         label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
         raise ApiError("VALIDATION_ERROR", f"أدخل اسم {label} كاملًا.")
 
+    # قفل صف المدرسة يجعل فحص المدير وإنشاءه عملية واحدة حتى عند تزامن الطلبات.
     lock_school_capacity(school)
+    if manager_memberships(school).exists():
+        label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
+        single_manager = (
+            "مديرة واحدة" if school.school_type == SchoolType.GIRLS else "مدير واحد"
+        )
+        raise ApiError(
+            "SCHOOL_MANAGER_ALREADY_ASSIGNED",
+            f"للمدرسة {single_manager} فقط. عدّل حساب {label} الحالي بدل إضافة حساب آخر.",
+            409,
+        )
     user = User.objects.select_for_update().filter(mobile=normalized).first()
     membership = (
         SchoolMembership.objects.select_for_update()
@@ -83,10 +95,6 @@ def add_manager(*, school, name: str, mobile: str, actor, request=None) -> dict:
         if user
         else None
     )
-    if membership and membership.roles.filter(role=SchoolRole.SCHOOL_MANAGER).exists():
-        label = school_role_label(SchoolRole.SCHOOL_MANAGER, school.school_type)
-        raise ApiError("MANAGER_ALREADY_EXISTS", f"هذا الحساب {label} بالفعل.", 409)
-
     if membership is None or membership.status != MembershipStatus.ACTIVE:
         require_capacity(
             school,
