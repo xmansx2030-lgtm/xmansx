@@ -166,8 +166,9 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
         <p className={`truncate text-sm font-bold ${mobile ? "text-slate-900" : "text-white"}`} data-testid={mobile ? "user-name-mobile" : "user-name"}>{me.data.name}</p>
         <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles, me.data.active_school?.school_type)}</p>
       </div>
-      <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" title="تسجيل الخروج" className={`grid size-11 shrink-0 place-items-center rounded-xl transition-colors focus-visible:outline-2 ${mobile ? "text-slate-500 hover:bg-slate-100 hover:text-red-700" : "text-slate-400 hover:bg-white/10 hover:text-white"}`}>
+      <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-2 ${mobile ? "text-slate-600 hover:bg-red-50 hover:text-red-700" : "text-slate-300 hover:bg-red-500/10 hover:text-red-200"}`}>
         <LogOut aria-hidden size={17} />
+        <span>تسجيل الخروج</span>
       </button>
     </div>
   );
