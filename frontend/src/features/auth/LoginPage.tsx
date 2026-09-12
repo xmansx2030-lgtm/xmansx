@@ -14,23 +14,38 @@ import { safeReturnTo, withReturnTo } from "@/features/auth/returnTo";
 import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
 import type { Me } from "@/types/auth";
 
-const LOCAL_MOBILE_RE = /^05\d{8}$/;
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+const MOBILE_SEPARATORS_RE = /[\s\-().]/g;
 const WHATSAPP_MESSAGE =
   "السلام عليكم، أحتاج التواصل معكم بخصوص منصة المواظبة XMANSX.";
 const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
-function normalizeLocalMobileInput(value: string): string | null {
-  const latin = [...value].map((char) => {
+function toLatinDigits(value: string): string {
+  return [...value].map((char) => {
     const index = ARABIC_DIGITS.indexOf(char);
     return index === -1 ? char : String(index);
   }).join("");
-  if (latin === "" || latin === "0" || /^05\d{0,8}$/.test(latin)) return latin;
-  return null;
 }
 
-function toInternationalMobile(value: string): string {
-  return `+966${value.slice(1)}`;
+function toCanonicalMobile(value: string): string | null {
+  const compact = toLatinDigits(value.trim()).replace(MOBILE_SEPARATORS_RE, "");
+  const digits = compact.startsWith("+")
+    ? compact.slice(1)
+    : compact.startsWith("00")
+      ? compact.slice(2)
+      : compact;
+
+  if (!/^\d+$/.test(digits)) return null;
+
+  const national = digits.startsWith("966")
+    ? digits.slice(3)
+    : digits.startsWith("05")
+      ? digits.slice(1)
+      : digits.startsWith("5")
+        ? digits
+        : null;
+
+  return national && /^5\d{8}$/.test(national) ? `+966${national}` : null;
 }
 
 function authenticatedDestination(me: Me, returnTo: string | null) {
@@ -52,7 +67,7 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<{ mobile?: string; password?: string }>({});
 
   const loginMutation = useMutation({
-    mutationFn: () => login(toInternationalMobile(mobile), password),
+    mutationFn: (canonicalMobile: string) => login(canonicalMobile, password),
     onSuccess: async (data: Me) => {
       queryClient.clear();
       await purgeSensitiveBrowserCaches();
@@ -69,15 +84,16 @@ export function LoginPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFieldErrors({});
-    if (!LOCAL_MOBILE_RE.test(mobile)) {
-      setFieldErrors({ mobile: "أدخل رقم الجوال بصيغة 05XXXXXXXX المكوّنة من 10 أرقام" });
+    const canonicalMobile = toCanonicalMobile(mobile);
+    if (!canonicalMobile) {
+      setFieldErrors({ mobile: "أدخل رقم جوال سعودي صحيحًا بصيغة 05XXXXXXXX أو +9665XXXXXXXX" });
       return;
     }
     if (password.length === 0) {
       setFieldErrors({ password: "أدخل كلمة المرور" });
       return;
     }
-    loginMutation.mutate();
+    loginMutation.mutate(canonicalMobile);
   }
 
   const apiError =
@@ -103,7 +119,7 @@ export function LoginPage() {
         <form onSubmit={handleSubmit} className="auth-card w-full min-w-0 max-w-md justify-self-center rounded-3xl p-6 sm:p-9" noValidate>
           <div className="mb-7">
             <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 lg:hidden"><Building2 aria-hidden size={24} /></span>
-            <p className="mb-1 text-sm font-bold text-blue-700">مرحبًا بعودتك</p>
+            <p className="mb-1 text-sm font-bold text-blue-700">مرحبًا بك</p>
             <h1 className="text-2xl font-black text-slate-900">منصة المواظبة</h1>
             <h2 className="mt-2 text-lg font-extrabold text-slate-700">تسجيل الدخول</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">أدخل بيانات حسابك للوصول إلى لوحة مدرستك.</p>
@@ -115,17 +131,14 @@ export function LoginPage() {
             type="tel"
             inputMode="tel"
             dir="ltr"
-            placeholder="05XXXXXXXX"
-            maxLength={10}
-            pattern="05[0-9]{8}"
+            placeholder="05XXXXXXXX أو +9665XXXXXXXX"
+            maxLength={20}
             autoComplete="tel"
             required
             value={mobile}
             error={fieldErrors.mobile}
-            onChange={(e) => {
-              const normalized = normalizeLocalMobileInput(e.target.value);
-              if (normalized !== null) setMobile(normalized);
-            }}
+            description="تُقبل الصيغ 05، أو 966، أو +966، أو 00966."
+            onChange={(e) => setMobile(toLatinDigits(e.target.value))}
             className="mb-5 text-start"
           />
 

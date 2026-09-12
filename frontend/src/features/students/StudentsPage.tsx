@@ -101,9 +101,18 @@ export function StudentsPage() {
   });
 
   const totalPages = students.data ? Math.max(1, Math.ceil(students.data.count / 25)) : 1;
+  const hasActiveFilters = Boolean(search.trim() || nationalId.trim() || gradeFilter || sectionFilter);
   const visibleSections = (sections.data ?? []).filter(
     (s) => !gradeFilter || s.grade.id === gradeFilter,
   );
+
+  const clearFilters = () => {
+    setSearch("");
+    setNationalId("");
+    setGradeFilter("");
+    setSectionFilter("");
+    setPage(1);
+  };
 
   if (me.isSuccess && !canRead) {
     return (
@@ -326,7 +335,32 @@ export function StudentsPage() {
                 {students.data.results.length === 0 && (
                   <tr className="block">
                     <td colSpan={canImport ? 7 : 5} className="block p-6 text-center text-slate-400">
-                      <EmptyState title={`لا يوجد ${studentsLabel} ${schoolType === "GIRLS" ? "مطابقات" : "مطابقون"}`} description="جرّب مسح بعض معايير البحث أو تغيير الصف والفصل." compact />
+                      {hasActiveFilters ? (
+                        <EmptyState
+                          title="لا توجد نتائج مطابقة"
+                          description={`لم نجد ${schoolType === "GIRLS" ? "طالبات" : "طلابًا"} وفق معايير البحث الحالية. امسح المرشحات أو غيّرها لعرض نتائج أخرى.`}
+                          action={<Button variant="secondary" onClick={clearFilters}>مسح جميع المرشحات</Button>}
+                          compact
+                        />
+                      ) : (
+                        <EmptyState
+                          title={schoolType === "GIRLS" ? "لا توجد طالبات حتى الآن" : "لا يوجد طلاب حتى الآن"}
+                          description={canImport
+                            ? `ابدأ باستيراد بيانات ${schoolType === "GIRLS" ? "الطالبات" : "الطلاب"} من ملف نور، أو أضف ${schoolType === "GIRLS" ? "طالبة" : "طالبًا"} يدويًا.`
+                            : `لم تُضف بيانات ${schoolType === "GIRLS" ? "الطالبات" : "الطلاب"} إلى المدرسة بعد.`}
+                          action={canImport ? (
+                            <div className="flex flex-wrap justify-center gap-2">
+                              <Link to="/students/import" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-brand-800">
+                                <Upload aria-hidden size={17} /> استيراد من نور
+                              </Link>
+                              <Button variant="secondary" onClick={() => setManualOpen(true)}>
+                                <Plus aria-hidden size={17} /> إضافة يدوية
+                              </Button>
+                            </div>
+                          ) : undefined}
+                          compact
+                        />
+                      )}
                     </td>
                   </tr>
                 )}

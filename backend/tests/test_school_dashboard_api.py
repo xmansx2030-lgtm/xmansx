@@ -15,6 +15,8 @@ from academics.models import (
     BellPeriod,
     BellSchedule,
     SchoolWeekDay,
+    Semester,
+    SemesterStatus,
     Weekday,
 )
 from attendance.models import AttendanceMark, AttendanceSession
@@ -103,9 +105,94 @@ def test_teacher_and_counselor_denied(api_env, role_client):
     """المعلم لا لوحة تنفيذية له، والمرشد لديه لوحته الخاصة (م14)."""
     teacher, _, _ = role_client(["TEACHER"], school=api_env["school"])
     counselor, _, _ = role_client(["COUNSELOR"], school=api_env["school"])
-    for endpoint in ("overview/", "today/", "attendance-trend/", "sections/", "attention/"):
+    for endpoint in (
+        "overview/",
+        "today/",
+        "setup-readiness/",
+        "attendance-trend/",
+        "sections/",
+        "attention/",
+    ):
         assert teacher.get(f"{BASE}{endpoint}{range_query()}").status_code == 403
         assert counselor.get(f"{BASE}{endpoint}{range_query()}").status_code == 403
+
+
+@pytest.mark.django_db
+def test_setup_readiness_guides_an_empty_school(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+
+    response = client.get(f"{BASE}setup-readiness/")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is False
+    assert body["completed_steps"] == 0
+    assert body["total_steps"] == 6
+    assert [step["key"] for step in body["steps"]] == [
+        "academic_year",
+        "semester",
+        "structure",
+        "schedule",
+        "students",
+        "teachers",
+    ]
+    assert body["steps"][0]["actionable"] is True
+    assert body["steps"][1]["actionable"] is False
+    assert body["steps"][1]["blocked_reason"] == "فعّل العام الدراسي أولًا."
+    teachers_step = next(step for step in body["steps"] if step["key"] == "teachers")
+    assert teachers_step["actionable"] is True
+    assert teachers_step["blocked_reason"] is None
+
+
+@pytest.mark.django_db
+def test_setup_readiness_requires_semester_then_reports_ready(api_env):
+    client = api_env["client"]
+
+    before = client.get(f"{BASE}setup-readiness/").json()
+    assert before["ready"] is False
+    assert next(step for step in before["steps"] if step["key"] == "semester")[
+        "complete"
+    ] is False
+
+    Semester.objects.create(
+        school=api_env["school"],
+        academic_year=api_env["year"],
+        name="الفصل الأول",
+        sequence=1,
+        start_date=api_env["year"].start_date,
+        end_date=api_env["year"].end_date,
+        status=SemesterStatus.ACTIVE,
+    )
+
+    after = client.get(f"{BASE}setup-readiness/").json()
+    assert after["ready"] is True
+    assert after["completed_steps"] == after["total_steps"] == 6
+
+
+@pytest.mark.django_db
+def test_setup_readiness_requires_a_usable_schedule_for_every_school_day(api_env):
+    Semester.objects.create(
+        school=api_env["school"],
+        academic_year=api_env["year"],
+        name="الفصل الأول",
+        sequence=1,
+        start_date=api_env["year"].start_date,
+        end_date=api_env["year"].end_date,
+        status=SemesterStatus.ACTIVE,
+    )
+    monday = SchoolWeekDay.objects.get(
+        school=api_env["school"],
+        weekday=Weekday.MONDAY,
+    )
+    monday.bell_schedule = None
+    monday.save(update_fields=["bell_schedule", "updated_at"])
+
+    body = api_env["client"].get(f"{BASE}setup-readiness/").json()
+    schedule_step = next(step for step in body["steps"] if step["key"] == "schedule")
+
+    assert schedule_step["complete"] is False
+    assert schedule_step["href"] == "/settings?section=week-days"
+    assert body["ready"] is False
 
 
 # ---------- صحة الأرقام ----------

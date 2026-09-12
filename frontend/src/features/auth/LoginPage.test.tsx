@@ -18,6 +18,8 @@ describe("LoginPage", () => {
     expect(await screen.findByLabelText("رقم الجوال")).toBeInTheDocument();
     expect(screen.getByLabelText("كلمة المرور")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
+    expect(screen.getByText("مرحبًا بك")).toBeInTheDocument();
+    expect(screen.queryByText("مرحبًا بعودتك")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "تواصل معنا عبر واتساب على الرقم 0537720207" }),
     ).toHaveAttribute(
@@ -37,15 +39,21 @@ describe("LoginPage", () => {
     renderApp("/login");
     const user = userEvent.setup();
     const mobile = await screen.findByLabelText("رقم الجوال");
-    await user.type(mobile, "966550000001");
-    expect(mobile).toHaveValue("0");
+    await user.type(mobile, "+971550000001");
+    expect(mobile).toHaveValue("+971550000001");
     await user.type(screen.getByLabelText("كلمة المرور"), "secret");
     await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("05XXXXXXXX");
+    expect(await screen.findByRole("alert")).toHaveTextContent("05XXXXXXXX أو +9665XXXXXXXX");
     expect(calls.some((c) => c.url.includes("/auth/login/"))).toBe(false);
   });
 
-  it("accepts exactly 05 plus eight digits and sends the equivalent +966 format", async () => {
+  it.each([
+    ["0550000001", "+966550000001"],
+    ["966550000001", "+966550000001"],
+    ["+966550000001", "+966550000001"],
+    ["00966550000001", "+966550000001"],
+    ["٠٥٥٠٠٠٠٠٠١", "+966550000001"],
+  ])("accepts %s when pasted and sends canonical mobile %s", async (entered, expected) => {
     const { calls } = mockApi({
       "/auth/me/": UNAUTHENTICATED,
       "/auth/login/": { status: 401, body: { code: "INVALID_CREDENTIALS", message: "بيانات غير صحيحة", details: {} } },
@@ -53,15 +61,15 @@ describe("LoginPage", () => {
     renderApp("/login");
     const user = userEvent.setup();
     const mobile = await screen.findByLabelText("رقم الجوال");
-    expect(mobile).toHaveAttribute("maxlength", "10");
-    expect(mobile).toHaveAttribute("pattern", "05[0-9]{8}");
-    await user.type(mobile, "٠٥٥٠٠٠٠٠٠١");
-    expect(mobile).toHaveValue("0550000001");
+    expect(mobile).toHaveAttribute("maxlength", "20");
+    await user.click(mobile);
+    await user.paste(entered);
+    expect(mobile).toHaveValue(entered === "٠٥٥٠٠٠٠٠٠١" ? "0550000001" : entered);
     await user.type(screen.getByLabelText("كلمة المرور"), "secret");
     await user.click(screen.getByRole("button", { name: "تسجيل الدخول" }));
     await screen.findByRole("alert");
     const loginCall = calls.find((call) => call.url.includes("/auth/login/"));
-    expect(JSON.parse(String(loginCall?.init?.body))).toMatchObject({ mobile: "+966550000001" });
+    expect(JSON.parse(String(loginCall?.init?.body))).toMatchObject({ mobile: expected });
   });
 
   it("shows API error message for invalid credentials", async () => {

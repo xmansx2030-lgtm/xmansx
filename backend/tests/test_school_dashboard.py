@@ -555,9 +555,11 @@ def test_action_and_referral_metrics(env):
         school=env["school"], date_range=today_range
     )
     assert referrals["created_in_range"]["total"] == 1
-    assert referrals["created_in_range"]["new"] == 1
+    assert referrals["created_in_range"]["new"] == 0
+    assert referrals["created_in_range"]["under_vice_review"] == 1
+    assert referrals["created_in_range"]["referred"] == 0
     assert referrals["open_now"] == 1
-    assert referrals["unassigned_now"] == 1
+    assert referrals["unassigned_now"] == 0
     assert referrals["by_category"]["ATTENDANCE"] == 1
     assert referrals["by_source"]["VICE_PRINCIPAL"] == 1
 
@@ -654,9 +656,9 @@ def test_attention_queue_collects_operational_items(env):
         targets=[{"attendance_date": DAY}],
     )
     create_referral(
-        school=env["school"], membership=env["vice"], roles=["VICE_PRINCIPAL"],
-        student=student, category="ATTENDANCE", reason_code="REPEATED_ABSENCE",
-        description="غياب.",
+        school=env["school"], membership=env["teacher"], roles=["TEACHER"],
+        student=student, category="CLASSROOM_BEHAVIOR", reason_code="SLEEPING_IN_CLASS",
+        description="ملاحظة صفية تحتاج متابعة.",
     )
     queue = attention_selectors.attention_queue(school=env["school"])
     kinds = {item["kind"] for item in queue["items"]}

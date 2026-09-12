@@ -47,14 +47,22 @@ def env(make_school, make_user, make_membership):
     section = Section.objects.create(school=school, grade=grade, code="1", name="1")
     students = make_students(school, section, year, 2, prefix="50100")
 
+    vice = make_membership(make_user("0551300003"), school, ["VICE_PRINCIPAL"])
+    from staff.models import VicePrincipalScopeAssignment
+
+    VicePrincipalScopeAssignment.objects.create(
+        school=school, grade=grade, vice_principal_membership=vice
+    )
+
     return {
         "school": school,
         "year": year,
+        "grade": grade,
         "section": section,
         "students": students,
         "teacher": make_membership(make_user("0551300001"), school, ["TEACHER"]),
         "teacher2": make_membership(make_user("0551300002"), school, ["TEACHER"]),
-        "vice": make_membership(make_user("0551300003"), school, ["VICE_PRINCIPAL"]),
+        "vice": vice,
         "manager": make_membership(make_user("0551300004"), school, ["SCHOOL_MANAGER"]),
         "counselor": make_membership(make_user("0551300005"), school, ["COUNSELOR"]),
         "counselor2": make_membership(make_user("0551300006"), school, ["COUNSELOR"]),
@@ -94,10 +102,12 @@ def vice_referral(env, student=None, **kwargs):
 @pytest.mark.django_db
 def test_teacher_academic_referral(env):
     referral = teacher_referral(env)
-    assert referral.status == ReferralStatus.NEW
+    assert referral.status == ReferralStatus.PENDING_VICE
     assert referral.source_type == ReferralSourceType.TEACHER
+    assert referral.assigned_vice_membership_id == env["vice"].id
     assert referral.assigned_counselor_membership_id is None
     assert referral.events.filter(event_type=ReferralEventType.CREATED).exists()
+    assert referral.events.filter(event_type=ReferralEventType.ROUTED_TO_VICE).exists()
 
 
 @pytest.mark.django_db
@@ -250,7 +260,7 @@ def test_contribution_instead_of_duplicate(env):
 def test_new_referral_allowed_after_close(env):
     first = teacher_referral(env)
     close_referral(
-        referral_id=first.id, school=env["school"], membership=env["counselor"],
+        referral_id=first.id, school=env["school"], membership=env["vice"],
         reason="تمت المتابعة.",
     )
     second = teacher_referral(env, membership=env["teacher2"])
@@ -308,7 +318,10 @@ def test_assign_active_counselor(env):
     )
     referral.refresh_from_db()
     assert referral.assigned_counselor_membership_id == env["counselor"].id
-    assert referral.events.filter(event_type=ReferralEventType.ASSIGNED).exists()
+    assert referral.status == ReferralStatus.REFERRED
+    assert referral.events.filter(
+        event_type=ReferralEventType.FORWARDED_TO_COUNSELOR
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -403,27 +416,27 @@ def test_other_counselor_cannot_acknowledge(env):
 
 
 @pytest.mark.django_db
-def test_unassigned_claim_is_atomic(env):
-    """استلام حالة غير معينة يجعل المستلم هو المعيّن — والثاني يُرفض."""
+def test_counselor_cannot_claim_before_vice_forwarding(env):
+    """لا يستطيع أي مرشد رؤية الحالة أو الاستيلاء عليها قبل قرار الوكيل."""
     referral = teacher_referral(env)
-    acknowledge_referral(
-        referral_id=referral.id, school=env["school"], membership=env["counselor"],
-        roles=["COUNSELOR"],
-    )
-    referral.refresh_from_db()
-    assert referral.assigned_counselor_membership_id == env["counselor"].id
-
     with pytest.raises(ApiError) as exc:
         acknowledge_referral(
-            referral_id=referral.id, school=env["school"], membership=env["counselor2"],
+            referral_id=referral.id, school=env["school"], membership=env["counselor"],
             roles=["COUNSELOR"],
         )
-    assert exc.value.code == "REFERRAL_ALREADY_ACKNOWLEDGED"
+    assert exc.value.code == "REFERRAL_NOT_FORWARDED"
+    assert not can_view_referral(
+        referral=referral, membership=env["counselor"], roles=["COUNSELOR"]
+    )
 
 
 @pytest.mark.django_db
 def test_double_acknowledge_rejected(env):
     referral = teacher_referral(env)
+    assign_counselor(
+        referral_id=referral.id, school=env["school"], membership=env["vice"],
+        counselor_id=env["counselor"].id,
+    )
     acknowledge_referral(
         referral_id=referral.id, school=env["school"], membership=env["counselor"],
         roles=["COUNSELOR"],
@@ -442,6 +455,14 @@ def test_double_acknowledge_rejected(env):
 @pytest.mark.django_db
 def test_close_then_no_more_contributions(env):
     referral = teacher_referral(env)
+    assign_counselor(
+        referral_id=referral.id, school=env["school"], membership=env["vice"],
+        counselor_id=env["counselor"].id,
+    )
+    acknowledge_referral(
+        referral_id=referral.id, school=env["school"], membership=env["counselor"],
+        roles=["COUNSELOR"],
+    )
     close_referral(
         referral_id=referral.id, school=env["school"], membership=env["counselor"],
         reason="عولجت مع ولي الأمر.",
@@ -540,7 +561,8 @@ def test_counselor_scope_excludes_other_counselor_cases(env):
             school=env["school"], membership=env["counselor"], roles=["COUNSELOR"]
         ).values_list("id", flat=True)
     )
-    assert visible == {mine.id, unassigned.id}  # لا حالة زميله
+    assert visible == {mine.id}  # لا حالة زميله ولا ما يزال لدى الوكيل
+    assert unassigned.id not in visible
 
 
 @pytest.mark.django_db
@@ -567,13 +589,15 @@ def test_kpis_scoped_to_role(env):
     manager_kpis = referral_kpis(
         school=env["school"], membership=env["manager"], roles=["SCHOOL_MANAGER"]
     )
-    assert manager_kpis["new_count"] == 2
-    assert manager_kpis["unassigned_count"] == 1
+    assert manager_kpis["pending_vice_count"] == 1
+    assert manager_kpis["referred_count"] == 1
+    assert manager_kpis["unassigned_vice_count"] == 0
 
     counselor2_kpis = referral_kpis(
         school=env["school"], membership=env["counselor2"], roles=["COUNSELOR"]
     )
-    assert counselor2_kpis["new_count"] == 1  # غير المعينة فقط
+    assert counselor2_kpis["pending_vice_count"] == 0
+    assert counselor2_kpis["referred_count"] == 0
 
 
 @pytest.mark.django_db

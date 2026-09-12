@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useMe, useSwitchSchool } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
 
-/** «المدرسة الحالية ▼» — يعرض فقط مدارس العضويات الفعالة، والتبديل يفرغ الـ cache كاملًا. */
+/** يعرض المدرسة الواحدة كمعلومة ثابتة، ويتيح التبديل عند تعدد العضويات الفعالة. */
 export function SchoolSwitcher() {
   const navigate = useNavigate();
   const me = useMe();
@@ -37,6 +37,23 @@ export function SchoolSwitcher() {
     (m) => m.school.id !== me.data.active_school?.id,
   );
 
+  if (others.length === 0) {
+    return (
+      <div
+        ref={containerRef}
+        role="group"
+        aria-label="المدرسة الحالية"
+        className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5"
+      >
+        <span aria-hidden className="size-2 shrink-0 rounded-full bg-emerald-500" />
+        <span className="shrink-0 text-xs font-medium text-slate-500">المدرسة الحالية</span>
+        <span className="max-w-52 truncate text-sm font-bold text-slate-800 sm:max-w-72" data-testid="active-school-name">
+          {me.data.active_school.name}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -47,10 +64,10 @@ export function SchoolSwitcher() {
         className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
       >
         <span data-testid="active-school-name">{me.data.active_school.name}</span>
-        {others.length > 0 && <span aria-hidden>▼</span>}
+        <span aria-hidden>▼</span>
       </button>
 
-      {open && others.length > 0 && (
+      {open && (
         <ul
           role="listbox"
           className="absolute start-0 z-10 mt-1 w-64 rounded-xl border border-slate-200 bg-white py-1 shadow-lg"

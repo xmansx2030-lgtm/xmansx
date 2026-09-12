@@ -4,8 +4,12 @@ import pytest
 
 from academics.models import AcademicYear, AcademicYearStatus
 from referrals.models import ReferralCategory, ReferralReason
-from referrals.services.referrals import create_referral
-from staff.models import CounselorSectionAssignment, StaffProfile
+from referrals.services.referrals import assign_counselor, create_referral
+from staff.models import (
+    CounselorSectionAssignment,
+    StaffProfile,
+    VicePrincipalScopeAssignment,
+)
 from staff.services.counselor_sections import set_counselor_sections
 from students.models import Grade, Section
 from tests.attendance_helpers import make_students
@@ -117,7 +121,7 @@ def test_vice_principal_cannot_change_counselor_sections(
 
 
 @pytest.mark.django_db
-def test_teacher_referral_routes_to_the_active_counselor_for_student_section(
+def test_teacher_referral_stays_hidden_from_configured_counselor_until_forwarded(
     make_school, make_user, make_membership
 ):
     school = make_school()
@@ -133,11 +137,18 @@ def test_teacher_referral_routes_to_the_active_counselor_for_student_section(
     manager = make_membership(make_user("0557710010"), school, ["SCHOOL_MANAGER"])
     teacher = make_membership(make_user("0557710011"), school, ["TEACHER"])
     counselor = make_membership(make_user("0557710012"), school, ["COUNSELOR"])
+    vice = make_membership(make_user("0557710013"), school, ["VICE_PRINCIPAL"])
     set_counselor_sections(
         school=school,
         membership=counselor,
         section_ids=[section.id],
         actor=manager.user,
+    )
+    VicePrincipalScopeAssignment.objects.create(
+        school=school,
+        grade=section.grade,
+        vice_principal_membership=vice,
+        assigned_by=manager.user,
     )
 
     referral = create_referral(
@@ -150,9 +161,19 @@ def test_teacher_referral_routes_to_the_active_counselor_for_student_section(
         description="تراجع ملحوظ في أداء الطالب.",
     )
 
+    assert referral.assigned_vice_membership_id == vice.id
+    assert referral.assigned_counselor_membership_id is None
+    assert referral.status == "PENDING_VICE"
+
+    assign_counselor(
+        referral_id=referral.id,
+        school=school,
+        membership=vice,
+        counselor_id=counselor.id,
+    )
+    referral.refresh_from_db()
     assert referral.assigned_counselor_membership_id == counselor.id
-    assigned_event = referral.events.get(event_type="ASSIGNED")
-    assert assigned_event.metadata_safe["automatic"] is True
+    assert referral.status == "REFERRED"
 
 
 @pytest.mark.django_db
@@ -171,10 +192,17 @@ def test_changing_section_owner_does_not_rewrite_existing_referrals(
     student = make_students(school, section, year, 1, prefix="77200")[0]
     manager = make_membership(make_user("0557720010"), school, ["SCHOOL_MANAGER"])
     teacher = make_membership(make_user("0557720011"), school, ["TEACHER"])
+    vice = make_membership(make_user("0557720014"), school, ["VICE_PRINCIPAL"])
     first = make_membership(make_user("0557720012"), school, ["COUNSELOR"])
     second = make_membership(make_user("0557720013"), school, ["COUNSELOR"])
     set_counselor_sections(
         school=school, membership=first, section_ids=[section.id], actor=manager.user
+    )
+    VicePrincipalScopeAssignment.objects.create(
+        school=school,
+        grade=section.grade,
+        vice_principal_membership=vice,
+        assigned_by=manager.user,
     )
     referral = create_referral(
         school=school,
@@ -184,6 +212,12 @@ def test_changing_section_owner_does_not_rewrite_existing_referrals(
         category=ReferralCategory.ACADEMIC,
         reason_code=ReferralReason.ACADEMIC_WEAKNESS,
         description="ضعف دراسي.",
+    )
+    assign_counselor(
+        referral_id=referral.id,
+        school=school,
+        membership=vice,
+        counselor_id=first.id,
     )
 
     set_counselor_sections(

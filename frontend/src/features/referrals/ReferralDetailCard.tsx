@@ -12,10 +12,13 @@ import {
   acknowledgeReferral,
   addContribution,
   assignCounselor,
+  assignVicePrincipal,
   cancelReferral,
   closeReferral,
   getCounselors,
   getReferral,
+  getVicePrincipals,
+  startViceReview,
 } from "@/features/referrals/api";
 import { ReferralStatusBadge } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
@@ -46,6 +49,7 @@ export function ReferralDetailCard({
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [counselorId, setCounselorId] = useState("");
+  const [vicePrincipalId, setVicePrincipalId] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -54,6 +58,7 @@ export function ReferralDetailCard({
     (role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL",
   );
   const isCounselor = roles.includes("COUNSELOR");
+  const isManager = roles.includes("SCHOOL_MANAGER");
 
   const detail = useQuery({
     queryKey: schoolScopedKey(schoolId, "referral-detail", referralId),
@@ -64,6 +69,11 @@ export function ReferralDetailCard({
     queryKey: schoolScopedKey(schoolId, "referral-counselors"),
     queryFn: ({ signal }) => getCounselors(signal),
     enabled: schoolId > 0 && canManage,
+  });
+  const vicePrincipals = useQuery({
+    queryKey: schoolScopedKey(schoolId, "referral-vice-principals"),
+    queryFn: ({ signal }) => getVicePrincipals(signal),
+    enabled: schoolId > 0 && isManager,
   });
 
   const refresh = () => {
@@ -78,6 +88,16 @@ export function ReferralDetailCard({
 
   const assignMutation = useMutation({
     mutationFn: () => assignCounselor(referralId, Number(counselorId)),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const assignViceMutation = useMutation({
+    mutationFn: () => assignVicePrincipal(referralId, Number(vicePrincipalId)),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const startViceReviewMutation = useMutation({
+    mutationFn: () => startViceReview(referralId),
     onSuccess: refresh,
     onError: fail,
   });
@@ -127,10 +147,16 @@ export function ReferralDetailCard({
     detailRef.current?.focus({ preventScroll: true });
   }, [detailId]);
 
+  useEffect(() => {
+    const suggested =
+      detail.data?.assigned_counselor_id ?? detail.data?.recommended_counselor_id;
+    setCounselorId(suggested ? String(suggested) : "");
+  }, [detail.data?.assigned_counselor_id, detail.data?.recommended_counselor_id]);
+
   if (detail.isPending) return <Spinner />;
   if (detail.isError) return <ErrorState error={detail.error} />;
   const referral = detail.data;
-  const isOpen = referral.status === "NEW" || referral.status === "ACKNOWLEDGED";
+  const isOpen = referral.status !== "CLOSED" && referral.status !== "CANCELLED";
   const snapshot = referral.snapshot_at_referral ?? {};
   const current = referral.current_metrics;
 
@@ -164,11 +190,11 @@ export function ReferralDetailCard({
         </p>
       )}
 
-      <p className="text-sm text-slate-600">
-        المُحيل: {referral.created_by_name ?? "—"} ({referral.source_type_label})
-        <span className="mx-2">•</span>
-        {roleLabel("COUNSELOR", schoolType)}: {referral.assigned_counselor_name ?? "غير معيّن"}
-      </p>
+      <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-3" data-testid="referral-routing">
+        <p><span className="block text-xs font-bold text-slate-500">المُحيل</span><strong>{referral.created_by_name ?? "—"}</strong> ({referral.source_type_label})</p>
+        <p><span className="block text-xs font-bold text-slate-500">الوكيل المسؤول</span><strong>{referral.assigned_vice_principal_name ?? "لم يُعيّن بعد"}</strong></p>
+        <p><span className="block text-xs font-bold text-slate-500">{roleLabel("COUNSELOR", schoolType)}</span><strong>{referral.assigned_counselor_name ?? "لم تُحوّل للمرشد"}</strong></p>
+      </div>
 
       {referral.source_warning && (
         <p className="text-sm text-slate-700" data-testid="referral-source-warning">
@@ -290,7 +316,45 @@ export function ReferralDetailCard({
 
       {isOpen && (
         <div className="grid gap-2 border-t border-slate-100 pt-3 sm:flex sm:flex-wrap sm:items-end">
-          {canManage && (
+          {referral.can_assign_vice_principal && (
+            <>
+              <label className="flex min-w-0 flex-col gap-1 text-sm">
+                الوكيل المسؤول
+                <select
+                  data-testid="assign-vice-principal"
+                  value={vicePrincipalId}
+                  onChange={(event) => setVicePrincipalId(event.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  <option value="">اختر الوكيل</option>
+                  {(vicePrincipals.data?.vice_principals ?? []).map((vice) => (
+                    <option key={vice.id} value={vice.id}>{vice.name}</option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                variant="secondary"
+                className="w-full justify-center sm:w-auto"
+                onClick={() => assignViceMutation.mutate()}
+                disabled={vicePrincipalId === "" || assignViceMutation.isPending}
+                data-testid="save-assign-vice"
+              >
+                إسناد للوكيل
+              </Button>
+            </>
+          )}
+          {referral.can_start_vice_review && (
+            <Button
+              variant="secondary"
+              className="w-full justify-center border-violet-200 text-violet-800 sm:w-auto"
+              onClick={() => startViceReviewMutation.mutate()}
+              disabled={startViceReviewMutation.isPending}
+              data-testid="start-vice-review"
+            >
+              {startViceReviewMutation.isPending ? "جارٍ البدء..." : "بدء معالجة الإحالة"}
+            </Button>
+          )}
+          {referral.can_forward_to_counselor && (
             <>
               <label className="flex min-w-0 flex-col gap-1 text-sm">
                 {roleLabel("COUNSELOR", schoolType)}
@@ -304,9 +368,17 @@ export function ReferralDetailCard({
                   {(counselors.data?.counselors ?? []).map((counselor) => (
                     <option key={counselor.id} value={counselor.id}>
                       {counselor.name}
+                      {counselor.id === referral.recommended_counselor_id
+                        ? " — المسؤول عن الفصل"
+                        : ""}
                     </option>
                   ))}
                 </select>
+                {referral.recommended_counselor_name && (
+                  <span className="text-xs font-bold text-teal-700">
+                    المقترح حسب فصل الطالب: {referral.recommended_counselor_name}
+                  </span>
+                )}
               </label>
               <Button
                 className="w-full justify-center sm:w-auto"
@@ -314,11 +386,11 @@ export function ReferralDetailCard({
                 disabled={counselorId === "" || assignMutation.isPending}
                 data-testid="save-assign"
               >
-                تعيين
+                {referral.status === "REFERRED" ? "تغيير المرشد" : "تحويل للمرشد"}
               </Button>
             </>
           )}
-          {isCounselor && referral.status === "NEW" && (
+          {referral.can_acknowledge && (
             <Button
               className="w-full justify-center sm:w-auto"
               onClick={() => acknowledgeMutation.mutate()}
@@ -348,16 +420,18 @@ export function ReferralDetailCard({
               {openCaseMutation.isPending ? "جارٍ فتح الملف..." : "فتح ملف المتابعة"}
             </Button>
           )}
-          <label className="flex min-w-0 flex-col gap-1 text-sm sm:min-w-56 sm:flex-1">
-            سبب الإغلاق/الإلغاء
-            <input
-              data-testid="closure-reason"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          {(canManage || isCounselor) && (
+          {(referral.can_close || referral.can_cancel) && (
+            <label className="flex min-w-0 flex-col gap-1 text-sm sm:min-w-56 sm:flex-1">
+              سبب الإغلاق/الإلغاء
+              <input
+                data-testid="closure-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+          )}
+          {referral.can_close && (
             <Button
               variant="danger"
               className="w-full justify-center sm:w-auto"

@@ -76,6 +76,8 @@ export interface LatenessSummary {
 export interface ReferralReportSummary {
   total: number;
   new: number;
+  under_vice_review: number;
+  referred: number;
   acknowledged: number;
   closed: number;
   unassigned: number;

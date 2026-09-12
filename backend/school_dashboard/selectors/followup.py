@@ -163,7 +163,11 @@ def referral_metrics(*, school, date_range, scope=None) -> dict:
 
     totals = created.aggregate(
         total=Count("id"),
-        new=Count("id", filter=Q(status=ReferralStatus.NEW)),
+        new=Count("id", filter=Q(status=ReferralStatus.PENDING_VICE)),
+        under_vice_review=Count(
+            "id", filter=Q(status=ReferralStatus.UNDER_VICE_REVIEW)
+        ),
+        referred=Count("id", filter=Q(status=ReferralStatus.REFERRED)),
         acknowledged=Count("id", filter=Q(status=ReferralStatus.ACKNOWLEDGED)),
         closed=Count("id", filter=Q(status=ReferralStatus.CLOSED)),
         cancelled=Count("id", filter=Q(status=ReferralStatus.CANCELLED)),
@@ -184,12 +188,18 @@ def referral_metrics(*, school, date_range, scope=None) -> dict:
         open_now = open_now.filter(student_id__in=students)
     open_totals = open_now.aggregate(
         open_total=Count("id"),
-        unassigned=Count("id", filter=Q(assigned_counselor_membership__isnull=True)),
+        unassigned=Count(
+            "id",
+            filter=Q(assigned_vice_membership__isnull=True)
+            & Q(status=ReferralStatus.PENDING_VICE),
+        ),
     )
     return {
         "created_in_range": {
             "total": totals["total"] or 0,
             "new": totals["new"] or 0,
+            "under_vice_review": totals["under_vice_review"] or 0,
+            "referred": totals["referred"] or 0,
             "acknowledged": totals["acknowledged"] or 0,
             "closed": totals["closed"] or 0,
             "cancelled": totals["cancelled"] or 0,

@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { CounselorSectionPicker } from "@/features/staff/CounselorSectionPicker";
+import { VicePrincipalScopePicker } from "@/features/staff/VicePrincipalScopePicker";
 import { createStaff, type ManualStaffResult } from "@/features/staff/api";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import { getSections } from "@/features/students/api";
@@ -17,7 +18,7 @@ const ROLE_DESCRIPTIONS: Record<(typeof ROLES)[number], string> = {
   TEACHER: "تحضير الطلاب والوصول إلى الفصول المسندة إليه.",
   COUNSELOR: "متابعة الحالات والإحالات والسلوك والإنذارات.",
   GATE_GUARD: "عرض استئذانات اليوم وتأكيد خروج الطلاب من البوابة فقط.",
-  VICE_PRINCIPAL: "الاطلاع الإداري والمتابعة دون تعديل إعدادات المدرسة.",
+  VICE_PRINCIPAL: "معالجة إحالات الطلاب ضمن الصفوف أو الفصول المسندة إليه.",
 };
 
 export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void; onClose: () => void }) {
@@ -38,11 +39,16 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
   const [sectionConflicts, setSectionConflicts] = useState<
     { section_name: string; current_counselor_name: string }[]
   >([]);
+  const [selectedViceGradeIds, setSelectedViceGradeIds] = useState<number[]>([]);
+  const [selectedViceSectionIds, setSelectedViceSectionIds] = useState<number[]>([]);
+  const [scopeConflicts, setScopeConflicts] = useState<
+    { target_name: string; current_vice_principal_name: string }[]
+  >([]);
 
   const sections = useQuery({
     queryKey: schoolScopedKey(schoolId, "sections"),
     queryFn: ({ signal }) => getSections(signal),
-    enabled: schoolId > 0 && role === "COUNSELOR",
+    enabled: schoolId > 0 && (role === "COUNSELOR" || role === "VICE_PRINCIPAL"),
   });
 
   const mutation = useMutation({
@@ -56,11 +62,17 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
         ? (allSections ? [] : selectedSectionIds)
         : undefined,
       confirm_section_reassignment: confirmSectionReassignment,
+      vice_principal_grade_ids: role === "VICE_PRINCIPAL" ? selectedViceGradeIds : undefined,
+      vice_principal_section_ids: role === "VICE_PRINCIPAL" ? selectedViceSectionIds : undefined,
+      confirm_scope_reassignment: confirmSectionReassignment,
     }),
     onSuccess: (data) => { setResult(data); onCreated(); },
     onError: (error) => {
       if (error instanceof ApiError && error.code === "COUNSELOR_SECTION_REASSIGNMENT_REQUIRED") {
         setSectionConflicts((error.details.conflicts ?? []) as { section_name: string; current_counselor_name: string }[]);
+      }
+      if (error instanceof ApiError && error.code === "VICE_PRINCIPAL_SCOPE_REASSIGNMENT_REQUIRED") {
+        setScopeConflicts((error.details.conflicts ?? []) as { target_name: string; current_vice_principal_name: string }[]);
       }
     },
   });
@@ -76,7 +88,17 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
       setValidationError("اختر فصلًا واحدًا على الأقل، أو اختر جميع الفصول.");
       return;
     }
+    if (
+      role === "VICE_PRINCIPAL" &&
+      (sections.data?.length ?? 0) > 0 &&
+      selectedViceGradeIds.length === 0 &&
+      selectedViceSectionIds.length === 0
+    ) {
+      setValidationError("حدد صفًا كاملًا أو فصلًا واحدًا على الأقل لمسؤولية الوكيل.");
+      return;
+    }
     setSectionConflicts([]);
+    setScopeConflicts([]);
     mutation.mutate(false);
   }
 
@@ -129,7 +151,7 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="manual-staff-role" className="text-sm font-bold text-slate-700">الدور الأول في المنصة *</label>
-          <select id="manual-staff-role" value={role} onChange={(e) => { setRole(e.target.value as (typeof ROLES)[number]); setSectionConflicts([]); }} className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm">
+          <select id="manual-staff-role" value={role} onChange={(e) => { setRole(e.target.value as (typeof ROLES)[number]); setSectionConflicts([]); setScopeConflicts([]); }} className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm">
             {ROLES.map((value) => <option key={value} value={value}>{roleLabel(value, schoolType)}</option>)}
           </select>
           <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Info aria-hidden size={14} className="mt-0.5 shrink-0" />{ROLE_DESCRIPTIONS[role]} ويمكن تعديل الأدوار لاحقًا من إدارة الموظف.</p>
@@ -153,6 +175,24 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
           )}
         </div>
       )}
+      {role === "VICE_PRINCIPAL" && (
+        <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/30 p-4 sm:p-5">
+          {sections.isPending ? (
+            <p className="text-sm text-slate-500">جارٍ تحميل الصفوف والفصول...</p>
+          ) : sections.isError ? (
+            <p role="alert" className="text-sm text-red-700">تعذر تحميل صفوف المدرسة وفصولها.</p>
+          ) : (
+            <VicePrincipalScopePicker
+              sections={sections.data ?? []}
+              selectedGradeIds={selectedViceGradeIds}
+              selectedSectionIds={selectedViceSectionIds}
+              onSelectedGradeIdsChange={setSelectedViceGradeIds}
+              onSelectedSectionIdsChange={setSelectedViceSectionIds}
+              disabled={mutation.isPending}
+            />
+          )}
+        </div>
+      )}
       {sectionConflicts.length > 0 && (
         <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" data-testid="counselor-section-conflicts">
           <p className="font-black">توجد فصول مرتبطة بمرشد آخر</p>
@@ -168,10 +208,25 @@ export function ManualStaffForm({ onCreated, onClose }: { onCreated: () => void;
           </Button>
         </div>
       )}
+      {scopeConflicts.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" data-testid="vice-principal-scope-conflicts">
+          <p className="font-black">توجد نطاقات مرتبطة بوكيل آخر</p>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            {scopeConflicts.map((conflict) => (
+              <li key={`${conflict.target_name}-${conflict.current_vice_principal_name}`}>
+                {conflict.target_name} — {conflict.current_vice_principal_name}
+              </li>
+            ))}
+          </ul>
+          <Button type="button" className="mt-3" onClick={() => mutation.mutate(true)} disabled={mutation.isPending}>
+            تأكيد نقل المسؤولية وإضافة الوكيل
+          </Button>
+        </div>
+      )}
       {(validationError || apiMessage) && <p role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{validationError ?? apiMessage}</p>}
       <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
         <Button variant="secondary" onClick={onClose}>إلغاء</Button>
-        <Button type="submit" disabled={mutation.isPending || (role === "COUNSELOR" && sections.isPending)}>{mutation.isPending ? "جارٍ الإضافة..." : "إضافة الموظف"}</Button>
+        <Button type="submit" disabled={mutation.isPending || ((role === "COUNSELOR" || role === "VICE_PRINCIPAL") && sections.isPending)}>{mutation.isPending ? "جارٍ الإضافة..." : "إضافة الموظف"}</Button>
       </div>
     </form>
   );

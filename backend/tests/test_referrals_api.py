@@ -40,6 +40,13 @@ def api_env(role_client, make_user, make_membership):
     env = build_school_env(school, make_user, make_membership)
     env["vice_client"] = vice_client
     env["vice"] = vice_user.memberships.get(school=school)
+    from staff.models import VicePrincipalScopeAssignment
+
+    VicePrincipalScopeAssignment.objects.create(
+        school=school,
+        grade=env["grade"],
+        vice_principal_membership=env["vice"],
+    )
 
     teacher_client, _, teacher_user = role_client(["TEACHER"], school=school)
     env["teacher_client"] = teacher_client
@@ -48,6 +55,10 @@ def api_env(role_client, make_user, make_membership):
     counselor_client, _, counselor_user = role_client(["COUNSELOR"], school=school)
     env["counselor_client"] = counselor_client
     env["counselor_membership"] = counselor_user.memberships.get(school=school)
+
+    manager_client, _, manager_user = role_client(["SCHOOL_MANAGER"], school=school)
+    env["manager_client"] = manager_client
+    env["manager"] = manager_user.memberships.get(school=school)
     return env
 
 
@@ -71,8 +82,9 @@ def test_teacher_creates_and_counselor_acknowledges(api_env):
     created = create_referral(api_env["teacher_client"], student.id)
     assert created.status_code == 201, created.content
     body = created.json()
-    assert body["status"] == "NEW"
+    assert body["status"] == "PENDING_VICE"
     assert body["source_type"] == "TEACHER"
+    assert body["assigned_vice_principal_id"] == api_env["vice"].id
     assert body["assigned_counselor_id"] is None
     referral_id = body["id"]
 
@@ -92,7 +104,12 @@ def test_teacher_creates_and_counselor_acknowledges(api_env):
     assert acknowledged.json()["accepted_at"] is not None
 
     events = [e["event_type"] for e in acknowledged.json()["events"]]
-    assert events == ["CREATED", "ASSIGNED", "ACKNOWLEDGED"]
+    assert events == [
+        "CREATED",
+        "ROUTED_TO_VICE",
+        "FORWARDED_TO_COUNSELOR",
+        "ACKNOWLEDGED",
+    ]
     assert AuditLog.objects.filter(action=AuditAction.REFERRAL_CREATED).exists()
     assert AuditLog.objects.filter(action=AuditAction.REFERRAL_ACKNOWLEDGED).exists()
 
@@ -352,8 +369,8 @@ def test_creator_cannot_cancel_after_acknowledge(api_env):
     assert denied.status_code == 409
     assert denied.json()["code"] == "REFERRAL_ALREADY_ACKNOWLEDGED"
 
-    # الإدارة تستطيع (سحب الحالة قرار إداري)
-    assert api_env["vice_client"].post(
+    # مدير المدرسة يستطيع سحبها بعد انتقال المسؤولية للمرشد.
+    assert api_env["manager_client"].post(
         f"{BASE}{referral['id']}/cancel/",
         {"reason": "سُحبت إداريًا"},
         content_type="application/json",
@@ -485,7 +502,7 @@ def test_create_ignores_server_owned_fields(api_env):
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["status"] == "NEW"
+    assert body["status"] == "PENDING_VICE"
     assert body["accepted_at"] is None
     assert StudentReferral.objects.get(id=body["id"]).school_id == api_env["school"].id
 

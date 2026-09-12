@@ -81,6 +81,63 @@ describe("StaffPage", () => {
     expect(screen.getByText(/تظهر مرة واحدة فقط/)).toBeInTheDocument();
   });
 
+  it("assigns a grade scope while adding a vice principal", async () => {
+    let postBody: Record<string, unknown> | null = null;
+    const vice = {
+      ...STAFF_PAGE.results[0],
+      id: 15,
+      display_name: "سلمان الوكيل",
+      roles: ["VICE_PRINCIPAL"],
+      vice_principal_scopes: [{ kind: "GRADE", id: 9, name: "الأول الثانوي" }],
+      temporary_password: "0557772211",
+      invitation_sent: false,
+    };
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/sections/": {
+        body: [
+          {
+            id: 31,
+            name: "1",
+            code: "1",
+            is_active: true,
+            grade: { id: 9, name: "الأول الثانوي", is_active: true },
+          },
+          {
+            id: 32,
+            name: "2",
+            code: "2",
+            is_active: true,
+            grade: { id: 9, name: "الأول الثانوي", is_active: true },
+          },
+        ],
+      },
+      "/staff/": (init) => {
+        if (init?.method === "POST") {
+          postBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+          return { status: 201, body: vice };
+        }
+        return { body: STAFF_PAGE };
+      },
+    });
+    renderApp("/staff");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "إدخال يدوي" }));
+    await user.type(screen.getByLabelText("اسم الموظف الكامل *"), "سلمان الوكيل");
+    await user.type(screen.getByLabelText("رقم الجوال *"), "0557772211");
+    await user.selectOptions(screen.getByLabelText("الدور الأول في المنصة *"), "VICE_PRINCIPAL");
+    await user.click(await screen.findByLabelText("جميع طلاب الأول الثانوي"));
+    await user.click(screen.getByRole("button", { name: "إضافة الموظف" }));
+
+    await waitFor(() => expect(postBody).not.toBeNull());
+    expect(postBody).toMatchObject({
+      role: "VICE_PRINCIPAL",
+      vice_principal_grade_ids: [9],
+      vice_principal_section_ids: [],
+      confirm_scope_reassignment: false,
+    });
+  });
+
   it("does not offer school-manager assignment in manual entry", async () => {
     mockApi({
       "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },

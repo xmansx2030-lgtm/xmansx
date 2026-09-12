@@ -31,7 +31,7 @@ import { ReferralsTable } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
 import { roleLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
-/** مساحة المعلم المستقلة للتحويل إلى المرشد ومتابعة الإحالات. */
+/** مساحة المعلم لإنشاء إحالة تمر بالوكيل المسؤول قبل المرشد. */
 export function MyReferralsPage() {
   const schoolId = useActiveSchoolId();
   const me = useMe();
@@ -86,14 +86,9 @@ export function MyReferralsPage() {
     queryFn: ({ signal }) => getMyReferrals({ page: referralPage }, signal),
     enabled: schoolId > 0,
   });
-  const newReferrals = useQuery({
-    queryKey: schoolScopedKey(schoolId, "my-referrals", "summary", "NEW"),
-    queryFn: ({ signal }) => getMyReferrals({ status: "NEW", page: 1 }, signal),
-    enabled: schoolId > 0,
-  });
-  const acknowledgedReferrals = useQuery({
-    queryKey: schoolScopedKey(schoolId, "my-referrals", "summary", "ACKNOWLEDGED"),
-    queryFn: ({ signal }) => getMyReferrals({ status: "ACKNOWLEDGED", page: 1 }, signal),
+  const openReferrals = useQuery({
+    queryKey: schoolScopedKey(schoolId, "my-referrals", "summary", "OPEN"),
+    queryFn: ({ signal }) => getMyReferrals({ status: "OPEN", page: 1 }, signal),
     enabled: schoolId > 0,
   });
 
@@ -134,9 +129,9 @@ export function MyReferralsPage() {
 
   const rows = list.data?.results ?? [];
   const total = list.data?.count ?? 0;
-  const activeCount = (newReferrals.data?.count ?? 0) + (acknowledgedReferrals.data?.count ?? 0);
+  const activeCount = openReferrals.data?.count ?? 0;
   const closedCount = Math.max(0, total - activeCount);
-  const summaryPending = newReferrals.isPending || acknowledgedReferrals.isPending;
+  const summaryPending = openReferrals.isPending;
   const studentSingular = studentLabel(schoolType);
   const studentPlural = studentPluralLabel(schoolType);
   const counselorLabel = roleLabel("COUNSELOR", schoolType);
@@ -146,8 +141,8 @@ export function MyReferralsPage() {
       <PageHeader
         icon={Send}
         eyebrow={`مساحة ${roleLabel("TEACHER", schoolType)}`}
-        title={`التحويلات إلى ${counselorLabel}`}
-        description={`ابحث عن ${studentSingular} بالاسم أو الصف أو الفصل، أنشئ الإحالة، ثم تابع حالتها من الصفحة نفسها.`}
+        title="إحالات الطلاب"
+        description={`ابحث عن ${studentSingular} وأنشئ الإحالة؛ ستصل أولًا إلى وكيل الصف أو الفصل، ثم يحلها أو يحولها إلى ${counselorLabel}.`}
         tone="teacher"
         badge={list.isPending ? "جارٍ التحديث" : `${total} إحالة`}
         actions={(
@@ -241,7 +236,7 @@ export function MyReferralsPage() {
             <ReferralCreateCard
               key={selectedStudent.id}
               student={{ id: selectedStudent.id, name: selectedStudent.full_name }}
-              onCreated={(id) => finishReferral("تم إرسال الإحالة إلى المرشد ويمكنك متابعة حالتها أدناه.", id)}
+              onCreated={(id) => finishReferral("تم إرسال الإحالة إلى الوكيل المسؤول، ويمكنك متابعة مسارها أدناه.", id)}
               onContributed={(id) => finishReferral("أضيفت ملاحظتك إلى ملف المتابعة المفتوح ويمكنك متابعته أدناه.", id)}
               onCancel={() => setSelectedStudent(null)}
             />
@@ -306,7 +301,7 @@ export function MyReferralsPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-700"><GraduationCap aria-hidden size={21} /></span>
           <div>
             <h2 id="my-referrals-title" className="text-xl font-black text-slate-900">متابعة إحالاتي</h2>
-            <p className="mt-1 text-sm text-slate-600">تابع الاستلام والإغلاق وافتح تفاصيل كل إحالة دون الاطلاع على إحالات زملائك.</p>
+            <p className="mt-1 text-sm text-slate-600">تابع مراجعة الوكيل، والتحويل للمرشد عند الحاجة، والإغلاق دون الاطلاع على إحالات زملائك.</p>
           </div>
         </div>
 

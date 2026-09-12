@@ -35,6 +35,7 @@ import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { useActiveSchoolId, useActiveSchoolType, useInvalidateSchoolData } from "@/features/settings/hooks";
 import { ManualStaffForm } from "@/features/staff/ManualStaffForm";
 import { CounselorSectionPicker } from "@/features/staff/CounselorSectionPicker";
+import { VicePrincipalScopePicker } from "@/features/staff/VicePrincipalScopePicker";
 import {
   activateStaff,
   addStaffRole,
@@ -49,6 +50,7 @@ import {
   suspendStaff,
   updateStaff,
   updateCounselorSections,
+  updateVicePrincipalScopes,
   type StaffMember,
 } from "@/features/staff/api";
 import { getSections } from "@/features/students/api";
@@ -317,6 +319,11 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
               مسؤول عن {member.counselor_section_count ?? 0} فصل
             </span>
           )}
+          {member.roles.includes("VICE_PRINCIPAL") && (
+            <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 ring-1 ring-violet-100">
+              مسؤول عن {member.vice_principal_scope_count ?? 0} نطاق
+            </span>
+          )}
           {(member.capabilities ?? []).includes("MORNING_ATTENDANCE") && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200" data-testid={`morning-assignment-badge-${member.id}`}>
               <Sunrise aria-hidden size={13} /> متابعة التأخر الصباحي
@@ -416,6 +423,9 @@ function StaffRow({ member, isManager, schoolType, onError }: { member: StaffMem
           </section>
           {member.roles.includes("COUNSELOR") && (
             <CounselorSectionsEditor member={member} onError={setRowError} />
+          )}
+          {member.roles.includes("VICE_PRINCIPAL") && (
+            <VicePrincipalScopesEditor member={member} onError={setRowError} />
           )}
           {rowError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700 lg:col-span-2">{rowError}</p>}
           {temporaryPassword && (
@@ -680,7 +690,7 @@ function CounselorSectionsEditor({ member, onError }: { member: StaffMember; onE
     <section className="rounded-2xl border border-teal-100 bg-teal-50/40 p-4 lg:col-span-2" data-testid={`counselor-sections-${member.id}`}>
       <div className="mb-4">
         <h4 className="text-sm font-black text-slate-900">توزيع فصول المرشد</h4>
-        <p className="mt-1 text-xs text-slate-500">الإحالات الجديدة لطلاب هذه الفصول ستُسند لهذا المرشد تلقائيًا.</p>
+        <p className="mt-1 text-xs text-slate-500">يساعد هذا التوزيع الوكيل على اختيار المرشد الأنسب عند تحويل الحالة.</p>
       </div>
       {sections.isPending ? <p className="text-sm text-slate-500">جارٍ تحميل الفصول...</p> : sections.isError ? <p role="alert" className="text-sm text-red-700">تعذر تحميل الفصول.</p> : (
         <CounselorSectionPicker
@@ -704,6 +714,97 @@ function CounselorSectionsEditor({ member, onError }: { member: StaffMember; onE
       <div className="mt-4 flex justify-end">
         <Button onClick={() => save(false)} disabled={mutation.isPending || sections.isPending}>
           {mutation.isPending ? "جارٍ الحفظ..." : "حفظ توزيع الفصول"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function VicePrincipalScopesEditor({ member, onError }: { member: StaffMember; onError: (message: string | null) => void }) {
+  const schoolId = useActiveSchoolId();
+  const invalidate = useInvalidateSchoolData();
+  const initialScopes = member.vice_principal_scopes ?? [];
+  const [selectedGradeIds, setSelectedGradeIds] = useState<number[]>(
+    () => initialScopes.filter((scope) => scope.kind === "GRADE").map((scope) => scope.id),
+  );
+  const [selectedSectionIds, setSelectedSectionIds] = useState<number[]>(
+    () => initialScopes.filter((scope) => scope.kind === "SECTION").map((scope) => scope.id),
+  );
+  const [conflicts, setConflicts] = useState<
+    { target_name: string; current_vice_principal_name: string }[]
+  >([]);
+
+  const sections = useQuery({
+    queryKey: schoolScopedKey(schoolId, "sections"),
+    queryFn: ({ signal }) => getSections(signal),
+    enabled: schoolId > 0,
+  });
+  const mutation = useMutation({
+    mutationFn: (confirm: boolean) => updateVicePrincipalScopes(
+      member.id,
+      selectedGradeIds,
+      selectedSectionIds,
+      confirm,
+    ),
+    onSuccess: (updated) => {
+      const scopes = updated.vice_principal_scopes ?? [];
+      setSelectedGradeIds(scopes.filter((scope) => scope.kind === "GRADE").map((scope) => scope.id));
+      setSelectedSectionIds(scopes.filter((scope) => scope.kind === "SECTION").map((scope) => scope.id));
+      setConflicts([]);
+      onError(null);
+      void invalidate("staff");
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === "VICE_PRINCIPAL_SCOPE_REASSIGNMENT_REQUIRED") {
+        setConflicts((error.details.conflicts ?? []) as { target_name: string; current_vice_principal_name: string }[]);
+        onError(null);
+        return;
+      }
+      onError(error instanceof Error ? error.message : "تعذر تحديث نطاق مسؤولية الوكيل.");
+    },
+  });
+
+  function save(confirm = false) {
+    if (
+      (sections.data?.length ?? 0) > 0 &&
+      selectedGradeIds.length === 0 &&
+      selectedSectionIds.length === 0
+    ) {
+      onError("حدد صفًا كاملًا أو فصلًا واحدًا على الأقل لمسؤولية الوكيل.");
+      return;
+    }
+    setConflicts([]);
+    mutation.mutate(confirm);
+  }
+
+  return (
+    <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 lg:col-span-2" data-testid={`vice-principal-scopes-${member.id}`}>
+      <div className="mb-4">
+        <h4 className="text-sm font-black text-slate-900">توزيع مسؤوليات الوكيل</h4>
+        <p className="mt-1 text-xs leading-5 text-slate-600">تصل إحالة المعلم إلى وكيل صف الطالب أو فصله فقط. الفصل المحدد يتقدم على توزيع الصف الكامل.</p>
+      </div>
+      {sections.isPending ? <p className="text-sm text-slate-500">جارٍ تحميل الصفوف والفصول...</p> : sections.isError ? <p role="alert" className="text-sm text-red-700">تعذر تحميل الصفوف والفصول.</p> : (
+        <VicePrincipalScopePicker
+          sections={sections.data ?? []}
+          selectedGradeIds={selectedGradeIds}
+          selectedSectionIds={selectedSectionIds}
+          onSelectedGradeIdsChange={setSelectedGradeIds}
+          onSelectedSectionIdsChange={setSelectedSectionIds}
+          disabled={mutation.isPending}
+        />
+      )}
+      {conflicts.length > 0 && (
+        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" data-testid="edit-vice-principal-scope-conflicts">
+          <p className="font-black">سيتم نقل النطاقات التالية من وكيل آخر:</p>
+          <ul className="mt-2 list-inside list-disc">
+            {conflicts.map((conflict) => <li key={`${conflict.target_name}-${conflict.current_vice_principal_name}`}>{conflict.target_name} — {conflict.current_vice_principal_name}</li>)}
+          </ul>
+          <Button className="mt-3" onClick={() => save(true)} disabled={mutation.isPending}>تأكيد نقل المسؤولية</Button>
+        </div>
+      )}
+      <div className="mt-4 flex justify-end">
+        <Button onClick={() => save(false)} disabled={mutation.isPending || sections.isPending}>
+          {mutation.isPending ? "جارٍ الحفظ..." : "حفظ توزيع المسؤوليات"}
         </Button>
       </div>
     </section>

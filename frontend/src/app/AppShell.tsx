@@ -125,10 +125,26 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
 
 function AdditionalNavigation({ items, schoolType, onNavigate }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void }) {
   if (items.length === 0) return null;
+  const discoverablePaths = ["/warnings", "/excuses", "/referrals", "/attendance/analytics"];
+  const previewItems = discoverablePaths
+    .map((path) => items.find((item) => item.to === path))
+    .filter((item): item is NavigationItem => item !== undefined)
+    .slice(0, 3);
+  const fallbackItems = previewItems.length > 0 ? previewItems : items.slice(0, 3);
+  const preview = fallbackItems
+    .map((item) => item.to === "/students" ? studentPluralLabel(schoolType) : item.label)
+    .join("، ");
+
   return (
     <details className="group rounded-xl border border-white/10 bg-white/5" data-testid="additional-navigation">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/7 hover:text-white">
-        <span>أدوات إضافية</span>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 py-3 text-slate-300 transition hover:bg-white/7 hover:text-white">
+        <span className="min-w-0">
+          <span className="block text-[10px] font-bold tracking-wide text-slate-500">أدوات إضافية</span>
+          <span className="mt-0.5 block text-sm font-black">المتابعة وأدوات المدرسة</span>
+          <span className="mt-1 block truncate text-[11px] font-medium text-slate-400" data-testid="additional-navigation-preview">
+            {preview}{items.length > fallbackItems.length ? "، والمزيد" : ""}
+          </span>
+        </span>
         <ChevronDown aria-hidden size={17} className="transition-transform group-open:rotate-180" />
       </summary>
       <div className="border-t border-white/10 px-1 pt-4">

@@ -271,13 +271,17 @@ def referrals_report(*, school, membership, roles, date_range, params) -> dict:
 
     totals = queryset.aggregate(
         total=Count("id"),
-        new=Count("id", filter=Q(status=ReferralStatus.NEW)),
+        new=Count("id", filter=Q(status=ReferralStatus.PENDING_VICE)),
+        under_vice_review=Count(
+            "id", filter=Q(status=ReferralStatus.UNDER_VICE_REVIEW)
+        ),
+        referred=Count("id", filter=Q(status=ReferralStatus.REFERRED)),
         acknowledged=Count("id", filter=Q(status=ReferralStatus.ACKNOWLEDGED)),
         closed=Count("id", filter=Q(status=ReferralStatus.CLOSED)),
         unassigned=Count(
             "id",
-            filter=Q(assigned_counselor_membership__isnull=True)
-            & Q(status__in=[ReferralStatus.NEW, ReferralStatus.ACKNOWLEDGED]),
+            filter=Q(assigned_vice_membership__isnull=True)
+            & Q(status=ReferralStatus.PENDING_VICE),
         ),
         high_priority=Count("id", filter=Q(priority=ReferralPriority.HIGH)),
     )

@@ -5,11 +5,15 @@ from django.db.models import Prefetch, Q
 
 from accounts.mobile import normalize_mobile
 from memberships.models import SchoolMembership
-from staff.models import CounselorSectionAssignment, StaffProfile
+from staff.models import CounselorSectionAssignment, StaffProfile, VicePrincipalScopeAssignment
 
 COUNSELOR_SECTIONS_PREFETCH = Prefetch(
     "membership__counselor_section_assignments",
     queryset=CounselorSectionAssignment.objects.select_related("section__grade"),
+)
+VICE_PRINCIPAL_SCOPES_PREFETCH = Prefetch(
+    "membership__vice_principal_scope_assignments",
+    queryset=VicePrincipalScopeAssignment.objects.select_related("grade", "section__grade"),
 )
 
 
@@ -21,6 +25,7 @@ def staff_queryset(*, school, search: str = "", role: str = "", status: str = ""
             "membership__roles",
             "membership__capabilities",
             COUNSELOR_SECTIONS_PREFETCH,
+            VICE_PRINCIPAL_SCOPES_PREFETCH,
         )
         .order_by("display_name")
     )

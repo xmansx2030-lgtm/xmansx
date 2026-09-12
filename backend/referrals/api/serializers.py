@@ -10,6 +10,7 @@ from referrals.models import (
     ReferralObservationType,
     ReferralPriority,
     ReferralReason,
+    ReferralSourceType,
     ReferralStatus,
     StudentReferral,
 )
@@ -40,6 +41,10 @@ class ReferralCreateSerializer(serializers.Serializer):
 
 class AssignSerializer(serializers.Serializer):
     counselor_membership_id = serializers.IntegerField(min_value=1)
+
+
+class AssignVicePrincipalSerializer(serializers.Serializer):
+    vice_principal_membership_id = serializers.IntegerField(min_value=1)
 
 
 class CloseSerializer(serializers.Serializer):
@@ -106,6 +111,8 @@ def serialize_referral_row(referral: StudentReferral) -> dict:
         "priority_label": referral.get_priority_display(),
         "created_at": referral.created_at.isoformat(),
         "created_by_name": membership_name(referral.created_by_membership),
+        "assigned_vice_principal_id": referral.assigned_vice_membership_id,
+        "assigned_vice_principal_name": membership_name(referral.assigned_vice_membership),
         "assigned_counselor_id": referral.assigned_counselor_membership_id,
         "assigned_counselor_name": membership_name(referral.assigned_counselor_membership),
         "counseling_case_id": counseling_case.id if counseling_case else None,
@@ -135,21 +142,82 @@ def serialize_event(event) -> dict:
 
 
 def serialize_referral_detail(
-    referral: StudentReferral, *, current_metrics=None, membership=None, roles=None
+    referral: StudentReferral,
+    *,
+    current_metrics=None,
+    membership=None,
+    roles=None,
+    recommended_counselor=None,
 ) -> dict:
     """التفاصيل: لقطة الإحالة ثابتة، والمؤشرات الحالية منفصلة عنها صراحة (بند 59).
 
     ‏can_cancel يُحسب خادميًا لتخفي الواجهة زرًا سيرفضه الخادم أصلًا.
     """
     role_set = set(roles or [])
-    manage = bool(role_set & {"SCHOOL_MANAGER", "VICE_PRINCIPAL"})
+    is_manager = "SCHOOL_MANAGER" in role_set
+    is_responsible_vice = (
+        "VICE_PRINCIPAL" in role_set
+        and membership is not None
+        and referral.assigned_vice_membership_id == membership.id
+    )
+    is_assigned_counselor = (
+        "COUNSELOR" in role_set
+        and membership is not None
+        and referral.assigned_counselor_membership_id == membership.id
+    )
     is_creator = membership is not None and (referral.created_by_membership_id == membership.id)
+    vice_stage_ready = (
+        referral.source_type != ReferralSourceType.TEACHER
+        or referral.assigned_vice_membership_id is not None
+    )
     return {
         **serialize_referral_row(referral),
         "can_cancel": (
             referral.status in OPEN_STATUSES
-            and (manage or (is_creator and referral.status == ReferralStatus.NEW))
+            and (
+                is_manager
+                or (
+                    is_creator
+                    and referral.status == ReferralStatus.PENDING_VICE
+                )
+            )
         ),
+        "can_assign_vice_principal": is_manager
+        and referral.status
+        in (ReferralStatus.PENDING_VICE, ReferralStatus.UNDER_VICE_REVIEW),
+        "can_start_vice_review": (
+            is_manager or is_responsible_vice
+        )
+        and vice_stage_ready
+        and referral.status == ReferralStatus.PENDING_VICE,
+        "can_forward_to_counselor": (
+            is_manager or is_responsible_vice
+        )
+        and vice_stage_ready
+        and referral.status
+        in (
+            ReferralStatus.PENDING_VICE,
+            ReferralStatus.UNDER_VICE_REVIEW,
+            ReferralStatus.REFERRED,
+        ),
+        "can_acknowledge": is_assigned_counselor
+        and referral.status == ReferralStatus.REFERRED,
+        "can_close": (
+            is_manager
+            or (
+                is_responsible_vice
+                and referral.status
+                in (
+                    ReferralStatus.PENDING_VICE,
+                    ReferralStatus.UNDER_VICE_REVIEW,
+                )
+            )
+            or (
+                is_assigned_counselor
+                and referral.status == ReferralStatus.ACKNOWLEDGED
+            )
+        )
+        and referral.status in OPEN_STATUSES,
         "description": referral.description,
         "snapshot_at_referral": referral.snapshot_data,
         "current_metrics": current_metrics,
@@ -164,6 +232,13 @@ def serialize_referral_detail(
             else None
         ),
         "accepted_at": referral.accepted_at.isoformat() if referral.accepted_at else None,
+        "vice_reviewed_at": (
+            referral.vice_reviewed_at.isoformat() if referral.vice_reviewed_at else None
+        ),
+        "recommended_counselor_id": (
+            recommended_counselor.id if recommended_counselor else None
+        ),
+        "recommended_counselor_name": membership_name(recommended_counselor),
         "closed_at": referral.closed_at.isoformat() if referral.closed_at else None,
         "closed_by_name": membership_name(referral.closed_by_membership),
         "closure_reason": referral.closure_reason,

@@ -392,6 +392,25 @@ function UsageGrid({ usage }: { usage: Usage }) {
 const formatDate = (value: string | null | undefined) =>
   value ? new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(new Date(value)) : "—";
 
+function canonicalMobileForCredentials(value: string): string {
+  const latin = [...value.trim()].map((char) => {
+    const index = "٠١٢٣٤٥٦٧٨٩".indexOf(char);
+    return index === -1 ? char : String(index);
+  }).join("");
+  const compact = latin.replace(/[\s\-().]/g, "");
+  const digits = compact.startsWith("+")
+    ? compact.slice(1)
+    : compact.startsWith("00")
+      ? compact.slice(2)
+      : compact;
+  const national = digits.startsWith("966")
+    ? digits.slice(3)
+    : digits.startsWith("05")
+      ? digits.slice(1)
+      : digits;
+  return /^5\d{8}$/.test(national) ? `+966${national}` : value;
+}
+
 function CredentialNotice({
   mobile,
   password,
@@ -403,12 +422,13 @@ function CredentialNotice({
   managerLabel: "المدير" | "المديرة";
   onClose: () => void;
 }) {
+  const canonicalMobile = canonicalMobileForCredentials(mobile);
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-bold">بيانات الدخول</p>
-          <p className="mt-1">رقم الجوال: <b dir="ltr">{mobile}</b></p>
+          <p className="mt-1">رقم الجوال: <b dir="ltr">{canonicalMobile}</b></p>
           {password ? (
             <>
               <p>كلمة المرور المؤقتة: <b dir="ltr">{password}</b></p>
@@ -425,7 +445,7 @@ function CredentialNotice({
           type="button"
           variant="secondary"
           className="mt-2 px-3 py-1.5"
-          onClick={() => void navigator.clipboard.writeText(`رقم الجوال: ${mobile}\nكلمة المرور المؤقتة: ${password}`)}
+          onClick={() => void navigator.clipboard.writeText(`رقم الجوال: ${canonicalMobile}\nكلمة المرور المؤقتة: ${password}`)}
         >
           نسخ بيانات الدخول
         </Button>

@@ -10,6 +10,10 @@ urlpatterns = [
         "staff/<int:staff_id>/counselor-sections/",
         views.StaffCounselorSectionsView.as_view(),
     ),
+    path(
+        "staff/<int:staff_id>/vice-principal-scopes/",
+        views.StaffVicePrincipalScopesView.as_view(),
+    ),
     path("staff/<int:staff_id>/roles/<str:role>/", views.StaffRoleDeleteView.as_view()),
     path(
         "staff/<int:staff_id>/morning-attendance/",

@@ -110,3 +110,70 @@ describe("School switching", () => {
     cancelQueries.mockRestore();
   });
 });
+
+describe("Initial password change", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    document.cookie = "csrftoken=test-token";
+  });
+
+  const TEMP_ACCOUNT = buildMe({
+    mobile: "+966550000001",
+    must_change_password: true,
+    active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+    roles: ["SCHOOL_MANAGER"],
+    memberships: [membership(1, 10, "ثانوية الأندلس", ["SCHOOL_MANAGER"])],
+  });
+
+  it("shows every password rule and a supported help path before submission", async () => {
+    mockApi({ "/auth/me/": { body: TEMP_ACCOUNT } });
+    renderApp("/change-password");
+
+    expect(await screen.findByRole("heading", { name: "تغيير كلمة المرور" })).toBeInTheDocument();
+    expect(screen.getByText("ثمانية أحرف على الأقل.")).toBeInTheDocument();
+    expect(screen.getByText("ليست أرقامًا فقط.")).toBeInTheDocument();
+    expect(screen.getByText("ليست رقم جوالك.")).toBeInTheDocument();
+    expect(screen.getByText("مختلفة عن كلمة المرور المؤقتة.")).toBeInTheDocument();
+    expect(screen.getByText("مطابقة لما ستكتبه في حقل التأكيد.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "تواصل مع الدعم عبر واتساب" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/966537720207?text="),
+    );
+  });
+
+  it.each([
+    ["Temp-12345", "12345678", "12345678", "لا يمكن أن تكون أرقامًا فقط"],
+    ["Temp-12345", "+966550000001", "+966550000001", "لا يمكن أن تكون رقم جوالك"],
+    ["Temp-12345", "Temp-12345", "Temp-12345", "يجب أن تختلف"],
+  ])("rejects an invalid new password before the API call", async (current, next, confirm, message) => {
+    const { calls } = mockApi({ "/auth/me/": { body: TEMP_ACCOUNT } });
+    renderApp("/change-password");
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("كلمة المرور الحالية"), current);
+    await user.type(screen.getByLabelText("كلمة المرور الجديدة"), next);
+    await user.type(screen.getByLabelText("تأكيد كلمة المرور"), confirm);
+    await user.click(screen.getByRole("button", { name: "حفظ كلمة المرور" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(calls.some(({ url }) => url.includes("/auth/change-initial-password/"))).toBe(false);
+  });
+
+  it("lets a user leave the mandatory screen by logging out", async () => {
+    let loggedOut = false;
+    const { calls } = mockApi({
+      "/auth/me/": () => (loggedOut ? UNAUTHENTICATED : { body: TEMP_ACCOUNT }),
+      "/auth/logout/": () => {
+        loggedOut = true;
+        return { body: { detail: "ok" } };
+      },
+    });
+    renderApp("/change-password");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "تسجيل الخروج" }));
+
+    expect(await screen.findByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
+    expect(calls.some(({ url, init }) => url.includes("/auth/logout/") && init?.method === "POST")).toBe(true);
+  });
+});

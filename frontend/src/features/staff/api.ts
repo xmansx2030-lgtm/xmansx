@@ -17,6 +17,8 @@ export interface StaffMember {
   is_current_user?: boolean;
   counselor_sections?: CounselorSection[];
   counselor_section_count?: number;
+  vice_principal_scopes?: VicePrincipalScope[];
+  vice_principal_scope_count?: number;
 }
 
 export interface CounselorSection {
@@ -26,6 +28,10 @@ export interface CounselorSection {
   grade: { id: number; name: string };
 }
 
+export type VicePrincipalScope =
+  | { kind: "GRADE"; id: number; name: string }
+  | { kind: "SECTION"; id: number; name: string; grade: { id: number; name: string } };
+
 export interface ManualStaffInput {
   display_name: string;
   mobile: string;
@@ -34,6 +40,9 @@ export interface ManualStaffInput {
   role: string;
   counselor_section_ids?: number[];
   confirm_section_reassignment?: boolean;
+  vice_principal_grade_ids?: number[];
+  vice_principal_section_ids?: number[];
+  confirm_scope_reassignment?: boolean;
 }
 
 export interface StaffUpdateInput {
@@ -127,6 +136,21 @@ export const updateCounselorSections = (
     body: {
       counselor_section_ids: counselorSectionIds,
       confirm_section_reassignment: confirmSectionReassignment,
+    },
+  });
+
+export const updateVicePrincipalScopes = (
+  id: number,
+  gradeIds: number[],
+  sectionIds: number[],
+  confirmScopeReassignment = false,
+) =>
+  apiRequest<StaffMember>(`/staff/${id}/vice-principal-scopes/`, {
+    method: "PATCH",
+    body: {
+      vice_principal_grade_ids: gradeIds,
+      vice_principal_section_ids: sectionIds,
+      confirm_scope_reassignment: confirmScopeReassignment,
     },
   });
 

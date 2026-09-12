@@ -108,8 +108,59 @@ describe("platform and subscription UI", () => {
         body: { schools_total: 0, subscriptions: {}, usage_totals: {}, expiring_soon: [] },
       },
       "/platform/plans/": { body: [PLAN] },
+      "/platform/schools/7/subscription/events/": { body: [] },
+      "/platform/schools/7/subscription/": { body: { current: null, history: [] } },
+      "/platform/schools/7/": {
+        body: {
+          id: SCHOOL.id,
+          name: "ثانوية البنات",
+          slug: "girls-school",
+          school_type: "GIRLS",
+          school_status: "ACTIVE",
+          subscription_status: "ACTIVE",
+          plan: PLAN.code,
+          plan_name: PLAN.name_ar,
+          starts_at: "2026-09-12T00:00:00Z",
+          ends_at: "2027-03-12T00:00:00Z",
+          manager: { id: 41, name: "نورة" },
+          usage: USAGE,
+          created_at: "2026-09-12T00:00:00Z",
+          updated_at: "2026-09-12T00:00:00Z",
+          managers: [],
+          subscription: {
+            has_subscription: true,
+            status: "ACTIVE",
+            access_mode: "FULL",
+            plan: { code: PLAN.code, name: PLAN.name_ar, billing_period: PLAN.billing_period },
+            starts_at: "2026-09-12T00:00:00Z",
+            ends_at: "2027-03-12T00:00:00Z",
+            days_remaining: 180,
+            grace_ends_at: null,
+            trial_ends_at: null,
+          },
+          entitlements: {},
+        },
+      },
       "/platform/schools/": (init) => init?.method === "POST"
-        ? { status: 400, body: { code: "TEST", message: "test", details: {} } }
+        ? {
+            status: 201,
+            body: {
+              id: SCHOOL.id,
+              name: "ثانوية البنات",
+              slug: "girls-school",
+              school_type: "GIRLS",
+              school_status: "ACTIVE",
+              subscription_status: "ACTIVE",
+              plan: PLAN.code,
+              plan_name: PLAN.name_ar,
+              starts_at: "2026-09-12T00:00:00Z",
+              ends_at: "2027-03-12T00:00:00Z",
+              manager: { id: 41, name: "نورة" },
+              usage: USAGE,
+              manager_membership_id: 41,
+              temporary_password: "Xm-First-Login",
+            },
+          }
         : { body: { count: 0, next: null, previous: null, results: [] } },
     });
 
@@ -124,7 +175,7 @@ describe("platform and subscription UI", () => {
     expect(screen.getByPlaceholderText("جوال المديرة")).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("اسم المدرسة"), "ثانوية البنات");
     await user.type(screen.getByPlaceholderText("اسم المديرة"), "نورة");
-    await user.type(screen.getByPlaceholderText("جوال المديرة"), "0550000000");
+    await user.type(screen.getByPlaceholderText("جوال المديرة"), "00966550000000");
     await user.selectOptions(screen.getByLabelText("باقة الاشتراك عند الإنشاء"), "1");
     await user.selectOptions(screen.getByLabelText("نوع الاشتراك عند الإنشاء"), "ACTIVE");
     const duration = screen.getByLabelText("مدة الاشتراك عند الإنشاء");
@@ -141,6 +192,8 @@ describe("platform and subscription UI", () => {
         months: 6,
       });
     });
+    expect(await screen.findByText("Xm-First-Login")).toBeInTheDocument();
+    expect(screen.getByText("+966550000000")).toBeInTheDocument();
   });
 
   it("shows expired subscription state and over-limit usage to school managers", async () => {

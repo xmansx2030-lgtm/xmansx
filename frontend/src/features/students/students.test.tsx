@@ -68,6 +68,42 @@ describe("StudentsPage", () => {
     expect(screen.queryByRole("button", { name: "إدخال يدوي" })).not.toBeInTheDocument();
   });
 
+  it("يرشد المدير إلى إضافة البيانات عندما لا يوجد طلاب أصلًا", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/grades/": { body: [] },
+      "/sections/": { body: [] },
+    });
+    renderApp("/students");
+
+    expect(await screen.findByText("لا يوجد طلاب حتى الآن")).toBeInTheDocument();
+    expect(screen.getByText(/ابدأ باستيراد بيانات الطلاب من ملف نور/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "استيراد من نور" })).toHaveAttribute("href", "/students/import");
+    expect(screen.getByRole("button", { name: "إضافة يدوية" })).toBeInTheDocument();
+    expect(screen.queryByText(/معايير البحث/)).not.toBeInTheDocument();
+  });
+
+  it("يفرّق النتائج الفارغة بسبب المرشحات ويتيح مسحها", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/grades/": { body: [] },
+      "/sections/": { body: [] },
+    });
+    renderApp("/students");
+    const user = userEvent.setup();
+
+    const search = await screen.findByLabelText("بحث بالاسم");
+    await user.type(search, "اسم غير موجود");
+    expect(await screen.findByText("لا توجد نتائج مطابقة")).toBeInTheDocument();
+    expect(screen.getByText(/وفق معايير البحث الحالية/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "مسح جميع المرشحات" }));
+
+    expect(search).toHaveValue("");
+    expect(await screen.findByText("لا يوجد طلاب حتى الآن")).toBeInTheDocument();
+  });
+
   it("adds a student manually from the directory", async () => {
     mockApi({
       "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },

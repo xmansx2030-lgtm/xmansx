@@ -23,6 +23,7 @@ from school_dashboard.selectors import attendance as attendance_selectors
 from school_dashboard.selectors import attention as attention_selectors
 from school_dashboard.selectors import followup as followup_selectors
 from school_dashboard.selectors import reports as report_selectors
+from school_dashboard.selectors import setup as setup_selectors
 
 #: اللوحة التنفيذية للمدير والوكيل — المرشد والمعلم خارجها (بنود 82-85)
 DASHBOARD_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
@@ -137,6 +138,14 @@ class DashboardTodayView(_DashboardView):
                 builder=lambda: attendance_selectors.today_operations(school=school),
             )
         )
+
+
+class DashboardSetupReadinessView(_DashboardView):
+    """Small, uncached checklist for a newly provisioned school."""
+
+    @extend_schema(responses=None)
+    def get(self, request):
+        return Response(setup_selectors.setup_readiness(school=request.school))
 
 
 class DashboardTrendView(_DashboardView):

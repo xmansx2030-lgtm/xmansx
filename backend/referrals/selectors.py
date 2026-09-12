@@ -1,7 +1,8 @@
-"""قراءات الإحالات — النطاق حسب الدور هو خط الدفاع الأول لخصوصية المعلم.
+"""قراءات الإحالات — النطاق حسب الدور ومسؤولية الوكيل هو خط الدفاع الأول.
 
-- المدير/الوكيل: كل إحالات المدرسة.
-- المرشد: المعينة له + غير المعينة (ليستلمها) — لا حالات زميله.
+- المدير: كل إحالات المدرسة.
+- الوكيل: الإحالات الموجهة إليه حسب نطاقه فقط، إضافة إلى مشاركاته.
+- المرشد: المحولة إليه فقط — لا يرى ما يزال لدى الوكيل ولا حالات زميله.
 - المعلم: ما أنشأه أو ساهم فيه فقط (بند 42/79/110).
 """
 
@@ -21,6 +22,8 @@ _LIST_RELATIONS = (
     "student",
     "created_by_membership__user",
     "created_by_membership__staff_profile",
+    "assigned_vice_membership__user",
+    "assigned_vice_membership__staff_profile",
     "assigned_counselor_membership__user",
     "assigned_counselor_membership__staff_profile",
 )
@@ -51,14 +54,14 @@ def visible_referrals(*, school, membership, roles):
     """الاستعلام المسموح لهذا المستخدم — يُطبق قبل أي فلتر من العميل."""
     role_set = set(roles or [])
     queryset = base_queryset(school)
-    if role_set & set(MANAGE_ROLES):
+    if SchoolRole.SCHOOL_MANAGER in role_set:
         return queryset
 
     scope = Q(pk__in=[])  # لا شيء افتراضيًا — الأدوار تضيف إليه
+    if SchoolRole.VICE_PRINCIPAL in role_set:
+        scope |= Q(assigned_vice_membership=membership) | _participation_filter(membership)
     if SchoolRole.COUNSELOR in role_set:
-        scope |= Q(assigned_counselor_membership=membership) | Q(
-            assigned_counselor_membership__isnull=True
-        )
+        scope |= Q(assigned_counselor_membership=membership)
     if SchoolRole.TEACHER in role_set:
         scope |= _participation_filter(membership)
     if scope == Q(pk__in=[]):
@@ -79,13 +82,15 @@ def _participated(referral, membership) -> bool:
 
 def can_view_referral(*, referral, membership, roles) -> bool:
     role_set = set(roles or [])
-    if role_set & set(MANAGE_ROLES):
+    if SchoolRole.SCHOOL_MANAGER in role_set:
         return True
     # الأدوار تتجمع: المشاركة تمنح الرؤية مهما كان الدور الآخر
     if _participated(referral, membership):
         return True
+    if SchoolRole.VICE_PRINCIPAL in role_set:
+        return referral.assigned_vice_membership_id == membership.id
     if SchoolRole.COUNSELOR in role_set:
-        return referral.assigned_counselor_membership_id in (None, membership.id)
+        return referral.assigned_counselor_membership_id == membership.id
     return False
 
 
@@ -115,6 +120,12 @@ def apply_filters(queryset, params):
             queryset = queryset.filter(assigned_counselor_membership__isnull=True)
         else:
             queryset = queryset.filter(assigned_counselor_membership_id=_int_or_zero(value))
+    if params.get("vice_principal"):
+        value = params["vice_principal"]
+        if value == "UNASSIGNED":
+            queryset = queryset.filter(assigned_vice_membership__isnull=True)
+        else:
+            queryset = queryset.filter(assigned_vice_membership_id=_int_or_zero(value))
     if params.get("grade"):
         queryset = queryset.filter(
             student__enrollments__status="ACTIVE",
@@ -132,17 +143,24 @@ def referral_kpis(*, school, membership, roles) -> dict:
     """مؤشرات صندوق الوارد — محسوبة على النطاق المسموح لا على المدرسة كلها."""
     scoped = visible_referrals(school=school, membership=membership, roles=roles)
     counts = scoped.aggregate(
-        new_count=Count("id", filter=Q(status=ReferralStatus.NEW)),
+        pending_vice_count=Count("id", filter=Q(status=ReferralStatus.PENDING_VICE)),
+        under_vice_review_count=Count(
+            "id", filter=Q(status=ReferralStatus.UNDER_VICE_REVIEW)
+        ),
+        referred_count=Count("id", filter=Q(status=ReferralStatus.REFERRED)),
         acknowledged_count=Count("id", filter=Q(status=ReferralStatus.ACKNOWLEDGED)),
-        unassigned_count=Count(
+        unassigned_vice_count=Count(
             "id",
-            filter=Q(assigned_counselor_membership__isnull=True) & Q(status__in=OPEN_STATUSES),
+            filter=Q(assigned_vice_membership__isnull=True)
+            & Q(status=ReferralStatus.PENDING_VICE),
         ),
     )
     return {
-        "new_count": counts["new_count"] or 0,
+        "pending_vice_count": counts["pending_vice_count"] or 0,
+        "under_vice_review_count": counts["under_vice_review_count"] or 0,
+        "referred_count": counts["referred_count"] or 0,
         "acknowledged_count": counts["acknowledged_count"] or 0,
-        "unassigned_count": counts["unassigned_count"] or 0,
+        "unassigned_vice_count": counts["unassigned_vice_count"] or 0,
     }
 
 

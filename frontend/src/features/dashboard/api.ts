@@ -140,6 +140,8 @@ export interface OverviewResponse {
     created_in_range: {
       total: number;
       new: number;
+      under_vice_review: number;
+      referred: number;
       acknowledged: number;
       closed: number;
       cancelled: number;
@@ -210,6 +212,25 @@ export interface AttentionResponse {
   item_cap_per_kind: number;
 }
 
+export interface SetupReadinessStep {
+  key: string;
+  label: string;
+  complete: boolean;
+  href: string | null;
+  description: string;
+  blocking?: boolean;
+  actionable: boolean;
+  /** يرسله الخادم عندما تعتمد الخطوة على خطوة سابقة لم تكتمل بعد. */
+  blocked_reason?: string | null;
+}
+
+export interface SetupReadinessResponse {
+  ready: boolean;
+  completed_steps: number;
+  total_steps: number;
+  steps: SetupReadinessStep[];
+}
+
 /** يبني query string واحدًا لكل نقاط اللوحة — النطاق والفلاتر مصدرها واحد. */
 export function dashboardQuery(filters: DashboardFilters): string {
   const query = new URLSearchParams();
@@ -240,3 +261,6 @@ export const getAttention = (signal?: AbortSignal) =>
 
 export const getToday = (signal?: AbortSignal) =>
   apiRequest<TodayOperations>("/dashboard/today/", { signal });
+
+export const getSetupReadiness = (signal?: AbortSignal) =>
+  apiRequest<SetupReadinessResponse>("/dashboard/setup-readiness/", { signal });

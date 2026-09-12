@@ -26,13 +26,30 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
   const years = useYearsQuery();
   const invalidate = useInvalidateSchoolData();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = () => void invalidate("academic-years");
 
   const createYearMutation = useMutation({
-    mutationFn: (data: { name: string; start_date: string; end_date: string }) =>
-      createYear(data),
-    onSuccess: refresh,
+    mutationFn: async (data: {
+      name: string;
+      start_date: string;
+      end_date: string;
+      activate: boolean;
+    }) => {
+      const { activate, ...yearData } = data;
+      const created = await createYear(yearData);
+      return activate ? yearAction(created.id, "activate") : created;
+    },
+    onSuccess: (year, variables) => {
+      setNotice(
+        variables.activate
+          ? `تم إنشاء العام ${year.name} وتفعيله. أضف الفصل الدراسي الحالي لإكمال التقويم.`
+          : `تم إنشاء العام ${year.name} كعام قادم. فعّله عندما يحين وقت تشغيله.`,
+      );
+      refresh();
+    },
+    onSettled: refresh,
     onError: (e) => setError(e instanceof ApiError ? e.message : "تعذر إنشاء العام."),
   });
 
@@ -53,12 +70,19 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
           {error}
         </p>
       )}
+      {notice && (
+        <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+          {notice}
+        </p>
+      )}
 
       {canWrite && (
         <CreateYearForm
           pending={createYearMutation.isPending}
+          activateOnCreate={!years.data.some((year) => year.status === "ACTIVE")}
           onCreate={(data) => {
             setError(null);
+            setNotice(null);
             createYearMutation.mutate(data);
           }}
         />
@@ -87,10 +111,17 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
 
 function CreateYearForm({
   pending,
+  activateOnCreate,
   onCreate,
 }: {
   pending: boolean;
-  onCreate: (data: { name: string; start_date: string; end_date: string }) => void;
+  activateOnCreate: boolean;
+  onCreate: (data: {
+    name: string;
+    start_date: string;
+    end_date: string;
+    activate: boolean;
+  }) => void;
 }) {
   const [name, setName] = useState("");
   const [start, setStart] = useState("");
@@ -108,7 +139,12 @@ function CreateYearForm({
       setError("تاريخ البداية يجب أن يسبق تاريخ النهاية.");
       return;
     }
-    onCreate({ name: name.trim(), start_date: start, end_date: end });
+    onCreate({
+      name: name.trim(),
+      start_date: start,
+      end_date: end,
+      activate: activateOnCreate,
+    });
     setName("");
   }
 
@@ -117,6 +153,11 @@ function CreateYearForm({
       onSubmit={submit}
       className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
+      <div className="w-full rounded-xl bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
+        {activateOnCreate
+          ? "هذه أول سنة دراسية للمدرسة؛ سيُنشأ العام ويُفعّل مباشرةً في خطوة واحدة."
+          : "يوجد عام دراسي نشط؛ سيُحفظ العام الجديد كعام قادم دون التأثير في التشغيل الحالي."}
+      </div>
       <TextField
         label="اسم العام (مثل 2026/2027)"
         value={name}
@@ -135,7 +176,11 @@ function CreateYearForm({
         onChange={(e) => setEnd(e.target.value)}
       />
       <Button type="submit" disabled={pending}>
-        إنشاء عام دراسي
+        {pending
+          ? "جارٍ الحفظ..."
+          : activateOnCreate
+            ? "إنشاء العام وتفعيله"
+            : "إنشاء عام قادم"}
       </Button>
       {error && (
         <p role="alert" className="w-full text-sm text-red-700">
@@ -160,10 +205,20 @@ function YearCard({
   onError: (message: string) => void;
 }) {
   const [showSemesterForm, setShowSemesterForm] = useState(false);
+  const hasActiveSemester = year.semesters.some((semester) => semester.status === "ACTIVE");
 
   const semesterMutation = useMutation({
-    mutationFn: (data: { name: string; sequence: number; start_date: string; end_date: string }) =>
-      createSemester(year.id, data),
+    mutationFn: async (data: {
+      name: string;
+      sequence: number;
+      start_date: string;
+      end_date: string;
+      activate: boolean;
+    }) => {
+      const { activate, ...semesterData } = data;
+      const created = await createSemester(year.id, semesterData);
+      return activate ? activateSemester(created.id) : created;
+    },
     onSuccess: () => {
       setShowSemesterForm(false);
       onChanged();
@@ -201,7 +256,7 @@ function YearCard({
           </span>
           {canWrite && year.status === "UPCOMING" && (
             <Button variant="secondary" onClick={() => onAction("activate")}>
-              تفعيل
+              تفعيل العام الآن
             </Button>
           )}
           {canWrite && year.status === "ACTIVE" && (
@@ -211,6 +266,12 @@ function YearCard({
           )}
         </div>
       </div>
+
+      {year.status === "UPCOMING" && (
+        <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          هذا العام محفوظ كعام قادم ولم يبدأ تشغيله بعد. اضغط «تفعيل العام الآن» عندما تريد اعتماده.
+        </p>
+      )}
 
       <h4 className="mb-2 text-sm font-medium text-slate-600">الفصول الدراسية</h4>
       {year.semesters.length === 0 && (
@@ -252,6 +313,7 @@ function YearCard({
         <SemesterForm
           nextSequence={year.semesters.length + 1}
           pending={semesterMutation.isPending}
+          activateOnCreate={year.status === "ACTIVE" && !hasActiveSemester}
           onSubmit={(data) => semesterMutation.mutate(data)}
         />
       )}
@@ -262,11 +324,19 @@ function YearCard({
 function SemesterForm({
   nextSequence,
   pending,
+  activateOnCreate,
   onSubmit,
 }: {
   nextSequence: number;
   pending: boolean;
-  onSubmit: (data: { name: string; sequence: number; start_date: string; end_date: string }) => void;
+  activateOnCreate: boolean;
+  onSubmit: (data: {
+    name: string;
+    sequence: number;
+    start_date: string;
+    end_date: string;
+    activate: boolean;
+  }) => void;
 }) {
   const [name, setName] = useState(`الفصل الدراسي ${nextSequence}`);
   const [start, setStart] = useState("");
@@ -278,7 +348,13 @@ function SemesterForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (name.trim() && start && end) {
-          onSubmit({ name: name.trim(), sequence: nextSequence, start_date: start, end_date: end });
+          onSubmit({
+            name: name.trim(),
+            sequence: nextSequence,
+            start_date: start,
+            end_date: end,
+            activate: activateOnCreate,
+          });
         }
       }}
     >
@@ -286,7 +362,11 @@ function SemesterForm({
       <TextField label="البداية" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
       <TextField label="النهاية" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
       <Button type="submit" disabled={pending}>
-        حفظ الفصل
+        {pending
+          ? "جارٍ الحفظ..."
+          : activateOnCreate
+            ? "حفظ الفصل وتفعيله"
+            : "حفظ الفصل"}
       </Button>
     </form>
   );

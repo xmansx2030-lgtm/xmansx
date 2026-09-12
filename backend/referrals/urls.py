@@ -10,10 +10,19 @@ urlpatterns = [
     path("referrals/options/", views.ReferralOptionsView.as_view()),
     path("referrals/students/", views.ReferralCandidateListView.as_view()),
     path("referrals/counselors/", views.CounselorListView.as_view()),
+    path("referrals/vice-principals/", views.VicePrincipalListView.as_view()),
     # ملاحظة على الحالة المفتوحة لـ(طالب، فئة) — بلا تمرير معرف إحالة
     path("referrals/contribute/", views.ContributeToOpenCaseView.as_view()),
     path("referrals/<int:referral_id>/", views.ReferralDetailView.as_view()),
     path("referrals/<int:referral_id>/assign/", views.ReferralAssignView.as_view()),
+    path(
+        "referrals/<int:referral_id>/assign-vice/",
+        views.ReferralAssignVicePrincipalView.as_view(),
+    ),
+    path(
+        "referrals/<int:referral_id>/start-vice-review/",
+        views.ReferralViceReviewView.as_view(),
+    ),
     path(
         "referrals/<int:referral_id>/acknowledge/",
         views.ReferralAcknowledgeView.as_view(),

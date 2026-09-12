@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDot, Filter, Inbox, Send, UserRoundCheck } from "lucide-react";
+import { CircleDot, Filter, Inbox, Send, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -30,7 +30,11 @@ export function ReferralStatusBadge({
 }) {
   const tone =
     status === "ACKNOWLEDGED"
-      ? "bg-blue-100 text-blue-800"
+      ? "bg-teal-100 text-teal-800"
+      : status === "REFERRED"
+        ? "bg-blue-100 text-blue-800"
+        : status === "UNDER_VICE_REVIEW"
+          ? "bg-violet-100 text-violet-800"
       : status === "CLOSED"
         ? "bg-emerald-100 text-emerald-800"
         : status === "CANCELLED"
@@ -64,6 +68,7 @@ export function ReferralsTable({
             <th className="p-3 text-start">المصدر</th>
             <th className="p-3 text-start">السبب</th>
             <th className="p-3 text-start">المُحيل</th>
+            <th className="p-3 text-start">الوكيل المسؤول</th>
             <th className="p-3 text-start">المرشد</th>
             <th className="p-3 text-start">الحالة</th>
             <th className="p-3 text-start"></th>
@@ -84,6 +89,7 @@ export function ReferralsTable({
                 <span className="block text-xs text-slate-500">{row.reason_label}</span>
               </td>
               <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المُحيل</span>{row.created_by_name ?? "—"}</td>
+              <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الوكيل المسؤول</span>{row.assigned_vice_principal_name ?? "بانتظار التوزيع"}</td>
               <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المرشد</span>{row.assigned_counselor_name ?? "غير معيّن"}</td>
               <td className="p-0 md:table-cell md:p-3">
                 <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>
@@ -112,7 +118,7 @@ export function ReferralsTable({
   );
 }
 
-/** صندوق وارد الإحالات — للمرشد والإدارة (بند 50). لا تحليلات ولا خطط متابعة. */
+/** صندوق الإحالات المرحلي: وكيل النطاق أولًا، ثم المرشد المعيّن فقط. */
 export function ReferralsPage() {
   const me = useMe();
   const schoolId = useActiveSchoolId();
@@ -164,17 +170,18 @@ export function ReferralsPage() {
     <div className="ds-page">
       <PageHeader
         icon={Send}
-        eyebrow="صندوق المتابعة المشترك"
+        eyebrow="مسار الإحالات المنظّم"
         title="الإحالات"
-        description="متابعة الإحالات الواردة وتعيينها للمرشد وتوثيق مسار التعامل معها حتى الإغلاق."
+        description="إحالات المعلمين تصل إلى وكيل الصف أو الفصل أولًا؛ يعالجها أو يحولها إلى المرشد المناسب مع توثيق كامل للمسار."
         tone={me.data?.roles.includes("COUNSELOR") ? "counselor" : "operational"}
         badge={me.data?.roles.includes("COUNSELOR") ? roleLabel("COUNSELOR", schoolType) : "فريق الإدارة"}
       />
 
-      <div className="grid grid-cols-3 gap-2" data-testid="referral-kpis">
-        <MetricCard label="جديدة" value={kpis.data?.new_count ?? 0} icon={Inbox} tone="blue" />
-        <MetricCard label="تم استلامها" value={kpis.data?.acknowledged_count ?? 0} icon={UserRoundCheck} tone="teal" />
-        <MetricCard label="غير معينة" value={kpis.data?.unassigned_count ?? 0} icon={CircleDot} tone="amber" />
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" data-testid="referral-kpis">
+        <MetricCard label="بانتظار الوكيل" value={kpis.data?.pending_vice_count ?? 0} icon={Inbox} tone="amber" />
+        <MetricCard label="يعالجها الوكيل" value={kpis.data?.under_vice_review_count ?? 0} icon={ShieldCheck} tone="violet" />
+        <MetricCard label="محوّلة للمرشد" value={kpis.data?.referred_count ?? 0} icon={CircleDot} tone="blue" />
+        <MetricCard label="قيد متابعة المرشد" value={kpis.data?.acknowledged_count ?? 0} icon={UserRoundCheck} tone="teal" />
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -189,8 +196,10 @@ export function ReferralsPage() {
           >
             <option value="">الكل</option>
             <option value="OPEN">المفتوحة</option>
-            <option value="NEW">جديدة</option>
-            <option value="ACKNOWLEDGED">تم الاستلام</option>
+            <option value="PENDING_VICE">بانتظار الوكيل</option>
+            <option value="UNDER_VICE_REVIEW">قيد معالجة الوكيل</option>
+            <option value="REFERRED">محوّلة للمرشد</option>
+            <option value="ACKNOWLEDGED">قيد متابعة المرشد</option>
             <option value="CLOSED">مغلقة</option>
             <option value="CANCELLED">ملغاة</option>
           </select>

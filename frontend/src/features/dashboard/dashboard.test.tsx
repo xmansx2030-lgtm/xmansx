@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -227,6 +227,94 @@ const ATTENTION = {
   ],
 };
 
+const SETUP_STEPS = [
+  {
+    key: "academic_year",
+    label: "تفعيل العام الدراسي",
+    description: "أنشئ عامًا دراسيًا ثم فعّله.",
+    complete: true,
+    href: "/settings?section=calendar",
+    actionable: false,
+    blocked_reason: null,
+  },
+  {
+    key: "semester",
+    label: "تفعيل الفصل الدراسي",
+    description: "أنشئ الفصل الدراسي الحالي وفعّله.",
+    complete: true,
+    href: "/settings?section=calendar",
+    actionable: false,
+    blocked_reason: null,
+  },
+  {
+    key: "structure",
+    label: "إعداد الصفوف والفصول",
+    description: "أضف صفًا وفصلًا واحدًا على الأقل.",
+    complete: true,
+    href: "/settings?section=structure",
+    actionable: false,
+    blocked_reason: null,
+  },
+  {
+    key: "schedule",
+    label: "ربط جدول الحصص بأيام الدراسة",
+    description: "أنشئ جدول حصص واربطه بيوم دراسي واحد على الأقل.",
+    complete: true,
+    href: "/settings?section=bell-schedules",
+    actionable: false,
+    blocked_reason: null,
+  },
+  {
+    key: "students",
+    label: "إضافة الطلاب",
+    description: "استورد بيانات الطلاب من ملف نور.",
+    complete: true,
+    href: "/students/import",
+    actionable: false,
+    blocked_reason: null,
+  },
+  {
+    key: "teachers",
+    label: "إضافة المعلمين",
+    description: "استورد بيانات المعلمين من ملف نور.",
+    complete: true,
+    href: "/staff/import",
+    actionable: false,
+    blocked_reason: null,
+  },
+];
+
+const SETUP_READY = {
+  ready: true,
+  completed_steps: SETUP_STEPS.length,
+  total_steps: SETUP_STEPS.length,
+  steps: SETUP_STEPS,
+};
+
+function incompleteSetup({
+  complete = [],
+  actionable = [],
+  blockedReason = "أكمل العام الدراسي أولًا.",
+}: {
+  complete?: string[];
+  actionable?: string[];
+  blockedReason?: string;
+} = {}) {
+  const steps = SETUP_STEPS.map((step) => ({
+    ...step,
+    complete: complete.includes(step.key),
+    actionable: actionable.includes(step.key),
+    blocked_reason:
+      complete.includes(step.key) || actionable.includes(step.key) ? null : blockedReason,
+  }));
+  return {
+    ready: false,
+    completed_steps: steps.filter((step) => step.complete).length,
+    total_steps: steps.length,
+    steps,
+  };
+}
+
 function mockDashboard(overrides: Record<string, unknown> = {}) {
   return mockApi({
     "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
@@ -241,6 +329,7 @@ function mockDashboard(overrides: Record<string, unknown> = {}) {
     "/dashboard/attendance-trend/": { body: TREND },
     "/dashboard/sections/": { body: SECTIONS },
     "/dashboard/attention/": { body: ATTENTION },
+    "/dashboard/setup-readiness/": { body: SETUP_READY },
     "/staff/": { body: { count: 4, next: null, previous: null, results: [] } },
     ...overrides,
   });
@@ -493,37 +582,85 @@ describe("لوحة إدارة المدرسة", () => {
     expect(calls.some((call) => call.url.includes("/staff/"))).toBe(false);
   });
 
-  it("تنبه المدير إلى استيراد الطلاب والفصول والمعلمين عند غياب بياناتهم", async () => {
-    mockDashboard({
-      "/attendance/sections/": { body: [] },
-      "/staff/": { body: { count: 0, next: null, previous: null, results: [] } },
+  it("تبدأ رحلة الإعداد بالعام الدراسي وتعطّل الخطوات التابعة مع سبب واضح", async () => {
+    const { calls } = mockDashboard({
+      "/dashboard/setup-readiness/": {
+        body: incompleteSetup({ actionable: ["academic_year", "teachers"] }),
+      },
     });
     renderApp("/dashboard");
 
-    const alerts = await screen.findByTestId("school-setup-alerts");
-    expect(alerts).toHaveTextContent("استكمل بيانات المدرسة");
-    expect(within(alerts).getByTestId("setup-alert-students")).toHaveTextContent(
-      "استورد بيانات الطلاب والفصول من ملف إكسل (نور)",
-    );
-    expect(within(alerts).getByTestId("setup-alert-teachers")).toHaveTextContent(
-      "استورد بيانات المعلمين من ملف إكسل (نور)",
-    );
-    expect(within(alerts).getAllByRole("link", { name: "بدء الاستيراد" })[0]).toHaveAttribute(
+    const progress = await screen.findByTestId("school-setup-progress");
+    expect(progress).toHaveTextContent("إعداد المدرسة غير مكتمل");
+    expect(within(progress).getByTestId("setup-progress-count")).toHaveTextContent("أُنجز 0 من 6");
+    expect(within(progress).getByRole("progressbar", { name: "تقدم إعداد المدرسة" })).toHaveAttribute("aria-valuenow", "0");
+
+    const steps = within(progress).getAllByRole("listitem");
+    expect(steps.map((step) => step.getAttribute("data-testid"))).toEqual([
+      "setup-step-academic_year",
+      "setup-step-semester",
+      "setup-step-structure",
+      "setup-step-schedule",
+      "setup-step-students",
+      "setup-step-teachers",
+    ]);
+    expect(within(progress).getByRole("link", { name: /إنشاء العام أو تفعيله/ })).toHaveAttribute(
       "href",
-      "/students/import",
+      "/settings?section=calendar",
     );
-    expect(within(alerts).getAllByRole("link", { name: "بدء الاستيراد" })[1]).toHaveAttribute(
+    const students = within(progress).getByTestId("setup-step-students");
+    expect(within(students).queryByRole("link")).toBeNull();
+    expect(within(students).getByTestId("setup-step-students-reason")).toHaveTextContent(
+      "أكمل العام الدراسي أولًا",
+    );
+    expect(within(students).getByText("أكمل المتطلب السابق")).toHaveAttribute("aria-disabled", "true");
+    expect(within(progress).getByRole("link", { name: /إضافة المعلمين/ })).toHaveAttribute(
       "href",
       "/staff/import",
     );
+
+    expect(screen.queryByTestId("school-today-status-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("today-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("attention-section")).not.toBeInTheDocument();
+    expect(screen.queryByText("الوضع مستقر")).not.toBeInTheDocument();
+    expect(screen.queryByText(/الحصة التالية/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-setup-status")).toHaveTextContent("الإعداد غير مكتمل");
+    expect(calls.some((call) => call.url.includes("/dashboard/today/"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/dashboard/attention/"))).toBe(false);
   });
 
-  it("لا تعرض تنبيهات الاستيراد للمدير بعد توفر الطلاب والمعلمين", async () => {
+  it("تُبقي استيراد الطلاب متاحًا بعد تفعيل العام حتى لو لم تكتمل البنية", async () => {
+    mockDashboard({
+      "/dashboard/setup-readiness/": {
+        body: incompleteSetup({
+          complete: ["academic_year"],
+          actionable: ["semester", "structure", "schedule", "students", "teachers"],
+        }),
+      },
+    });
+    renderApp("/dashboard");
+
+    const progress = await screen.findByTestId("school-setup-progress");
+    expect(within(progress).getByTestId("setup-progress-count")).toHaveTextContent("أُنجز 1 من 6");
+    expect(within(progress).getByTestId("setup-step-academic_year")).toHaveAttribute("data-complete", "true");
+    expect(within(progress).getByRole("link", { name: "إضافة الطلاب" })).toHaveAttribute(
+      "href",
+      "/students/import",
+    );
+    expect(within(progress).getByRole("link", { name: "إعداد جدول الحصص" })).toHaveAttribute(
+      "href",
+      "/settings?section=bell-schedules",
+    );
+    expect(screen.queryByTestId("today-card")).not.toBeInTheDocument();
+  });
+
+  it("تخفي رحلة الإعداد وتعرض التشغيل بعد اكتمال الجاهزية", async () => {
     mockDashboard();
     renderApp("/dashboard");
 
     await screen.findByTestId("school-today-status-card");
-    expect(screen.queryByTestId("school-setup-alerts")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("school-setup-progress")).not.toBeInTheDocument();
+    expect(screen.getByTestId("today-card")).toBeInTheDocument();
   });
 
   it("تعرض للمدير والوكيل الحضور اليومي والغياب المتتابع والاستئذان بالدلالة نفسها", async () => {
@@ -658,7 +795,33 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.queryByTestId("dashboard-kpis")).toBeNull();
   });
 
-  it("تجمع غياب العام الدراسي في حالة إعداد واحدة قابلة للتصرف", async () => {
+  it("تحجب التشغيل احترازيًا عندما يتعذر التحقق من الجاهزية", async () => {
+    const { calls } = mockDashboard({
+      "/dashboard/setup-readiness/": {
+        status: 503,
+        body: { code: "SERVICE_UNAVAILABLE", message: "تعذر فحص الجاهزية.", details: {} },
+      },
+    });
+
+    renderApp("/dashboard");
+    const error = await screen.findByTestId("setup-readiness-error");
+    expect(error).toHaveTextContent("تعذر فحص الجاهزية");
+    expect(within(error).getByRole("button", { name: /إعادة فحص الجاهزية/ })).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-setup-failed-status")).toHaveTextContent("غير مؤكدة");
+    expect(screen.queryByRole("navigation", { name: "إجراءات سريعة" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("academic-setup-required")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("school-today-status-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("attention-section")).not.toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/dashboard/today/"))).toBe(false);
+
+    const checksBeforeRetry = calls.filter((call) => call.url.includes("/dashboard/setup-readiness/")).length;
+    await userEvent.click(within(error).getByRole("button", { name: /إعادة فحص الجاهزية/ }));
+    await waitFor(() => {
+      expect(calls.filter((call) => call.url.includes("/dashboard/setup-readiness/")).length).toBeGreaterThan(checksBeforeRetry);
+    });
+  });
+
+  it("تجمع غياب العام الدراسي للوكيل في رسالة واحدة دون عرض أرقام ناقصة", async () => {
     const noActiveYear = {
       status: 409,
       body: {
@@ -668,7 +831,9 @@ describe("لوحة إدارة المدرسة", () => {
       },
     };
     mockDashboard({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/dashboard/overview/": noActiveYear,
+      "/dashboard/today/": noActiveYear,
       "/dashboard/attendance-trend/": noActiveYear,
       "/dashboard/sections/": noActiveYear,
       "/dashboard/attention/": noActiveYear,
@@ -677,10 +842,8 @@ describe("لوحة إدارة المدرسة", () => {
     renderApp("/dashboard");
     const setup = await screen.findByTestId("academic-setup-required");
     expect(setup).toHaveTextContent("يلزم تفعيل عام دراسي");
-    expect(within(setup).getByRole("link", { name: "إعداد العام الدراسي" })).toHaveAttribute(
-      "href",
-      "/settings?section=calendar",
-    );
+    expect(setup).toHaveTextContent("يحتاج التفعيل إلى مدير المدرسة");
+    expect(within(setup).queryByRole("link", { name: "إعداد العام الدراسي" })).toBeNull();
     expect(screen.queryByText("اتجاه الغياب")).toBeNull();
     expect(screen.queryByTestId("attention-section")).toBeNull();
   });

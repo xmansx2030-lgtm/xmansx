@@ -98,6 +98,80 @@ class CounselorSectionAssignment(TimestampedModel):
         return f"{self.section} → {self.counselor_membership}"
 
 
+class VicePrincipalScopeAssignment(TimestampedModel):
+    """نطاق الطلاب المسؤول عنه الوكيل.
+
+    يكون النطاق إما صفًا كاملًا أو فصلًا محددًا. إسناد الفصل أكثر
+    تخصصًا من إسناد الصف، ولذلك يتقدم عليه عند توجيه إحالة جديدة.
+    الإسناد للإحالات الجديدة فقط؛ تغيير النطاق لا يعيد كتابة التاريخ.
+    """
+
+    school = models.ForeignKey(
+        "schools.School",
+        on_delete=models.CASCADE,
+        related_name="vice_principal_scope_assignments",
+    )
+    vice_principal_membership = models.ForeignKey(
+        "memberships.SchoolMembership",
+        on_delete=models.CASCADE,
+        related_name="vice_principal_scope_assignments",
+    )
+    grade = models.ForeignKey(
+        "students.Grade",
+        on_delete=models.CASCADE,
+        related_name="vice_principal_assignments",
+        null=True,
+        blank=True,
+    )
+    section = models.ForeignKey(
+        "students.Section",
+        on_delete=models.CASCADE,
+        related_name="vice_principal_assignments",
+        null=True,
+        blank=True,
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "نطاق مسؤولية وكيل"
+        verbose_name_plural = "نطاقات مسؤولية الوكلاء"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(grade__isnull=False, section__isnull=True)
+                    | models.Q(grade__isnull=True, section__isnull=False)
+                ),
+                name="vice_scope_exactly_one_target",
+            ),
+            models.UniqueConstraint(
+                fields=["school", "grade"],
+                condition=models.Q(grade__isnull=False),
+                name="uniq_vice_scope_grade",
+            ),
+            models.UniqueConstraint(
+                fields=["school", "section"],
+                condition=models.Q(section__isnull=False),
+                name="uniq_vice_scope_section",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["school", "vice_principal_membership"],
+                name="vice_scope_owner_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        target = self.section or self.grade
+        return f"{target} → {self.vice_principal_membership}"
+
+
 class StaffImportStatus(models.TextChoices):
     UPLOADED = "UPLOADED", "مرفوع"
     PROCESSING = "PROCESSING", "قيد المعالجة"

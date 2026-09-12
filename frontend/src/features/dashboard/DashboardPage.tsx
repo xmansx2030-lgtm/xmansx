@@ -38,19 +38,21 @@ import type {
   DashboardPreset,
   OverviewResponse,
   SectionsResponse,
+  SetupReadinessResponse,
+  SetupReadinessStep,
   TodayOperations,
 } from "@/features/dashboard/api";
 import {
   getAttention,
   getOverview,
   getSections,
+  getSetupReadiness,
   getToday,
   getTrend,
 } from "@/features/dashboard/api";
 import { TrendChart } from "@/features/dashboard/TrendChart";
-import { getStaff } from "@/features/staff/api";
 import type { SchoolType } from "@/types/auth";
-import { roleGenitivePluralLabel, roleLabel as schoolRoleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
+import { roleLabel as schoolRoleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 /** تحديث متدرج: التشغيل أسرع، والتنبيهات أبطأ، والتحليلات لا تُحمّل كل عدة ثوانٍ. */
 // نافذة قصيرة حتى تنعكس اعتمادات المعلمين على شاشة الإدارة دون إعادة تحميل.
@@ -95,18 +97,29 @@ export function DashboardPage() {
   const filterKey = [preset, fromDate, toDate, gradeId, sectionId];
   const enabled = activeSchoolId > 0;
   const canManageCalendar = me.data?.roles.includes("SCHOOL_MANAGER") ?? false;
-  const analyticsEnabled = enabled;
+  const setupReadinessQuery = useQuery({
+    queryKey: schoolScopedKey(activeSchoolId, "dashboard", "setup-readiness"),
+    queryFn: ({ signal }) => getSetupReadiness(signal),
+    enabled: enabled && canManageCalendar,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const setupIncomplete =
+    canManageCalendar && setupReadinessQuery.isSuccess && !setupReadinessQuery.data.ready;
+  const setupReady =
+    canManageCalendar && setupReadinessQuery.isSuccess && setupReadinessQuery.data.ready;
+  const setupChecking = canManageCalendar && setupReadinessQuery.isPending;
+  const setupFailed = canManageCalendar && setupReadinessQuery.isError;
+  // المدير يبدأ في وضع آمن: لا تشغيل ولا أرقام قبل إثبات اكتمال جميع المتطلبات.
+  const operationalEnabled =
+    enabled &&
+    (!canManageCalendar || setupReady);
+  const analyticsEnabled = operationalEnabled;
 
   const sectionsListQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
     queryFn: ({ signal }) => getAttendanceSections(signal),
     enabled: analyticsEnabled,
-  });
-  const teachersQuery = useQuery({
-    queryKey: schoolScopedKey(activeSchoolId, "dashboard", "setup", "teachers"),
-    queryFn: ({ signal }) =>
-      getStaff({ page: 1, role: "TEACHER", status: "ACTIVE" }, signal),
-    enabled: enabled && canManageCalendar,
   });
   const overviewQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "overview", ...filterKey),
@@ -117,7 +130,7 @@ export function DashboardPage() {
   const todayQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "today"),
     queryFn: ({ signal }) => getToday(signal),
-    enabled,
+    enabled: operationalEnabled,
     refetchInterval: LIVE_POLL_MS,
     refetchIntervalInBackground: true,
   });
@@ -136,20 +149,22 @@ export function DashboardPage() {
   const attentionQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "attention"),
     queryFn: ({ signal }) => getAttention(signal),
-    enabled,
+    enabled: operationalEnabled,
     refetchInterval: ATTENTION_POLL_MS,
   });
 
-  const academicSetupRequired = [
-    overviewQuery.error,
-    todayQuery.error,
-    trendQuery.error,
-    sectionsQuery.error,
-    attentionQuery.error,
-  ].some(
-    (error) =>
-      error instanceof ApiError && error.code === "ACTIVE_ACADEMIC_YEAR_REQUIRED",
-  );
+  const academicSetupRequired =
+    !canManageCalendar &&
+    [
+      overviewQuery.error,
+      todayQuery.error,
+      trendQuery.error,
+      sectionsQuery.error,
+      attentionQuery.error,
+    ].some(
+      (error) =>
+        error instanceof ApiError && error.code === "ACTIVE_ACADEMIC_YEAR_REQUIRED",
+    );
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const workspaceRoleLabel = schoolRoleLabel(
     canManageCalendar ? "SCHOOL_MANAGER" : "VICE_PRINCIPAL",
@@ -164,13 +179,7 @@ export function DashboardPage() {
     canManageCalendar ? overviewQuery.dataUpdatedAt : 0,
   );
   const isRefreshing =
-    todayQuery.isFetching || attentionQuery.isFetching || overviewQuery.isFetching;
-  const needsStudentImport =
-    sectionsListQuery.isSuccess &&
-    (sectionsListQuery.data.length === 0 ||
-      sectionsListQuery.data.every((section) => section.students_count === 0));
-  const needsTeacherImport = teachersQuery.isSuccess && teachersQuery.data.count === 0;
-
+    setupReadinessQuery.isFetching || todayQuery.isFetching || attentionQuery.isFetching || overviewQuery.isFetching;
   const grades = useMemo(() => {
     const map = new Map<number, string>();
     for (const s of sectionsListQuery.data ?? []) {
@@ -183,8 +192,12 @@ export function DashboardPage() {
   );
 
   function refreshOperationalData() {
-    const refreshes: Promise<unknown>[] = [todayQuery.refetch(), attentionQuery.refetch()];
-    if (canManageCalendar) refreshes.push(overviewQuery.refetch());
+    const refreshes: Promise<unknown>[] = [];
+    if (canManageCalendar) refreshes.push(setupReadinessQuery.refetch());
+    if (operationalEnabled) {
+      refreshes.push(todayQuery.refetch(), attentionQuery.refetch());
+      if (canManageCalendar) refreshes.push(overviewQuery.refetch());
+    }
     void Promise.all(refreshes);
   }
 
@@ -194,7 +207,11 @@ export function DashboardPage() {
         icon={Sparkles}
         eyebrow="مركز قيادة المدرسة"
         title={me.data?.active_school?.name ?? "لوحة إدارة المدرسة"}
-        description="متابعة مباشرة لما يحدث الآن، وما يحتاج إلى إجراء إداري دون تأخير."
+        description={setupIncomplete || setupChecking
+          ? "أكمل خطوات التهيئة بالترتيب لتصبح المدرسة جاهزة للتشغيل اليومي."
+          : setupFailed
+            ? "تعذر التحقق من جاهزية المدرسة؛ لن نعرض حالة تشغيل غير مؤكدة."
+            : "متابعة مباشرة لما يحدث الآن، وما يحتاج إلى إجراء إداري دون تأخير."}
         tone="executive"
         badge={workspaceRoleLabel}
         meta={overviewQuery.isSuccess ? (
@@ -218,15 +235,29 @@ export function DashboardPage() {
                 تحديث الآن
               </Button>
             </div>
-            <p className="flex items-center gap-2 text-[11px] text-slate-400" data-testid="dashboard-last-updated">
-              <span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-40" /><span className="relative inline-flex size-2 rounded-full bg-emerald-400" /></span>
-              تحديث تلقائي كل 5 ثوانٍ
-              {lastUpdatedAt > 0 && ` · آخر تحديث ${new Date(lastUpdatedAt).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}`}
-            </p>
+            {setupChecking ? (
+              <p className="flex items-center gap-2 text-[11px] text-amber-200" data-testid="dashboard-setup-checking">
+                <span className="size-2 animate-pulse rounded-full bg-amber-300" /> جارٍ التحقق من جاهزية المدرسة
+              </p>
+            ) : setupIncomplete ? (
+              <p className="flex items-center gap-2 text-[11px] text-amber-200" data-testid="dashboard-setup-status">
+                <span className="size-2 rounded-full bg-amber-300" /> الإعداد غير مكتمل — التشغيل متوقف حتى اكتمال الخطوات
+              </p>
+            ) : setupFailed ? (
+              <p className="flex items-center gap-2 text-[11px] text-red-200" data-testid="dashboard-setup-failed-status">
+                <span className="size-2 rounded-full bg-red-300" /> حالة الجاهزية غير مؤكدة — التشغيل مخفي احترازيًا
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 text-[11px] text-slate-400" data-testid="dashboard-last-updated">
+                <span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-40" /><span className="relative inline-flex size-2 rounded-full bg-emerald-400" /></span>
+                تحديث تلقائي كل 5 ثوانٍ
+                {lastUpdatedAt > 0 && ` · آخر تحديث ${new Date(lastUpdatedAt).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}`}
+              </p>
+            )}
           </div>
         )}
       >
-        {canManageCalendar && (
+        {canManageCalendar && setupReady && (
           <nav aria-label="إجراءات سريعة" className="relative flex flex-wrap gap-2">
             <QuickLink to="/attendance/monitoring" icon={Activity}>متابعة التحضير</QuickLink>
             <QuickLink to="/staff" icon={UsersRound}>فريق المدرسة</QuickLink>
@@ -235,12 +266,22 @@ export function DashboardPage() {
         )}
       </PageHeader>
 
-      {canManageCalendar && (needsStudentImport || needsTeacherImport) && (
-        <SchoolSetupAlerts
-          schoolType={schoolType}
-          needsStudentImport={needsStudentImport}
-          needsTeacherImport={needsTeacherImport}
-        />
+      {setupChecking && (
+        <div className="grid min-h-40 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="setup-readiness-loading">
+          <Spinner label="جارٍ فحص جاهزية المدرسة..." />
+        </div>
+      )}
+
+      {setupIncomplete && <SchoolSetupProgress data={setupReadinessQuery.data} />}
+
+      {setupFailed && (
+        <section className="rounded-3xl border border-red-200 bg-white p-5 shadow-sm sm:p-6" data-testid="setup-readiness-error">
+          <ErrorState error={setupReadinessQuery.error} />
+          <Button className="mt-4" onClick={() => void setupReadinessQuery.refetch()} disabled={setupReadinessQuery.isFetching}>
+            <RefreshCw aria-hidden size={16} className={setupReadinessQuery.isFetching ? "animate-spin" : ""} />
+            إعادة فحص الجاهزية
+          </Button>
+        </section>
       )}
 
       {academicSetupRequired ? (
@@ -259,7 +300,7 @@ export function DashboardPage() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : setupIncomplete || setupChecking || setupFailed ? null : (
         <>
           {!canManageCalendar && (
             <RoleWorkspace
@@ -437,8 +478,8 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
             <b data-testid="referrals-created">{data.referrals.created_in_range.total}</b>
           </p>
           <p className="mt-1 text-sm text-slate-700">
-            مفتوحة الآن: <b data-testid="referrals-open">{data.referrals.open_now}</b> · بلا
-            مرشد معيّن: <b>{data.referrals.unassigned_now}</b>
+            مفتوحة الآن: <b data-testid="referrals-open">{data.referrals.open_now}</b> · تحتاج
+            تعيين وكيل: <b>{data.referrals.unassigned_now}</b>
           </p>
           <p className="mt-1 text-xs text-slate-500">
             أعداد فقط — وصف الإحالة وملاحظات المرشد لا تُعرض في لوحة الإدارة.
@@ -482,90 +523,120 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
   );
 }
 
-function SchoolSetupAlerts({
-  schoolType,
-  needsStudentImport,
-  needsTeacherImport,
-}: {
-  schoolType: SchoolType;
-  needsStudentImport: boolean;
-  needsTeacherImport: boolean;
-}) {
+function SchoolSetupProgress({ data }: { data: SetupReadinessResponse }) {
+  const progress = data.total_steps > 0
+    ? Math.round((data.completed_steps / data.total_steps) * 100)
+    : 0;
+
   return (
     <section
-      className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5"
-      aria-labelledby="school-setup-alerts-title"
-      data-testid="school-setup-alerts"
+      className="overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-sm"
+      aria-labelledby="school-setup-progress-title"
+      data-testid="school-setup-progress"
     >
-      <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
-          <AlertTriangle aria-hidden size={21} />
-        </span>
-        <div>
-          <h2 id="school-setup-alerts-title" className="font-black text-amber-950">
-            استكمل بيانات المدرسة
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-amber-900">
-            نفّذ الخطوات التالية لتصبح شاشة الإدارة والتشغيل جاهزة بالبيانات الفعلية.
+      <div className="bg-gradient-to-l from-amber-50 via-white to-white p-5 sm:p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
+              <AlertTriangle aria-hidden size={21} />
+            </span>
+            <div>
+              <p className="text-xs font-black text-amber-800">البدء لأول مرة</p>
+              <h2 id="school-setup-progress-title" className="mt-1 text-lg font-black text-amber-950">
+                إعداد المدرسة غير مكتمل
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-amber-900">
+                أكمل الخطوات التالية حتى تعرض لوحة التشغيل حالة فعلية للمدرسة. لن نعرض مؤشرات استقرار أو حصصًا متوقعة قبل الجاهزية.
+              </p>
+            </div>
+          </div>
+          <p className="shrink-0 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-black text-amber-950" data-testid="setup-progress-count">
+            أُنجز {data.completed_steps} من {data.total_steps}
           </p>
+        </div>
+
+        <div
+          className="mt-5 h-2 overflow-hidden rounded-full bg-amber-100"
+          role="progressbar"
+          aria-label="تقدم إعداد المدرسة"
+          aria-valuemin={0}
+          aria-valuemax={data.total_steps}
+          aria-valuenow={data.completed_steps}
+        >
+          <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {needsStudentImport && (
-          <SetupAlert
-            to="/students/import"
-            icon={GraduationCap}
-            title={`استورد بيانات ${studentPluralLabel(schoolType)} والفصول من ملف إكسل (نور)`}
-            description="سيتم إنشاء الصفوف والفصول وربط الطلاب بها بعد مراجعة الملف واعتماده."
-            testId="setup-alert-students"
-          />
-        )}
-        {needsTeacherImport && (
-          <SetupAlert
-            to="/staff/import"
-            icon={UsersRound}
-            title={`استورد بيانات ${roleGenitivePluralLabel("TEACHER", schoolType)} من ملف إكسل (نور)`}
-            description="راجع بيانات المعلمين وأدوارهم قبل اعتمادها وإضافتها إلى فريق المدرسة."
-            testId="setup-alert-teachers"
-          />
-        )}
-      </div>
+      <ol className="grid gap-3 border-t border-amber-100 bg-amber-50/35 p-4 sm:p-5 lg:grid-cols-2">
+        {data.steps.map((step, index) => (
+          <SetupProgressStep key={step.key} step={step} index={index + 1} />
+        ))}
+      </ol>
     </section>
   );
 }
 
-function SetupAlert({
-  to,
-  icon: Icon,
-  title,
-  description,
-  testId,
-}: {
-  to: string;
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  testId: string;
-}) {
+const SETUP_STEP_META: Record<string, { icon: LucideIcon; action: string }> = {
+  academic_year: { icon: CalendarDays, action: "إنشاء العام أو تفعيله" },
+  semester: { icon: CalendarDays, action: "إعداد الفصل الدراسي" },
+  structure: { icon: GraduationCap, action: "إعداد الصفوف والفصول" },
+  schedule: { icon: Clock3, action: "إعداد جدول الحصص" },
+  students: { icon: GraduationCap, action: "استيراد الطلاب" },
+  teachers: { icon: UsersRound, action: "استيراد المعلمين" },
+};
+
+function SetupProgressStep({ step, index }: { step: SetupReadinessStep; index: number }) {
+  const meta = SETUP_STEP_META[step.key] ?? { icon: Settings, action: "فتح الإعداد" };
+  const Icon = meta.icon;
+  const actionLabel =
+    step.key === "schedule" && step.href?.includes("section=week-days")
+      ? "ربط الجدول بأيام الدوام"
+      : step.key === "students" || step.key === "teachers"
+        ? step.label
+        : meta.action;
+
   return (
-    <article className="rounded-2xl border border-amber-200 bg-white p-4" data-testid={testId}>
+    <li
+      className={`rounded-2xl border bg-white p-4 ${step.complete ? "border-emerald-200" : "border-amber-200"}`}
+      data-testid={`setup-step-${step.key}`}
+      data-complete={step.complete ? "true" : "false"}
+    >
       <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700">
-          <Icon aria-hidden size={19} />
+        <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${step.complete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+          {step.complete ? <CheckCircle2 aria-hidden size={20} /> : <Icon aria-hidden size={19} />}
         </span>
         <div className="min-w-0">
-          <h3 className="font-black leading-6 text-slate-900">{title}</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
-          <Link
-            to={to}
-            className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-900 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-amber-950"
-          >
-            بدء الاستيراد <ArrowLeft aria-hidden size={15} />
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black text-slate-400">الخطوة {index}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${step.complete ? "bg-emerald-50 text-emerald-700" : step.actionable ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
+              {step.complete ? "مكتملة" : step.actionable ? "جاهزة للتنفيذ" : "بانتظار خطوة سابقة"}
+            </span>
+          </div>
+          <h3 className="mt-1 font-black leading-6 text-slate-900">{step.label}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{step.description}</p>
+          {!step.complete && step.blocked_reason && (
+            <p className="mt-2 text-xs font-bold leading-5 text-amber-800" data-testid={`setup-step-${step.key}-reason`}>
+              {step.blocked_reason}
+            </p>
+          )}
+          {!step.complete && step.actionable && step.href ? (
+            <Link
+              to={step.href}
+              className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-900 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-amber-950"
+            >
+              {actionLabel} <ArrowLeft aria-hidden size={15} />
+            </Link>
+          ) : !step.complete ? (
+            <span
+              className="mt-3 inline-flex min-h-10 cursor-not-allowed items-center rounded-xl bg-slate-100 px-3.5 py-2 text-sm font-bold text-slate-400"
+              aria-disabled="true"
+            >
+              أكمل المتطلب السابق
+            </span>
+          ) : null}
         </div>
       </div>
-    </article>
+    </li>
   );
 }
 
@@ -902,7 +973,7 @@ const ATTENTION_GROUPS: { key: string; label: string; icon: LucideIcon }[] = [
   { key: "attendance_overdue", label: "تحضير متأخر", icon: Activity },
   { key: "warning_due", label: "إنذارات مستحقة", icon: BellRing },
   { key: "excuse_pending", label: "أعذار معلقة", icon: FileCheck2 },
-  { key: "referral_unassigned", label: "إحالات بلا مرشد", icon: Send },
+  { key: "referral_unassigned", label: "إحالات تحتاج وكيلًا", icon: Send },
   { key: "counseling", label: "متابعة إرشادية", icon: UsersRound },
 ];
 
@@ -1019,7 +1090,7 @@ function AttentionRow({ item }: { item: AttentionItem }) {
     ATTENDANCE_OVERDUE: { icon: Activity, action: "متابعة التحضير" },
     WARNING_DUE: { icon: BellRing, action: "مراجعة الإنذار" },
     EXCUSE_PENDING: { icon: FileCheck2, action: "مراجعة العذر" },
-    REFERRAL_UNASSIGNED: { icon: Send, action: "تعيين مرشد" },
+    REFERRAL_UNASSIGNED: { icon: Send, action: "تعيين وكيل" },
   };
   const meta = presentation[item.kind] ?? { icon: AlertTriangle, action: "فتح المتابعة" };
   const Icon = meta.icon;

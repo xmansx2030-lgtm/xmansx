@@ -119,13 +119,12 @@ def counselor_dashboard_kpis(*, school, membership, roles) -> dict:
     )
 
     role_set = set(roles or [])
-    referrals = StudentReferral.objects.filter(school=school, status=ReferralStatus.NEW)
+    referrals = StudentReferral.objects.filter(
+        school=school, status=ReferralStatus.REFERRED
+    )
     if not (role_set & set(MANAGE_VIEW_ROLES)):
-        # المرشد: الجديدة المعينة له أو غير المعينة (القابلة للاستلام)
-        referrals = referrals.filter(
-            Q(assigned_counselor_membership=membership)
-            | Q(assigned_counselor_membership__isnull=True)
-        )
+        # لا مطالبة عامة: المرشد يرى ما حوّله الوكيل إليه تحديدًا فقط.
+        referrals = referrals.filter(assigned_counselor_membership=membership)
     waiting_teacher = TeacherFollowUpRequest.objects.filter(
         case__in=cases, status=FollowUpRequestStatus.PENDING
     ).count()

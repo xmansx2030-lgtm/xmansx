@@ -51,6 +51,13 @@ def env(make_school, make_user, make_membership):
     environment["counselor"] = make_membership(
         make_user("0551200004"), school, ["COUNSELOR"]
     )
+    from staff.models import VicePrincipalScopeAssignment
+
+    VicePrincipalScopeAssignment.objects.create(
+        school=school,
+        grade=environment["grade"],
+        vice_principal_membership=environment["vice"],
+    )
     return environment
 
 
@@ -120,10 +127,21 @@ def test_purge_steps_cover_both_phases_in_dependency_order(env):
 # ---------------------------------------------------------------- الإجراء ↔ الإحالة
 
 
-def test_admin_referral_records_exactly_one_action(env):
-    """البندان 31 و68: إحالة الوكيل تترك أثرًا واحدًا في سجل الإجراءات."""
+def test_admin_referral_records_action_only_when_forwarded(env):
+    """أثر التحويل للمرشد لا يُسجّل قبل أن يتخذ الوكيل هذا القرار."""
     student = env["students"][0]
     referral = refer(env, student, membership=env["vice"], roles=["VICE_PRINCIPAL"])
+    assert referral.status == "UNDER_VICE_REVIEW"
+    assert not StudentAction.objects.filter(
+        student=student, action_type=StudentActionType.REFERRED_TO_COUNSELOR
+    ).exists()
+
+    assign_counselor(
+        referral_id=referral.id,
+        school=env["school"],
+        membership=env["vice"],
+        counselor_id=env["counselor"].id,
+    )
     actions = StudentAction.objects.filter(
         student=student, action_type=StudentActionType.REFERRED_TO_COUNSELOR
     )
@@ -132,7 +150,8 @@ def test_admin_referral_records_exactly_one_action(env):
     assert action.performed_by_membership_id == env["vice"].id
     assert str(referral.id) in action.notes
     # الإحالة تبقى مصدر الحقيقة — الإجراء أثر إداري فقط (البند 35)
-    assert referral.status == "NEW"
+    referral.refresh_from_db()
+    assert referral.status == "REFERRED"
 
 
 def test_teacher_referral_records_no_administrative_action(env):
@@ -164,6 +183,12 @@ def test_referral_action_links_the_source_warning(env):
     )
     referral = refer(
         env, student, membership=env["vice"], roles=["VICE_PRINCIPAL"], source_warning=warning
+    )
+    assign_counselor(
+        referral_id=referral.id,
+        school=env["school"],
+        membership=env["vice"],
+        counselor_id=env["counselor"].id,
     )
     referral_action = StudentAction.objects.get(
         student=student, action_type=StudentActionType.REFERRED_TO_COUNSELOR

@@ -118,19 +118,23 @@ CATEGORIES_BY_SOURCE: dict[str, tuple[str, ...]] = {
 
 
 class ReferralStatus(models.TextChoices):
-    """حالات م13 فقط — كلها مستعملة فعليًا (لا workflow وهمي).
+    """دورة الإحالة من المعلم، مرورًا بالوكيل، ثم المرشد عند الحاجة."""
 
-    خطط المتابعة وحالات المراجعة الوسيطة تأتي في م14 مع بوابة الإرشاد.
-    """
-
-    NEW = "NEW", "جديدة"
-    ACKNOWLEDGED = "ACKNOWLEDGED", "تم الاستلام"
+    PENDING_VICE = "PENDING_VICE", "بانتظار الوكيل"
+    UNDER_VICE_REVIEW = "UNDER_VICE_REVIEW", "قيد معالجة الوكيل"
+    REFERRED = "REFERRED", "محوّلة للمرشد"
+    ACKNOWLEDGED = "ACKNOWLEDGED", "قيد متابعة المرشد"
     CLOSED = "CLOSED", "مغلقة"
     CANCELLED = "CANCELLED", "ملغاة"
 
 
 #: الحالات المفتوحة — أساس كشف التكرار
-OPEN_STATUSES = (ReferralStatus.NEW, ReferralStatus.ACKNOWLEDGED)
+OPEN_STATUSES = (
+    ReferralStatus.PENDING_VICE,
+    ReferralStatus.UNDER_VICE_REVIEW,
+    ReferralStatus.REFERRED,
+    ReferralStatus.ACKNOWLEDGED,
+)
 
 
 class ReferralPriority(models.TextChoices):
@@ -155,6 +159,14 @@ class StudentReferral(TimestampedModel):
     created_by_membership = models.ForeignKey(
         "memberships.SchoolMembership", on_delete=models.PROTECT, related_name="+"
     )
+    # المسؤولية الإدارية تُجمّد على الإحالة؛ تغيير توزيع الصفوف يؤثر في الجديد فقط.
+    assigned_vice_membership = models.ForeignKey(
+        "memberships.SchoolMembership",
+        on_delete=models.SET_NULL,
+        related_name="assigned_vice_referrals",
+        null=True,
+        blank=True,
+    )
     # SET_NULL: مغادرة المرشد المدرسة لا تحذف تاريخ الحالة (بند 89)
     assigned_counselor_membership = models.ForeignKey(
         "memberships.SchoolMembership",
@@ -173,7 +185,7 @@ class StudentReferral(TimestampedModel):
     )
 
     status = models.CharField(
-        max_length=15, choices=ReferralStatus.choices, default=ReferralStatus.NEW
+        max_length=25, choices=ReferralStatus.choices, default=ReferralStatus.PENDING_VICE
     )
     priority = models.CharField(
         max_length=10, choices=ReferralPriority.choices, default=ReferralPriority.NORMAL
@@ -183,6 +195,7 @@ class StudentReferral(TimestampedModel):
     snapshot_data = models.JSONField(default=dict, blank=True)
 
     accepted_at = models.DateTimeField(null=True, blank=True)
+    vice_reviewed_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_by_membership = models.ForeignKey(
         "memberships.SchoolMembership",
@@ -205,6 +218,10 @@ class StudentReferral(TimestampedModel):
                 name="referral_counselor_idx",
             ),
             models.Index(
+                fields=["school", "assigned_vice_membership", "status"],
+                name="referral_vice_idx",
+            ),
+            models.Index(
                 fields=["school", "category", "status"], name="referral_category_idx"
             ),
             models.Index(fields=["school", "-created_at"], name="referral_recent_idx"),
@@ -218,11 +235,35 @@ class StudentReferral(TimestampedModel):
                         closed_at__isnull=False,
                     )
                     | models.Q(
-                        status__in=[ReferralStatus.NEW, ReferralStatus.ACKNOWLEDGED],
+                        status__in=OPEN_STATUSES,
                         closed_at__isnull=True,
                     )
                 ),
                 name="referral_closed_at_matches_status",
+            ),
+            # لا يمكن إظهار حالة للمرشد قبل مرحلة التحويل، ولا دخول مرحلة
+            # المرشد بلا مسؤول معيّن. الحالات المنتهية تحتفظ بتاريخها كما هو.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        status__in=[
+                            ReferralStatus.PENDING_VICE,
+                            ReferralStatus.UNDER_VICE_REVIEW,
+                        ],
+                        assigned_counselor_membership__isnull=True,
+                    )
+                    | models.Q(
+                        status__in=[
+                            ReferralStatus.REFERRED,
+                            ReferralStatus.ACKNOWLEDGED,
+                        ],
+                        assigned_counselor_membership__isnull=False,
+                    )
+                    | models.Q(
+                        status__in=[ReferralStatus.CLOSED, ReferralStatus.CANCELLED]
+                    )
+                ),
+                name="referral_counselor_matches_stage",
             ),
         ]
 
@@ -275,6 +316,9 @@ class StudentReferralContribution(TimestampedModel):
 
 class ReferralEventType(models.TextChoices):
     CREATED = "CREATED", "أنشئت الإحالة"
+    ROUTED_TO_VICE = "ROUTED_TO_VICE", "وُجّهت إلى الوكيل المسؤول"
+    VICE_REVIEW_STARTED = "VICE_REVIEW_STARTED", "بدأ الوكيل معالجة الإحالة"
+    FORWARDED_TO_COUNSELOR = "FORWARDED_TO_COUNSELOR", "حوّلها الوكيل إلى المرشد"
     ASSIGNED = "ASSIGNED", "تم تعيين مرشد"
     REASSIGNED = "REASSIGNED", "تم تغيير المرشد"
     ACKNOWLEDGED = "ACKNOWLEDGED", "تم استلام الإحالة"

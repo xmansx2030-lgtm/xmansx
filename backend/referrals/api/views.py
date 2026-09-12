@@ -1,6 +1,6 @@
 """‏API الإحالات — المدرسة من request.school حصرًا (بند 74).
 
-الأدوار: المدير/الوكيل يديران؛ المرشد يستلم المعيّن له وغير المعيّن؛ المعلم ينشئ
+الأدوار: المدير يشرف؛ الوكيل يدير نطاقه؛ المرشد يستلم المعيّن له؛ المعلم ينشئ
 ويرى ما أنشأه أو ساهم فيه فقط. كل عملية على إحالة تمر بفحص «هل يراها أصلًا؟»
 قبل فحص «هل يملك الإجراء؟» — إحالة مدرسة أخرى تعيد 404 لا 403 (بند 82).
 """
@@ -19,6 +19,7 @@ from memberships.models import SchoolRole
 from referrals import selectors
 from referrals.api.serializers import (
     AssignSerializer,
+    AssignVicePrincipalSerializer,
     CloseSerializer,
     ContributionCreateSerializer,
     OpenCaseContributionSerializer,
@@ -34,6 +35,7 @@ from referrals.models import (
     ReferralCategory,
     ReferralObservationType,
     ReferralReason,
+    ReferralStatus,
     StudentReferral,
 )
 from referrals.services import referrals as referral_service
@@ -64,6 +66,8 @@ _DETAIL_RELATIONS = (
     "source_warning",
     "created_by_membership__user",
     "created_by_membership__staff_profile",
+    "assigned_vice_membership__user",
+    "assigned_vice_membership__staff_profile",
     "assigned_counselor_membership__user",
     "assigned_counselor_membership__staff_profile",
     "closed_by_membership__user",
@@ -99,11 +103,19 @@ def _detail_payload(referral: StudentReferral, request) -> dict:
         if referral.category == ReferralCategory.ATTENDANCE
         else None
     )
+    recommended_counselor = (
+        referral_service.assigned_counselor_for_student(
+            school=referral.school, student=referral.student
+        )
+        if set(request.school_roles or []) & set(MANAGE_ROLES)
+        else None
+    )
     return serialize_referral_detail(
         referral,
         current_metrics=current,
         membership=request.membership,
         roles=request.school_roles,
+        recommended_counselor=recommended_counselor,
     )
 
 
@@ -353,6 +365,22 @@ class CounselorListView(SchoolScopedAPIView):
         )
 
 
+class VicePrincipalListView(SchoolScopedAPIView):
+    read_roles = (SchoolRole.SCHOOL_MANAGER,)
+    write_roles = (SchoolRole.SCHOOL_MANAGER,)
+
+    @extend_schema(responses=None)
+    def get(self, request):
+        vice_principals = referral_service.active_vice_principals(request.school)
+        return Response(
+            {
+                "vice_principals": [
+                    serialize_counselor(item) for item in vice_principals
+                ]
+            }
+        )
+
+
 class ReferralDetailView(SchoolScopedAPIView):
     read_roles = ALL_SCHOOL_ROLES
     write_roles = MANAGE_ROLES
@@ -385,14 +413,61 @@ class ReferralAssignView(SchoolScopedAPIView):
             referral_id=referral_id,
             school=request.school,
             membership=request.membership,
+            roles=request.school_roles,
             counselor_id=serializer.validated_data["counselor_membership_id"],
             request=request,
         )
         return Response(
-            _detail_payload(_get_visible_referral(request, referral_id, for_detail=True), request)
+            _detail_payload(
+                _get_visible_referral(request, referral_id, for_detail=True), request
+            )
         )
 
 
+class ReferralAssignVicePrincipalView(SchoolScopedAPIView):
+    read_roles = (SchoolRole.SCHOOL_MANAGER,)
+    write_roles = (SchoolRole.SCHOOL_MANAGER,)
+
+    @extend_schema(request=AssignVicePrincipalSerializer, responses=None)
+    def post(self, request, referral_id: int):
+        _get_visible_referral(request, referral_id)
+        serializer = AssignVicePrincipalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        referral_service.assign_vice_principal(
+            referral_id=referral_id,
+            school=request.school,
+            membership=request.membership,
+            vice_principal_id=serializer.validated_data[
+                "vice_principal_membership_id"
+            ],
+            request=request,
+        )
+        return Response(
+            _detail_payload(
+                _get_visible_referral(request, referral_id, for_detail=True), request
+            )
+        )
+
+
+class ReferralViceReviewView(SchoolScopedAPIView):
+    read_roles = MANAGE_ROLES
+    write_roles = MANAGE_ROLES
+
+    @extend_schema(request=None, responses=None)
+    def post(self, request, referral_id: int):
+        _get_visible_referral(request, referral_id)
+        referral_service.start_vice_review(
+            referral_id=referral_id,
+            school=request.school,
+            membership=request.membership,
+            is_manager=SchoolRole.SCHOOL_MANAGER in set(request.school_roles or []),
+            request=request,
+        )
+        return Response(
+            _detail_payload(
+                _get_visible_referral(request, referral_id, for_detail=True), request
+            )
+        )
 class ReferralAcknowledgeView(SchoolScopedAPIView):
     read_roles = (SchoolRole.COUNSELOR,)
     write_roles = (SchoolRole.COUNSELOR,)
@@ -432,10 +507,27 @@ class ReferralCloseView(SchoolScopedAPIView):
                 "إلغاء الإحالة لمنشئها أو للإدارة.",
                 status_code=403,
             )
-        if not cancel and not (roles & {*MANAGE_ROLES, SchoolRole.COUNSELOR}):
+        is_manager = SchoolRole.SCHOOL_MANAGER in roles
+        is_responsible_vice = (
+            SchoolRole.VICE_PRINCIPAL in roles
+            and referral.assigned_vice_membership_id == request.membership.id
+            and referral.status
+            in (
+                "PENDING_VICE",
+                "UNDER_VICE_REVIEW",
+            )
+        )
+        is_assigned_counselor = (
+            SchoolRole.COUNSELOR in roles
+            and referral.assigned_counselor_membership_id == request.membership.id
+            and referral.status == ReferralStatus.ACKNOWLEDGED
+        )
+        if not cancel and not (
+            is_manager or is_responsible_vice or is_assigned_counselor
+        ):
             raise ApiError(
                 "REFERRAL_PERMISSION_DENIED",
-                "إغلاق الإحالة من صلاحية الإدارة أو المرشد.",
+                "إغلاق الإحالة للمسؤول الحالي عنها فقط.",
                 status_code=403,
             )
         referral_service.close_referral(
@@ -444,6 +536,7 @@ class ReferralCloseView(SchoolScopedAPIView):
             membership=request.membership,
             reason=serializer.validated_data["reason"],
             cancel=cancel,
+            roles=request.school_roles,
             request=request,
         )
         return Response(
@@ -479,6 +572,7 @@ class ReferralCancelView(SchoolScopedAPIView):
             cancel=True,
             # المنشئ غير الإداري يلغي قبل الاستلام فقط
             creator_only=not is_manager,
+            roles=request.school_roles,
             request=request,
         )
         return Response(

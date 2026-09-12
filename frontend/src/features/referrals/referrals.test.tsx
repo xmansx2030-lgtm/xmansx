@@ -63,20 +63,27 @@ const ROW = {
   category_label: "سلوك صفي",
   reason_code: "SLEEPING_IN_CLASS",
   reason_label: "النوم داخل الحصة",
-  status: "NEW",
-  status_label: "جديدة",
+  status: "REFERRED",
+  status_label: "محوّلة للمرشد",
   priority: "NORMAL",
   priority_label: "عادية",
   created_at: "2026-08-19T09:00:00Z",
   created_by_name: "أحمد المعلم",
-  assigned_counselor_id: null,
-  assigned_counselor_name: null,
+  assigned_vice_principal_id: 24,
+  assigned_vice_principal_name: "سلمان الوكيل",
+  assigned_counselor_id: 42,
+  assigned_counselor_name: "ليان المرشدة",
   counseling_case_id: null,
 };
 
 const DETAIL = {
   ...ROW,
   can_cancel: true,
+  can_assign_vice_principal: false,
+  can_start_vice_review: false,
+  can_forward_to_counselor: false,
+  can_acknowledge: false,
+  can_close: false,
   description: "نام داخل الحصة ثلاث مرات هذا الأسبوع.",
   snapshot_at_referral: {
     student_name: "محمد أحمد",
@@ -86,6 +93,9 @@ const DETAIL = {
   current_metrics: null,
   source_warning: null,
   accepted_at: null,
+  vice_reviewed_at: "2026-08-19T09:10:00Z",
+  recommended_counselor_id: 42,
+  recommended_counselor_name: "ليان المرشدة",
   closed_at: null,
   closed_by_name: null,
   closure_reason: "",
@@ -103,7 +113,20 @@ const DETAIL = {
 };
 
 const LIST = { count: 1, next: null, previous: null, results: [ROW] };
-const KPIS = { new_count: 1, acknowledged_count: 0, unassigned_count: 1 };
+const KPIS = {
+  pending_vice_count: 0,
+  under_vice_review_count: 0,
+  referred_count: 1,
+  acknowledged_count: 0,
+  unassigned_vice_count: 0,
+};
+const ZERO_KPIS = {
+  pending_vice_count: 0,
+  under_vice_review_count: 0,
+  referred_count: 0,
+  acknowledged_count: 0,
+  unassigned_vice_count: 0,
+};
 
 const SECTIONS = [
   { id: 3, name: "1", grade_id: 9, grade_name: "الأول الثانوي", students_count: 2 },
@@ -133,11 +156,11 @@ describe("referrals (Phase 13)", () => {
       "/attendance/sections/": { body: SECTIONS },
       "/referrals/students/": { body: CANDIDATES },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
-      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/kpis/": { body: ZERO_KPIS },
     });
     renderApp("/referrals/mine");
     expect(
-      await screen.findByRole("heading", { name: "التحويلات إلى المرشد الطلابي" }),
+      await screen.findByRole("heading", { name: "إحالات الطلاب" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "إنشاء تحويل جديد" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "متابعة إحالاتي" })).toBeInTheDocument();
@@ -152,7 +175,7 @@ describe("referrals (Phase 13)", () => {
       "/attendance/sections/": { body: SECTIONS },
       "/referrals/students/": { body: CANDIDATES },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
-      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/kpis/": { body: ZERO_KPIS },
     });
     renderApp("/referrals/mine");
     const user = userEvent.setup();
@@ -178,7 +201,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/students/": { body: CANDIDATES },
       "/referrals/options/": { body: TEACHER_OPTIONS },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
-      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/kpis/": { body: ZERO_KPIS },
       "/referrals/7/": { body: DETAIL },
       "/referrals/": { status: 201, body: DETAIL },
     });
@@ -222,7 +245,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/students/": { body: CANDIDATES },
       "/referrals/options/": { body: TEACHER_OPTIONS },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
-      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/kpis/": { body: ZERO_KPIS },
     });
     renderApp("/referrals/mine");
     const user = userEvent.setup();
@@ -243,7 +266,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/students/": { body: CANDIDATES },
       "/referrals/options/": { body: TEACHER_OPTIONS },
       "/referrals/mine/": { body: { count: 0, next: null, previous: null, results: [] } },
-      "/referrals/kpis/": { body: { new_count: 0, acknowledged_count: 0, unassigned_count: 0 } },
+      "/referrals/kpis/": { body: ZERO_KPIS },
       "/referrals/7/": { body: DETAIL },
       "/referrals/contribute/": {
         status: 201,
@@ -310,12 +333,11 @@ describe("referrals (Phase 13)", () => {
 
     expect(await screen.findByRole("heading", { name: "الإحالات" })).toBeInTheDocument();
     const kpis = await screen.findByTestId("referral-kpis");
-    expect(within(kpis).getByText("جديدة").nextSibling).toHaveTextContent("1");
-    expect(within(kpis).getByText("غير معينة").nextSibling).toHaveTextContent("1");
+    expect(within(kpis).getByText("محوّلة للمرشد").nextSibling).toHaveTextContent("1");
     const row = await screen.findByTestId("referral-row-7");
     expect(row).toHaveTextContent("محمد أحمد");
     expect(row).toHaveTextContent("النوم داخل الحصة");
-    expect(row).toHaveTextContent("غير معيّن");
+    expect(row).toHaveTextContent("ليان المرشدة");
   });
 
   it("filters the inbox by status through the API", async () => {
@@ -341,7 +363,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/7/acknowledge/": {
         body: { ...DETAIL, status: "ACKNOWLEDGED", status_label: "تم الاستلام" },
       },
-      "/referrals/7/": { body: DETAIL },
+      "/referrals/7/": { body: { ...DETAIL, can_acknowledge: true } },
       "/referrals/": { body: LIST },
     });
     renderApp("/referrals");
@@ -386,7 +408,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/7/assign/": {
         body: { ...DETAIL, assigned_counselor_id: 42, assigned_counselor_name: "ليان المرشدة" },
       },
-      "/referrals/7/": { body: DETAIL },
+      "/referrals/7/": { body: { ...DETAIL, can_forward_to_counselor: true } },
       "/referrals/": { body: LIST },
     });
     renderApp("/referrals");
@@ -401,6 +423,75 @@ describe("referrals (Phase 13)", () => {
     });
   });
 
+  it("lets the responsible vice principal start reviewing the referral", async () => {
+    const pending = {
+      ...DETAIL,
+      status: "PENDING_VICE",
+      status_label: "بانتظار الوكيل",
+      assigned_counselor_id: null,
+      assigned_counselor_name: null,
+      vice_reviewed_at: null,
+      can_cancel: false,
+      can_start_vice_review: true,
+      can_forward_to_counselor: true,
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/referrals/kpis/": { body: { ...ZERO_KPIS, pending_vice_count: 1 } },
+      "/referrals/options/": { body: VICE_OPTIONS },
+      "/referrals/counselors/": { body: { counselors: [], has_counselors: false } },
+      "/referrals/7/start-vice-review/": {
+        body: { ...pending, status: "UNDER_VICE_REVIEW", can_start_vice_review: false },
+      },
+      "/referrals/7/": { body: pending },
+      "/referrals/": { body: { ...LIST, results: [pending] } },
+    });
+    renderApp("/referrals");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("open-referral-7"));
+    await user.click(await screen.findByTestId("start-vice-review"));
+    expect(calls.some((call) =>
+      call.url.includes("/referrals/7/start-vice-review/") && call.init?.method === "POST"
+    )).toBe(true);
+  });
+
+  it("lets the manager route an unmapped referral to a vice principal", async () => {
+    const unassigned = {
+      ...DETAIL,
+      status: "PENDING_VICE",
+      status_label: "بانتظار الوكيل",
+      assigned_vice_principal_id: null,
+      assigned_vice_principal_name: null,
+      assigned_counselor_id: null,
+      assigned_counselor_name: null,
+      can_assign_vice_principal: true,
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
+      "/referrals/kpis/": { body: { ...ZERO_KPIS, pending_vice_count: 1, unassigned_vice_count: 1 } },
+      "/referrals/options/": { body: VICE_OPTIONS },
+      "/referrals/counselors/": { body: { counselors: [], has_counselors: false } },
+      "/referrals/vice-principals/": {
+        body: { vice_principals: [{ id: 24, name: "سلمان الوكيل" }] },
+      },
+      "/referrals/7/assign-vice/": {
+        body: { ...unassigned, assigned_vice_principal_id: 24, assigned_vice_principal_name: "سلمان الوكيل" },
+      },
+      "/referrals/7/": { body: unassigned },
+      "/referrals/": { body: { ...LIST, results: [unassigned] } },
+    });
+    renderApp("/referrals");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("open-referral-7"));
+    await user.selectOptions(await screen.findByTestId("assign-vice-principal"), "24");
+    await user.click(screen.getByTestId("save-assign-vice"));
+
+    const routeCall = calls.find((call) => call.url.includes("/referrals/7/assign-vice/"));
+    expect(JSON.parse(String(routeCall!.init!.body))).toEqual({
+      vice_principal_membership_id: 24,
+    });
+  });
+
   it("closes a referral with a reason", async () => {
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["SCHOOL_MANAGER"]) },
@@ -408,7 +499,7 @@ describe("referrals (Phase 13)", () => {
       "/referrals/options/": { body: VICE_OPTIONS },
       "/referrals/counselors/": { body: { counselors: [], has_counselors: false } },
       "/referrals/7/close/": { body: { ...DETAIL, status: "CLOSED" } },
-      "/referrals/7/": { body: DETAIL },
+      "/referrals/7/": { body: { ...DETAIL, can_close: true } },
       "/referrals/": { body: LIST },
     });
     renderApp("/referrals");

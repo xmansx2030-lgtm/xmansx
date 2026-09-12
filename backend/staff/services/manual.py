@@ -132,4 +132,16 @@ def create_staff(*, school, data: dict, actor, request=None) -> tuple[StaffProfi
             confirm_reassignment=data.get("confirm_section_reassignment", False),
             request=request,
         )
+    if data["role"] == SchoolRole.VICE_PRINCIPAL:
+        from staff.services.vice_principal_scopes import set_vice_principal_scopes
+
+        set_vice_principal_scopes(
+            school=school,
+            membership=membership,
+            grade_ids=data.get("vice_principal_grade_ids"),
+            section_ids=data.get("vice_principal_section_ids"),
+            actor=actor,
+            confirm_reassignment=data.get("confirm_scope_reassignment", False),
+            request=request,
+        )
     return profile, temporary_password

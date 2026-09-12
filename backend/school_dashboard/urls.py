@@ -5,6 +5,7 @@ from school_dashboard.api import views
 urlpatterns = [
     path("dashboard/overview/", views.DashboardOverviewView.as_view()),
     path("dashboard/today/", views.DashboardTodayView.as_view()),
+    path("dashboard/setup-readiness/", views.DashboardSetupReadinessView.as_view()),
     path("dashboard/attendance-trend/", views.DashboardTrendView.as_view()),
     path("dashboard/sections/", views.DashboardSectionsView.as_view()),
     path("dashboard/attention/", views.DashboardAttentionView.as_view()),

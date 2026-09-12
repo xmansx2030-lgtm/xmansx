@@ -11,7 +11,6 @@ import {
   getReferralOptions,
 } from "@/features/referrals/api";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
-import { roleLabel } from "@/utils/roles";
 
 /** نموذج الإحالة: الفئات والأسباب تأتي من الخادم حسب دور المستخدم (بند 120/121).
  *
@@ -106,8 +105,7 @@ export function ReferralCreateCard({
       >
         <h2 className="font-bold">يوجد {schoolType === "GIRLS" ? "للطالبة" : "للطالب"} ملف متابعة مفتوح في نفس الفئة</h2>
         <p className="text-sm text-slate-700">
-          الأفضل إضافة ملاحظتك إلى الحالة القائمة بدل فتح حالة جديدة، {schoolType === "GIRLS" ? "لتجدها" : "ليجدها"} {roleLabel("COUNSELOR", schoolType)}
-          مجتمعة.
+          الأفضل إضافة ملاحظتك إلى الحالة القائمة بدل فتح حالة جديدة، لتصل جميع الملاحظات إلى المسؤول الحالي في مسار واحد.
         </p>
         <label className="flex flex-col gap-1 text-sm">
           ملاحظتك
@@ -159,13 +157,13 @@ export function ReferralCreateCard({
       className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="referral-create"
     >
-      <h2 className="font-bold">تحويل {schoolType === "GIRLS" ? "الطالبة" : "الطالب"} إلى {roleLabel("COUNSELOR", schoolType)}</h2>
+      <h2 className="font-bold">إحالة {schoolType === "GIRLS" ? "الطالبة" : "الطالب"} للمتابعة</h2>
       <p className="text-sm text-slate-600">
         {schoolType === "GIRLS" ? "الطالبة" : "الطالب"}: <strong data-testid="referral-student">{student.name}</strong>
       </p>
       <p className="text-xs text-slate-500">
         اكتب ملاحظة واقعية قابلة للملاحظة (مثال: «نام داخل الحصة ثلاث مرات هذا
-        الأسبوع») — الإحالة طلب متابعة وليست تشخيصًا.
+        الأسبوع») — ستصل الإحالة إلى الوكيل المسؤول أولًا، وهي طلب متابعة وليست تشخيصًا.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">

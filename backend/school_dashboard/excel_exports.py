@@ -43,7 +43,7 @@ REPORT_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
     },
     "referrals": {
-        "title": "تقرير الإحالات للمرشد",
+        "title": "تقرير مسار الإحالات",
         "sheet": "الإحالات",
         "filename": "referrals-report.xlsx",
         "columns": [
@@ -53,6 +53,7 @@ REPORT_DEFINITIONS: dict[str, dict[str, Any]] = {
             ("الفئة", "category_label", 16),
             ("السبب", "reason_label", 22),
             ("المحيل", "created_by_name", 20),
+            ("الوكيل المسؤول", "assigned_vice_principal_name", 20),
             ("المرشد", "assigned_counselor_name", 20),
             ("الأولوية", "priority_label", 12),
             ("الحالة", "status_label", 14),

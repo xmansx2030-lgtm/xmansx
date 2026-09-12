@@ -25,7 +25,12 @@ from staff.models import StaffImportJob, StaffImportStatus, StaffProfile
 from staff.services import counselor_sections as counselor_section_service
 from staff.services import management
 from staff.services import manual as manual_service
-from staff.services.directory import COUNSELOR_SECTIONS_PREFETCH, staff_queryset
+from staff.services import vice_principal_scopes as vice_scope_service
+from staff.services.directory import (
+    COUNSELOR_SECTIONS_PREFETCH,
+    VICE_PRINCIPAL_SCOPES_PREFETCH,
+    staff_queryset,
+)
 from staff.services.imports import commit as commit_service
 from staff.services.imports import mapping as mapping_service
 from staff.tasks import process_staff_import_job
@@ -85,6 +90,13 @@ class StaffCreateSerializer(serializers.Serializer):
         default=list,
     )
     confirm_section_reassignment = serializers.BooleanField(default=False)
+    vice_principal_grade_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, allow_empty=True, default=list
+    )
+    vice_principal_section_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, allow_empty=True, default=list
+    )
+    confirm_scope_reassignment = serializers.BooleanField(default=False)
 
     def validate_display_name(self, value):
         value = value.strip()
@@ -112,6 +124,13 @@ class StaffCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"counselor_section_ids": "اختيار الفصول متاح للمرشد الطلابي فقط."}
             )
+        if attrs.get("role") != SchoolRole.VICE_PRINCIPAL and (
+            attrs.get("vice_principal_grade_ids")
+            or attrs.get("vice_principal_section_ids")
+        ):
+            raise serializers.ValidationError(
+                {"vice_principal_grade_ids": "اختيار نطاق الطلاب متاح للوكيل فقط."}
+            )
         return attrs
 
 
@@ -122,6 +141,16 @@ class CounselorSectionsSerializer(serializers.Serializer):
     confirm_section_reassignment = serializers.BooleanField(default=False)
 
 
+class VicePrincipalScopesSerializer(serializers.Serializer):
+    vice_principal_grade_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), allow_empty=True
+    )
+    vice_principal_section_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), allow_empty=True
+    )
+    confirm_scope_reassignment = serializers.BooleanField(default=False)
+
+
 def _serialize_staff(
     profile: StaffProfile, *, full_mobile: bool, current_user_id: int | None = None
 ) -> dict:
@@ -130,6 +159,11 @@ def _serialize_staff(
     sections = (
         counselor_section_service.counselor_sections(membership)
         if SchoolRole.COUNSELOR in membership.role_codes()
+        else []
+    )
+    vice_scopes = (
+        vice_scope_service.vice_principal_scopes(membership)
+        if SchoolRole.VICE_PRINCIPAL in membership.role_codes()
         else []
     )
     return {
@@ -146,6 +180,8 @@ def _serialize_staff(
         "is_current_user": membership.user_id == current_user_id,
         "counselor_sections": sections,
         "counselor_section_count": len(sections),
+        "vice_principal_scopes": vice_scopes,
+        "vice_principal_scope_count": len(vice_scopes),
     }
 
 
@@ -196,7 +232,10 @@ class StaffDetailView(SchoolScopedAPIView):
     def get_object(self, request, staff_id: int) -> StaffProfile:
         return get_object_or_404(
             StaffProfile.objects.select_related("membership__user").prefetch_related(
-                "membership__roles", "membership__capabilities", COUNSELOR_SECTIONS_PREFETCH
+                "membership__roles",
+                "membership__capabilities",
+                COUNSELOR_SECTIONS_PREFETCH,
+                VICE_PRINCIPAL_SCOPES_PREFETCH,
             ),
             id=staff_id,
             school=request.school,
@@ -294,6 +333,41 @@ class StaffCounselorSectionsView(StaffDetailView):
             )
         )
 
+
+class StaffVicePrincipalScopesView(StaffDetailView):
+    http_method_names = ["get", "patch", "options"]
+
+    def get(self, request: Request, staff_id: int) -> Response:
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
+
+    def patch(self, request: Request, staff_id: int) -> Response:
+        profile = self.get_object(request, staff_id)
+        serializer = VicePrincipalScopesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vice_scope_service.set_vice_principal_scopes(
+            school=request.school,
+            membership=profile.membership,
+            grade_ids=serializer.validated_data["vice_principal_grade_ids"],
+            section_ids=serializer.validated_data["vice_principal_section_ids"],
+            actor=request.user,
+            confirm_reassignment=serializer.validated_data[
+                "confirm_scope_reassignment"
+            ],
+            request=request,
+        )
+        return Response(
+            _serialize_staff(
+                self.get_object(request, staff_id),
+                full_mobile=True,
+                current_user_id=request.user.id,
+            )
+        )
 
 class StaffRoleDeleteView(StaffDetailView):
     http_method_names = ["delete", "options"]

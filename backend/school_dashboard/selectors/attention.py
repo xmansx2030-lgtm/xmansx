@@ -13,7 +13,7 @@ from attendance.selectors.monitoring import (
     get_current_section_attendance_statuses,
 )
 from excuses.models import AbsenceExcuse, AbsenceExcuseStatus
-from referrals.models import OPEN_STATUSES, StudentReferral
+from referrals.models import ReferralStatus, StudentReferral
 
 #: سقف العناصر المعروضة لكل نوع — طابور عمل لا تقرير شامل
 MAX_ITEMS_PER_KIND = 10
@@ -88,12 +88,12 @@ def pending_excuses(*, school) -> list[dict]:
 
 
 def unassigned_referrals(*, school) -> list[dict]:
-    """إحالات مفتوحة بلا مرشد معيّن — لا أحد يعمل عليها."""
+    """إحالات معلم لم تجد وكيلًا مطابقًا في توزيع الصفوف والفصول."""
     rows = (
         StudentReferral.objects.filter(
             school=school,
-            status__in=OPEN_STATUSES,
-            assigned_counselor_membership__isnull=True,
+            status=ReferralStatus.PENDING_VICE,
+            assigned_vice_membership__isnull=True,
         )
         .select_related("student")
         .order_by("created_at")[:MAX_ITEMS_PER_KIND]
@@ -103,8 +103,8 @@ def unassigned_referrals(*, school) -> list[dict]:
             kind="REFERRAL_UNASSIGNED",
             entity_type="REFERRAL",
             entity_id=row.id,
-            reason_code="REFERRAL_NEEDS_COUNSELOR",
-            text=f"إحالة بلا مرشد معيّن — {row.student.full_name}",
+            reason_code="REFERRAL_NEEDS_VICE_PRINCIPAL",
+            text=f"إحالة تحتاج تعيين وكيل مسؤول — {row.student.full_name}",
             priority=PRIORITY_HIGH,
             target_url="/referrals",
             occurred_at=row.created_at.isoformat(),

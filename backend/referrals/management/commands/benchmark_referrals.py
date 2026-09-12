@@ -128,7 +128,13 @@ class Command(BaseCommand):
                         created_by_membership=membership,
                         assigned_counselor_membership=counselor if i % 2 else None,
                         status=(
-                            ReferralStatus.NEW if i % 3 else ReferralStatus.ACKNOWLEDGED
+                            (
+                                ReferralStatus.ACKNOWLEDGED
+                                if i % 3 == 0
+                                else ReferralStatus.REFERRED
+                            )
+                            if i % 2
+                            else ReferralStatus.PENDING_VICE
                         ),
                         snapshot_data={"student_name": "قياس"},
                         accepted_at=None,

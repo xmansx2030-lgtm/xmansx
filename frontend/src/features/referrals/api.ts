@@ -2,12 +2,20 @@ import { apiRequest } from "@/api/client";
 
 // ---- الأنواع ----
 
-export type ReferralStatus = "NEW" | "ACKNOWLEDGED" | "CLOSED" | "CANCELLED";
+export type ReferralStatus =
+  | "PENDING_VICE"
+  | "UNDER_VICE_REVIEW"
+  | "REFERRED"
+  | "ACKNOWLEDGED"
+  | "CLOSED"
+  | "CANCELLED";
 export type ReferralSourceType = "TEACHER" | "VICE_PRINCIPAL" | "SCHOOL_MANAGER";
 
 export const STATUS_LABELS: Record<ReferralStatus, string> = {
-  NEW: "جديدة",
-  ACKNOWLEDGED: "تم الاستلام",
+  PENDING_VICE: "بانتظار الوكيل",
+  UNDER_VICE_REVIEW: "قيد معالجة الوكيل",
+  REFERRED: "محوّلة للمرشد",
+  ACKNOWLEDGED: "قيد متابعة المرشد",
   CLOSED: "مغلقة",
   CANCELLED: "ملغاة",
 };
@@ -57,6 +65,8 @@ export interface ReferralRow {
   priority_label: string;
   created_at: string;
   created_by_name: string | null;
+  assigned_vice_principal_id: number | null;
+  assigned_vice_principal_name: string | null;
   assigned_counselor_id: number | null;
   assigned_counselor_name: string | null;
   counseling_case_id: number | null;
@@ -98,6 +108,11 @@ export interface ReferralMetrics {
 export interface ReferralDetail extends ReferralRow {
   /** يحسبه الخادم: المنشئ قبل الاستلام أو الإدارة في أي وقت. */
   can_cancel: boolean;
+  can_assign_vice_principal: boolean;
+  can_start_vice_review: boolean;
+  can_forward_to_counselor: boolean;
+  can_acknowledge: boolean;
+  can_close: boolean;
   description: string;
   snapshot_at_referral: ReferralMetrics;
   current_metrics: ReferralMetrics | null;
@@ -108,6 +123,9 @@ export interface ReferralDetail extends ReferralRow {
     issued_at: string;
   } | null;
   accepted_at: string | null;
+  vice_reviewed_at: string | null;
+  recommended_counselor_id: number | null;
+  recommended_counselor_name: string | null;
   closed_at: string | null;
   closed_by_name: string | null;
   closure_reason: string;
@@ -116,9 +134,11 @@ export interface ReferralDetail extends ReferralRow {
 }
 
 export interface ReferralKpis {
-  new_count: number;
+  pending_vice_count: number;
+  under_vice_review_count: number;
+  referred_count: number;
   acknowledged_count: number;
-  unassigned_count: number;
+  unassigned_vice_count: number;
 }
 
 export interface Paginated<T> {
@@ -134,6 +154,7 @@ export interface ReferralFilters {
   reason_code?: string;
   source_type?: string;
   counselor?: string;
+  vice_principal?: string;
   grade?: number;
   section?: number;
   student?: number;
@@ -181,6 +202,12 @@ export const getCounselors = (signal?: AbortSignal) =>
     { signal },
   );
 
+export const getVicePrincipals = (signal?: AbortSignal) =>
+  apiRequest<{ vice_principals: { id: number; name: string }[] }>(
+    "/referrals/vice-principals/",
+    { signal },
+  );
+
 export const getReferral = (id: number, signal?: AbortSignal) =>
   apiRequest<ReferralDetail>(`/referrals/${id}/`, { signal });
 
@@ -203,6 +230,15 @@ export const assignCounselor = (id: number, counselorMembershipId: number) =>
     method: "POST",
     body: { counselor_membership_id: counselorMembershipId },
   });
+
+export const assignVicePrincipal = (id: number, vicePrincipalMembershipId: number) =>
+  apiRequest<ReferralDetail>(`/referrals/${id}/assign-vice/`, {
+    method: "POST",
+    body: { vice_principal_membership_id: vicePrincipalMembershipId },
+  });
+
+export const startViceReview = (id: number) =>
+  apiRequest<ReferralDetail>(`/referrals/${id}/start-vice-review/`, { method: "POST" });
 
 export const acknowledgeReferral = (id: number) =>
   apiRequest<ReferralDetail>(`/referrals/${id}/acknowledge/`, { method: "POST" });

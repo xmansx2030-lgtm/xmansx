@@ -104,6 +104,10 @@ def remove_role(*, membership: SchoolMembership, role: str, actor, request=None)
         from staff.services.counselor_sections import clear_counselor_sections
 
         clear_counselor_sections(membership=membership)
+    if role == SchoolRole.VICE_PRINCIPAL:
+        from staff.services.vice_principal_scopes import clear_vice_principal_scopes
+
+        clear_vice_principal_scopes(membership=membership)
     record_event(
         AuditAction.STAFF_ROLE_REMOVED,
         request=request, actor=actor, school=membership.school,
@@ -181,8 +185,10 @@ def suspend(*, membership: SchoolMembership, actor, request=None) -> None:
     membership.status = MembershipStatus.SUSPENDED
     membership.save(update_fields=["status", "updated_at"])
     from staff.services.counselor_sections import clear_counselor_sections
+    from staff.services.vice_principal_scopes import clear_vice_principal_scopes
 
     clear_counselor_sections(membership=membership)
+    clear_vice_principal_scopes(membership=membership)
     record_event(
         AuditAction.STAFF_SUSPENDED,
         request=request, actor=actor, school=membership.school,
@@ -291,8 +297,10 @@ def delete_staff(*, profile, actor, request=None) -> None:
 
     membership_id = membership.id
     from staff.services.counselor_sections import clear_counselor_sections
+    from staff.services.vice_principal_scopes import clear_vice_principal_scopes
 
     clear_counselor_sections(membership=membership)
+    clear_vice_principal_scopes(membership=membership)
     profile.delete()
     membership.roles.all().delete()
     membership.status = MembershipStatus.LEFT
