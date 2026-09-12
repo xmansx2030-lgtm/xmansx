@@ -21,6 +21,7 @@ from students.models import (
     StudentPurgeJob,
     StudentStatus,
 )
+from students.tasks import commit_student_import_job
 
 INACTIVE_URL = "/api/v1/students/inactive/"
 BULK_STATUS_URL = "/api/v1/students/bulk-status/"
@@ -173,6 +174,7 @@ def test_missing_last_import_filter(role_client):
     client.post(f"/api/v1/student-imports/{job1['id']}/process/", {},
                 content_type="application/json")
     client.post(f"/api/v1/student-imports/{job1['id']}/commit/")
+    commit_student_import_job(job1["id"])
     job2 = client.post(
         "/api/v1/student-imports/",
         {"file": build_xlsx_upload([noor_row("1077000401", "باقٍ في الملف")])},
@@ -180,6 +182,7 @@ def test_missing_last_import_filter(role_client):
     client.post(f"/api/v1/student-imports/{job2['id']}/process/", {},
                 content_type="application/json")
     client.post(f"/api/v1/student-imports/{job2['id']}/commit/")
+    commit_student_import_job(job2["id"])
 
     body = client.get(f"{INACTIVE_URL}?missing_last_import=1").json()
     names = [r["full_name"] for r in body["results"]]

@@ -34,6 +34,7 @@ from student_warnings.models import (
     WarningStatus,
 )
 from students.models import Student, StudentEnrollment, StudentStatus
+from students.tasks import commit_student_import_job
 from subscriptions.access import (
     BLOCKED,
     FULL,
@@ -630,15 +631,22 @@ def test_noor_preview_warns_commit_denies_then_upgrade_allows_same_job(
         "over_limit": True,
     }
     denied = client.post(f"/api/v1/student-imports/{job_id}/commit/")
-    assert denied.status_code == 409
-    assert denied.json()["code"] == "STUDENT_LIMIT_EXCEEDED"
+    assert denied.status_code == 202
+    assert denied.json()["status"] == "IMPORTING"
+    assert commit_student_import_job(job_id) == "STUDENT_LIMIT_EXCEEDED"
+    denied_job = client.get(f"/api/v1/student-imports/{job_id}/").json()
+    assert denied_job["status"] == "READY_FOR_REVIEW"
+    assert denied_job["error_code"] == "STUDENT_LIMIT_EXCEEDED"
 
     subscription_service.change_plan(
         school=school, plan_id=upgrade.id, actor=platform_admin, reason="upgrade"
     )
     assert get_limit(school, EntitlementKey.MAX_STUDENTS) == 5
     accepted = client.post(f"/api/v1/student-imports/{job_id}/commit/")
-    assert accepted.status_code == 200
+    assert accepted.status_code == 202
+    assert commit_student_import_job(job_id) == "completed"
+    accepted_job = client.get(f"/api/v1/student-imports/{job_id}/").json()
+    assert accepted_job["status"] == "COMPLETED"
     assert Student.objects.filter(school=school, status=StudentStatus.ACTIVE).count() == 2
 
 
