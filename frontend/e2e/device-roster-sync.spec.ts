@@ -85,7 +85,17 @@ async function importRosterFixture(context: APIRequestContext) {
     await new Promise((done) => setTimeout(done, 500));
   }
   const committed = await post(context, `/api/v1/student-imports/${job.id}/commit/`, {});
-  expect([200, 201]).toContain(committed.status());
+  expect([200, 201, 202]).toContain(committed.status());
+  let commitState: { status: string; error_code?: string } | null = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    commitState = (await (
+      await context.get(`/api/v1/student-imports/${job.id}/`)
+    ).json()) as { status: string; error_code?: string };
+    if (commitState.status === "COMPLETED") return;
+    if (commitState.status === "FAILED" || commitState.error_code) break;
+    await new Promise((done) => setTimeout(done, 500));
+  }
+  expect(commitState?.status).toBe("COMPLETED");
 }
 
 async function findStudents(context: APIRequestContext, names: string[]) {
