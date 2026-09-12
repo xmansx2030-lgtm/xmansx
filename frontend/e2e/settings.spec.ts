@@ -40,7 +40,9 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await page.getByLabel(/اسم العام/).fill(`عام ${RUN_TAG}`);
   await page.getByLabel("بداية العام").fill("2026-08-23");
   await page.getByLabel("نهاية العام").fill("2027-06-25");
-  await page.getByRole("button", { name: "إنشاء عام دراسي" }).click();
+  await page
+    .getByRole("button", { name: /^(?:إنشاء العام وتفعيله|إنشاء عام قادم)$/ })
+    .click();
   const yearCard = page.getByTestId("academic-year-card").filter({
     has: page.getByRole("heading", { name: `عام ${RUN_TAG}`, exact: true }),
   });
@@ -50,7 +52,9 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await yearCard.getByRole("button", { name: "إضافة فصل دراسي" }).click();
   await yearCard.getByLabel("البداية").fill("2026-08-23");
   await yearCard.getByLabel("النهاية").fill("2026-12-10");
-  await yearCard.getByRole("button", { name: "حفظ الفصل" }).click();
+  await yearCard
+    .getByRole("button", { name: /^(?:حفظ الفصل وتفعيله|حفظ الفصل)$/ })
+    .click();
   await expect(yearCard.getByText(/الفصل الدراسي 1/)).toBeVisible();
 
   // 4) إنشاء جدول حصص بـ 7 حصص
