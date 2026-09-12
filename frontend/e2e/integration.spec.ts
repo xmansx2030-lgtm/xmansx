@@ -284,6 +284,8 @@ test("vice principal refers the student: one referral action, counselor acknowle
         reason_code: "NO_IMPROVEMENT",
         description: "لم يتحسن الحضور بعد الإنذار الثاني وتسليمه لولي الأمر.",
         source_warning_id: warningId,
+        // الإعادة التلقائية للاختبار تعمل على بيانات الشريحة نفسها.
+        allow_duplicate: true,
       },
     },
   );
@@ -305,12 +307,14 @@ test("vice principal refers the student: one referral action, counselor acknowle
   expect(forwarded.status).toBe(200);
 
   // إجراء «إحالة إلى المرشد» واحد فقط بعد التوجيه (البند 68)
-  const actions = await api<{ results: { action_type: string }[] }>(
+  const actions = await api<{ results: { action_type: string; notes: string }[] }>(
     page,
     `/student-actions/?student=${studentId}`,
   );
   const referralActions = actions.body.results.filter(
-    (row) => row.action_type === "REFERRED_TO_COUNSELOR",
+    (row) =>
+      row.action_type === "REFERRED_TO_COUNSELOR" &&
+      row.notes.includes(`إحالة رقم ${referralId}`),
   );
   expect(referralActions).toHaveLength(1);
   await page.goto(`/students/${studentId}/attendance`);
@@ -327,7 +331,7 @@ test("vice principal refers the student: one referral action, counselor acknowle
   await expect(page.getByTestId("referral-kpis")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId(`open-referral-${referralId}`).click();
   const detail = page.getByTestId("referral-detail");
-  await expect(detail).toContainText("جديدة");
+  await expect(detail).toContainText("محوّلة للمرشد");
   await page.getByRole("button", { name: "استلام الحالة" }).click();
   await expect(detail).toContainText("تم استلام الإحالة", { timeout: 20_000 });
 });
