@@ -60,6 +60,9 @@ def _student_id(*, school, value) -> int | None:
 
 
 def _paginate(items: list[dict], params) -> tuple[list[dict], int, int, int]:
+    if params.get("_export_all") == "1":
+        total = len(items)
+        return items, total, 1, total
     page = max(_positive_int(params.get("page"), field="page", default=1), 1)
     page_size = _positive_int(params.get("page_size"), field="page_size", default=25)
     page_size = min(max(page_size, 1), 100)

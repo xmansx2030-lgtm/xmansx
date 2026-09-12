@@ -74,7 +74,19 @@ describe("school reports", () => {
     expect(await screen.findByRole("heading", { name: "مركز التقارير" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "التقارير" })).toBeInTheDocument();
     expect(await screen.findByText("محمد أحمد")).toBeInTheDocument();
+    expect(screen.getByText("تقرير مدرسي رسمي")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /تصدير Excel/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /تصدير المعروض CSV/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /طباعة واضحة/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /مسح النتائج المعروضة/ })).toBeInTheDocument();
     expect(screen.queryByText("المخالفات")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /مسح النتائج المعروضة/ }));
+    expect(screen.getByText("تم مسح النتائج المعروضة")).toBeInTheDocument();
+    expect(screen.getByText(/لا يحذف سجلات الطلاب/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /إظهار النتائج مرة أخرى/ }));
+    expect(await screen.findByText("محمد أحمد")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "التأخر" }));
     expect(await screen.findByText("مرات التأخر الصباحي")).toBeInTheDocument();

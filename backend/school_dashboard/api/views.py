@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
 from school_dashboard import cache as dashboard_cache
+from school_dashboard import excel_exports
 from school_dashboard.ranges import (
     academic_context,
     compare,
@@ -211,6 +212,29 @@ class AttendanceReportView(_DashboardView):
         )
 
 
+class AttendanceReportExcelView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        params = request.query_params.copy()
+        params["_export_all"] = "1"
+        payload = {
+            "context": {"range": date_range.as_dict(), "scope": scope},
+            **report_selectors.absence_report(
+                school=request.school,
+                date_range=date_range,
+                scope=scope,
+                params=params,
+            ),
+        }
+        content = excel_exports.build_report_workbook(
+            report_type="absence",
+            school=request.school,
+            payload=payload,
+        )
+        return excel_exports.workbook_response(report_type="absence", content=content)
+
+
 class LatenessReportView(_DashboardView):
     @extend_schema(responses=None)
     def get(self, request):
@@ -226,6 +250,29 @@ class LatenessReportView(_DashboardView):
                 ),
             }
         )
+
+
+class LatenessReportExcelView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        params = request.query_params.copy()
+        params["_export_all"] = "1"
+        payload = {
+            "context": {"range": date_range.as_dict(), "scope": scope},
+            **report_selectors.lateness_report(
+                school=request.school,
+                date_range=date_range,
+                scope=scope,
+                params=params,
+            ),
+        }
+        content = excel_exports.build_report_workbook(
+            report_type="lateness",
+            school=request.school,
+            payload=payload,
+        )
+        return excel_exports.workbook_response(report_type="lateness", content=content)
 
 
 class ReferralsReportView(_DashboardView):
@@ -244,3 +291,27 @@ class ReferralsReportView(_DashboardView):
                 ),
             }
         )
+
+
+class ReferralsReportExcelView(_DashboardView):
+    @extend_schema(responses=None)
+    def get(self, request):
+        date_range, scope = self.context(request)
+        params = request.query_params.copy()
+        params["_export_all"] = "1"
+        payload = {
+            "context": {"range": date_range.as_dict(), "scope": scope},
+            **report_selectors.referrals_report(
+                school=request.school,
+                membership=request.membership,
+                roles=request.school_roles,
+                date_range=date_range,
+                params=params,
+            ),
+        }
+        content = excel_exports.build_report_workbook(
+            report_type="referrals",
+            school=request.school,
+            payload=payload,
+        )
+        return excel_exports.workbook_response(report_type="referrals", content=content)

@@ -8,7 +8,10 @@ urlpatterns = [
     path("dashboard/attendance-trend/", views.DashboardTrendView.as_view()),
     path("dashboard/sections/", views.DashboardSectionsView.as_view()),
     path("dashboard/attention/", views.DashboardAttentionView.as_view()),
+    path("reports/absence/export.xlsx", views.AttendanceReportExcelView.as_view()),
     path("reports/absence/", views.AttendanceReportView.as_view()),
+    path("reports/lateness/export.xlsx", views.LatenessReportExcelView.as_view()),
     path("reports/lateness/", views.LatenessReportView.as_view()),
+    path("reports/referrals/export.xlsx", views.ReferralsReportExcelView.as_view()),
     path("reports/referrals/", views.ReferralsReportView.as_view()),
 ]

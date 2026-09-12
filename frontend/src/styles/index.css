@@ -475,4 +475,62 @@ a[class*="text-blue-"]:hover {
     width: 98mm !important;
     height: 98mm !important;
   }
+
+  body:has(.report-print-root) {
+    background: #fff !important;
+  }
+
+  body:has(.report-print-root) aside,
+  body:has(.report-print-root) .app-shell-header,
+  body:has(.report-print-root) #main-content > .ds-page > header,
+  body:has(.report-print-root) .print\:hidden,
+  body:has(.report-print-root) .report-screen-only {
+    display: none !important;
+  }
+
+  body:has(.report-print-root) #main-content {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  body:has(.report-print-root) .ds-page {
+    display: block;
+  }
+
+  .report-print-root {
+    width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 10mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #0f172a !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .report-print-root table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 9pt !important;
+  }
+
+  .report-print-root th,
+  .report-print-root td {
+    padding: 5pt !important;
+    border-bottom: 1px solid #d8dee4 !important;
+  }
+
+  .report-print-root section,
+  .report-print-root div[class*="overflow-x-auto"] {
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .report-print-heading {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
 }
