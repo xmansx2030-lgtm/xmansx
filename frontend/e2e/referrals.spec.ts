@@ -160,7 +160,21 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
   });
   await expect(page.getByTestId("my-referrals-rows")).toContainText("النوم داخل الحصة");
 
-  // الوكيل المسؤول يراجعها أولاً ثم يحولها إلى المرشدة.
+  // في بيانات الاختبار لا يوجد نطاق وكيل لهذا الفصل؛ يعين المدير الوكيل
+  // أولاً ثم ينفذ الوكيل التوجيه للمرشدة.
+  await logout(page);
+  await login(page, "0550000002", "ثانوية الأندلس");
+  const vicePrincipals = await api<{ vice_principals: { id: number }[] }>(
+    page,
+    "/referrals/vice-principals/",
+  );
+  expect(vicePrincipals.body.vice_principals).toHaveLength(1);
+  const routed = await api(page, `/referrals/${created.body.id}/assign-vice/`, {
+    method: "POST",
+    body: { vice_principal_membership_id: vicePrincipals.body.vice_principals[0].id },
+  });
+  expect(routed.status).toBe(200);
+
   await logout(page);
   await login(page, "0550000003", "ثانوية الأندلس");
   const counselors = await api<{ counselors: { id: number }[] }>(
