@@ -74,15 +74,35 @@ export const patchSettings = (data: Partial<Record<string, unknown>>) =>
 export const getYears = (signal?: AbortSignal) =>
   apiRequest<AcademicYear[]>("/school/academic-years/", { signal });
 
-export const createYear = (data: { name: string; start_date: string; end_date: string }) =>
+export const createYear = (data: {
+  name: string;
+  start_date: string;
+  end_date: string;
+  activate?: boolean;
+}) =>
   apiRequest<AcademicYear>("/school/academic-years/", { method: "POST", body: data });
+
+export const updateYear = (
+  yearId: number,
+  data: { name: string; start_date: string; end_date: string },
+) =>
+  apiRequest<AcademicYear>(`/school/academic-years/${yearId}/`, {
+    method: "PATCH",
+    body: data,
+  });
 
 export const yearAction = (yearId: number, action: "activate" | "close" | "archive") =>
   apiRequest<AcademicYear>(`/school/academic-years/${yearId}/${action}/`, { method: "POST" });
 
 export const createSemester = (
   yearId: number,
-  data: { name: string; sequence: number; start_date: string; end_date: string },
+  data: {
+    name: string;
+    sequence: number;
+    start_date: string;
+    end_date: string;
+    activate?: boolean;
+  },
 ) =>
   apiRequest<Semester>(`/school/academic-years/${yearId}/semesters/`, {
     method: "POST",
@@ -91,6 +111,15 @@ export const createSemester = (
 
 export const activateSemester = (semesterId: number) =>
   apiRequest<Semester>(`/school/semesters/${semesterId}/activate/`, { method: "POST" });
+
+export const updateSemester = (
+  semesterId: number,
+  data: { name: string; sequence: number; start_date: string; end_date: string },
+) =>
+  apiRequest<Semester>(`/school/semesters/${semesterId}/`, {
+    method: "PATCH",
+    body: data,
+  });
 
 // ---- جداول الحصص وأيام الأسبوع ----
 

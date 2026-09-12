@@ -26,7 +26,8 @@ export function useDialogA11y<T extends HTMLElement>(open: boolean, onClose: () 
     document.body.style.overflow = "hidden";
 
     const focusDialog = window.requestAnimationFrame(() => {
-      const first = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      const preferred = dialogRef.current?.querySelector<HTMLElement>("[data-dialog-initial-focus]");
+      const first = preferred ?? dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
       (first ?? dialogRef.current)?.focus();
     });
 

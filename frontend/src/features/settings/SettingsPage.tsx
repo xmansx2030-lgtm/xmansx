@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/PageHeader";
@@ -47,6 +48,7 @@ function isTabKey(value: string | null): value is TabKey {
 export function SettingsPage() {
   const me = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
+  const tablistRef = useRef<HTMLElement>(null);
   const requestedTab = searchParams.get("section");
   const tab: TabKey = isTabKey(requestedTab) ? requestedTab : "info";
 
@@ -57,6 +59,11 @@ export function SettingsPage() {
   const selectTab = (key: TabKey) => {
     setSearchParams(key === "info" ? {} : { section: key }, { replace: true });
   };
+
+  useEffect(() => {
+    const selectedTab = tablistRef.current?.querySelector<HTMLElement>("[role='tab'][aria-selected='true']");
+    selectedTab?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [tab]);
 
   if (me.isSuccess && !canManage) {
     return (
@@ -81,7 +88,7 @@ export function SettingsPage() {
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="min-w-0 lg:sticky lg:top-24">
-          <nav className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" role="tablist" aria-label="أقسام إعدادات المدرسة">
+          <nav ref={tablistRef} className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" role="tablist" aria-label="أقسام إعدادات المدرسة">
             <div className="flex w-max min-w-full snap-x snap-mandatory gap-1 lg:w-auto lg:min-w-0 lg:flex-col lg:snap-none">
               {TABS.map((item) => {
                 const Icon = item.icon;

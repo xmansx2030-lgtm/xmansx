@@ -35,27 +35,44 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await page.getByRole("button", { name: "حفظ البيانات" }).click();
   await expect(page.getByText("تم حفظ بيانات المدرسة بنجاح.")).toBeVisible();
 
-  // 2) إنشاء عام دراسي
+  // 2) إنشاء عام دراسي قادم دون التأثير في العام النشط للـ seed
   await page.getByRole("tab", { name: "العام الدراسي" }).click();
-  await page.getByLabel(/اسم العام/).fill(`عام ${RUN_TAG}`);
-  await page.getByLabel("بداية العام").fill("2026-08-23");
-  await page.getByLabel("نهاية العام").fill("2027-06-25");
-  await page
-    .getByRole("button", { name: /^(?:إنشاء العام وتفعيله|إنشاء عام قادم)$/ })
-    .click();
-  const yearCard = page.getByTestId("academic-year-card").filter({
-    has: page.getByRole("heading", { name: `عام ${RUN_TAG}`, exact: true }),
-  });
+  await page.getByRole("button", { name: "إضافة عام دراسي" }).click();
+  const yearName = `2026/2027 E2E ${RUN_TAG}`;
+  const yearDialog = page.getByRole("dialog", { name: "إضافة عام دراسي" });
+  const yearForm = yearDialog.getByRole("form", { name: "إنشاء عام دراسي" });
+  await expect(yearDialog).toBeVisible();
+  await yearForm.getByLabel("اسم العام").fill(yearName);
+  await yearForm.getByLabel("بداية العام").fill("2026-08-23");
+  await yearForm.getByLabel("نهاية العام").fill("2027-06-25");
+  await yearForm.getByRole("button", { name: "حفظ كعام قادم" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    `تم حفظ العام «${yearName}» كعام قادم`,
+  );
+  const yearCard = page.getByRole("region", { name: yearName });
   await expect(yearCard).toBeVisible();
+  await expect(
+    yearCard.getByRole("button", { name: `تفعيل العام «${yearName}»` }),
+  ).toBeVisible();
 
-  // 3) إنشاء فصل دراسي داخل العام
-  await yearCard.getByRole("button", { name: "إضافة فصل دراسي" }).click();
-  await yearCard.getByLabel("البداية").fill("2026-08-23");
-  await yearCard.getByLabel("النهاية").fill("2026-12-10");
+  // 3) إنشاء فصل قادم داخل العام عبر الحوار المسمى دلاليًا
+  const semesterName = `الفصل E2E ${RUN_TAG}`;
   await yearCard
-    .getByRole("button", { name: /^(?:حفظ الفصل وتفعيله|حفظ الفصل)$/ })
+    .getByRole("button", { name: `إضافة فصل إلى العام ${yearName}` })
     .click();
-  await expect(yearCard.getByText(/الفصل الدراسي 1/)).toBeVisible();
+  const semesterDialog = page.getByRole("dialog", { name: `إضافة فصل إلى ${yearName}` });
+  const semesterForm = semesterDialog.getByRole("form", {
+    name: `إضافة فصل إلى العام ${yearName}`,
+  });
+  await expect(semesterDialog).toBeVisible();
+  await semesterForm.getByLabel("اسم الفصل").fill(semesterName);
+  await semesterForm.getByLabel("بداية الفصل").fill("2026-08-23");
+  await semesterForm.getByLabel("نهاية الفصل").fill("2026-12-10");
+  await semesterForm.getByRole("button", { name: "حفظ الفصل" }).click();
+  await expect(page.getByRole("status")).toContainText(`تمت إضافة الفصل «${semesterName}»`);
+  await expect(
+    yearCard.getByRole("listitem", { name: `${semesterName} — ${yearName}` }),
+  ).toBeVisible();
 
   // 4) إنشاء جدول حصص بـ 7 حصص
   await page.getByRole("tab", { name: "أوقات الحصص" }).click();

@@ -48,11 +48,19 @@ class AcademicYearInputSerializer(serializers.Serializer):
     end_date = serializers.DateField()
 
 
+class AcademicYearCreateInputSerializer(AcademicYearInputSerializer):
+    activate = serializers.BooleanField(required=False, default=False)
+
+
 class SemesterInputSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=50)
     sequence = serializers.IntegerField(min_value=1, max_value=10)
     start_date = serializers.DateField()
     end_date = serializers.DateField()
+
+
+class SemesterCreateInputSerializer(SemesterInputSerializer):
+    activate = serializers.BooleanField(required=False, default=False)
 
 
 class BellScheduleInputSerializer(serializers.Serializer):

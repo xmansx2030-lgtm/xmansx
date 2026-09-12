@@ -15,6 +15,7 @@ function ModalHarness() {
       <button type="button" onClick={() => setOpen(true)}>فتح الحوار</button>
       {open && (
         <Modal title="تأكيد الإجراء" description="راجع البيانات قبل الحفظ." onClose={() => setOpen(false)}>
+          <TextField label="ملاحظة" data-dialog-initial-focus />
           <Button>حفظ</Button>
         </Modal>
       )}
@@ -49,6 +50,7 @@ describe("Design system primitives", () => {
 
     const dialog = screen.getByRole("dialog", { name: "تأكيد الإجراء" });
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    expect(screen.getByRole("textbox", { name: "ملاحظة" })).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");
 
     await user.keyboard("{Escape}");

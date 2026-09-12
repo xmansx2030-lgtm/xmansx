@@ -7,11 +7,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from academics.api.serializers import (
+    AcademicYearCreateInputSerializer,
     AcademicYearInputSerializer,
     AcademicYearSerializer,
     BellScheduleInputSerializer,
     BellScheduleSerializer,
     PeriodsReplaceSerializer,
+    SemesterCreateInputSerializer,
     SemesterInputSerializer,
     SemesterSerializer,
     WeekDaysReplaceSerializer,
@@ -38,10 +40,12 @@ class AcademicYearListCreateView(SchoolScopedAPIView):
         return Response(AcademicYearSerializer(_years_queryset(request), many=True).data)
 
     def post(self, request: Request) -> Response:
-        serializer = AcademicYearInputSerializer(data=request.data)
+        serializer = AcademicYearCreateInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         year = years_service.create_year(
-            school=request.school, actor=request.user, request=request,
+            school=request.school,
+            actor=request.user,
+            request=request,
             **serializer.validated_data,
         )
         return Response(AcademicYearSerializer(year).data, status=status.HTTP_201_CREATED)
@@ -83,7 +87,7 @@ class SemesterListCreateView(SchoolScopedAPIView):
 
     def post(self, request: Request, year_id: int) -> Response:
         year = get_object_or_404(AcademicYear, id=year_id, school=request.school)
-        serializer = SemesterInputSerializer(data=request.data)
+        serializer = SemesterCreateInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         semester = semesters_service.create_semester(
             year=year, actor=request.user, request=request, **serializer.validated_data
@@ -129,7 +133,9 @@ class BellScheduleListCreateView(SchoolScopedAPIView):
         serializer = BellScheduleInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         schedule = schedules_service.create_schedule(
-            school=request.school, actor=request.user, request=request,
+            school=request.school,
+            actor=request.user,
+            request=request,
             **serializer.validated_data,
         )
         return Response(BellScheduleSerializer(schedule).data, status=status.HTTP_201_CREATED)

@@ -35,6 +35,7 @@ const MANAGER_ROUTES = [
   "/devices/roster-sync",
   "/subscription",
   "/settings",
+  "/settings?section=calendar",
 ] as const;
 
 async function login(page: Page, mobile: string, school?: string) {

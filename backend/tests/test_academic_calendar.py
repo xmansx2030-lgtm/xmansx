@@ -6,14 +6,51 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from academics.models import AcademicYear, AcademicYearStatus, Semester
+from academics.services import academic_years as years_service
+from audit.models import AuditLog
+from common.errors import ApiError
 
 YEARS_URL = "/api/v1/school/academic-years/"
 
 
-def _create_year(client, name="2026/2027", start="2026-08-23", end="2027-06-25"):
+def _create_year(
+    client,
+    name="2026/2027",
+    start="2026-08-23",
+    end="2027-06-25",
+    activate=None,
+):
+    payload = {"name": name, "start_date": start, "end_date": end}
+    if activate is not None:
+        payload["activate"] = activate
     return client.post(
         YEARS_URL,
-        {"name": name, "start_date": start, "end_date": end},
+        payload,
+        content_type="application/json",
+    )
+
+
+def _create_semester(
+    client,
+    year_id,
+    *,
+    name="الفصل الأول",
+    sequence=1,
+    start="2026-08-23",
+    end="2026-12-10",
+    activate=None,
+):
+    payload = {
+        "name": name,
+        "sequence": sequence,
+        "start_date": start,
+        "end_date": end,
+    }
+    if activate is not None:
+        payload["activate"] = activate
+    return client.post(
+        f"{YEARS_URL}{year_id}/semesters/",
+        payload,
         content_type="application/json",
     )
 
@@ -28,11 +65,70 @@ def test_create_year_and_list(role_client):
 
 
 @pytest.mark.django_db
+def test_create_year_can_activate_in_same_request(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+
+    response = _create_year(client, activate=True)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "ACTIVE"
+    assert AcademicYear.objects.get(school=school).status == "ACTIVE"
+
+
+@pytest.mark.django_db
+def test_create_year_activation_failure_rolls_back_creation(role_client, monkeypatch):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+
+    def reject_activation(**_kwargs):
+        raise ApiError("FORCED_ACTIVATION_FAILURE", "تعذر تفعيل العام.", 409)
+
+    monkeypatch.setattr(years_service, "activate_year", reject_activation)
+
+    response = _create_year(client, activate=True)
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "FORCED_ACTIVATION_FAILURE"
+    assert not AcademicYear.objects.filter(school=school).exists()
+    assert not AuditLog.objects.filter(school=school, target_type="AcademicYear").exists()
+
+
+@pytest.mark.django_db
 def test_invalid_year_range_rejected(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])
     response = _create_year(client, start="2027-06-25", end="2026-08-23")
     assert response.status_code == 400
     assert response.json()["code"] == "INVALID_ACADEMIC_YEAR_RANGE"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "patch_payload",
+    [
+        {"start_date": "2026-09-01"},
+        {"end_date": "2026-11-30"},
+    ],
+)
+def test_year_patch_cannot_exclude_existing_semesters(role_client, patch_payload):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client).json()
+    _create_semester(
+        client,
+        year["id"],
+        start="2026-08-24",
+        end="2026-12-01",
+    )
+
+    response = client.patch(
+        f"{YEARS_URL}{year['id']}/",
+        patch_payload,
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "ACADEMIC_YEAR_EXCLUDES_SEMESTERS"
+    saved = AcademicYear.objects.get(id=year["id"])
+    assert saved.start_date == date(2026, 8, 23)
+    assert saved.end_date == date(2027, 6, 25)
 
 
 @pytest.mark.django_db
@@ -50,6 +146,62 @@ def test_activate_year_demotes_previous_active(role_client):
 
 
 @pytest.mark.django_db
+def test_activate_year_closes_previous_active_semester(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    first_year = _create_year(client, name="سنة 1", activate=True).json()
+    semester = _create_semester(client, first_year["id"], activate=True).json()
+    next_year = _create_year(
+        client,
+        name="سنة 2",
+        start="2027-08-22",
+        end="2028-06-20",
+    ).json()
+
+    response = client.post(f"{YEARS_URL}{next_year['id']}/activate/")
+
+    assert response.status_code == 200
+    assert AcademicYear.objects.get(id=first_year["id"]).status == "CLOSED"
+    assert AcademicYear.objects.get(id=next_year["id"]).status == "ACTIVE"
+    assert Semester.objects.get(id=semester["id"]).status == "CLOSED"
+    assert AuditLog.objects.filter(
+        school=school,
+        action="SEMESTER_CLOSED",
+        target_id=str(semester["id"]),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_close_year_closes_its_active_semester(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client, activate=True).json()
+    semester = _create_semester(client, year["id"], activate=True).json()
+
+    response = client.post(f"{YEARS_URL}{year['id']}/close/")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "CLOSED"
+    assert Semester.objects.get(id=semester["id"]).status == "CLOSED"
+    assert AuditLog.objects.filter(
+        school=school,
+        action="SEMESTER_CLOSED",
+        target_id=str(semester["id"]),
+    ).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("terminal_action", ["close", "archive"])
+def test_closed_or_archived_year_cannot_be_reactivated(role_client, terminal_action):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client, activate=terminal_action == "close").json()
+    assert client.post(f"{YEARS_URL}{year['id']}/{terminal_action}/").status_code == 200
+
+    response = client.post(f"{YEARS_URL}{year['id']}/activate/")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "ACADEMIC_YEAR_NOT_ACTIVATABLE"
+
+
+@pytest.mark.django_db
 def test_activate_already_active_year_conflict(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])
     year = _create_year(client).json()
@@ -64,12 +216,18 @@ def test_db_constraint_one_active_year_per_school(make_school):
     """القيد في قاعدة البيانات نفسها — الحكم النهائي ضد التزامن (البند 36)."""
     school = make_school()
     AcademicYear.objects.create(
-        school=school, name="أ", start_date=date(2026, 8, 1), end_date=date(2027, 6, 1),
+        school=school,
+        name="أ",
+        start_date=date(2026, 8, 1),
+        end_date=date(2027, 6, 1),
         status=AcademicYearStatus.ACTIVE,
     )
     with pytest.raises(IntegrityError), transaction.atomic():
         AcademicYear.objects.create(
-            school=school, name="ب", start_date=date(2027, 8, 1), end_date=date(2028, 6, 1),
+            school=school,
+            name="ب",
+            start_date=date(2027, 8, 1),
+            end_date=date(2028, 6, 1),
             status=AcademicYearStatus.ACTIVE,
         )
 
@@ -79,8 +237,11 @@ def test_two_schools_can_each_have_active_year(make_school):
     a, b = make_school(), make_school()
     for school in (a, b):
         AcademicYear.objects.create(
-            school=school, name="نشط", start_date=date(2026, 8, 1),
-            end_date=date(2027, 6, 1), status=AcademicYearStatus.ACTIVE,
+            school=school,
+            name="نشط",
+            start_date=date(2026, 8, 1),
+            end_date=date(2027, 6, 1),
+            status=AcademicYearStatus.ACTIVE,
         )
     assert AcademicYear.objects.filter(status="ACTIVE").count() == 2
 
@@ -92,16 +253,23 @@ def test_foreign_school_year_ids_return_404(role_client):
     manager_b, _, _ = role_client(["SCHOOL_MANAGER"])
     foreign_year = _create_year(manager_b).json()
 
-    assert manager_a.patch(
-        f"{YEARS_URL}{foreign_year['id']}/", {"name": "اختراق"},
-        content_type="application/json",
-    ).status_code == 404
+    assert (
+        manager_a.patch(
+            f"{YEARS_URL}{foreign_year['id']}/",
+            {"name": "اختراق"},
+            content_type="application/json",
+        ).status_code
+        == 404
+    )
     assert manager_a.post(f"{YEARS_URL}{foreign_year['id']}/activate/").status_code == 404
-    assert manager_a.post(
-        f"{YEARS_URL}{foreign_year['id']}/semesters/",
-        {"name": "ف1", "sequence": 1, "start_date": "2026-09-01", "end_date": "2026-12-01"},
-        content_type="application/json",
-    ).status_code == 404
+    assert (
+        manager_a.post(
+            f"{YEARS_URL}{foreign_year['id']}/semesters/",
+            {"name": "ف1", "sequence": 1, "start_date": "2026-09-01", "end_date": "2026-12-01"},
+            content_type="application/json",
+        ).status_code
+        == 404
+    )
 
 
 @pytest.mark.django_db
@@ -123,13 +291,42 @@ def test_semester_created_inside_year(role_client):
     year = _create_year(client).json()
     response = client.post(
         f"{YEARS_URL}{year['id']}/semesters/",
-        {"name": "الفصل الأول", "sequence": 1, "start_date": "2026-08-23",
-         "end_date": "2026-12-10"},
+        {
+            "name": "الفصل الأول",
+            "sequence": 1,
+            "start_date": "2026-08-23",
+            "end_date": "2026-12-10",
+        },
         content_type="application/json",
     )
     assert response.status_code == 201
     semester = Semester.objects.get(id=response.json()["id"])
     assert semester.school_id == school.id  # school من الخادم لا من العميل
+
+
+@pytest.mark.django_db
+def test_create_semester_can_activate_in_same_request(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client, activate=True).json()
+
+    response = _create_semester(client, year["id"], activate=True)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "ACTIVE"
+    assert Semester.objects.get(school=school).status == "ACTIVE"
+
+
+@pytest.mark.django_db
+def test_create_semester_activation_failure_rolls_back_creation(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    upcoming_year = _create_year(client).json()
+
+    response = _create_semester(client, upcoming_year["id"], activate=True)
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "SEMESTER_YEAR_NOT_ACTIVE"
+    assert not Semester.objects.filter(school=school).exists()
+    assert not AuditLog.objects.filter(school=school, target_type="Semester").exists()
 
 
 @pytest.mark.django_db
@@ -162,9 +359,12 @@ def test_semester_duplicate_sequence_rejected(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])
     year = _create_year(client).json()
     payload = {"name": "ف", "sequence": 1, "start_date": "2026-09-01", "end_date": "2026-11-01"}
-    assert client.post(
-        f"{YEARS_URL}{year['id']}/semesters/", payload, content_type="application/json"
-    ).status_code == 201
+    assert (
+        client.post(
+            f"{YEARS_URL}{year['id']}/semesters/", payload, content_type="application/json"
+        ).status_code
+        == 201
+    )
     response = client.post(
         f"{YEARS_URL}{year['id']}/semesters/",
         {**payload, "name": "مكرر", "start_date": "2026-11-02", "end_date": "2026-12-01"},
@@ -174,9 +374,80 @@ def test_semester_duplicate_sequence_rejected(role_client):
 
 
 @pytest.mark.django_db
+def test_semester_date_overlap_rejected_on_create(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client).json()
+    assert (
+        _create_semester(
+            client,
+            year["id"],
+            start="2026-08-23",
+            end="2026-12-10",
+        ).status_code
+        == 201
+    )
+
+    response = _create_semester(
+        client,
+        year["id"],
+        name="الفصل الثاني",
+        sequence=2,
+        start="2026-12-10",
+        end="2027-03-10",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "SEMESTER_DATE_OVERLAP"
+
+
+@pytest.mark.django_db
+def test_semester_overlap_update_excludes_current_semester(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client).json()
+    first = _create_semester(client, year["id"]).json()
+    second = _create_semester(
+        client,
+        year["id"],
+        name="الفصل الثاني",
+        sequence=2,
+        start="2026-12-11",
+        end="2027-03-10",
+    ).json()
+
+    self_update = client.patch(
+        f"/api/v1/school/semesters/{first['id']}/",
+        {"name": "الفصل الدراسي الأول"},
+        content_type="application/json",
+    )
+    assert self_update.status_code == 200
+
+    overlapping_update = client.patch(
+        f"/api/v1/school/semesters/{second['id']}/",
+        {"start_date": "2026-12-10"},
+        content_type="application/json",
+    )
+    assert overlapping_update.status_code == 400
+    assert overlapping_update.json()["code"] == "SEMESTER_DATE_OVERLAP"
+    assert Semester.objects.get(id=second["id"]).start_date == date(2026, 12, 11)
+
+
+@pytest.mark.django_db
+def test_semester_activation_requires_active_year(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    year = _create_year(client).json()
+    semester = _create_semester(client, year["id"]).json()
+
+    response = client.post(f"/api/v1/school/semesters/{semester['id']}/activate/")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "SEMESTER_YEAR_NOT_ACTIVE"
+    assert Semester.objects.get(id=semester["id"]).status == "UPCOMING"
+
+
+@pytest.mark.django_db
 def test_semester_activation_demotes_and_db_constraint(role_client, make_school):
     client, school, _ = role_client(["SCHOOL_MANAGER"])
-    year = _create_year(client).json()
+    year = _create_year(client, activate=True).json()
     s1 = client.post(
         f"{YEARS_URL}{year['id']}/semesters/",
         {"name": "ف1", "sequence": 1, "start_date": "2026-08-23", "end_date": "2026-12-10"},
@@ -192,6 +463,10 @@ def test_semester_activation_demotes_and_db_constraint(role_client, make_school)
     assert client.post(f"/api/v1/school/semesters/{s2['id']}/activate/").status_code == 200
     statuses = {s.name: s.status for s in Semester.objects.filter(school=school)}
     assert statuses == {"ف1": "CLOSED", "ف2": "ACTIVE"}
+
+    cannot_reactivate = client.post(f"/api/v1/school/semesters/{s1['id']}/activate/")
+    assert cannot_reactivate.status_code == 409
+    assert cannot_reactivate.json()["code"] == "SEMESTER_NOT_ACTIVATABLE"
 
     # القيد المباشر في قاعدة البيانات
     with pytest.raises(IntegrityError), transaction.atomic():
