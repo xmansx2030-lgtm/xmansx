@@ -37,6 +37,7 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
 
   // 2) إنشاء عام دراسي قادم دون التأثير في العام النشط للـ seed
   await page.getByRole("tab", { name: "العام الدراسي" }).click();
+  const calendarTab = page.getByTestId("academic-calendar-tab");
   await page.getByRole("button", { name: "إضافة عام دراسي" }).click();
   const yearName = `2026/2027 E2E ${RUN_TAG}`;
   const yearDialog = page.getByRole("dialog", { name: "إضافة عام دراسي" });
@@ -46,7 +47,7 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await yearForm.getByLabel("بداية العام").fill("2026-08-23");
   await yearForm.getByLabel("نهاية العام").fill("2027-06-25");
   await yearForm.getByRole("button", { name: "حفظ كعام قادم" }).click();
-  await expect(page.getByRole("status")).toContainText(
+  await expect(calendarTab.getByRole("status")).toContainText(
     `تم حفظ العام «${yearName}» كعام قادم`,
   );
   const yearCard = page.getByRole("region", { name: yearName });
@@ -69,7 +70,9 @@ test("manager full settings journey: data, year, semester, schedule, days, atten
   await semesterForm.getByLabel("بداية الفصل").fill("2026-08-23");
   await semesterForm.getByLabel("نهاية الفصل").fill("2026-12-10");
   await semesterForm.getByRole("button", { name: "حفظ الفصل" }).click();
-  await expect(page.getByRole("status")).toContainText(`تمت إضافة الفصل «${semesterName}»`);
+  await expect(calendarTab.getByRole("status")).toContainText(
+    `تمت إضافة الفصل «${semesterName}»`,
+  );
   await expect(
     yearCard.getByRole("listitem", { name: `${semesterName} — ${yearName}` }),
   ).toBeVisible();
