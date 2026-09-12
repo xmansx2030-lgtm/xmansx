@@ -1,6 +1,8 @@
 import { apiRequest, getCookie } from "@/api/client";
 import type { Paginated } from "@/features/students/api";
 
+const IMPORT_COMMIT_TIMEOUT_MS = 120_000;
+
 export interface StaffMember {
   id: number;
   display_name: string;
@@ -194,7 +196,10 @@ export const getStaffImportPreview = (jobId: number, category: string, page: num
   );
 
 export const commitStaffImportJob = (jobId: number) =>
-  apiRequest<StaffImportJob>(`/staff-imports/${jobId}/commit/`, { method: "POST" });
+  apiRequest<StaffImportJob>(`/staff-imports/${jobId}/commit/`, {
+    method: "POST",
+    timeoutMs: IMPORT_COMMIT_TIMEOUT_MS,
+  });
 
 export const STAFF_MAPPING_LABELS: Record<string, string> = {
   full_name: "اسم المعلم",

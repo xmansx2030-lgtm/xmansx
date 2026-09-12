@@ -190,6 +190,43 @@ def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import
 
 
 @pytest.mark.django_db
+def test_large_official_noor_report_commits_825_students(import_manager):
+    client, school, year = import_manager
+    grades = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"]
+    pages = []
+    for index in range(18):
+        grade = grades[index % len(grades)]
+        section = str((index % 7) + 1)
+        start = index * 46
+        end = min(start + 46, 825)
+        rows = [
+            noor_row(f"1{student_index:09d}", f"طالب نور {student_index}", grade, section)
+            for student_index in range(start, end)
+        ]
+        if rows:
+            pages.append({"grade": grade, "section": section, "rows": rows})
+
+    response = client.post(IMPORTS_URL, {"file": build_official_noor_upload(pages)})
+    assert response.status_code == 201
+    job = response.json()
+    assert job["import_format"] == "NOOR_OFFICIAL_MULTI_SHEET"
+    assert job["detected_rows"] == 825
+
+    assert process(client, job["id"]).status_code == 202
+    status_body = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert status_body["status"] == "READY_FOR_REVIEW"
+    assert status_body["summary"]["new"] == 825
+
+    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    assert committed.status_code == 200
+    assert committed.json()["summary"]["created"] == 825
+    assert Student.objects.filter(school=school).count() == 825
+    assert StudentEnrollment.objects.filter(
+        school=school, academic_year=year, status=EnrollmentStatus.ACTIVE
+    ).count() == 825
+
+
+@pytest.mark.django_db
 def test_upload_requires_active_academic_year(role_client):
     client, _, _ = role_client(["SCHOOL_MANAGER"])  # بلا عام نشط
     response = upload(client, [noor_row("1012345678", "أحمد")])

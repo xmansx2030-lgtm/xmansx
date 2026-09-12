@@ -1,5 +1,7 @@
 import { apiRequest, getCookie } from "@/api/client";
 
+const IMPORT_COMMIT_TIMEOUT_MS = 120_000;
+
 // ---- الأنواع ----
 
 export interface StudentRow {
@@ -347,7 +349,10 @@ export const getImportPreview = (jobId: number, category: string, page: number) 
   );
 
 export const commitImportJob = (jobId: number) =>
-  apiRequest<ImportJob>(`/student-imports/${jobId}/commit/`, { method: "POST" });
+  apiRequest<ImportJob>(`/student-imports/${jobId}/commit/`, {
+    method: "POST",
+    timeoutMs: IMPORT_COMMIT_TIMEOUT_MS,
+  });
 
 export const cancelImportJob = (jobId: number) =>
   apiRequest<ImportJob>(`/student-imports/${jobId}/cancel/`, { method: "POST" });

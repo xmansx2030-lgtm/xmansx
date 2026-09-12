@@ -18,6 +18,11 @@ def _isolated_cache():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _isolated_media_root(settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path / "media"
+
+
 @pytest.fixture
 def make_user(db):
     def _make(mobile: str, **kwargs) -> User:
