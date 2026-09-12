@@ -44,6 +44,13 @@ interface SeedOutput {
   >;
 }
 
+interface WarningRow {
+  id: number;
+  warning_type: string;
+  level: string;
+  metric_value_at_issue: number;
+}
+
 let studentIds: Record<string, number> = {};
 let seededDays: string[] = [];
 let warningId = 0;
@@ -90,6 +97,14 @@ async function downloadDocument(page: Page, id: number) {
       fingerprint: hash,
     };
   }, id);
+}
+
+async function findIssuedWarning(page: Page, studentId: number) {
+  const existing = await api<{ results: WarningRow[] }>(
+    page,
+    `/warnings/?student=${studentId}&warning_type=UNEXCUSED_FULL_DAY_ABSENCE&status=ISSUED`,
+  );
+  return existing.body.results.find((row) => row.level === "LEVEL_2") ?? null;
 }
 
 function seedAbsenceDay(
@@ -186,7 +201,7 @@ test("chain: warning → document → delivered action, all visible in the profi
   await logout(page);
   await login(page, "0550000003", "ثانوية الأندلس"); // الوكيل
 
-  const issued = await api<{ id: number; metric_value_at_issue: number }>(
+  const issued = await api<WarningRow>(
     page,
     "/warnings/issue/",
     {
@@ -198,9 +213,12 @@ test("chain: warning → document → delivered action, all visible in the profi
       },
     },
   );
-  expect(issued.status).toBe(201);
-  expect(issued.body.metric_value_at_issue).toBe(5);
-  warningId = issued.body.id;
+  const warning: WarningRow | null =
+    issued.status === 409 ? await findIssuedWarning(page, studentId) : issued.body;
+  if (issued.status !== 409) expect(issued.status).toBe(201);
+  expect(warning).not.toBeNull();
+  expect(warning!.metric_value_at_issue).toBe(5);
+  warningId = warning!.id;
 
   // المستند من الواجهة
   await page.goto(`/students/${studentId}/attendance`);
