@@ -52,18 +52,25 @@ def _rows_to_normalized(rows) -> list[dict]:
     return normalized
 
 
-def commit_import(*, job_id: int, actor, request=None) -> StudentImportJob:
+def commit_import(
+    *, job_id: int, actor, request=None, allow_importing: bool = False
+) -> StudentImportJob:
     """غلاف: كتابات الفشل/تحديث المعاينة تثبت داخل الـ transaction،
     والخطأ يرفع بعد خروجها بنجاح — لا rollback لتلك الكتابات."""
     with transaction.atomic():
-        job, deferred_error = _commit_locked(job_id=job_id, actor=actor, request=request)
+        job, deferred_error = _commit_locked(
+            job_id=job_id,
+            actor=actor,
+            request=request,
+            allow_importing=allow_importing,
+        )
     if deferred_error is not None:
         raise deferred_error
     return job
 
 
 def _commit_locked(
-    *, job_id: int, actor, request=None
+    *, job_id: int, actor, request=None, allow_importing: bool = False
 ) -> tuple[StudentImportJob, ApiError | None]:
     job = (
         StudentImportJob.objects.select_for_update()
@@ -74,9 +81,14 @@ def _commit_locked(
     # حالة الـ Job — حماية double-commit والتزامن (لا كتابات → raise مباشر آمن)
     if job.status == ImportJobStatus.COMPLETED:
         raise ApiError("IMPORT_ALREADY_COMMITTED", "تم اعتماد هذا الاستيراد مسبقاً.", 409)
-    if job.status in (ImportJobStatus.PROCESSING, ImportJobStatus.IMPORTING):
+    if job.status == ImportJobStatus.PROCESSING or (
+        job.status == ImportJobStatus.IMPORTING and not allow_importing
+    ):
         raise ApiError("IMPORT_ALREADY_RUNNING", "الاستيراد قيد التنفيذ حالياً.", 409)
-    if job.status != ImportJobStatus.READY_FOR_REVIEW:
+    allowed_statuses = {ImportJobStatus.READY_FOR_REVIEW}
+    if allow_importing:
+        allowed_statuses.add(ImportJobStatus.IMPORTING)
+    if job.status not in allowed_statuses:
         raise ApiError("IMPORT_NOT_READY", "الاستيراد غير جاهز للاعتماد.", 409)
 
     # العام الدراسي وقت الإنشاء يجب أن يظل هو النشط (لا استخدام صامت لعام جديد)
@@ -115,8 +127,10 @@ def _commit_locked(
         refreshed_summary["student_capacity"] = student_capacity_preview(
             job.school, adding=refreshed_summary["new"]
         )
+        job.status = ImportJobStatus.READY_FOR_REVIEW
+        job.error_code = "IMPORT_PREVIEW_STALE"
         job.summary = {**job.summary, **refreshed_summary, "missing_names": result["missing"]}
-        job.save(update_fields=["summary", "updated_at"])
+        job.save(update_fields=["status", "error_code", "summary", "updated_at"])
         return job, ApiError(
             "IMPORT_PREVIEW_STALE",
             "تغيرت بيانات الطلاب منذ إنشاء المعاينة. راجع المعاينة المحدثة ثم أعد الاعتماد.",
@@ -124,7 +138,8 @@ def _commit_locked(
         )
 
     job.status = ImportJobStatus.IMPORTING
-    job.save(update_fields=["status", "updated_at"])
+    job.error_code = ""
+    job.save(update_fields=["status", "error_code", "updated_at"])
 
     apply_rows = [r for r in result["rows"] if r["status"] in _APPLY_STATUSES]
 
@@ -253,6 +268,7 @@ def _commit_locked(
             enrollment_changes += 1
 
     job.status = ImportJobStatus.COMPLETED
+    job.error_code = ""
     job.committed_at = timezone.now()
     job.summary = {
         **job.summary,
@@ -264,7 +280,7 @@ def _commit_locked(
         "created_sections": created_sections,
         "missing_names": result["missing"],
     }
-    job.save(update_fields=["status", "committed_at", "summary", "updated_at"])
+    job.save(update_fields=["status", "error_code", "committed_at", "summary", "updated_at"])
 
     record_event(
         AuditAction.STUDENT_IMPORT_COMMITTED,

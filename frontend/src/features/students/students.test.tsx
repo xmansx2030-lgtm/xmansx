@@ -182,6 +182,11 @@ describe("ImportWizard", () => {
       will_create_sections: ["الأول الثانوي / 1"],
     },
   };
+  const COMPLETED_JOB = {
+    ...READY_JOB,
+    status: "COMPLETED",
+    summary: { ...READY_JOB.summary, created: 2, enrollment_changes: 1, unchanged: 0 },
+  };
 
   it("walks through upload → mapping → preview → confirm → result", async () => {
     let processed = false;
@@ -210,13 +215,13 @@ describe("ImportWizard", () => {
       "/student-imports/5/commit/": () => {
         committed = true;
         return {
-          body: {
-            ...READY_JOB, status: "COMPLETED",
-            summary: { ...READY_JOB.summary, created: 2, enrollment_changes: 1, unchanged: 0 },
-          },
+          status: 202,
+          body: { ...READY_JOB, status: "IMPORTING" },
         };
       },
-      "/student-imports/5/": () => ({ body: processed ? READY_JOB : UPLOADED_JOB }),
+      "/student-imports/5/": () => ({
+        body: committed ? COMPLETED_JOB : processed ? READY_JOB : UPLOADED_JOB,
+      }),
       "/student-imports/": { status: 201, body: UPLOADED_JOB },
     });
 

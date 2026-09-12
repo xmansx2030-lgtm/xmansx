@@ -39,11 +39,10 @@ from students.services import attendance_profile as attendance_profile_service
 from students.services import manual as manual_service
 from students.services import morning_profile as morning_profile_service
 from students.services import structure as structure_service
-from students.services.imports import commit as commit_service
 from students.services.imports import mapping as mapping_service
 from students.services.imports import parser as parser_service
 from students.services.queries import students_queryset
-from students.tasks import process_import_job
+from students.tasks import commit_student_import_job, process_import_job
 
 
 def _active_year(school) -> AcademicYear | None:
@@ -442,6 +441,16 @@ class SectionDetailView(SchoolScopedAPIView):
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 
+IMPORT_ERROR_MESSAGES = {
+    "ACTIVE_ACADEMIC_YEAR_REQUIRED": "تغير العام الدراسي النشط منذ رفع الملف. أعد الاستيراد من جديد.",
+    "IMPORT_COMMIT_FAILED": "تعذر تثبيت بيانات الاستيراد. حاول مرة أخرى أو تواصل مع الدعم.",
+    "IMPORT_PREVIEW_STALE": (
+        "تغيرت بيانات الطلاب منذ إنشاء المعاينة. راجع المعاينة المحدثة ثم أعد الاعتماد."
+    ),
+    "STUDENT_LIMIT_EXCEEDED": "تجاوز عدد الطلاب حد الباقة. يرجى ترقية الباقة.",
+}
+
+
 def _serialize_job(job: StudentImportJob) -> dict:
     return {
         "id": job.id,
@@ -472,6 +481,7 @@ def _serialize_job(job: StudentImportJob) -> dict:
             )
         },
         "error_code": job.error_code,
+        "error_message": IMPORT_ERROR_MESSAGES.get(job.error_code, ""),
         "created_at": job.created_at.isoformat(),
     }
 
@@ -615,9 +625,31 @@ class ImportCommitView(SchoolScopedAPIView):
     write_roles = SETTINGS_WRITE_ROLES
 
     def post(self, request: Request, job_id: int) -> Response:
-        job = get_object_or_404(StudentImportJob, id=job_id, school=request.school)
-        job = commit_service.commit_import(job_id=job.id, actor=request.user, request=request)
-        return Response(_serialize_job(job))
+        with transaction.atomic():
+            job = get_object_or_404(
+                StudentImportJob.objects.select_for_update(),
+                id=job_id,
+                school=request.school,
+            )
+            if job.status == ImportJobStatus.COMPLETED:
+                raise ApiError(
+                    "IMPORT_ALREADY_COMMITTED",
+                    "تم اعتماد هذا الاستيراد مسبقاً.",
+                    409,
+                )
+            if job.status == ImportJobStatus.IMPORTING:
+                return Response(_serialize_job(job), status=http_status.HTTP_202_ACCEPTED)
+            if job.status == ImportJobStatus.PROCESSING:
+                raise ApiError("IMPORT_ALREADY_RUNNING", "الاستيراد قيد التنفيذ حالياً.", 409)
+            if job.status != ImportJobStatus.READY_FOR_REVIEW:
+                raise ApiError("IMPORT_NOT_READY", "الاستيراد غير جاهز للاعتماد.", 409)
+            job.status = ImportJobStatus.IMPORTING
+            job.error_code = ""
+            job.save(update_fields=["status", "error_code", "updated_at"])
+            transaction.on_commit(
+                lambda: commit_student_import_job.delay(job.id, request.user.id)
+            )
+        return Response(_serialize_job(job), status=http_status.HTTP_202_ACCEPTED)
 
 
 class ImportCancelView(SchoolScopedAPIView):

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, FileSpreadsheet, UploadCloud } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -36,6 +36,7 @@ export function ImportWizard() {
   const [job, setJob] = useState<ImportJob | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [handledAsyncError, setHandledAsyncError] = useState("");
 
   function fail(e: unknown, fallback: string) {
     setError(e instanceof ApiError || e instanceof Error ? e.message : fallback);
@@ -45,11 +46,43 @@ export function ImportWizard() {
   const jobQuery = useQuery({
     queryKey: schoolScopedKey(schoolId, "import-job", job?.id ?? 0),
     queryFn: ({ signal }) => getImportJob(job!.id, signal),
-    enabled: job !== null && (job.status === "PROCESSING" || step === 2),
+    enabled:
+      job !== null &&
+      (job.status === "PROCESSING" || job.status === "IMPORTING" || step === 2 || step === 3),
     refetchInterval: (query) =>
-      query.state.data?.status === "PROCESSING" ? 1500 : false,
+      query.state.data?.status === "PROCESSING" || query.state.data?.status === "IMPORTING"
+        ? 1500
+        : false,
   });
   const liveJob = jobQuery.data ?? job;
+
+  useEffect(() => {
+    if (!jobQuery.data) return;
+    const updated = jobQuery.data;
+    setJob(updated);
+    if (updated.status === "COMPLETED") {
+      setStep(4);
+      setError(null);
+      setHandledAsyncError("");
+      void queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "students"),
+      });
+      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "grades") });
+      void queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "sections"),
+      });
+      return;
+    }
+    if (!updated.error_code || updated.error_code === handledAsyncError) return;
+    setHandledAsyncError(updated.error_code);
+    setError(updated.error_message || "تعذر اعتماد الاستيراد.");
+    if (updated.status === "READY_FOR_REVIEW") {
+      setStep(2);
+    } else if (updated.status === "FAILED") {
+      setJob(null);
+      setStep(0);
+    }
+  }, [handledAsyncError, jobQuery.data, queryClient, schoolId]);
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadImportFile(file),
@@ -74,22 +107,17 @@ export function ImportWizard() {
 
   const commitMutation = useMutation({
     mutationFn: () => commitImportJob(job!.id),
-    onSuccess: (completed) => {
-      setJob(completed);
+    onSuccess: (updated) => {
+      setJob(updated);
       queryClient.setQueryData(
-        schoolScopedKey(schoolId, "import-job", completed.id),
-        completed,
+        schoolScopedKey(schoolId, "import-job", updated.id),
+        updated,
       );
-      setStep(4);
+      setStep(updated.status === "COMPLETED" ? 4 : 3);
       setError(null);
-      // بيانات الطلاب تغيرت — إبطال قوائمها
-      void queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(schoolId, "students"),
-      });
-      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "grades") });
-      void queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(schoolId, "sections"),
-      });
+      if (updated.status === "IMPORTING") {
+        void jobQuery.refetch();
+      }
     },
     onError: (e) => {
       if (e instanceof ApiError && e.code === "IMPORT_PREVIEW_STALE") {
@@ -152,7 +180,7 @@ export function ImportWizard() {
       {step === 3 && liveJob && (
         <ConfirmStep
           job={liveJob}
-          pending={commitMutation.isPending}
+          pending={commitMutation.isPending || liveJob.status === "IMPORTING"}
           onCommit={() => commitMutation.mutate()}
           onBack={() => setStep(2)}
         />
@@ -518,6 +546,13 @@ function ConfirmStep({
   const summary = job.summary;
   const schoolType = useActiveSchoolType();
   const countLabel = studentCountLabel(schoolType);
+  if (job.status === "IMPORTING") {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <Spinner label="جارٍ تثبيت بيانات الاستيراد..." />
+      </section>
+    );
+  }
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-3 font-bold">ملخص التغييرات</h3>

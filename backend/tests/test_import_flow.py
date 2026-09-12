@@ -12,6 +12,7 @@ from students.models import (
     StudentEnrollment,
     StudentImportJob,
 )
+from students.tasks import commit_student_import_job
 from tests.xlsx_helper import (
     build_noor_report_upload,
     build_official_noor_upload,
@@ -62,12 +63,20 @@ def test_second_processing_import_returns_conflict_instead_of_database_error(imp
     ).count() == 1
 
 
+def commit_and_refresh(client, job_id):
+    """Queue commit, then read the final job after eager Celery runs in tests."""
+    queued = client.post(f"{IMPORTS_URL}{job_id}/commit/")
+    assert queued.status_code == 202
+    assert queued.json()["status"] == ImportJobStatus.IMPORTING
+    commit_student_import_job(job_id)
+    return client.get(f"{IMPORTS_URL}{job_id}/")
+
+
 def run_import(client, rows):
-    """upload → process (eager) → commit — يعيد job النهائي."""
+    """upload -> process (eager) -> commit worker -> final job response."""
     job = upload(client, rows).json()
     process(client, job["id"])
-    response = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
-    return response
+    return commit_and_refresh(client, job["id"])
 
 
 @pytest.mark.django_db
@@ -110,7 +119,7 @@ def test_noor_report_discovers_header_row_and_imports_data(import_manager):
     preview = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"]
     assert [row["row_number"] for row in preview] == [13, 14]
 
-    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    committed = commit_and_refresh(client, job["id"])
     assert committed.status_code == 200
     assert Student.objects.filter(school=school).count() == 2
     assert StudentEnrollment.objects.filter(
@@ -177,7 +186,7 @@ def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import
         "الثاني الثانوي",
     }
 
-    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    committed = commit_and_refresh(client, job["id"])
     assert committed.status_code == 200
     committed_job = committed.json()
     assert committed_job["import_format"] == "NOOR_OFFICIAL_MULTI_SHEET"
@@ -217,7 +226,7 @@ def test_large_official_noor_report_commits_825_students(import_manager):
     assert status_body["status"] == "READY_FOR_REVIEW"
     assert status_body["summary"]["new"] == 825
 
-    committed = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    committed = commit_and_refresh(client, job["id"])
     assert committed.status_code == 200
     assert committed.json()["summary"]["created"] == 825
     assert Student.objects.filter(school=school).count() == 825
@@ -251,7 +260,7 @@ def test_full_import_creates_students_and_enrollments(import_manager):
     assert status_body["summary"]["new"] == 3
     assert "الأول الثانوي" in status_body["summary"]["will_create_grades"]
 
-    commit = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    commit = commit_and_refresh(client, job["id"])
     assert commit.status_code == 200
     summary = commit.json()["summary"]
     assert summary["created"] == 3
@@ -264,6 +273,23 @@ def test_full_import_creates_students_and_enrollments(import_manager):
     student = Student.objects.get(full_name="أحمد محمد")
     assert "1012345678" not in student.national_id_encrypted
     assert student.national_id_masked == "******5678"
+
+
+@pytest.mark.django_db
+def test_commit_endpoint_queues_background_import(import_manager):
+    client, school, _ = import_manager
+    job = upload(client, [noor_row("1012345678", "أحمد محمد")]).json()
+    process(client, job["id"])
+
+    queued = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    assert queued.status_code == 202
+    assert queued.json()["status"] == "IMPORTING"
+
+    commit_student_import_job(job["id"])
+    final = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert final["status"] == "COMPLETED"
+    assert final["summary"]["created"] == 1
+    assert Student.objects.filter(school=school).count() == 1
 
 
 @pytest.mark.django_db
@@ -316,7 +342,7 @@ def test_missing_students_are_reported_not_deleted(import_manager):
     assert preview["summary"]["missing_from_file"] == 1
     assert preview["summary"]["missing_names"][0]["name"] == "خالد سعد"
 
-    client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    commit_and_refresh(client, job["id"])
     # خالد لم يحذف ولم يتغير
     khaled = Student.objects.get(full_name="خالد سعد")
     assert khaled.status == "ACTIVE"
@@ -341,7 +367,7 @@ def test_name_change_detected_and_applied_with_audit(import_manager):
         "from": "أحمد محمد", "to": "أحمد محمد العتيبي"
     }
 
-    client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    commit_and_refresh(client, job["id"])
     assert Student.objects.get(school=school).full_name == "أحمد محمد العتيبي"
     log = AuditLog.objects.get(action="STUDENT_UPDATED")
     assert log.metadata["changed_fields"] == ["full_name"]
@@ -379,7 +405,7 @@ def test_commit_twice_is_idempotent(import_manager):
     rows = [noor_row("1012345678", "أحمد محمد")]
     job = upload(client, rows).json()
     process(client, job["id"])
-    first = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    first = commit_and_refresh(client, job["id"])
     assert first.status_code == 200
     second = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
     assert second.status_code == 409
@@ -403,16 +429,18 @@ def test_stale_preview_detected_on_commit(import_manager):
     other_job = run_import(client, [noor_row("1012345678", "أحمد محمد", "الأول الثانوي", "2")])
     assert other_job.status_code == 200
 
-    # الاعتماد بالمعاينة القديمة يكتشف التعارض ويعيد بناءها
+    # الاعتماد بالمعاينة القديمة يبدأ في الخلفية ثم يضع التعارض على المهمة نفسها
     commit = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
-    assert commit.status_code == 409
-    assert commit.json()["code"] == "IMPORT_PREVIEW_STALE"
+    assert commit.status_code == 202
+    commit_student_import_job(job["id"])
     refreshed = client.get(f"{IMPORTS_URL}{job['id']}/").json()
     assert refreshed["status"] == "READY_FOR_REVIEW"
+    assert refreshed["error_code"] == "IMPORT_PREVIEW_STALE"
+    assert refreshed["error_message"]
     assert refreshed["summary"]["section_changed"] == 1  # المعاينة حدثت
 
-    # الاعتماد بعد المراجعة يعمل — ويعيد الطالب لفصل 1
-    final = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+    # الاعتماد بعد المراجعة يعمل - ويعيد الطالب لفصل 1
+    final = commit_and_refresh(client, job["id"])
     assert final.status_code == 200
     active = StudentEnrollment.objects.get(school=school, status=EnrollmentStatus.ACTIVE)
     assert active.section.code == "1"
@@ -429,8 +457,12 @@ def test_academic_year_change_invalidates_job(import_manager):
     year.save(update_fields=["status"])
 
     commit = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
-    assert commit.status_code == 409
-    assert commit.json()["code"] == "ACTIVE_ACADEMIC_YEAR_REQUIRED"
+    assert commit.status_code == 202
+    commit_student_import_job(job["id"])
+    refreshed = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert refreshed["status"] == "FAILED"
+    assert refreshed["error_code"] == "ACTIVE_ACADEMIC_YEAR_REQUIRED"
+    assert refreshed["error_message"]
     assert Student.objects.filter(school=school).count() == 0
 
 

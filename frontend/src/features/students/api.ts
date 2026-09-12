@@ -184,6 +184,7 @@ export interface ImportJob {
     };
   };
   error_code: string;
+  error_message?: string;
 }
 
 export interface PreviewRow {

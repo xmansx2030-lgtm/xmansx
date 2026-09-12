@@ -120,6 +120,48 @@ def process_import_job(job_id: int) -> str:
             return "failed"
 
 
+@shared_task(name="students.commit_import_job")
+def commit_student_import_job(job_id: int, actor_id: int | None = None) -> str:
+    """اعتماد ملف الطلاب في الخلفية حتى لا يرتبط نجاحه بعمر طلب المتصفح."""
+    from accounts.models import User
+    from common.errors import ApiError
+    from common.tenant_rls import tenant_context
+    from students.models import ImportJobStatus, StudentImportJob
+    from students.services.imports import commit as commit_service
+
+    with tenant_context(bypass=True):
+        job_info = (
+            StudentImportJob.objects.filter(id=job_id)
+            .values("school_id", "status")
+            .first()
+        )
+        actor = User.objects.filter(id=actor_id).first() if actor_id is not None else None
+    if job_info is None:
+        return "skipped"
+    if job_info["status"] == ImportJobStatus.COMPLETED:
+        return "skipped"
+
+    try:
+        with tenant_context(school_id=job_info["school_id"], user_id=actor_id):
+            commit_service.commit_import(
+                job_id=job_id,
+                actor=actor,
+                request=None,
+                allow_importing=True,
+            )
+        return "completed"
+    except ApiError as exc:
+        # أخطاء الأعمال تثبت حالتها داخل خدمة الاعتماد: stale/limit/year/already.
+        if exc.code == "IMPORT_ALREADY_COMMITTED":
+            return "skipped"
+        return exc.code
+    except Exception:
+        logger.exception("student import job %s commit failed", job_id)
+        with tenant_context(school_id=job_info["school_id"], user_id=actor_id):
+            _fail_student_commit(job_id, "IMPORT_COMMIT_FAILED")
+        return "failed"
+
+
 @shared_task(name="students.run_purge_job")
 def run_purge_job(job_id: int) -> str:
     """تنفيذ الحذف الجماعي بدفعات — tenant من الـ Job، idempotent بحالة الـ Job."""
@@ -230,6 +272,26 @@ def _run_scoped_purge(job) -> str:
 def _fail(job, error_code: str) -> None:
     from students.models import ImportJobStatus
 
+    job.status = ImportJobStatus.FAILED
+    job.error_code = error_code
+    job.failed_at = timezone.now()
+    job.save(update_fields=["status", "error_code", "failed_at", "updated_at"])
+    record_event(
+        AuditAction.STUDENT_IMPORT_FAILED,
+        school=job.school,
+        actor=job.uploaded_by,
+        target_type="StudentImportJob",
+        target_id=job.id,
+        metadata={"error_code": error_code},
+    )
+
+
+def _fail_student_commit(job_id: int, error_code: str) -> None:
+    from students.models import ImportJobStatus, StudentImportJob
+
+    job = StudentImportJob.objects.filter(id=job_id).first()
+    if job is None or job.status == ImportJobStatus.COMPLETED:
+        return
     job.status = ImportJobStatus.FAILED
     job.error_code = error_code
     job.failed_at = timezone.now()
