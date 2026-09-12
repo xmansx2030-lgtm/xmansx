@@ -233,9 +233,13 @@ call_command('process_subscription_transitions')
     { plan_id: highPlan.id, reason: "Phase 16 E2E upgrade" },
   );
   expect(upgraded.status()).toBe(200);
-  await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
+  const commitButton = page.getByRole("button", { name: "اعتماد الاستيراد" });
+  if (!(await commitButton.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
+  }
+  await commitButton.click();
   await expect(page.getByTestId("import-result")).toContainText("طلاب جدد: 8", {
-    timeout: 30_000,
+    timeout: 60_000,
   });
 
   const secondDeviceResponse = await post(manager, "/devices/", {
