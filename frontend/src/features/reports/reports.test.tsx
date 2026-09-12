@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -91,5 +91,46 @@ describe("school reports", () => {
     await userEvent.click(screen.getByRole("tab", { name: "التأخر" }));
     expect(await screen.findByText("مرات التأخر الصباحي")).toBeInTheDocument();
     expect(screen.getByText("22")).toBeInTheDocument();
+  });
+
+  it("يعيد جلب النتائج مباشرة بالقيم الظاهرة في فلاتر النطاق", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: me },
+      "/attendance/sections/": {
+        body: [{ id: 20, name: "أ", grade_id: 2, grade_name: "الأول", students_count: 30 }],
+      },
+      "/reports/absence/": {
+        body: {
+          context: range,
+          summary: {
+            students: 0,
+            student_days: 0,
+            full_absence_days: 0,
+            partial_absence_days: 0,
+            excused_absent_periods: 0,
+            unexcused_absent_periods: 0,
+            incomplete_days: 0,
+          },
+          results: [],
+          count: 0,
+          page: 1,
+          page_size: 25,
+        },
+      },
+    });
+    renderApp("/reports");
+    const user = userEvent.setup();
+
+    await screen.findByRole("heading", { name: "مركز التقارير" });
+    await screen.findByRole("option", { name: "الأول" });
+    await user.selectOptions(screen.getByLabelText("الصف"), "2");
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) => call.url.includes("/reports/absence/") && call.url.includes("grade=2"),
+        ),
+      ).toBe(true);
+    });
   });
 });

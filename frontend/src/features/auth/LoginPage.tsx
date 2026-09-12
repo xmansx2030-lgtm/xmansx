@@ -16,7 +16,9 @@ import type { Me } from "@/types/auth";
 
 const LOCAL_MOBILE_RE = /^05\d{8}$/;
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
-const WHATSAPP_URL = "https://wa.me/966537720207";
+const WHATSAPP_MESSAGE =
+  "السلام عليكم، أحتاج التواصل معكم بخصوص منصة المواظبة XMANSX.";
+const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
 function normalizeLocalMobileInput(value: string): string | null {
   const latin = [...value].map((char) => {

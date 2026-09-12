@@ -20,7 +20,16 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "تواصل معنا عبر واتساب على الرقم 0537720207" }),
-    ).toHaveAttribute("href", "https://wa.me/966537720207");
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/966537720207?text="),
+    );
+    const whatsappLink = screen.getByRole("link", {
+      name: "تواصل معنا عبر واتساب على الرقم 0537720207",
+    });
+    expect(decodeURIComponent(whatsappLink.getAttribute("href") ?? "")).toContain(
+      "منصة المواظبة XMANSX",
+    );
   });
 
   it("validates mobile before calling the API", async () => {

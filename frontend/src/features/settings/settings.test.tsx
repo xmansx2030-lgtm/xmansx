@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
-import { validatePeriods } from "@/features/settings/tabs/BellSchedulesTab";
+import {
+  generatePeriodsFromSettings,
+  validatePeriods,
+} from "@/features/settings/tabs/BellSchedulesTab";
 import { buildMe, membership, mockApi } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
@@ -240,6 +243,47 @@ describe("SettingsPage", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
     }
   });
+
+  it("يولد الحصص ديناميكيًا مع الفسحة والصلاة كفواصل غير داخلة في التحضير", async () => {
+    const schedule = {
+      id: 11,
+      name: "الجدول العادي",
+      status: "ACTIVE",
+      valid_from: null,
+      valid_to: null,
+      periods: [],
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/school/bell-schedules/11/periods/": { body: schedule },
+      "/school/bell-schedules/": { body: [schedule] },
+      "/school/week-days/": { body: { days: [] } },
+    });
+
+    renderApp("/settings?section=bell-schedules");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "توليد الجدول" }));
+    expect(await screen.findByLabelText("اسم الفترة 4")).toHaveValue("الفسحة");
+    expect(screen.getByLabelText("اسم الفترة 7")).toHaveValue("الصلاة");
+
+    await user.click(screen.getByRole("button", { name: "حفظ الحصص" }));
+    await waitFor(() => {
+      const call = calls.find(
+        (item) => item.url.includes("/school/bell-schedules/11/periods/") && item.init?.method === "PUT",
+      );
+      const payload = JSON.parse(String(call?.init?.body)) as {
+        periods: { name: string; is_attendance_period: boolean }[];
+      };
+      expect(payload.periods).toHaveLength(9);
+      expect(payload.periods.filter((period) => period.is_attendance_period)).toHaveLength(7);
+      expect(payload.periods).toContainEqual(
+        expect.objectContaining({ name: "الفسحة", is_attendance_period: false }),
+      );
+      expect(payload.periods).toContainEqual(
+        expect.objectContaining({ name: "الصلاة", is_attendance_period: false }),
+      );
+    });
+  });
 });
 
 describe("validatePeriods (تحقق مطابق للخادم)", () => {
@@ -284,5 +328,33 @@ describe("validatePeriods (تحقق مطابق للخادم)", () => {
 
   it("rejects an unreasonable multi-hour class duration", () => {
     expect(validatePeriods([period(1, "الأولى", "00:00", "23:59")])).toMatch("غير معتادة");
+  });
+
+  it("builds a generated school day with recess and prayer breaks", () => {
+    const generated = generatePeriodsFromSettings({
+      startTime: "07:00",
+      periodCount: 6,
+      periodMinutes: 40,
+      gapMinutes: 5,
+      recess: { enabled: true, label: "الفسحة", afterPeriod: 2, duration: 20 },
+      prayer: { enabled: true, label: "الصلاة", afterPeriod: 4, duration: 15 },
+    });
+
+    expect(generated.map((period) => period.name)).toEqual([
+      "الحصة الأولى",
+      "الحصة الثانية",
+      "الفسحة",
+      "الحصة الثالثة",
+      "الحصة الرابعة",
+      "الصلاة",
+      "الحصة الخامسة",
+      "الحصة السادسة",
+    ]);
+    expect(generated.find((period) => period.name === "الفسحة")).toMatchObject({
+      start_time: "08:25",
+      end_time: "08:45",
+      is_attendance_period: false,
+    });
+    expect(validatePeriods(generated)).toBeNull();
   });
 });

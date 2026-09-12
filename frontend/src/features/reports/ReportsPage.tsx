@@ -140,7 +140,6 @@ export function ReportsPage() {
     fromDate: todayIso(-29),
     toDate: todayIso(),
   });
-  const [applied, setApplied] = useState(draft);
   const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
   const [clearedReports, setClearedReports] = useState<Record<Tab, boolean>>({
     absence: false,
@@ -164,14 +163,16 @@ export function ReportsPage() {
     (section) => !draft.grade || section.grade_id === draft.grade,
   );
 
-  const apply = () => {
-    setApplied({ ...draft, student: selectedStudent?.id ?? null, page: 1 });
+  const updateFilters = (next: React.SetStateAction<CommonReportFilters>) => {
+    setDraft((current) => {
+      const resolved = typeof next === "function" ? next(current) : next;
+      return { ...resolved, page: 1 };
+    });
     setClearedReports((current) => ({ ...current, [tab]: false }));
   };
   const reset = () => {
     const clean = { ...INITIAL_FILTERS, fromDate: todayIso(-29), toDate: todayIso() };
     setDraft(clean);
-    setApplied(clean);
     setSelectedStudent(null);
     setClearedReports({ absence: false, lateness: false, referrals: false });
   };
@@ -205,12 +206,15 @@ export function ReportsPage() {
       <ReportFilters
         schoolId={schoolId}
         draft={draft}
-        setDraft={setDraft}
+        setDraft={updateFilters}
         selectedStudent={selectedStudent}
-        setSelectedStudent={setSelectedStudent}
+        setSelectedStudent={(student) => {
+          setSelectedStudent(student);
+          setDraft((current) => ({ ...current, student: student?.id ?? null, page: 1 }));
+          setClearedReports((current) => ({ ...current, [tab]: false }));
+        }}
         grades={grades}
         sections={sections}
-        onApply={apply}
         onReset={reset}
         schoolType={schoolType}
       />
@@ -218,8 +222,8 @@ export function ReportsPage() {
       {tab === "absence" && (
         <AbsenceReport
           schoolId={schoolId}
-          filters={applied}
-          onPage={(page) => setApplied((current) => ({ ...current, page }))}
+          filters={draft}
+          onPage={(page) => setDraft((current) => ({ ...current, page }))}
           schoolType={schoolType}
           schoolName={schoolName}
           isCleared={clearedReports.absence}
@@ -230,8 +234,8 @@ export function ReportsPage() {
       {tab === "lateness" && (
         <LatenessReport
           schoolId={schoolId}
-          filters={applied}
-          onPage={(page) => setApplied((current) => ({ ...current, page }))}
+          filters={draft}
+          onPage={(page) => setDraft((current) => ({ ...current, page }))}
           schoolType={schoolType}
           schoolName={schoolName}
           isCleared={clearedReports.lateness}
@@ -242,8 +246,8 @@ export function ReportsPage() {
       {tab === "referrals" && (
         <ReferralsReport
           schoolId={schoolId}
-          filters={applied}
-          onPage={(page) => setApplied((current) => ({ ...current, page }))}
+          filters={draft}
+          onPage={(page) => setDraft((current) => ({ ...current, page }))}
           schoolType={schoolType}
           schoolName={schoolName}
           isCleared={clearedReports.referrals}
@@ -255,7 +259,7 @@ export function ReportsPage() {
   );
 }
 
-function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelectedStudent, grades, sections, onApply, onReset, schoolType }: {
+function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelectedStudent, grades, sections, onReset, schoolType }: {
   schoolId: number;
   draft: CommonReportFilters;
   setDraft: React.Dispatch<React.SetStateAction<CommonReportFilters>>;
@@ -263,7 +267,6 @@ function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelected
   setSelectedStudent: (student: StudentRow | null) => void;
   grades: [number, string][];
   sections: Awaited<ReturnType<typeof getAttendanceSections>>;
-  onApply: () => void;
   onReset: () => void;
   schoolType: "BOYS" | "GIRLS";
 }) {
@@ -280,11 +283,11 @@ function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelected
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
         <label className="text-xs font-bold text-slate-600">الفترة<select value={draft.preset} onChange={(event) => setDraft((current) => ({ ...current, preset: event.target.value as ReportPreset }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm">{PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         {draft.preset === "CUSTOM" && <><label className="text-xs font-bold text-slate-600">من<input type="date" value={draft.fromDate} onChange={(event) => setDraft((current) => ({ ...current, fromDate: event.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" /></label><label className="text-xs font-bold text-slate-600">إلى<input type="date" value={draft.toDate} onChange={(event) => setDraft((current) => ({ ...current, toDate: event.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" /></label></>}
-        <label className="text-xs font-bold text-slate-600">الصف<select value={draft.grade ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, grade: event.target.value ? Number(event.target.value) : "", section: "" })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الصفوف</option>{grades.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <label className="text-xs font-bold text-slate-600">الفصل<select value={draft.section ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, section: event.target.value ? Number(event.target.value) : "" })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الفصول</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}</option>)}</select></label>
+        <label className="text-xs font-bold text-slate-600">الصف<select value={draft.grade ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, grade: event.target.value ? Number(event.target.value) : "", section: "", student: null })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الصفوف</option>{grades.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+        <label className="text-xs font-bold text-slate-600">الفصل<select value={draft.section ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, section: event.target.value ? Number(event.target.value) : "", student: null })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الفصول</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}</option>)}</select></label>
         <div className="relative text-xs font-bold text-slate-600 lg:col-span-2">{studentLabel(schoolType, true)}<div className="relative mt-1"><Search aria-hidden size={16} className="pointer-events-none absolute end-3 top-3.5 text-slate-400" /><input aria-label={`البحث عن ${studentLabel(schoolType, true)}`} value={selectedStudent ? selectedStudent.full_name : search} onChange={(event) => { setSelectedStudent(null); setSearch(event.target.value); }} placeholder={`اكتب حرفين من اسم ${studentLabel(schoolType, true)}`} className="h-11 w-full rounded-xl border border-slate-300 px-3 pe-10 text-sm" /></div>{candidates.isSuccess && candidates.data.results.length > 0 && !selectedStudent && <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">{candidates.data.results.map((student) => <li key={student.id}><button type="button" onClick={() => { setSelectedStudent(student); setSearch(""); }} className="w-full rounded-lg p-2 text-start text-sm hover:bg-slate-100"><b className="block text-slate-900">{student.full_name}</b><span className="text-xs font-normal text-slate-500">{student.grade?.name ?? "—"} / {student.section?.name ?? "—"}</span></button></li>)}</ul>}</div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2"><Button onClick={onApply}><Filter aria-hidden size={16} /> تطبيق الفلاتر</Button><Button variant="secondary" onClick={onReset}><RotateCcw aria-hidden size={16} /> إعادة ضبط</Button>{selectedStudent && <button type="button" onClick={() => setSelectedStudent(null)} className="rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-800">{selectedStudent.full_name} ×</button>}</div>
+      <div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => setDraft((current) => ({ ...current, page: 1 }))}><Filter aria-hidden size={16} /> تحديث النتائج</Button><Button variant="secondary" onClick={onReset}><RotateCcw aria-hidden size={16} /> إعادة ضبط</Button>{selectedStudent && <button type="button" onClick={() => setSelectedStudent(null)} className="rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-800">{selectedStudent.full_name} ×</button>}</div>
     </section>
   );
 }
