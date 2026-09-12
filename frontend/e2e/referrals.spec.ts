@@ -166,7 +166,7 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
   await page.getByTestId(`open-referral-${created.body.id}`).click();
   await expect(page.getByTestId("referral-detail")).toContainText("جديدة");
   await page.getByTestId("acknowledge-referral").click();
-  await expect(page.getByTestId("referral-detail")).toContainText("تم الاستلام", {
+  await expect(page.getByTestId("referral-detail")).toContainText("تم استلام الإحالة", {
     timeout: 15_000,
   });
 });

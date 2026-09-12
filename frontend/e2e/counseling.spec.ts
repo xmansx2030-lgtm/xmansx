@@ -196,7 +196,7 @@ test("teacher referral becomes a counselor case visible on the dashboard", async
   await expect(page.getByTestId("referral-kpis")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId(`open-referral-${referralId}`).click();
   await page.getByRole("button", { name: "استلام الحالة" }).click();
-  await expect(page.getByTestId("referral-detail")).toContainText("تم الاستلام", {
+  await expect(page.getByTestId("referral-detail")).toContainText("تم استلام الإحالة", {
     timeout: 20_000,
   });
 

@@ -315,7 +315,7 @@ test("vice principal refers the student: one referral action, counselor acknowle
   const detail = page.getByTestId("referral-detail");
   await expect(detail).toContainText("جديدة");
   await page.getByRole("button", { name: "استلام الحالة" }).click();
-  await expect(detail).toContainText("تم الاستلام", { timeout: 20_000 });
+  await expect(detail).toContainText("تم استلام الإحالة", { timeout: 20_000 });
 });
 
 test("document checksum and referral snapshot both survive the other feature", async ({
