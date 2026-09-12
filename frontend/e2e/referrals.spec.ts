@@ -144,11 +144,13 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
         category: "CLASSROOM_BEHAVIOR",
         reason_code: "SLEEPING_IN_CLASS",
         description: "نام داخل الحصة ثلاث مرات هذا الأسبوع.",
+        // تعيد Playwright المحاولة ضمن بيانات الشريحة ذاتها عند إخفاق عابر.
+        allow_duplicate: true,
       },
     },
   );
   expect(created.status).toBe(201);
-  expect(created.body.status).toBe("NEW");
+  expect(created.body.status).toBe("PENDING_VICE");
   expect(created.body.source_type).toBe("TEACHER");
 
   // «إحالاتي» تعرضها للمعلم
@@ -158,13 +160,27 @@ test("teacher refers a student and the counselor acknowledges", async ({ page })
   });
   await expect(page.getByTestId("my-referrals-rows")).toContainText("النوم داخل الحصة");
 
-  // المرشدة تراها جديدة وتستلمها
+  // الوكيل المسؤول يراجعها أولاً ثم يحولها إلى المرشدة.
+  await logout(page);
+  await login(page, "0550000003", "ثانوية الأندلس");
+  const counselors = await api<{ counselors: { id: number }[] }>(
+    page,
+    "/referrals/counselors/",
+  );
+  expect(counselors.body.counselors).toHaveLength(1);
+  const forwarded = await api(page, `/referrals/${created.body.id}/assign/`, {
+    method: "POST",
+    body: { counselor_membership_id: counselors.body.counselors[0].id },
+  });
+  expect(forwarded.status).toBe(200);
+
+  // المرشدة تراها بعد التحويل وتستلمها.
   await logout(page);
   await login(page, "0550000005", "ثانوية الأندلس");
   await page.goto("/referrals");
   await expect(page.getByTestId("referral-kpis")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`open-referral-${created.body.id}`).click();
-  await expect(page.getByTestId("referral-detail")).toContainText("جديدة");
+  await expect(page.getByTestId("referral-detail")).toContainText("محوّلة للمرشد");
   await page.getByTestId("acknowledge-referral").click();
   await expect(page.getByTestId("referral-detail")).toContainText("تم استلام الإحالة", {
     timeout: 15_000,
