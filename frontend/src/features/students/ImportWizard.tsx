@@ -59,29 +59,32 @@ export function ImportWizard() {
   useEffect(() => {
     if (!jobQuery.data) return;
     const updated = jobQuery.data;
-    setJob(updated);
-    if (updated.status === "COMPLETED") {
-      setStep(4);
-      setError(null);
-      setHandledAsyncError("");
-      void queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(schoolId, "students"),
-      });
-      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "grades") });
-      void queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(schoolId, "sections"),
-      });
-      return;
-    }
-    if (!updated.error_code || updated.error_code === handledAsyncError) return;
-    setHandledAsyncError(updated.error_code);
-    setError(updated.error_message || "تعذر اعتماد الاستيراد.");
-    if (updated.status === "READY_FOR_REVIEW") {
-      setStep(2);
-    } else if (updated.status === "FAILED") {
-      setJob(null);
-      setStep(0);
-    }
+    const syncTimer = window.setTimeout(() => {
+      setJob(updated);
+      if (updated.status === "COMPLETED") {
+        setStep(4);
+        setError(null);
+        setHandledAsyncError("");
+        void queryClient.invalidateQueries({
+          queryKey: schoolScopedKey(schoolId, "students"),
+        });
+        void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "grades") });
+        void queryClient.invalidateQueries({
+          queryKey: schoolScopedKey(schoolId, "sections"),
+        });
+        return;
+      }
+      if (!updated.error_code || updated.error_code === handledAsyncError) return;
+      setHandledAsyncError(updated.error_code);
+      setError(updated.error_message || "تعذر اعتماد الاستيراد.");
+      if (updated.status === "READY_FOR_REVIEW") {
+        setStep(2);
+      } else if (updated.status === "FAILED") {
+        setJob(null);
+        setStep(0);
+      }
+    }, 0);
+    return () => window.clearTimeout(syncTimer);
   }, [handledAsyncError, jobQuery.data, queryClient, schoolId]);
 
   const uploadMutation = useMutation({

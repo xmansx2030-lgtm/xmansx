@@ -442,7 +442,9 @@ class SectionDetailView(SchoolScopedAPIView):
 
 
 IMPORT_ERROR_MESSAGES = {
-    "ACTIVE_ACADEMIC_YEAR_REQUIRED": "تغير العام الدراسي النشط منذ رفع الملف. أعد الاستيراد من جديد.",
+    "ACTIVE_ACADEMIC_YEAR_REQUIRED": (
+        "تغير العام الدراسي النشط منذ رفع الملف. أعد الاستيراد من جديد."
+    ),
     "IMPORT_COMMIT_FAILED": "تعذر تثبيت بيانات الاستيراد. حاول مرة أخرى أو تواصل مع الدعم.",
     "IMPORT_PREVIEW_STALE": (
         "تغيرت بيانات الطلاب منذ إنشاء المعاينة. راجع المعاينة المحدثة ثم أعد الاعتماد."
