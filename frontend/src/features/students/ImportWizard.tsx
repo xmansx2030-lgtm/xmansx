@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, FileSpreadsheet, UploadCloud } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, FileSpreadsheet, Pencil, ShieldCheck, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
+import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey } from "@/features/auth/useMe";
@@ -13,13 +14,18 @@ import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hook
 import {
   CATEGORY_LABELS,
   commitImportJob,
+  correctImportRow,
   getImportJob,
   getImportPreview,
+  getSections,
   MAPPING_LABELS,
   processImportJob,
   uploadImportFile,
   type ImportJob,
+  type ImportRowCorrection,
   type MappingField,
+  type PreviewRow,
+  type SectionItem,
 } from "@/features/students/api";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
@@ -176,6 +182,13 @@ export function ImportWizard() {
       {step === 2 && liveJob && (
         <PreviewStep
           job={liveJob}
+          onJobUpdate={(updated) => {
+            setJob(updated);
+            queryClient.setQueryData(
+              schoolScopedKey(schoolId, "import-job", updated.id),
+              updated,
+            );
+          }}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}
         />
@@ -360,23 +373,61 @@ function MappingStep({
 
 function PreviewStep({
   job,
+  onJobUpdate,
   onNext,
   onBack,
 }: {
   job: ImportJob;
+  onJobUpdate: (job: ImportJob) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
   const schoolId = useActiveSchoolId();
   const schoolType = useActiveSchoolType();
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(() =>
+    (job.summary.errors ?? 0) > 0
+      ? "ERROR"
+      : (job.summary.duplicates ?? 0) > 0
+        ? "DUPLICATE_IN_FILE"
+        : "",
+  );
   const [page, setPage] = useState(1);
+  const [editingRow, setEditingRow] = useState<PreviewRow | null>(null);
+  const queryClient = useQueryClient();
 
   const rowsQuery = useQuery({
     queryKey: schoolScopedKey(schoolId, "import-preview", job.id, category, page),
     queryFn: () => getImportPreview(job.id, category, page),
     enabled: job.status === "READY_FOR_REVIEW",
     placeholderData: (previous) => previous,
+  });
+  const sectionsQuery = useQuery({
+    queryKey: schoolScopedKey(schoolId, "sections", "import-review"),
+    queryFn: ({ signal }) => getSections(signal),
+    enabled: editingRow !== null,
+  });
+  const correctionMutation = useMutation({
+    mutationFn: (correction: ImportRowCorrection) =>
+      correctImportRow(job.id, editingRow!.row_number, correction),
+    onSuccess: async (updated) => {
+      onJobUpdate(updated);
+      setEditingRow(null);
+      if (category === "ERROR" && (updated.summary.errors ?? 0) === 0) {
+        setCategory(
+          (updated.summary.duplicates ?? 0) > 0 ? "DUPLICATE_IN_FILE" : "",
+        );
+        setPage(1);
+      } else if (
+        category === "DUPLICATE_IN_FILE" &&
+        (updated.summary.duplicates ?? 0) === 0
+      ) {
+        setCategory((updated.summary.errors ?? 0) > 0 ? "ERROR" : "");
+        setPage(1);
+      }
+      await queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "import-preview", job.id),
+      });
+    },
   });
 
   if (job.status === "PROCESSING") {
@@ -406,6 +457,7 @@ function PreviewStep({
     GRADE_CHANGED: summary.grade_changed ?? 0,
     ERROR: summary.errors ?? 0,
     DUPLICATE_IN_FILE: summary.duplicates ?? 0,
+    AUTO_RESOLVED_DUPLICATE: summary.auto_resolved_duplicates ?? 0,
   };
   const hasBlockingIssues = (summary.errors ?? 0) + (summary.duplicates ?? 0) > 0;
   const totalPages = rowsQuery.data
@@ -427,6 +479,31 @@ function PreviewStep({
         <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
           يتجاوز الاستيراد حد الباقة: {summary.student_capacity.projected} / {summary.student_capacity.limit} {studentCountLabel(schoolType)}.
           يمكنك مراجعة المعاينة، لكن الاعتماد يتطلب ترقية الباقة.
+        </p>
+      )}
+
+      {hasBlockingIssues ? (
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-gradient-to-l from-amber-50 to-white p-4 shadow-sm" role="alert">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><CircleAlert aria-hidden size={20} /></span>
+            <div>
+              <p className="font-black text-amber-950">لن يتم تخطي أي طالب</p>
+              <p className="mt-1 text-sm leading-6 text-amber-900">
+                عالج {summary.errors ?? 0} من الأخطاء و{summary.duplicates ?? 0} من التكرارات المتعارضة. سيبقى الاعتماد مقفلاً والملف محفوظًا حتى تصبح الحالات المعلّقة صفرًا.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900" role="status">
+          <ShieldCheck aria-hidden size={22} className="shrink-0" />
+          <p className="text-sm font-bold">اكتملت المراجعة: كل الطلاب محفوظون وجاهزون للانتقال إلى التأكيد.</p>
+        </div>
+      )}
+
+      {(summary.auto_resolved_duplicates ?? 0) > 0 && (
+        <p className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+          عالجت المنصة تلقائيًا {summary.auto_resolved_duplicates} من الصفوف المتطابقة تمامًا، وستُنشئ سجل طالب واحدًا فقط لكل هوية.
         </p>
       )}
 
@@ -462,6 +539,7 @@ function PreviewStep({
                 <th className="p-2 text-start">الهوية</th>
                 <th className="p-2 text-start">الصف/الفصل</th>
                 <th className="p-2 text-start">الحالة</th>
+                <th className="p-2 text-start">المعالجة</th>
               </tr>
             </thead>
             <tbody>
@@ -487,6 +565,25 @@ function PreviewStep({
                       <span className="text-red-700">❌ {row.error_message}</span>
                     ) : (
                       (CATEGORY_LABELS[row.status] ?? row.status)
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {(row.status === "ERROR" || row.status === "DUPLICATE_IN_FILE") ? (
+                      <Button
+                        variant="secondary"
+                        className="whitespace-nowrap"
+                        onClick={() => {
+                          correctionMutation.reset();
+                          setEditingRow(row);
+                        }}
+                        aria-label={`معالجة الصف ${row.row_number}`}
+                      >
+                        <Pencil aria-hidden size={15} /> معالجة
+                      </Button>
+                    ) : row.status === "AUTO_RESOLVED_DUPLICATE" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700"><Check aria-hidden size={14} /> عولج تلقائيًا</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
                     )}
                   </td>
                 </tr>
@@ -517,21 +614,166 @@ function PreviewStep({
         </div>
       )}
 
-      {hasBlockingIssues && (
-        <p className="mb-3 text-sm text-amber-700">
-          الصفوف ذات الأخطاء والتكرارات ستتخطى ولن تستورد.
-        </p>
-      )}
-
       <div className="flex gap-2">
         <Button variant="secondary" onClick={onBack}>
           تعديل المطابقة
         </Button>
-        <Button onClick={onNext} disabled={job.status !== "READY_FOR_REVIEW"}>
-          متابعة إلى التأكيد
+        <Button onClick={onNext} disabled={job.status !== "READY_FOR_REVIEW" || hasBlockingIssues}>
+          {hasBlockingIssues ? "عالج الحالات أولًا" : "متابعة إلى التأكيد"}
         </Button>
       </div>
+
+      {editingRow && (
+        <ImportRowCorrectionModal
+          row={editingRow}
+          sections={sectionsQuery.data ?? []}
+          sectionCandidates={job.summary.section_candidates ?? []}
+          sectionsLoading={sectionsQuery.isPending}
+          pending={correctionMutation.isPending}
+          error={correctionMutation.error}
+          onClose={() => {
+            if (!correctionMutation.isPending) setEditingRow(null);
+          }}
+          onSubmit={(correction) => correctionMutation.mutate(correction)}
+        />
+      )}
     </section>
+  );
+}
+
+function ImportRowCorrectionModal({
+  row,
+  sections,
+  sectionCandidates,
+  sectionsLoading,
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  row: PreviewRow;
+  sections: SectionItem[];
+  sectionCandidates: NonNullable<ImportJob["summary"]["section_candidates"]>;
+  sectionsLoading: boolean;
+  pending: boolean;
+  error: unknown;
+  onClose: () => void;
+  onSubmit: (correction: ImportRowCorrection) => void;
+}) {
+  const identityCodes = ["INVALID_NATIONAL_ID", "MISSING_NATIONAL_ID", "MISSING_IDENTITY", "DUPLICATE_IN_FILE"];
+  const needsIdentity = row.status === "DUPLICATE_IN_FILE" || row.error_codes.some((code) => identityCodes.includes(code));
+  const needsName = row.error_codes.includes("MISSING_NAME");
+  const needsSection = row.error_codes.some((code) => code === "MISSING_GRADE" || code === "MISSING_SECTION");
+  const [nationalId, setNationalId] = useState("");
+  const [fullName, setFullName] = useState(row.data.full_name ?? "");
+  const [sectionId, setSectionId] = useState("");
+  const gradeSections = sections.filter((section) =>
+    !row.data.grade_name || section.grade.name === row.data.grade_name,
+  );
+  const visibleSections = gradeSections.length > 0 ? gradeSections : sections;
+  const fileSections = sectionCandidates.filter((candidate) =>
+    !row.data.grade_name || candidate.grade_name === row.data.grade_name,
+  );
+  const canSubmit =
+    (!needsIdentity || nationalId.trim().length > 0) &&
+    (!needsName || fullName.trim().length >= 2) &&
+    (!needsSection || sectionId !== "");
+  const errorMessage = error instanceof Error
+    ? error.message
+    : error
+      ? "تحقق من البيانات وحاول مرة أخرى."
+      : null;
+
+  return (
+    <Modal
+      title={`معالجة الصف ${row.row_number}`}
+      description={`صحّح بيانات ${row.data.full_name || "الطالب"}. ستعيد المنصة فحص الملف كاملًا فور الحفظ.`}
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        {needsIdentity && (
+          <label className="block text-sm font-bold text-slate-700">
+            رقم الهوية الصحيح *
+            <input
+              aria-label="رقم الهوية الصحيح"
+              value={nationalId}
+              onChange={(event) => setNationalId(event.target.value)}
+              inputMode="numeric"
+              dir="ltr"
+              autoComplete="off"
+              placeholder="10 أرقام"
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 font-mono tracking-wider focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+            <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">لا تخمّن المنصة الهوية من الاسم؛ تُقبل المسافات والشرطات وتزال تلقائيًا.</span>
+          </label>
+        )}
+        {needsName && (
+          <label className="block text-sm font-bold text-slate-700">
+            اسم الطالب الصحيح *
+            <input
+              aria-label="اسم الطالب الصحيح"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+        )}
+        {needsSection && (
+          <label className="block text-sm font-bold text-slate-700">
+            الفصل الصحيح *
+            <select
+              aria-label="الفصل الصحيح"
+              value={sectionId}
+              onChange={(event) => setSectionId(event.target.value)}
+              disabled={sectionsLoading}
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">{sectionsLoading ? "جارٍ تحميل الفصول..." : "اختر الفصل"}</option>
+              {visibleSections.filter((section) => section.is_active && section.grade.is_active).map((section) => (
+                <option key={`existing-${section.id}`} value={`existing:${section.id}`}>{section.grade.name} / {section.name} — موجود</option>
+              ))}
+              {fileSections
+                .filter((candidate) => !visibleSections.some((section) =>
+                  section.grade.name === candidate.grade_name && section.code === candidate.section_code,
+                ))
+                .map((candidate) => (
+                  <option key={`file-${candidate.grade_code}-${candidate.section_code}`} value={`file:${candidate.section_code}`}>
+                    {candidate.grade_name} / {candidate.section_name} — من الملف
+                  </option>
+                ))}
+            </select>
+            <span className="mt-1.5 block text-xs font-normal text-slate-500">اختيار الفصل يثبت الصف والفصل معًا من هيكل المدرسة المعتمد.</span>
+          </label>
+        )}
+        {errorMessage && (
+          <Alert tone="danger" title="لم يُحفظ التصحيح">
+            {errorMessage}
+          </Alert>
+        )}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <Button variant="secondary" onClick={onClose} disabled={pending}>إلغاء</Button>
+          <Button
+            disabled={!canSubmit || pending}
+            loading={pending}
+            loadingLabel="جارٍ إعادة الفحص..."
+            onClick={() => {
+              const correction: ImportRowCorrection = {};
+              if (needsIdentity) correction.national_id = nationalId;
+              if (needsName) correction.full_name = fullName;
+              if (needsSection && sectionId.startsWith("existing:")) {
+                correction.section_id = Number(sectionId.slice("existing:".length));
+              }
+              if (needsSection && sectionId.startsWith("file:")) {
+                correction.section_code = sectionId.slice("file:".length);
+              }
+              onSubmit(correction);
+            }}
+          >
+            حفظ وإعادة الفحص
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

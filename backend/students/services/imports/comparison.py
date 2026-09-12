@@ -33,13 +33,26 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     summary = {
         "new": 0, "unchanged": 0, "updated": 0,
         "section_changed": 0, "grade_changed": 0,
-        "errors": 0, "duplicates": 0,
+        "errors": 0, "duplicates": 0, "auto_resolved_duplicates": 0,
     }
     grades_to_create: set[tuple[str, str, int]] = set()
     sections_to_create: set[tuple[str, str, str]] = set()  # (grade_code, section_code, name)
     matched_student_ids: set[int] = set()
+    section_candidates = {
+        (
+            row["grade_code"], row["grade_name"],
+            row["section_code"], row["section_name"],
+        )
+        for row in normalized_rows
+        if row.get("grade_code") and row.get("section_code")
+    }
 
     for row in normalized_rows:
+        if row.get("auto_resolved_duplicate"):
+            row["status"] = "AUTO_RESOLVED_DUPLICATE"
+            row["errors"] = []
+            summary["auto_resolved_duplicates"] += 1
+            continue
         if "DUPLICATE_IN_FILE" in row["errors"]:
             row["status"] = "DUPLICATE_IN_FILE"
             summary["duplicates"] += 1
@@ -56,6 +69,12 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             student = students_by_number.get(row["student_number"])
 
         if student is None:
+            if not row["national_id_hash"]:
+                if "MISSING_NATIONAL_ID" not in row["errors"]:
+                    row["errors"].append("MISSING_NATIONAL_ID")
+                row["status"] = "ERROR"
+                summary["errors"] += 1
+                continue
             row["status"] = "NEW"
             row["matched_student_id"] = None
             summary["new"] += 1
@@ -136,6 +155,15 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     summary["missing_from_file"] = len(missing)
     summary["will_create_grades"] = [name for _, name in will_create_grades]
     summary["will_create_sections"] = [f"{g} / {n}" for g, n in will_create_sections]
+    summary["section_candidates"] = [
+        {
+            "grade_code": grade_code,
+            "grade_name": grade_name,
+            "section_code": section_code,
+            "section_name": section_name,
+        }
+        for grade_code, grade_name, section_code, section_name in sorted(section_candidates)
+    ]
     # قائمة الأسماء تُقتطع للعرض، لكن **المعرفات كاملة**: فلتر «غير الموجودين في آخر
     # ملف نور» يبنى عليها، فاقتطاعها كان يُخفي طلابًا فعليين في المدارس الكبيرة.
     summary["missing_ids"] = [entry["student_id"] for entry in missing]

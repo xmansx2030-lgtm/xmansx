@@ -400,6 +400,113 @@ def test_row_errors_and_duplicates_categorized(import_manager):
 
 
 @pytest.mark.django_db
+def test_commit_is_blocked_until_every_import_row_is_resolved(import_manager):
+    client, school, _ = import_manager
+    job = upload(client, [noor_row("123", "طالب يحتاج تصحيح")]).json()
+    process(client, job["id"])
+
+    blocked = client.post(f"{IMPORTS_URL}{job['id']}/commit/")
+
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "IMPORT_ROWS_REQUIRE_REVIEW"
+    stored = StudentImportJob.objects.get(id=job["id"])
+    assert stored.status == ImportJobStatus.READY_FOR_REVIEW
+    assert stored.file
+    assert stored.rows.count() == 1
+    assert not Student.objects.filter(school=school).exists()
+
+
+@pytest.mark.django_db
+def test_manager_corrects_identity_and_missing_section_before_commit(import_manager):
+    client, school, year = import_manager
+    rows = [
+        noor_row("123", "طالب الهوية", "الأول الثانوي", "1"),
+        noor_row("1012345679", "طالب الفصل", "الأول الثانوي", ""),
+        noor_row("1012345680", "طالب مرجعي", "الأول الثانوي", "2"),
+    ]
+    job = upload(client, rows).json()
+    process(client, job["id"])
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["errors"] == 2
+    assert any(
+        item["section_code"] == "2"
+        for item in preview["summary"]["section_candidates"]
+    )
+
+    identity_fix = client.patch(
+        f"{IMPORTS_URL}{job['id']}/rows/2/",
+        {"national_id": "1012-345-678"},
+        content_type="application/json",
+    )
+    assert identity_fix.status_code == 200
+    assert identity_fix.json()["summary"]["errors"] == 1
+
+    section_fix = client.patch(
+        f"{IMPORTS_URL}{job['id']}/rows/3/",
+        {"section_code": "2"},
+        content_type="application/json",
+    )
+    assert section_fix.status_code == 200
+    assert section_fix.json()["summary"]["errors"] == 0
+    assert section_fix.json()["summary"]["duplicates"] == 0
+
+    committed = commit_and_refresh(client, job["id"])
+    assert committed.status_code == 200
+    assert committed.json()["summary"]["created"] == 3
+    assert Student.objects.filter(school=school).count() == 3
+    assert StudentEnrollment.objects.filter(
+        school=school, academic_year=year, section__code="2"
+    ).count() == 2
+
+
+@pytest.mark.django_db
+def test_exact_duplicate_rows_are_resolved_automatically_without_duplicate_student(
+    import_manager,
+):
+    client, school, _ = import_manager
+    duplicate = noor_row("1012345678", "طالب مطابق", "الأول الثانوي", "1")
+    job = upload(client, [duplicate, duplicate]).json()
+    process(client, job["id"])
+
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["duplicates"] == 0
+    assert preview["summary"]["auto_resolved_duplicates"] == 1
+    resolved_rows = client.get(
+        f"{IMPORTS_URL}{job['id']}/preview/?category=AUTO_RESOLVED_DUPLICATE"
+    ).json()["results"]
+    assert len(resolved_rows) == 1
+
+    committed = commit_and_refresh(client, job["id"])
+    assert committed.status_code == 200
+    assert committed.json()["summary"]["created"] == 1
+    assert Student.objects.filter(school=school).count() == 1
+
+
+@pytest.mark.django_db
+def test_existing_student_can_be_matched_by_student_number_when_identity_is_blank(
+    import_manager,
+):
+    client, school, _ = import_manager
+    run_import(
+        client,
+        [noor_row("1012345678", "طالب برقم مدرسي", "الأول الثانوي", "1", "S-1001")],
+    )
+    job = upload(
+        client,
+        [noor_row("", "طالب برقم مدرسي", "الأول الثانوي", "1", "S-1001")],
+    ).json()
+    process(client, job["id"])
+
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["errors"] == 0
+    assert preview["summary"]["unchanged"] == 1
+
+    committed = commit_and_refresh(client, job["id"])
+    assert committed.status_code == 200
+    assert Student.objects.filter(school=school).count() == 1
+
+
+@pytest.mark.django_db
 def test_commit_twice_is_idempotent(import_manager):
     client, school, _ = import_manager
     rows = [noor_row("1012345678", "أحمد محمد")]

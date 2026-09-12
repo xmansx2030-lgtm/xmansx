@@ -45,6 +45,10 @@ urlpatterns = [
     path("student-imports/<int:job_id>/", views.ImportJobView.as_view()),
     path("student-imports/<int:job_id>/process/", views.ImportProcessView.as_view()),
     path("student-imports/<int:job_id>/preview/", views.ImportPreviewView.as_view()),
+    path(
+        "student-imports/<int:job_id>/rows/<int:row_number>/",
+        views.ImportRowCorrectionView.as_view(),
+    ),
     path("student-imports/<int:job_id>/commit/", views.ImportCommitView.as_view()),
     path("student-imports/<int:job_id>/cancel/", views.ImportCancelView.as_view()),
 ]

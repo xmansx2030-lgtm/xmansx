@@ -137,6 +137,16 @@ def _commit_locked(
             409,
         )
 
+    if result["summary"]["errors"] or result["summary"]["duplicates"]:
+        job.status = ImportJobStatus.READY_FOR_REVIEW
+        job.error_code = "IMPORT_ROWS_REQUIRE_REVIEW"
+        job.save(update_fields=["status", "error_code", "updated_at"])
+        return job, ApiError(
+            "IMPORT_ROWS_REQUIRE_REVIEW",
+            "عالج جميع الصفوف ذات الأخطاء أو التكرارات قبل اعتماد الاستيراد.",
+            409,
+        )
+
     job.status = ImportJobStatus.IMPORTING
     job.error_code = ""
     job.save(update_fields=["status", "error_code", "updated_at"])

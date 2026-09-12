@@ -34,6 +34,7 @@ from students.models import (
     ImportJobStatus,
     Section,
     StudentImportJob,
+    StudentImportRow,
 )
 from students.services import attendance_profile as attendance_profile_service
 from students.services import manual as manual_service
@@ -41,6 +42,7 @@ from students.services import morning_profile as morning_profile_service
 from students.services import structure as structure_service
 from students.services.imports import mapping as mapping_service
 from students.services.imports import parser as parser_service
+from students.services.imports import review as review_service
 from students.services.queries import students_queryset
 from students.tasks import commit_student_import_job, process_import_job
 
@@ -450,7 +452,27 @@ IMPORT_ERROR_MESSAGES = {
         "تغيرت بيانات الطلاب منذ إنشاء المعاينة. راجع المعاينة المحدثة ثم أعد الاعتماد."
     ),
     "STUDENT_LIMIT_EXCEEDED": "تجاوز عدد الطلاب حد الباقة. يرجى ترقية الباقة.",
+    "IMPORT_ROWS_REQUIRE_REVIEW": (
+        "عالج جميع الصفوف ذات الأخطاء أو التكرارات قبل اعتماد الاستيراد."
+    ),
 }
+
+
+class ImportRowCorrectionSerializer(serializers.Serializer):
+    national_id = serializers.CharField(max_length=40, required=False, trim_whitespace=True)
+    student_number = serializers.CharField(
+        max_length=30, required=False, allow_blank=True, trim_whitespace=True
+    )
+    full_name = serializers.CharField(max_length=200, required=False, trim_whitespace=True)
+    section_id = serializers.IntegerField(min_value=1, required=False)
+    section_code = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("أرسل تصحيحًا واحدًا على الأقل.")
+        if "section_id" in attrs and "section_code" in attrs:
+            raise serializers.ValidationError("اختر مصدرًا واحدًا للفصل الصحيح.")
+        return attrs
 
 
 def _serialize_job(job: StudentImportJob) -> dict:
@@ -622,6 +644,52 @@ class ImportPreviewView(SchoolScopedAPIView):
         )
 
 
+class ImportRowCorrectionView(SchoolScopedAPIView):
+    """تصحيح صف staging مع إعادة فحص الملف كاملًا؛ لا يعيد الهوية الخام."""
+
+    read_roles = SETTINGS_WRITE_ROLES
+    write_roles = SETTINGS_WRITE_ROLES
+
+    def patch(self, request: Request, job_id: int, row_number: int) -> Response:
+        serializer = ImportRowCorrectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            job = get_object_or_404(
+                StudentImportJob.objects.select_for_update(),
+                id=job_id,
+                school=request.school,
+            )
+            if job.status != ImportJobStatus.READY_FOR_REVIEW:
+                raise ApiError(
+                    "IMPORT_NOT_READY",
+                    "يمكن تصحيح الصفوف أثناء مرحلة المراجعة فقط.",
+                    status_code=409,
+                )
+            row = get_object_or_404(
+                StudentImportRow.objects.select_for_update(),
+                job=job,
+                row_number=row_number,
+            )
+            changed_fields = review_service.correct_row(
+                job=job, row=row, corrections=dict(serializer.validated_data)
+            )
+            record_event(
+                AuditAction.STUDENT_IMPORT_VALIDATED,
+                request=request,
+                actor=request.user,
+                school=job.school,
+                target_type="StudentImportRow",
+                target_id=row.id,
+                metadata={
+                    "event": "ROW_CORRECTED",
+                    "job_id": job.id,
+                    "row_number": row.row_number,
+                    "changed_fields": changed_fields,
+                },
+            )
+        return Response(_serialize_job(job))
+
+
 class ImportCommitView(SchoolScopedAPIView):
     read_roles = SETTINGS_WRITE_ROLES
     write_roles = SETTINGS_WRITE_ROLES
@@ -645,6 +713,12 @@ class ImportCommitView(SchoolScopedAPIView):
                 raise ApiError("IMPORT_ALREADY_RUNNING", "الاستيراد قيد التنفيذ حالياً.", 409)
             if job.status != ImportJobStatus.READY_FOR_REVIEW:
                 raise ApiError("IMPORT_NOT_READY", "الاستيراد غير جاهز للاعتماد.", 409)
+            if job.invalid_rows or job.duplicate_rows:
+                raise ApiError(
+                    "IMPORT_ROWS_REQUIRE_REVIEW",
+                    "عالج جميع الصفوف ذات الأخطاء أو التكرارات قبل اعتماد الاستيراد.",
+                    409,
+                )
             job.status = ImportJobStatus.IMPORTING
             job.error_code = ""
             job.save(update_fields=["status", "error_code", "updated_at"])

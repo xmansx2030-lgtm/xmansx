@@ -304,6 +304,7 @@ class ImportRowStatus(models.TextChoices):
     GRADE_CHANGED = "GRADE_CHANGED", "تغير صف"
     ERROR = "ERROR", "خطأ"
     DUPLICATE_IN_FILE = "DUPLICATE_IN_FILE", "مكرر في الملف"
+    AUTO_RESOLVED_DUPLICATE = "AUTO_RESOLVED_DUPLICATE", "تكرار مطابق عولج تلقائيًا"
 
 
 class StudentImportRow(models.Model):

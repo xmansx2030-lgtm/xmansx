@@ -169,6 +169,13 @@ export interface ImportJob {
     grade_changed?: number;
     errors?: number;
     duplicates?: number;
+    auto_resolved_duplicates?: number;
+    section_candidates?: Array<{
+      grade_code: string;
+      grade_name: string;
+      section_code: string;
+      section_name: string;
+    }>;
     missing_from_file?: number;
     missing_names?: { student_id: number; name: string }[];
     will_create_grades?: string[];
@@ -199,6 +206,14 @@ export interface PreviewRow {
   };
   error_codes: string[];
   error_message: string;
+}
+
+export interface ImportRowCorrection {
+  national_id?: string;
+  student_number?: string;
+  full_name?: string;
+  section_id?: number;
+  section_code?: string;
 }
 
 // ---- الطلاب ----
@@ -349,6 +364,15 @@ export const getImportPreview = (jobId: number, category: string, page: number) 
     `/student-imports/${jobId}/preview/?category=${encodeURIComponent(category)}&page=${page}`,
   );
 
+export const correctImportRow = (
+  jobId: number,
+  rowNumber: number,
+  body: ImportRowCorrection,
+) => apiRequest<ImportJob>(`/student-imports/${jobId}/rows/${rowNumber}/`, {
+  method: "PATCH",
+  body,
+});
+
 export const commitImportJob = (jobId: number) =>
   apiRequest<ImportJob>(`/student-imports/${jobId}/commit/`, {
     method: "POST",
@@ -467,4 +491,5 @@ export const CATEGORY_LABELS: Record<string, string> = {
   GRADE_CHANGED: "تغير صف",
   ERROR: "أخطاء",
   DUPLICATE_IN_FILE: "تكرارات",
+  AUTO_RESOLVED_DUPLICATE: "تكرارات عولجت تلقائيًا",
 };

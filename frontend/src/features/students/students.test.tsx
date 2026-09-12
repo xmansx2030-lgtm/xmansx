@@ -304,6 +304,7 @@ describe("ImportWizard", () => {
   });
 
   it("shows preview row errors with row number and Arabic message", async () => {
+    let corrected = false;
     const errorJob = {
       ...READY_JOB,
       summary: { ...READY_JOB.summary, new: 0, errors: 1, missing_from_file: 0 },
@@ -311,8 +312,8 @@ describe("ImportWizard", () => {
     mockApi({
       "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
       "/student-imports/5/process/": { body: errorJob },
-      "/student-imports/5/preview/": {
-        body: {
+      "/student-imports/5/preview/": () => ({
+        body: corrected ? { count: 0, next: null, previous: null, results: [] } : {
           count: 1, next: null, previous: null,
           results: [
             {
@@ -323,8 +324,23 @@ describe("ImportWizard", () => {
             },
           ],
         },
+      }),
+      "/student-imports/5/rows/23/": () => {
+        corrected = true;
+        return {
+          body: {
+            ...errorJob,
+            invalid_rows: 0,
+            summary: { ...errorJob.summary, errors: 0, new: 1 },
+          },
+        };
       },
-      "/student-imports/5/": { body: errorJob },
+      "/sections/": { body: [] },
+      "/student-imports/5/": () => ({
+        body: corrected
+          ? { ...errorJob, invalid_rows: 0, summary: { ...errorJob.summary, errors: 0, new: 1 } }
+          : errorJob,
+      }),
       "/student-imports/": { status: 201, body: UPLOADED_JOB },
     });
 
@@ -342,5 +358,13 @@ describe("ImportWizard", () => {
       expect(screen.getByText("23")).toBeInTheDocument();
       expect(screen.getByText(/رقم الهوية غير صالح/)).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: "عالج الحالات أولًا" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "معالجة الصف 23" }));
+    await user.type(screen.getByLabelText("رقم الهوية الصحيح"), "1012-345-678");
+    await user.click(screen.getByRole("button", { name: "حفظ وإعادة الفحص" }));
+
+    expect(await screen.findByText(/اكتملت المراجعة/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "متابعة إلى التأكيد" })).toBeEnabled();
   });
 });
