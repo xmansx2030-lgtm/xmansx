@@ -13,7 +13,6 @@ from openpyxl.utils import get_column_letter
 
 from schools.models import School
 
-
 REPORT_DEFINITIONS: dict[str, dict[str, Any]] = {
     "absence": {
         "title": "تقرير الغياب",
@@ -89,7 +88,9 @@ def _date_label(value: str | None) -> str:
     return value.split("T", 1)[0]
 
 
-def _write_metadata(sheet, *, school: School, title: str, context: dict, columns_count: int) -> None:
+def _write_metadata(
+    sheet, *, school: School, title: str, context: dict, columns_count: int
+) -> None:
     sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=columns_count)
     sheet["A1"] = title
     sheet["A1"].font = TITLE_FONT
