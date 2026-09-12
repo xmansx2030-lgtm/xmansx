@@ -204,7 +204,8 @@ def test_directory_query_count(role_client, make_user, django_assert_max_num_que
     client, school, _ = role_client(["SCHOOL_MANAGER"])
     for i in range(20):
         _make_staff(school, make_user(f"05588801{i:02d}"), ["TEACHER"], f"موظف {i}")
-    with django_assert_max_num_queries(10):
+    # يضاف استعلام واحد مجمع لنطاقات الوكلاء حتى لا تصبح عملية تسلسل لكل موظف.
+    with django_assert_max_num_queries(11):
         response = client.get(STAFF_URL)
     assert response.status_code == 200
 

@@ -183,11 +183,11 @@ def test_referrals_report_exports_real_xlsx(report_env):
     assert response.status_code == 200
     workbook = load_workbook(BytesIO(response.content), read_only=True)
     sheet = workbook["الإحالات"]
-    assert sheet["A1"].value == "تقرير الإحالات للمرشد"
+    assert sheet["A1"].value == "تقرير مسار الإحالات"
     assert sheet["D7"].value == "الفئة"
     assert sheet["A8"].value == "طالب التقرير"
     assert sheet["D8"].value == "المواظبة"
-    assert sheet["H8"].value == "عاجلة"
+    assert sheet["I8"].value == "عاجلة"
 
 
 @pytest.mark.django_db

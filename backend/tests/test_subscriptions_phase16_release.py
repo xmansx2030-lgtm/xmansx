@@ -23,6 +23,7 @@ from referrals.models import (
     ReferralCategory,
     ReferralReason,
     ReferralSourceType,
+    ReferralStatus,
     StudentReferral,
 )
 from schools.models import School
@@ -338,6 +339,7 @@ def test_subscription_operations_preserve_cross_feature_data(
         reason_code=ReferralReason.REPEATED_ABSENCE,
         created_by_membership=vice,
         assigned_counselor_membership=counselor,
+        status=ReferralStatus.REFERRED,
     )
     case = CounselorCase.objects.create(
         school=school,

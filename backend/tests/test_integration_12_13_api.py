@@ -8,6 +8,7 @@ import pytest
 from django.utils import timezone as dj_timezone
 
 from documents.pdf import pdf_engine_available
+from memberships.models import SchoolMembership
 from referrals.models import ReferralCategory, ReferralReason
 from student_warnings.models import StudentWarning, WarningLevel, WarningRuleType, WarningStatus
 from tests.excuse_env import DAY, DAY2, build_env
@@ -70,7 +71,10 @@ def test_counselor_with_referral_still_cannot_download_documents(role_client, en
     """البندان 30 و50: الإحالة لا تمنح صلاحية تنزيل مستند رسمي."""
     student = env["students"][0]
     vice, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
-    counselor, _, _ = role_client(["COUNSELOR"], school=env["school"])
+    counselor, _, counselor_user = role_client(["COUNSELOR"], school=env["school"])
+    counselor_membership = SchoolMembership.objects.get(
+        school=env["school"], user=counselor_user
+    )
 
     document = json_post(
         vice, GENERATE_URL,
@@ -86,6 +90,7 @@ def test_counselor_with_referral_still_cannot_download_documents(role_client, en
             "category": ReferralCategory.ATTENDANCE,
             "reason_code": ReferralReason.REPEATED_ABSENCE,
             "description": "غياب متكرر يستدعي متابعة إرشادية مستمرة.",
+            "assigned_counselor_id": counselor_membership.id,
         },
     )
     assert referral.status_code == 201
@@ -186,6 +191,10 @@ def test_admin_referral_action_appears_in_the_actions_tab(role_client, env):
     """البند 72: أثر الإحالة الإداري يظهر ضمن إجراءات ملف الطالب."""
     student = env["students"][0]
     vice, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
+    _, _, counselor_user = role_client(["COUNSELOR"], school=env["school"])
+    counselor_membership = SchoolMembership.objects.get(
+        school=env["school"], user=counselor_user
+    )
     json_post(
         vice, REFERRALS_URL,
         {
@@ -193,6 +202,7 @@ def test_admin_referral_action_appears_in_the_actions_tab(role_client, env):
             "category": ReferralCategory.ATTENDANCE,
             "reason_code": ReferralReason.REPEATED_ABSENCE,
             "description": "غياب متكرر يستدعي متابعة إرشادية مستمرة.",
+            "assigned_counselor_id": counselor_membership.id,
         },
     )
     rows = vice.get(f"{ACTIONS_URL}?student={student.id}").json()["results"]
