@@ -290,7 +290,21 @@ test("vice principal refers the student: one referral action, counselor acknowle
   expect(created.status).toBe(201);
   referralId = created.body.id;
 
-  // إجراء «إحالة إلى المرشد» واحد فقط (البند 68)
+  // الوكيل يراجعها أولاً ثم يوجهها إلى المرشدة؛ الأثر الإداري لا يُنشأ
+  // إلا عند هذا التوجيه، لا بمجرد إنشاء الملف.
+  const counselors = await api<{ counselors: { id: number; name: string }[] }>(
+    page,
+    "/referrals/counselors/",
+  );
+  expect(counselors.status).toBe(200);
+  expect(counselors.body.counselors).toHaveLength(1);
+  const forwarded = await api(page, `/referrals/${referralId}/assign/`, {
+    method: "POST",
+    body: { counselor_membership_id: counselors.body.counselors[0].id },
+  });
+  expect(forwarded.status).toBe(200);
+
+  // إجراء «إحالة إلى المرشد» واحد فقط بعد التوجيه (البند 68)
   const actions = await api<{ results: { action_type: string }[] }>(
     page,
     `/student-actions/?student=${studentId}`,
