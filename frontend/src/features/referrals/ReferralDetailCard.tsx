@@ -75,6 +75,9 @@ export function ReferralDetailCard({
     queryFn: ({ signal }) => getVicePrincipals(signal),
     enabled: schoolId > 0 && isManager,
   });
+  const suggestedCounselorId =
+    detail.data?.assigned_counselor_id ?? detail.data?.recommended_counselor_id;
+  const selectedCounselorId = counselorId || (suggestedCounselorId ? String(suggestedCounselorId) : "");
 
   const refresh = () => {
     queryClient.invalidateQueries({
@@ -87,7 +90,7 @@ export function ReferralDetailCard({
     setActionError(error instanceof Error ? error.message : "تعذر تنفيذ الإجراء.");
 
   const assignMutation = useMutation({
-    mutationFn: () => assignCounselor(referralId, Number(counselorId)),
+    mutationFn: () => assignCounselor(referralId, Number(selectedCounselorId)),
     onSuccess: refresh,
     onError: fail,
   });
@@ -146,12 +149,6 @@ export function ReferralDetailCard({
     detailRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     detailRef.current?.focus({ preventScroll: true });
   }, [detailId]);
-
-  useEffect(() => {
-    const suggested =
-      detail.data?.assigned_counselor_id ?? detail.data?.recommended_counselor_id;
-    setCounselorId(suggested ? String(suggested) : "");
-  }, [detail.data?.assigned_counselor_id, detail.data?.recommended_counselor_id]);
 
   if (detail.isPending) return <Spinner />;
   if (detail.isError) return <ErrorState error={detail.error} />;
@@ -360,7 +357,7 @@ export function ReferralDetailCard({
                 {roleLabel("COUNSELOR", schoolType)}
                 <select
                   data-testid="assign-counselor"
-                  value={counselorId}
+                  value={selectedCounselorId}
                   onChange={(event) => setCounselorId(event.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 >
@@ -383,7 +380,7 @@ export function ReferralDetailCard({
               <Button
                 className="w-full justify-center sm:w-auto"
                 onClick={() => assignMutation.mutate()}
-                disabled={counselorId === "" || assignMutation.isPending}
+                disabled={selectedCounselorId === "" || assignMutation.isPending}
                 data-testid="save-assign"
               >
                 {referral.status === "REFERRED" ? "تغيير المرشد" : "تحويل للمرشد"}
