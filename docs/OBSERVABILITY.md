@@ -27,6 +27,10 @@ connection strings, worker names, credentials, stack traces, or customer records
 - A heartbeat older than 300 seconds is stale. Beat's Docker healthcheck starts after 150 seconds
   to permit the first scheduled delivery.
 - Task failures and retries emit structured `celery_task_failed` / `celery_task_retrying` events
+- `/api/v1/platform/system-health/` (platform-admin only) exposes aggregate PostgreSQL
+  connection pressure and Redis memory/client/queue-depth telemetry. It contains no SQL,
+  Redis values, tenant data, or credentials; alert on a sustained rise rather than a single
+  sample.
   containing task name, bounded task ID, and exception type. Arguments, keyword arguments,
   result values, and payloads are excluded.
 - Beat downtime delays subscription transitions and optional backup scheduling but does not

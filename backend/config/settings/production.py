@@ -101,7 +101,10 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = False  # SPA reads this cookie and mirrors it in X-CSRFToken
 SESSION_COOKIE_AGE = env_int("DJANGO_SESSION_COOKIE_AGE", 12 * 60 * 60)
-SESSION_SAVE_EVERY_REQUEST = True
+# A busy live dashboard must not turn every polling request into a database
+# session UPDATE. ``SessionActivityMiddleware`` renews the rolling expiry at a
+# bounded cadence while authenticated activity continues.
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
@@ -124,6 +127,8 @@ def _validate_origins(name: str, origins: list[str]) -> None:
 
 if SESSION_COOKIE_AGE <= 0:
     raise ImproperlyConfigured("DJANGO_SESSION_COOKIE_AGE must be a positive number of seconds")
+if SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS <= 0:
+    raise ImproperlyConfigured("SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS must be positive")
 
 _reject_insecure_production_values()
 _validate_origins("DJANGO_CSRF_TRUSTED_ORIGINS", CSRF_TRUSTED_ORIGINS)

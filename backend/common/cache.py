@@ -1,10 +1,27 @@
 import logging
+import time
+from threading import Lock
 
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.core.cache.backends.redis import RedisCache
 from redis.exceptions import RedisError
 
 logger = logging.getLogger("xmansx.cache")
+
+_FAILURE_LOG_INTERVAL_SECONDS = 60
+_failure_log_lock = Lock()
+_last_failure_log_at = 0.0
+
+
+def _log_cache_unavailable() -> None:
+    """Emit one outage warning per process per interval, not per cache call."""
+    global _last_failure_log_at
+    now = time.monotonic()
+    with _failure_log_lock:
+        if now - _last_failure_log_at < _FAILURE_LOG_INTERVAL_SECONDS:
+            return
+        _last_failure_log_at = now
+    logger.warning("performance_cache_unavailable")
 
 
 class ResilientRedisCache(RedisCache):
@@ -14,7 +31,7 @@ class ResilientRedisCache(RedisCache):
         try:
             return operation(*args, **kwargs)
         except (RedisError, OSError, TimeoutError):
-            logger.warning("performance_cache_unavailable")
+            _log_cache_unavailable()
             return default
 
     def get(self, key, default=None, version=None):

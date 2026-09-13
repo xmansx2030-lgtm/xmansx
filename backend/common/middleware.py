@@ -5,7 +5,9 @@ import re
 import time
 import uuid
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
+from django.utils import timezone
 
 from common.logging import request_id_var
 from operations.metrics import registry
@@ -66,6 +68,38 @@ class RequestLogMiddleware:
                 "school_id": getattr(getattr(request, "school", None), "id", None),
             },
         )
+        return response
+
+
+class SessionActivityMiddleware:
+    """Renew an authenticated rolling session at a bounded cadence.
+
+    Django's ``SESSION_SAVE_EVERY_REQUEST`` makes a database-backed session write
+    on every successful request. That is especially expensive for the live
+    polling screens. We retain the same rolling-expiry model, but mark the
+    session modified at most once per configured interval.
+    """
+
+    _LAST_ACTIVITY_KEY = "_session_activity_touched_at"
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        response = self.get_response(request)
+        if response.status_code >= 500:
+            return response
+
+        user = getattr(request, "user", None)
+        session = getattr(request, "session", None)
+        if session is None or user is None or not user.is_authenticated:
+            return response
+
+        now = int(timezone.now().timestamp())
+        last_activity = session.get(self._LAST_ACTIVITY_KEY)
+        interval = settings.SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS
+        if not isinstance(last_activity, int) or now - last_activity >= interval:
+            session[self._LAST_ACTIVITY_KEY] = now
         return response
 
 

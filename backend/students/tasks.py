@@ -18,7 +18,7 @@ from audit.services import record_event
 logger = logging.getLogger("xmansx.imports")
 
 
-@shared_task(name="students.process_import_job")
+@shared_task(name="students.process_import_job", ignore_result=True)
 def process_import_job(job_id: int) -> str:
     from common.errors import ApiError
     from common.tenant_rls import tenant_context
@@ -125,7 +125,7 @@ def process_import_job(job_id: int) -> str:
             return "failed"
 
 
-@shared_task(name="students.commit_import_job")
+@shared_task(name="students.commit_import_job", ignore_result=True)
 def commit_student_import_job(job_id: int, actor_id: int | None = None) -> str:
     """اعتماد ملف الطلاب في الخلفية حتى لا يرتبط نجاحه بعمر طلب المتصفح."""
     from accounts.models import User
@@ -167,7 +167,7 @@ def commit_student_import_job(job_id: int, actor_id: int | None = None) -> str:
         return "failed"
 
 
-@shared_task(name="students.run_purge_job")
+@shared_task(name="students.run_purge_job", ignore_result=True)
 def run_purge_job(job_id: int) -> str:
     """تنفيذ الحذف الجماعي بدفعات — tenant من الـ Job، idempotent بحالة الـ Job."""
     from django.utils import timezone

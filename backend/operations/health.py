@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 
+import redis
 from celery import current_app
 from django.conf import settings
 from django.core.cache import cache
+from django.db import connection
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -86,6 +88,58 @@ def latest_backup() -> dict:
     }
 
 
+def database_resource_usage() -> dict | None:
+    """Return low-cardinality connection pressure data for platform operators.
+
+    The query is deliberately aggregate-only: it exposes no user, SQL, or
+    tenant data and runs only when the protected operations endpoint is read.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*)::integer,
+                    COUNT(*) FILTER (WHERE state = 'active')::integer,
+                    COUNT(*) FILTER (
+                        WHERE state = 'active' AND wait_event_type IS NOT NULL
+                    )::integer
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                """
+            )
+            total, active, waiting = cursor.fetchone()
+    except Exception:
+        return None
+    return {"connections": total, "active_connections": active, "waiting_connections": waiting}
+
+
+def redis_resource_usage() -> dict | None:
+    """Return memory/client/queue pressure without exposing Redis contents."""
+    try:
+        client = redis.Redis.from_url(
+            settings.REDIS_URL,
+            socket_connect_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
+            socket_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
+        )
+        memory = client.info("memory")
+        clients = client.info("clients")
+        queues = {
+            queue: int(client.llen(queue))
+            for queue in ("celery", "imports", "maintenance")
+        }
+    except Exception:
+        return None
+    return {
+        "used_memory_bytes": int(memory.get("used_memory", 0)),
+        "used_memory_peak_bytes": int(memory.get("used_memory_peak", 0)),
+        "maxmemory_bytes": int(memory.get("maxmemory", 0)),
+        "connected_clients": int(clients.get("connected_clients", 0)),
+        "blocked_clients": int(clients.get("blocked_clients", 0)),
+        "queue_depths": queues,
+    }
+
+
 def operational_snapshot() -> dict:
     database = "ok" if _check_database() else "unavailable"
     redis = "ok" if _check_redis() else "unavailable"
@@ -107,4 +161,8 @@ def operational_snapshot() -> dict:
         "backup": backup,
         "bridge": bridges,
         "storage_integrity": cache.get("operations:storage-integrity") if redis == "ok" else None,
+        "resources": {
+            "postgres": database_resource_usage() if database == "ok" else None,
+            "redis": redis_resource_usage() if redis == "ok" else None,
+        },
     }

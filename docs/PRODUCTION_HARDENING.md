@@ -32,8 +32,10 @@ path، مفتاح Fernet التطويري، ومفتاح HMAC الضعيف. لا
 - `SESSION_COOKIE_SECURE=True`, `HttpOnly=True`, `SameSite=Lax`.
 - `CSRF_COOKIE_SECURE=True`, `SameSite=Lax`. الكعكة ليست HttpOnly لأن SPA تقرأها
   وترسلها في `X-CSRFToken`; الخادم يبقى جهة التحقق.
-- العمر 12 ساعة، يتجدد مع النشاط (`SESSION_SAVE_EVERY_REQUEST=True`) ولا ينتهي
-  بمجرد إغلاق المتصفح. يمكن تغييره عبر `DJANGO_SESSION_COOKIE_AGE` الموجب.
+- العمر 12 ساعة، يتجدد مع النشاط ولا ينتهي بمجرد إغلاق المتصفح. ولمنع شاشات
+  المتابعة الحية من كتابة جلسة PostgreSQL مع كل poll، يجدد
+  `SessionActivityMiddleware` الجلسة مرة كل 5 دقائق افتراضيًا؛ يمكن ضبط ذلك عبر
+  `SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS` مع قيمة موجبة.
 - logout يمسح الجلسة خادميًا. تغيير كلمة المرور يدور session key ويحفظ الجلسة
   الحالية فقط؛ بقية الجلسات تفشل عند مقارنة auth hash الجديد.
 
@@ -52,4 +54,3 @@ path، مفتاح Fernet التطويري، ومفتاح HMAC الضعيف. لا
 `docker-compose.production.yml` overlay فوق compose الأساسي ويشغل gunicorn،
 worker، beat، PostgreSQL، Redis، وnginx production build. المتغيرات الحساسة
 مطلوبة من shell ولا توجد لها قيم سرية ثابتة في الملف.
-

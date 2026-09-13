@@ -64,6 +64,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "common.middleware.SessionActivityMiddleware",
     "memberships.middleware.TenantContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "csp.middleware.CSPMiddleware",
@@ -140,6 +141,11 @@ READINESS_CHECK_TIMEOUT_SECONDS = 2
 OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS = env_int("OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS", 5 * 60)
 BRIDGE_STALE_AFTER_SECONDS = env_int("BRIDGE_STALE_AFTER_SECONDS", 2 * 60)
 BRIDGE_OFFLINE_AFTER_SECONDS = env_int("BRIDGE_OFFLINE_AFTER_SECONDS", 5 * 60)
+# Production validates this value explicitly; defining it here keeps middleware
+# behavior deterministic in local and test settings as well.
+SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS = env_int(
+    "SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS", 5 * 60
+)
 
 SENTRY_DSN = env_str("SENTRY_DSN", "")
 SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "local")
@@ -261,6 +267,11 @@ else:
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
+# Application workflows persist their progress in PostgreSQL and clients poll that
+# durable state. Keep the result backend only for the small number of diagnostic
+# tasks that opt in, and expire those values predictably instead of letting them
+# compete indefinitely with the broker and performance cache.
+CELERY_RESULT_EXPIRES = env_int("CELERY_RESULT_EXPIRES", 60 * 60)
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TIMEZONE = TIME_ZONE

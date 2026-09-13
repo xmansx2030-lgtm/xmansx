@@ -29,7 +29,9 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "current-period"),
     queryFn: ({ signal }) => getCurrentPeriod(signal),
     refetchInterval: 5_000, // يلتقط تعديل توقيت الجدول على أجهزة المعلمين سريعًا
-    refetchIntervalInBackground: true,
+    // التبويب المخفي لا يحتاج تحديثًا حيًا؛ TanStack يعيد الجلب عند العودة.
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
 
   const sectionsQuery = useQuery({

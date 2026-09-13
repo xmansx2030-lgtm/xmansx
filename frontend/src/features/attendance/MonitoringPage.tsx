@@ -62,7 +62,9 @@ export function MonitoringPage() {
     queryFn: ({ signal }) => getMonitoring(signal),
     enabled: activeSchoolId > 0,
     refetchInterval: MONITORING_POLL_MS,
-    refetchIntervalInBackground: true,
+    // لا نستهلك API/DB عندما لا تكون شاشة المتابعة معروضة للمستخدم.
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
 
   const data = query.data;

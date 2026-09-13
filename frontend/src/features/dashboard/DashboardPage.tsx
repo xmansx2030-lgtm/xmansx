@@ -132,7 +132,9 @@ export function DashboardPage() {
     queryFn: ({ signal }) => getToday(signal),
     enabled: operationalEnabled,
     refetchInterval: LIVE_POLL_MS,
-    refetchIntervalInBackground: true,
+    // تبقى الشاشة الظاهرة لحظية، لكن لا تستمر PWA في polling بالخلفية.
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
   const trendQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "trend", ...filterKey),

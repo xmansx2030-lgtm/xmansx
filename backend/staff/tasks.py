@@ -12,7 +12,7 @@ from audit.services import record_event
 logger = logging.getLogger("xmansx.imports")
 
 
-@shared_task(name="staff.process_import_job")
+@shared_task(name="staff.process_import_job", ignore_result=True)
 def process_staff_import_job(job_id: int) -> str:
     from common.errors import ApiError
     from common.excel_security import read_rows
