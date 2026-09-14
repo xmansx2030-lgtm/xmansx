@@ -15,6 +15,7 @@ SEARCH_URL = "/api/v1/students/search/"
 
 
 def _summary(school, enrollment, attendance_date, status, absent):
+    submitted = 0 if status == DailyAbsenceStatus.UNDETERMINED else 7
     return DailyAttendanceSummary.objects.create(
         school=school,
         student=enrollment.student,
@@ -22,9 +23,9 @@ def _summary(school, enrollment, attendance_date, status, absent):
         section=enrollment.section,
         attendance_date=attendance_date,
         expected_periods=7,
-        submitted_periods=7 if status != DailyAbsenceStatus.UNDETERMINED else 3,
+        submitted_periods=submitted,
         absent_periods=absent,
-        present_periods=max(7 - absent, 0),
+        present_periods=max(submitted - absent, 0),
         completeness_status=(
             "COMPLETE" if status != DailyAbsenceStatus.UNDETERMINED else "INCOMPLETE"
         ),
@@ -40,17 +41,18 @@ def test_profile_summary_aggregates_phase8_daily_summaries(make_school):
     enrollment = _enroll(school, student)
     _summary(school, enrollment, date(2026, 8, 24), DailyAbsenceStatus.FULL, 7)
     _summary(school, enrollment, date(2026, 8, 25), DailyAbsenceStatus.PARTIAL, 2)
-    _summary(school, enrollment, date(2026, 8, 26), DailyAbsenceStatus.UNDETERMINED, 1)
+    _summary(school, enrollment, date(2026, 8, 26), DailyAbsenceStatus.UNDETERMINED, 0)
 
     result = get_profile_summary(
         school=school, student=student, from_date=date(2026, 8, 24), to_date=date(2026, 8, 26)
     )
 
     assert result == {
+        "present_days": 1,
         "full_absence_days": 1,
         "partial_absence_days": 1,
         "undetermined_days": 1,
-        "absent_periods": 10,
+        "absent_periods": 9,
         # م10 — صفوف هذا الاختبار كتبت مباشرة بلا تصنيف (لا أعذار): أصفار
         "excused_absent_periods": 0,
         "unexcused_absent_periods": 0,

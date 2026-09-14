@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, GraduationCap } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleAlert, Clock3, GraduationCap, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -32,15 +32,15 @@ import { studentLabel, studentPluralLabel } from "@/utils/roles";
 import type { SchoolType } from "@/types/auth";
 
 const DAY_LABELS: Record<string, string> = {
-  FULL: "غياب يوم كامل",
-  PARTIAL: "غياب جزئي",
-  NONE: "لا يوجد غياب",
-  UNDETERMINED: "بيانات غير مكتملة",
+  FULL: "غائب يومًا كاملًا",
+  PARTIAL: "حاضر — لديه غياب جزئي",
+  NONE: "حاضر",
+  UNDETERMINED: "لم يعتمد تحضير",
 };
 const MARK_LABELS: Record<string, string> = {
   ABSENT: "غائب",
   PRESENT: "حاضر",
-  NOT_RECORDED: "لم يتم تسجيل الحضور",
+  NOT_RECORDED: "لم يعتمد تحضير الحصة",
 };
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "نشط",
@@ -75,6 +75,12 @@ function formatMinutes(minutes: number) {
   return `${hours} ساعة و${rest} دقيقة`;
 }
 
+function formatOccurrences(count: number) {
+  if (count === 1) return "مرة واحدة";
+  if (count === 2) return "مرتين";
+  return `${count} مرات`;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(
     new Date(`${value}T12:00:00`),
@@ -91,6 +97,7 @@ export function StudentAttendanceProfilePage() {
   const today = isoDate(new Date());
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
+  const [preset, setPresetValue] = useState("today");
   const [tab, setTab] = useState<Tab>("summary");
   const [page, setPage] = useState(1);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -115,10 +122,24 @@ export function StudentAttendanceProfilePage() {
     queryFn: ({ signal }) => getAttendanceDays(id, { ...range, page }, signal),
     enabled: tab === "days" && schoolId > 0 && Number.isInteger(id),
   });
+  const detailDay = selectedDay ?? (tab === "days" ? days.data?.results[0]?.date ?? null : null);
   const dayDetail = useQuery({
-    queryKey: schoolScopedKey(schoolId, "student-attendance-day", id, selectedDay),
-    queryFn: ({ signal }) => getAttendanceDayDetail(id, selectedDay!, signal),
-    enabled: tab === "days" && selectedDay !== null,
+    queryKey: schoolScopedKey(schoolId, "student-attendance-day", id, detailDay),
+    queryFn: ({ signal }) => getAttendanceDayDetail(id, detailDay!, signal),
+    enabled: tab === "days" && detailDay !== null,
+  });
+  const singleDay = fromDate === toDate ? fromDate : null;
+  const singleDayMatchesProfile = singleDay !== null
+    && profile.data?.period.from === singleDay
+    && profile.data?.period.to === singleDay;
+  const singleDayDetail = useQuery({
+    queryKey: schoolScopedKey(schoolId, "student-attendance-day", id, singleDay),
+    queryFn: ({ signal }) => getAttendanceDayDetail(id, singleDay!, signal),
+    enabled:
+      tab === "summary"
+      && singleDayMatchesProfile
+      && schoolId > 0
+      && Number.isInteger(id),
   });
   const absences = useQuery({
     queryKey: schoolScopedKey(schoolId, "student-period-absences", id, fromDate, toDate, page),
@@ -142,6 +163,9 @@ export function StudentAttendanceProfilePage() {
   });
 
   const setPreset = (preset: string) => {
+    setPresetValue(preset);
+    setPage(1);
+    setSelectedDay(null);
     const end = new Date();
     const start = new Date(end);
     if (preset === "today") {
@@ -156,6 +180,28 @@ export function StudentAttendanceProfilePage() {
       setFromDate(isoDate(start));
       setToDate(isoDate(end));
     }
+  };
+
+  const updateFromDate = (value: string) => {
+    setPresetValue("custom");
+    setFromDate(value);
+    if (value > toDate) setToDate(value);
+    setPage(1);
+    setSelectedDay(null);
+  };
+
+  const updateToDate = (value: string) => {
+    setPresetValue("custom");
+    setToDate(value);
+    if (value < fromDate) setFromDate(value);
+    setPage(1);
+    setSelectedDay(null);
+  };
+
+  const showTab = (value: Tab) => {
+    setTab(value);
+    setPage(1);
+    if (value !== "days") setSelectedDay(null);
   };
 
   if (profile.isPending) return <Spinner />;
@@ -208,7 +254,7 @@ export function StudentAttendanceProfilePage() {
 
       <section aria-label="تحديد فترة الملف" className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3">
         <label className="flex min-w-0 flex-col gap-1 text-sm font-bold text-slate-700">الفترة
-          <select onChange={(event) => setPreset(event.target.value)} defaultValue="today" className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal">
+          <select onChange={(event) => setPreset(event.target.value)} value={preset} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal">
             <option value="today">اليوم</option>
             <option value="week">آخر 7 أيام</option>
             <option value="month">هذا الشهر</option>
@@ -216,17 +262,38 @@ export function StudentAttendanceProfilePage() {
           </select>
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm font-bold text-slate-700">من
-          <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" />
+          <input type="date" value={fromDate} onChange={(event) => updateFromDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm font-bold text-slate-700">إلى
-          <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" />
+          <input type="date" value={toDate} onChange={(event) => updateToDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" />
         </label>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric label="غياب كامل" value={`${attendance.full_absence_days} يوم`} />
-        <Metric label="غياب جزئي" value={`${attendance.partial_absence_days} يوم`} />
-        <Metric label="حصص غياب" value={`${attendance.absent_periods} حصة`} />
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-950">
+        <strong className="block">قاعدة احتساب الحضور</strong>
+        حضور الطالب في أي تحضير معتمد يجعله حاضرًا في ذلك اليوم، حتى لو غاب عن حصة أخرى.
+        ولا يُحسب غائبًا يومًا كاملًا إلا إذا غاب عن جميع التحاضير المعتمدة.
+      </div>
+
+      {singleDay && singleDayMatchesProfile && tab === "summary" && (
+        <SingleDayOverview
+          date={singleDay}
+          detail={singleDayDetail.data}
+          isPending={singleDayDetail.isPending}
+          error={singleDayDetail.error}
+          canManageExcuses={canManageExcuses}
+          onQuickExcuse={(date, period) => {
+            setQuickExcuse({ date, period });
+            showTab("excuses");
+          }}
+        />
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="ملخص الحضور خلال الفترة">
+        <Metric label="أيام الحضور" hint="يشمل الغياب الجزئي" value={`${attendance.present_days} يوم`} tone="green" />
+        <Metric label="غياب يوم كامل" value={`${attendance.full_absence_days} يوم`} tone="red" />
+        <Metric label="غياب جزئي" hint="محسوب ضمن الحضور" value={`${attendance.partial_absence_days} يوم`} tone="amber" />
+        <Metric label="إجمالي حصص الغياب" value={`${attendance.absent_periods} حصة`} />
       </div>
 
       {/* م10 — التصنيف الإداري: إضافة فوق الإجماليات لا بديل عنها (بند 69) */}
@@ -253,13 +320,13 @@ export function StudentAttendanceProfilePage() {
       )}
       {attendance.undetermined_days > 0 && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          يوجد {attendance.undetermined_days} يومًا لم تكتمل فيها بيانات التحضير.
+          يوجد {attendance.undetermined_days} يومًا لم يعتمد فيها أي تحضير؛ لا تُحسب حضورًا ولا غيابًا.
         </div>
       )}
       {profile.data.morning_attendance.status === "AVAILABLE" ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
           <strong className="block">التأخر عن الدوام الصباحي</strong>
-          <span>{profile.data.morning_attendance.morning_late_occurrences ?? 0} مرات، </span>
+          <span>{formatOccurrences(profile.data.morning_attendance.morning_late_occurrences ?? 0)}، </span>
           <span>{formatMinutes(profile.data.morning_attendance.morning_late_minutes ?? 0)}</span>
         </div>
       ) : (
@@ -269,13 +336,13 @@ export function StudentAttendanceProfilePage() {
       )}
 
       <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm" role="group" aria-label={`أقسام ملف ${studentLabelText}`}>
-        {tabs.map(([value, label]) => <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)} className={`min-h-10 shrink-0 snap-start whitespace-nowrap rounded-xl px-3 py-2 text-sm font-bold transition ${tab === value ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>{label}</button>)}
+        {tabs.map(([value, label]) => <button key={value} type="button" aria-pressed={tab === value} onClick={() => showTab(value)} className={`min-h-10 shrink-0 snap-start whitespace-nowrap rounded-xl px-3 py-2 text-sm font-bold transition ${tab === value ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>{label}</button>)}
       </div>
 
       {tab === "summary" && <p className="text-sm text-slate-500">الفترة: {formatDate(fromDate)} إلى {formatDate(toDate)}</p>}
-      {tab === "days" && <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={selectedDay} onSelect={setSelectedDay} detail={dayDetail.data} canManageExcuses={canManageExcuses} onQuickExcuse={(date, period) => { setQuickExcuse({ date, period }); setTab("excuses"); }} />}
-      {tab === "absences" && <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />}
-      {tab === "morning" && <MorningTab rows={morning.data ?? []} />}
+      {tab === "days" && (days.isPending ? <Spinner label="جارٍ تحميل سجل الأيام..." /> : days.isError ? <ErrorState error={days.error} /> : <DaysTab days={days.data?.results ?? []} count={days.data?.count ?? 0} page={page} onPage={setPage} selectedDay={detailDay} onSelect={setSelectedDay} detail={dayDetail.data} detailPending={dayDetail.isPending} detailError={dayDetail.error} canManageExcuses={canManageExcuses} onQuickExcuse={(date, period) => { setQuickExcuse({ date, period }); showTab("excuses"); }} />)}
+      {tab === "absences" && (absences.isPending ? <Spinner label="جارٍ تحميل غياب الحصص..." /> : absences.isError ? <ErrorState error={absences.error} /> : <PeriodTab rows={absences.data?.results ?? []} count={absences.data?.count ?? 0} page={page} onPage={setPage} empty="لا توجد حصص غياب في الفترة." />)}
+      {tab === "morning" && (morning.isPending ? <Spinner label="جارٍ تحميل الحضور الصباحي..." /> : morning.isError ? <ErrorState error={morning.error} /> : <MorningTab rows={morning.data ?? []} />)}
       {tab === "leaves" && canSeeLeaves && <StudentLeavesTab studentId={id} />}
       {tab === "warnings" && <StudentWarningsTab studentId={id} />}
       {tab === "actions" && <StudentActionsTab studentId={id} />}
@@ -324,7 +391,7 @@ export function StudentAttendanceProfilePage() {
           )}
         </div>
       )}
-      {tab === "changes" && <ChangesTab rows={changes.data?.results ?? []} count={changes.data?.count ?? 0} page={page} onPage={setPage} />}
+      {tab === "changes" && (changes.isPending ? <Spinner label="جارٍ تحميل سجل التعديلات..." /> : changes.isError ? <ErrorState error={changes.error} /> : <ChangesTab rows={changes.data?.results ?? []} count={changes.data?.count ?? 0} page={page} onPage={setPage} />)}
     </div>
   );
 }
@@ -400,11 +467,163 @@ function MorningTab({ rows }: { rows: Awaited<ReturnType<typeof getMorningAttend
   return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="block w-full text-sm md:table"><thead className="hidden bg-slate-50 md:table-header-group"><tr className="border-b text-slate-500"><th className="p-3 text-start">التاريخ</th><th className="p-3 text-start">وقت الدخول</th><th className="p-3 text-start">الحالة</th><th className="p-3 text-start">التأخر المحتسب</th><th className="p-3 text-start">المصدر</th></tr></thead><tbody className="grid gap-3 p-3 md:table-row-group md:p-0">{rows.map((row) => <tr key={row.date} className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 p-4 md:table-row md:border-x-0 md:border-t-0 md:p-0"><td className="col-span-2 p-0 font-bold md:table-cell md:p-3 md:font-normal"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التاريخ</span>{formatDate(row.date)}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">وقت الدخول</span>{new Date(row.arrival_time).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>{row.status === "LATE" ? "متأخر" : "في الوقت"}</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">التأخر المحتسب</span>{row.counted_late_minutes} دقيقة</td><td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">المصدر</span>{row.source === "BIOMETRIC" ? "جهاز" : "يدوي"}</td></tr>)}{rows.length === 0 && <tr className="block"><td colSpan={5} className="block p-6 text-center text-slate-500">لا توجد سجلات حضور صباحي في الفترة.</td></tr>}</tbody></table></div>;
 }
 
-function Metric({ label, value, className = "" }: { label: string; value: string; className?: string }) {
-  return <div className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}><p className="text-xs text-slate-500">{label}</p><strong className="mt-2 block text-xl text-slate-900">{value}</strong></div>;
+function SingleDayOverview({ date, detail, isPending, error, canManageExcuses, onQuickExcuse }: {
+  date: string;
+  detail?: Awaited<ReturnType<typeof getAttendanceDayDetail>>;
+  isPending: boolean;
+  error: unknown;
+  canManageExcuses: boolean;
+  onQuickExcuse: (date: string, period?: number) => void;
+}) {
+  return (
+    <section aria-labelledby="single-day-attendance-title" className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-bold text-emerald-700">النتيجة اليومية</p>
+          <h2 id="single-day-attendance-title" className="text-lg font-black text-slate-950">
+            حالة {formatDate(date)} والحصص المعتمدة
+          </h2>
+        </div>
+        <span className="text-xs text-slate-500">الحصة غير المعتمدة لا تُحسب غيابًا</span>
+      </div>
+      {isPending ? <Spinner label="جارٍ تحميل تفاصيل اليوم..." /> : error ? <ErrorState error={error} /> : detail ? (
+        <AttendanceDayOverview
+          detail={detail}
+          canManageExcuses={canManageExcuses}
+          onQuickExcuse={onQuickExcuse}
+        />
+      ) : null}
+    </section>
+  );
 }
 
-function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, canManageExcuses, onQuickExcuse }: {
+function AttendanceDayOverview({ detail, canManageExcuses, onQuickExcuse }: {
+  detail: Awaited<ReturnType<typeof getAttendanceDayDetail>>;
+  canManageExcuses: boolean;
+  onQuickExcuse: (date: string, period?: number) => void;
+}) {
+  const presentation = detail.absence_status === "FULL"
+    ? {
+        title: "غائب في هذا اليوم",
+        description: "سُجل غائبًا في جميع التحاضير المعتمدة.",
+        icon: <XCircle aria-hidden size={22} />,
+        tone: "border-red-200 bg-red-50 text-red-950",
+      }
+    : detail.absence_status === "PARTIAL"
+      ? {
+          title: "حاضر في هذا اليوم — لديه غياب جزئي",
+          description: "حضر في تحضير معتمد واحد على الأقل، لذلك يُحسب ضمن الحاضرين.",
+          icon: <CircleAlert aria-hidden size={22} />,
+          tone: "border-amber-200 bg-amber-50 text-amber-950",
+        }
+      : detail.absence_status === "NONE"
+        ? {
+            title: "حاضر في هذا اليوم",
+            description: "لم يُسجل عليه غياب في أي تحضير معتمد.",
+            icon: <CheckCircle2 aria-hidden size={22} />,
+            tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
+          }
+        : {
+            title: "لم يعتمد تحضير لهذا اليوم",
+            description: "لا توجد حقيقة حضور أو غياب معتمدة لهذا اليوم.",
+            icon: <Clock3 aria-hidden size={22} />,
+            tone: "border-slate-200 bg-slate-50 text-slate-800",
+          };
+  const expected = detail.expected_periods ?? detail.periods.length;
+  const submitted = detail.submitted_periods ?? detail.periods.filter((period) => period.status !== "NOT_RECORDED").length;
+  const present = detail.present_periods ?? detail.periods.filter((period) => period.status === "PRESENT").length;
+  const absent = detail.absent_periods ?? detail.periods.filter((period) => period.status === "ABSENT").length;
+  const notSubmitted = Math.max(expected - submitted, 0);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-testid="daily-attendance-overview">
+      <div className={`flex flex-col justify-between gap-3 border-b p-4 sm:flex-row sm:items-center ${presentation.tone}`}>
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5">{presentation.icon}</span>
+          <div>
+            <strong className="block text-base">{presentation.title}</strong>
+            <span className="mt-0.5 block text-sm opacity-80">{presentation.description}</span>
+          </div>
+        </div>
+        {canManageExcuses && absent > 0 && (
+          <Button variant="secondary" onClick={() => onQuickExcuse(detail.date)} data-testid="day-add-excuse">
+            إضافة عذر لغياب اليوم
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-4" aria-label="عدادات تحضير اليوم">
+        <DailyCount label="تحاضير معتمدة" value={submitted} />
+        <DailyCount label="حضور" value={present} tone="text-emerald-700" />
+        <DailyCount label="غياب" value={absent} tone="text-red-700" />
+        <DailyCount label="لم يعتمد" value={notSubmitted} tone="text-slate-500" />
+      </div>
+
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        {detail.periods.map((period) => {
+          const isAbsent = period.status === "ABSENT";
+          const isPresent = period.status === "PRESENT";
+          const tone = isAbsent
+            ? "border-red-200 bg-red-50/70"
+            : isPresent
+              ? "border-emerald-200 bg-emerald-50/70"
+              : "border-slate-200 bg-slate-50";
+          const badgeTone = isAbsent
+            ? "bg-red-100 text-red-800"
+            : isPresent
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-slate-200 text-slate-700";
+          return (
+            <article key={period.sequence} className={`rounded-xl border p-3 ${tone}`} data-testid={`period-status-${period.sequence}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <strong className="block text-sm text-slate-950">{period.name || `الحصة ${period.sequence}`}</strong>
+                  {(period.start_time || period.end_time) && (
+                    <span dir="ltr" className="mt-1 block text-xs text-slate-500">
+                      {period.start_time ?? "—"} – {period.end_time ?? "—"}
+                    </span>
+                  )}
+                </div>
+                <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${badgeTone}`}>
+                  {MARK_LABELS[period.status]}
+                </span>
+              </div>
+              {isAbsent && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-red-200 pt-2 text-xs">
+                  <span className="font-bold text-red-800">{period.excused ? "بعذر" : "بدون عذر"}</span>
+                  {canManageExcuses && period.excused === false && (
+                    <button type="button" className="font-bold text-blue-700 underline" onClick={() => onQuickExcuse(detail.date, period.sequence)} data-testid={`period-add-excuse-${period.sequence}`}>
+                      إضافة عذر
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {detail.periods.length === 0 && (
+          <p className="text-sm text-slate-500">لا توجد حصص تحضير مجدولة لهذا اليوم.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DailyCount({ label, value, tone = "text-slate-900" }: { label: string; value: number; tone?: string }) {
+  return <div className="bg-white p-3 text-center"><strong className={`block text-xl ${tone}`}>{value}</strong><span className="text-xs text-slate-500">{label}</span></div>;
+}
+
+function Metric({ label, value, hint, tone = "slate", className = "" }: { label: string; value: string; hint?: string; tone?: "slate" | "green" | "amber" | "red"; className?: string }) {
+  const tones = {
+    slate: "border-slate-200 bg-white",
+    green: "border-emerald-200 bg-emerald-50/60",
+    amber: "border-amber-200 bg-amber-50/60",
+    red: "border-red-200 bg-red-50/60",
+  };
+  return <div className={`rounded-xl border p-4 shadow-sm ${tones[tone]} ${className}`}><p className="text-xs font-bold text-slate-600">{label}</p><strong className="mt-2 block text-xl text-slate-950">{value}</strong>{hint && <span className="mt-1 block text-[11px] text-slate-500">{hint}</span>}</div>;
+}
+
+function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, detailPending, detailError, canManageExcuses, onQuickExcuse }: {
   days: Awaited<ReturnType<typeof getAttendanceDays>>["results"];
   count: number;
   page: number;
@@ -412,6 +631,8 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
   selectedDay: string | null;
   onSelect: (date: string) => void;
   detail?: Awaited<ReturnType<typeof getAttendanceDayDetail>>;
+  detailPending: boolean;
+  detailError: unknown;
   canManageExcuses: boolean;
   onQuickExcuse: (date: string, period?: number) => void;
 }) {
@@ -433,8 +654,9 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
               </span>
             </span>
             <span className="text-sm leading-6 text-slate-500 sm:text-end">
-              {day.absent_periods} غياب
+              {(day.present_periods ?? Math.max((day.submitted_periods ?? 0) - day.absent_periods, 0))} حضور · {day.absent_periods} غياب
               {day.excused_absent_periods > 0 && ` (${day.excused_absent_periods} بعذر)`}
+              <span className="block text-xs">من {day.submitted_periods ?? "—"} تحضير معتمد</span>
             </span>
           </button>
         ))}
@@ -443,51 +665,11 @@ function DaysTab({ days, count, page, onPage, selectedDay, onSelect, detail, can
         )}
         <Pager count={count} page={page} onPage={onPage} />
       </div>
-      {detail && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <h2 className="font-bold">تفاصيل {formatDate(detail.date)}</h2>
-            {canManageExcuses && detail.absent_periods > 0 && (
-              <Button
-                variant="secondary"
-                onClick={() => onQuickExcuse(detail.date)}
-                data-testid="day-add-excuse"
-              >
-                إضافة عذر لهذا اليوم
-              </Button>
-            )}
-          </div>
-          <div className="divide-y">
-            {detail.periods.map((period) => (
-              <div
-                key={period.sequence}
-                className="flex flex-col items-start justify-between gap-2 py-3 text-sm sm:flex-row sm:items-center"
-              >
-                <span>
-                  الحصة {period.sequence} - {period.name}
-                </span>
-                <span className="flex flex-wrap items-center gap-2 text-slate-600 sm:justify-end">
-                  <span>
-                    {MARK_LABELS[period.status]}
-                    {period.excused === true && " — بعذر"}
-                    {period.excused === false && " — بدون عذر"}
-                  </span>
-                  {canManageExcuses && period.excused === false && (
-                    <button
-                      type="button"
-                      className="text-blue-700 underline"
-                      onClick={() => onQuickExcuse(detail.date, period.sequence)}
-                      data-testid={`period-add-excuse-${period.sequence}`}
-                    >
-                      إضافة عذر
-                    </button>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div>
+        {detailPending && selectedDay && <Spinner label="جارٍ تحميل تفاصيل اليوم..." />}
+        {detailError ? <ErrorState error={detailError} /> : null}
+        {detail && <AttendanceDayOverview detail={detail} canManageExcuses={canManageExcuses} onQuickExcuse={onQuickExcuse} />}
+      </div>
     </div>
   );
 }

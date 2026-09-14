@@ -26,15 +26,15 @@ STATUS_LABELS = {
     "ARCHIVED": "مؤرشف",
 }
 ABSENCE_LABELS = {
-    DailyAbsenceStatus.FULL: "غياب يوم كامل",
-    DailyAbsenceStatus.PARTIAL: "غياب جزئي",
-    DailyAbsenceStatus.NONE: "لا يوجد غياب",
-    DailyAbsenceStatus.UNDETERMINED: "بيانات غير مكتملة",
+    DailyAbsenceStatus.FULL: "غائب يومًا كاملًا",
+    DailyAbsenceStatus.PARTIAL: "حاضر مع غياب جزئي",
+    DailyAbsenceStatus.NONE: "حاضر",
+    DailyAbsenceStatus.UNDETERMINED: "لم يعتمد تحضير",
 }
 MARK_LABELS = {
     AttendanceMarkStatus.ABSENT: "غائب",
     "PRESENT": "حاضر",
-    "NOT_RECORDED": "لم يتم تسجيل الحضور",
+    "NOT_RECORDED": "لم يعتمد تحضير الحصة",
 }
 
 
@@ -99,6 +99,12 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
     )
     full = Q(absence_status=DailyAbsenceStatus.FULL)
     totals = rows.aggregate(
+        present_days=Count(
+            "id",
+            filter=Q(
+                absence_status__in=[DailyAbsenceStatus.NONE, DailyAbsenceStatus.PARTIAL]
+            ),
+        ),
         full_absence_days=Count("id", filter=full),
         partial_absence_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)),
         undetermined_days=Count("id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)),
@@ -121,6 +127,8 @@ def get_profile_summary(*, school, student: Student, from_date: date, to_date: d
         ),
     )
     return {
+        # الغياب الجزئي يوم حضور: وجود حضور في أي تحضير معتمد يمنع الغياب الكامل.
+        "present_days": totals["present_days"] or 0,
         "full_absence_days": totals["full_absence_days"] or 0,
         "partial_absence_days": totals["partial_absence_days"] or 0,
         "undetermined_days": totals["undetermined_days"] or 0,
@@ -203,6 +211,22 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             "end_time": period.get("end_time"),
             **payload,
         })
+
+    submitted_periods = len(sessions)
+    absent_periods = summary.absent_periods if summary else sum(
+        period["status"] == AttendanceMarkStatus.ABSENT for period in periods
+    )
+    present_periods = summary.present_periods if summary else max(
+        submitted_periods - absent_periods, 0
+    )
+    excused_absent_periods = summary.excused_absent_periods if summary else sum(
+        period["excused"] is True for period in periods
+    )
+    unexcused_absent_periods = (
+        summary.unexcused_absent_periods
+        if summary
+        else max(absent_periods - excused_absent_periods, 0)
+    )
     return {
         "date": attendance_date.isoformat(),
         "absence_status": summary.absence_status if summary else DailyAbsenceStatus.UNDETERMINED,
@@ -214,6 +238,12 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             "grade_name": summary.section.grade.name,
         }
         if summary else None,
+        "expected_periods": len(expected),
+        "submitted_periods": summary.submitted_periods if summary else submitted_periods,
+        "present_periods": present_periods,
+        "absent_periods": absent_periods,
+        "excused_absent_periods": excused_absent_periods,
+        "unexcused_absent_periods": unexcused_absent_periods,
         "periods": periods,
     }
 

@@ -19,6 +19,7 @@ export interface AttendanceProfile {
   student: StudentRow;
   period: { from: string; to: string };
   attendance: {
+    present_days: number;
     full_absence_days: number;
     partial_absence_days: number;
     undetermined_days: number;
@@ -53,6 +54,9 @@ export interface AttendanceDay {
   absence_status: "FULL" | "PARTIAL" | "NONE" | "UNDETERMINED";
   absence_status_label: string;
   section: { id: number; name: string; grade_name: string } | null;
+  expected_periods: number;
+  submitted_periods: number;
+  present_periods: number;
   absent_periods: number;
   excused_absent_periods: number;
   unexcused_absent_periods: number;
@@ -69,6 +73,8 @@ export interface AttendanceDayDetail extends AttendanceDay {
   periods: Array<{
     sequence: number;
     name: string;
+    start_time?: string | null;
+    end_time?: string | null;
     status: "ABSENT" | "PRESENT" | "NOT_RECORDED";
     status_label: string;
     /** م10 — للغياب فقط: true بعذر معتمد، false بدون عذر، null لغير الغياب. */

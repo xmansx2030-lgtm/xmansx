@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 
 class AttendanceProfileSummarySerializer(serializers.Serializer):
+    present_days = serializers.IntegerField()
     full_absence_days = serializers.IntegerField()
     partial_absence_days = serializers.IntegerField()
     undetermined_days = serializers.IntegerField()
@@ -37,9 +38,13 @@ class AttendanceDaySerializer(serializers.Serializer):
     absence_status = serializers.CharField()
     absence_status_label = serializers.CharField()
     section = serializers.DictField(allow_null=True)
+    expected_periods = serializers.IntegerField(required=False)
+    submitted_periods = serializers.IntegerField(required=False)
+    present_periods = serializers.IntegerField(required=False)
     absent_periods = serializers.IntegerField()
     excused_absent_periods = serializers.IntegerField()
     unexcused_absent_periods = serializers.IntegerField()
+    periods = serializers.ListField(child=serializers.DictField(), required=False)
 
 
 class AttendancePeriodSerializer(serializers.Serializer):

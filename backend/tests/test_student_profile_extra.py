@@ -119,7 +119,13 @@ def test_day_detail_timeline_statuses(role_client):
         f"/api/v1/students/{student.id}/attendance-days/{day.isoformat()}/"
     )
     assert response.status_code == 200
-    periods = {p["sequence"]: p["status"] for p in response.json()["periods"]}
+    payload = response.json()
+    assert payload["expected_periods"] == 3
+    assert payload["submitted_periods"] == 2
+    assert payload["present_periods"] == 1
+    assert payload["absent_periods"] == 1
+    assert payload["unexcused_absent_periods"] == 1
+    periods = {p["sequence"]: p["status"] for p in payload["periods"]}
     assert periods == {1: "ABSENT", 2: "PRESENT", 3: "NOT_RECORDED"}
 
 

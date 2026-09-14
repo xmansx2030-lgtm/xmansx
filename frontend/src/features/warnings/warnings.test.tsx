@@ -294,6 +294,7 @@ describe("student warnings tab (Phase 11)", () => {
     },
     period: { from: "2026-08-19", to: "2026-08-19" },
     attendance: {
+      present_days: 0,
       full_absence_days: 5, partial_absence_days: 0, undetermined_days: 0,
       absent_periods: 35,
     },

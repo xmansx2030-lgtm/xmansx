@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { queryClient } from "@/app/queryClient";
 import { buildMe, membership, mockApi } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
+import { localIsoDate } from "@/utils/dates";
 
 function managerMe() {
   return buildMe({
@@ -27,6 +28,7 @@ const PROFILE = {
   },
   period: { from: "2026-08-19", to: "2026-08-19" },
   attendance: {
+    present_days: 2,
     full_absence_days: 1,
     partial_absence_days: 2,
     undetermined_days: 1,
@@ -62,10 +64,10 @@ describe("student attendance profile (Phase 9)", () => {
 
     // التأخر الصباحي: 1 مرة و13 دقيقة.
     const morningBox = screen.getByText("التأخر عن الدوام الصباحي").parentElement;
-    expect(morningBox).toHaveTextContent("1 مرات");
+    expect(morningBox).toHaveTextContent("مرة واحدة");
     expect(morningBox).toHaveTextContent("13 دقيقة");
     // تحذير الأيام غير المكتملة
-    expect(screen.getByRole("status")).toHaveTextContent("لم تكتمل فيها بيانات التحضير");
+    expect(screen.getByRole("status")).toHaveTextContent("لم يعتمد فيها أي تحضير");
   });
 
   it("shows NOT_AVAILABLE morning state without breaking the profile", async () => {
@@ -125,8 +127,8 @@ describe("student attendance profile (Phase 9)", () => {
     renderApp("/students/5/attendance");
     await screen.findByRole("heading", { name: "محمد أحمد" });
     // الإجمالي يبقى ظاهرًا (بند 69)
-    expect(screen.getByText("غياب كامل").nextSibling).toHaveTextContent("1 يوم");
-    expect(screen.getByText("حصص غياب").nextSibling).toHaveTextContent("10 حصة");
+    expect(screen.getByText("غياب يوم كامل").nextSibling).toHaveTextContent("1 يوم");
+    expect(screen.getByText("إجمالي حصص الغياب").nextSibling).toHaveTextContent("10 حصة");
     // التصنيف إضافة فوقه
     const metrics = await screen.findByTestId("excuse-metrics");
     expect(within(metrics).getByText("غياب كامل بعذر").nextSibling).toHaveTextContent(
@@ -201,6 +203,9 @@ describe("student attendance profile (Phase 9)", () => {
           absence_status: "PARTIAL",
           absence_status_label: "غياب جزئي",
           section: { id: 2, name: "2", grade_name: "الأول الثانوي" },
+          expected_periods: 4,
+          submitted_periods: 2,
+          present_periods: 0,
           absent_periods: 2,
           excused_absent_periods: 1,
           unexcused_absent_periods: 1,
@@ -233,6 +238,9 @@ describe("student attendance profile (Phase 9)", () => {
               absence_status: "PARTIAL",
               absence_status_label: "غياب جزئي",
               section: { id: 2, name: "2", grade_name: "الأول الثانوي" },
+              expected_periods: 4,
+              submitted_periods: 2,
+              present_periods: 0,
               absent_periods: 2,
               excused_absent_periods: 1,
               unexcused_absent_periods: 1,
@@ -249,11 +257,66 @@ describe("student attendance profile (Phase 9)", () => {
     // التاريخ يعرض بتقويم ar-SA — ننقر عبر testid لا عبر النص المنسق
     await user.click(await screen.findByTestId("day-row-2026-08-19"));
 
-    expect(await screen.findByText(/غائب — بعذر/)).toBeInTheDocument();
-    expect(screen.getByText(/غائب — بدون عذر/)).toBeInTheDocument();
+    const excusedPeriod = await screen.findByTestId("period-status-2");
+    const unexcusedPeriod = screen.getByTestId("period-status-4");
+    expect(excusedPeriod).toHaveTextContent("غائب");
+    expect(excusedPeriod).toHaveTextContent("بعذر");
+    expect(unexcusedPeriod).toHaveTextContent("غائب");
+    expect(unexcusedPeriod).toHaveTextContent("بدون عذر");
     // زر إضافة عذر للحصة غير المعذورة فقط
     expect(screen.getByTestId("period-add-excuse-4")).toBeInTheDocument();
     expect(screen.queryByTestId("period-add-excuse-2")).not.toBeInTheDocument();
     expect(screen.getByTestId("day-add-excuse")).toBeInTheDocument();
+  });
+
+  it("shows today's functional attendance result and exact periods on the summary", async () => {
+    const today = localIsoDate(new Date());
+    mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/attendance-profile/": {
+        body: {
+          ...PROFILE,
+          period: { from: today, to: today },
+          attendance: {
+            ...PROFILE.attendance,
+            present_days: 1,
+            full_absence_days: 0,
+            partial_absence_days: 1,
+            absent_periods: 1,
+          },
+        },
+      },
+      [`/attendance-days/${today}/`]: {
+        body: {
+          date: today,
+          absence_status: "PARTIAL",
+          absence_status_label: "غياب جزئي",
+          section: { id: 2, name: "2", grade_name: "الأول الثانوي" },
+          expected_periods: 4,
+          submitted_periods: 2,
+          present_periods: 1,
+          absent_periods: 1,
+          excused_absent_periods: 0,
+          unexcused_absent_periods: 1,
+          periods: [
+            { sequence: 2, name: "الحصة الثانية", start_time: "08:00", end_time: "08:45", status: "ABSENT", status_label: "غائب", excused: false },
+            { sequence: 3, name: "الحصة الثالثة", start_time: "09:00", end_time: "09:45", status: "PRESENT", status_label: "حاضر", excused: null },
+            { sequence: 4, name: "الحصة الرابعة", start_time: "10:00", end_time: "10:45", status: "NOT_RECORDED", status_label: "لم يعتمد تحضير الحصة", excused: null },
+            { sequence: 5, name: "الحصة الخامسة", start_time: "11:00", end_time: "11:45", status: "NOT_RECORDED", status_label: "لم يعتمد تحضير الحصة", excused: null },
+          ],
+        },
+      },
+    });
+
+    renderApp("/students/5/attendance");
+
+    const overview = await screen.findByTestId("daily-attendance-overview");
+    expect(overview).toHaveTextContent("حاضر في هذا اليوم — لديه غياب جزئي");
+    expect(overview).toHaveTextContent("الحصة الثانية");
+    expect(overview).toHaveTextContent("الحصة الثالثة");
+    expect(overview).toHaveTextContent("لم يعتمد تحضير الحصة");
+    expect(within(overview).getByText("تحاضير معتمدة").parentElement).toHaveTextContent("2");
+    expect(within(overview).getByText("حضور", { exact: true }).parentElement).toHaveTextContent("1");
+    expect(within(overview).getByText("غياب", { exact: true }).parentElement).toHaveTextContent("1");
   });
 });
