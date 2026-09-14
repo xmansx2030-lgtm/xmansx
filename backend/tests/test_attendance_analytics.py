@@ -303,6 +303,8 @@ def test_daily_full_partial_and_no_absence(env):
     assert present.present_periods + present.absent_periods == 7
 
     report = get_daily_report(school=env["school"], attendance_date=DAY)
+    assert report["summary"]["present_students"] == 2  # NONE + PARTIAL
+    assert report["summary"]["absent_students"] == 1   # FULL فقط
     assert report["summary"]["full_absent"] == 1
     assert report["summary"]["partial_absent"] == 1
 

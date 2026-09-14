@@ -6,7 +6,7 @@ paginated, filterable rows without creating another source of truth.
 
 from django.db.models import Count, Prefetch, Q, Sum
 
-from attendance.models import DailyAbsenceStatus, DailyCompleteness
+from attendance.models import DailyAbsenceStatus
 from common.errors import ApiError
 from devices.models import ArrivalStatus
 from referrals import selectors as referral_selectors
@@ -105,7 +105,7 @@ def absence_report(*, school, date_range, scope, params) -> dict:
         excused_periods=Sum("excused_absent_periods"),
         unexcused_periods=Sum("unexcused_absent_periods"),
         incomplete_days=Count(
-            "id", filter=Q(completeness_status=DailyCompleteness.INCOMPLETE)
+            "id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
         ),
     )
     grouped = (
@@ -128,7 +128,7 @@ def absence_report(*, school, date_range, scope, params) -> dict:
             excused_absent_periods=Sum("excused_absent_periods"),
             unexcused_absent_periods=Sum("unexcused_absent_periods"),
             incomplete_days=Count(
-                "id", filter=Q(completeness_status=DailyCompleteness.INCOMPLETE)
+                "id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
             ),
         )
         .order_by("-full_absence_days", "-unexcused_absent_periods", "student__full_name")

@@ -34,6 +34,8 @@ function dailyBody(overrides: Partial<DailyAnalyticsResponse> = {}): DailyAnalyt
       total_students: 60,
       complete_students: 50,
       incomplete_students: 10,
+      present_students: 48,
+      absent_students: 2,
       full_absent: 2,
       partial_absent: 5,
       no_absence: 43,
@@ -220,6 +222,7 @@ describe("attendance analytics", () => {
     await user.click(await screen.findByRole("tab", { name: "ملخص اليوم" }));
 
     const kpis = await screen.findByTestId("daily-kpis");
+    expect(within(kpis).getByTestId("daily-present")).toHaveTextContent("48");
     expect(within(kpis).getByTestId("daily-full")).toHaveTextContent("2");
     expect(within(kpis).getByTestId("daily-partial")).toHaveTextContent("5");
     expect(within(kpis).getByTestId("daily-incomplete")).toHaveTextContent("10");

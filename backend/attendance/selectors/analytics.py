@@ -20,7 +20,6 @@ from attendance.models import (
     AttendanceSessionStatus,
     DailyAbsenceStatus,
     DailyAttendanceSummary,
-    DailyCompleteness,
 )
 from attendance.selectors.monitoring import expected_sections_queryset
 from attendance.services.day_context import get_or_create_attendance_day_context
@@ -267,7 +266,9 @@ def get_daily_report(
         rows = rows.filter(section__grade_id=grade_id)
     aggregates = rows.aggregate(
         total_rows=Count("id"),
-        complete=Count("id", filter=Q(completeness_status=DailyCompleteness.COMPLETE)),
+        recorded=Count(
+            "id", filter=~Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
+        ),
         full=Count("id", filter=Q(absence_status=DailyAbsenceStatus.FULL)),
         partial=Count("id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)),
         none=Count("id", filter=Q(absence_status=DailyAbsenceStatus.NONE)),
@@ -282,8 +283,10 @@ def get_daily_report(
     if grade_id:
         enrollments = enrollments.filter(section__grade_id=grade_id)
     total_students = enrollments.values("student_id").distinct().count()
-    # «غير مكتمل» يشمل من لا صف ملخص له أصلًا (فصله لم يعتمد أي حصة)
-    incomplete_students = total_students - aggregates["complete"]
+    # لا يشترط عدد حصص مخطط: يكفي اعتماد حصة واحدة لتحديد حاضر/غائب.
+    # غير المسجل فقط هو من لم يعتمد لفصله أي تحضير.
+    recorded_students = aggregates["recorded"]
+    incomplete_students = total_students - recorded_students
 
     students = []
     total_filtered = 0
@@ -320,8 +323,10 @@ def get_daily_report(
         ],
         "summary": {
             "total_students": total_students,
-            "complete_students": aggregates["complete"],
+            "complete_students": recorded_students,
             "incomplete_students": max(incomplete_students, 0),
+            "present_students": aggregates["none"] + aggregates["partial"],
+            "absent_students": aggregates["full"],
             "full_absent": aggregates["full"],
             "partial_absent": aggregates["partial"],
             "no_absence": aggregates["none"],

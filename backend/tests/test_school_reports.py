@@ -124,7 +124,7 @@ def test_manager_and_vice_principal_receive_filtered_absence_report(report_env):
 
 
 @pytest.mark.django_db
-def test_absence_report_includes_a_known_absence_before_day_completion(report_env):
+def test_absence_report_accepts_partial_absence_without_planned_period_condition(report_env):
     response = report_env["manager"].get(
         "/api/v1/reports/absence/?preset=TODAY&absence_type=PARTIAL"
     )
@@ -134,7 +134,7 @@ def test_absence_report_includes_a_known_absence_before_day_completion(report_en
     assert payload["summary"]["students"] == 1
     assert payload["summary"]["partial_absence_days"] == 1
     assert payload["summary"]["unexcused_absent_periods"] == 1
-    assert payload["summary"]["incomplete_days"] == 1
+    assert payload["summary"]["incomplete_days"] == 0
     assert payload["results"][0]["student_id"] == report_env["partial_student"].id
 
 

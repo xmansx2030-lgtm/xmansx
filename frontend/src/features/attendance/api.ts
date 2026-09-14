@@ -226,6 +226,8 @@ export interface DailyAnalyticsResponse {
     total_students: number;
     complete_students: number;
     incomplete_students: number;
+    present_students: number;
+    absent_students: number;
     full_absent: number;
     partial_absent: number;
     no_absence: number;

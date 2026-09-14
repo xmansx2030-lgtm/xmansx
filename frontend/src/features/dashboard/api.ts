@@ -99,6 +99,7 @@ export interface TodayOperations {
     total_students: number;
     present_students: number;
     absent_students: number;
+    partial_absence_students: number;
     unrecorded_students: number;
   };
 }

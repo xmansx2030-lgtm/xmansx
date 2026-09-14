@@ -257,6 +257,7 @@ def test_trend_sections_and_attention(api_env):
         "total_students",
         "present_students",
         "absent_students",
+        "partial_absence_students",
         "unrecorded_students",
     }
     assert daily["present_students"] <= daily["total_students"]

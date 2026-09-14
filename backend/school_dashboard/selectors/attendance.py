@@ -367,12 +367,11 @@ def today_operations(*, school) -> dict:
 
 
 def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
-    """إثبات الحضور والغياب المسجل خلال اليوم، مستقل عن الحصة الجارية.
+    """حالة طلاب اليوم من التحاضير المعتمدة فقط، مستقلة عن الحصة الجارية.
 
-    الحضور لا يساوي مجرد شمول الطالب في جلسة معتمدة: لا يدخل الطالب في
-    ``present_students`` إلا إذا ثبت حضوره في حصة (حاضر/متأخر) أو سجل له وصول
-    صباحي. أما ``absent_students`` فهو عدد من لديهم غياب مسجل في حصة واحدة على
-    الأقل، وقد يتقاطع مع الحضور عند غياب الطالب في حصة وحضوره في أخرى.
+    التقسيم غير متداخل: حضور واحد في أي تحضير معتمد يجعل الطالب حاضرًا، ولو
+    غاب في تحضير معتمد آخر (غياب جزئي). ولا يعد غائبًا إلا من غاب في جميع
+    التحاضير المعتمدة لفصله. من لم يعتمد لفصله أي تحضير يبقى غير مسجل.
     """
     from attendance.selectors.monitoring import expected_sections_queryset
     from attendance.services.sessions import _active_year
@@ -398,6 +397,7 @@ def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
             "total_students": 0,
             "present_students": 0,
             "absent_students": 0,
+            "partial_absence_students": 0,
             "unrecorded_students": 0,
         }
 
@@ -407,33 +407,23 @@ def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
         student_id__in=student_ids,
         submitted_periods__gt=0,
     )
-    present_student_ids = set(
-        summary_rows.filter(present_periods__gt=0)
-        .values_list("student_id", flat=True)
-        .distinct()
-    )
-    arrival_student_ids = set(
-        SchoolArrival.objects.filter(
-            school=school,
-            attendance_date=attendance_date,
-            student_id__in=student_ids,
-        ).values_list("student_id", flat=True)
-    )
-    present_student_ids.update(arrival_student_ids)
-    absent_students = (
-        summary_rows.filter(absent_periods__gt=0)
-        .values("student_id")
-        .distinct()
-        .count()
-    )
+    present_students = summary_rows.filter(
+        absence_status__in=[DailyAbsenceStatus.NONE, DailyAbsenceStatus.PARTIAL]
+    ).count()
+    absent_students = summary_rows.filter(
+        absence_status=DailyAbsenceStatus.FULL
+    ).count()
+    partial_absence_students = summary_rows.filter(
+        absence_status=DailyAbsenceStatus.PARTIAL
+    ).count()
     recorded_student_ids = set(
         summary_rows.values_list("student_id", flat=True).distinct()
     )
-    recorded_student_ids.update(arrival_student_ids)
     return {
         "total_students": len(student_ids),
-        "present_students": len(present_student_ids),
+        "present_students": present_students,
         "absent_students": absent_students,
+        "partial_absence_students": partial_absence_students,
         "unrecorded_students": max(len(student_ids) - len(recorded_student_ids), 0),
     }
 

@@ -406,10 +406,10 @@ function ReportResults({
 }
 
 const DAILY_FILTERS: { value: string; label: string }[] = [
-  { value: "FULL", label: "غياب يوم كامل" },
-  { value: "PARTIAL", label: "غياب جزئي" },
-  { value: "UNDETERMINED", label: "بيانات غير مكتملة" },
-  { value: "NONE", label: "بلا غياب" },
+  { value: "FULL", label: "غائب في جميع التحاضير المعتمدة" },
+  { value: "PARTIAL", label: "حاضر مع غياب جزئي" },
+  { value: "UNDETERMINED", label: "لم يعتمد له تحضير" },
+  { value: "NONE", label: "حاضر بلا غياب" },
 ];
 
 function DailyTab({
@@ -439,14 +439,15 @@ function DailyTab({
   const s = data.summary;
   const cards: [string, string, number][] = [
     ["daily-total", `إجمالي ${studentsLabel}`, s.total_students],
-    ["daily-full", "غياب يوم كامل", s.full_absent],
-    ["daily-partial", "غياب جزئي", s.partial_absent],
-    ["daily-incomplete", "بيانات غير مكتملة", s.incomplete_students],
+    ["daily-present", "حاضرون (يشمل الجزئي)", s.present_students],
+    ["daily-full", "غائبون", s.absent_students],
+    ["daily-partial", "من الحاضرين لديهم غياب جزئي", s.partial_absent],
+    ["daily-incomplete", "لم يعتمد لهم تحضير", s.incomplete_students],
   ];
 
   return (
     <div className="space-y-4">
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="daily-kpis">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-5" data-testid="daily-kpis">
         {cards.map(([testId, label, value]) => (
           <div
             key={testId}
@@ -516,8 +517,7 @@ function DailyTab({
                   </p>
                 </div>
                 <p className="text-sm text-slate-600">
-                  غياب {student.absent_periods} من {student.expected_periods} · معتمد{" "}
-                  {student.submitted_periods}/{student.expected_periods}
+                  غياب {student.absent_periods} من {student.submitted_periods} تحضير معتمد
                 </p>
               </li>
             ))}

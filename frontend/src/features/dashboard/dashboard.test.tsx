@@ -57,6 +57,7 @@ const OVERVIEW = {
       total_students: 320,
       present_students: 297,
       absent_students: 23,
+      partial_absence_students: 14,
       unrecorded_students: 0,
     },
   },
@@ -478,25 +479,25 @@ describe("لوحة إدارة المدرسة", () => {
     mockDashboard();
     renderApp("/dashboard");
 
-    const card = await screen.findByTestId("school-today-status-card");
+    await screen.findByTestId("school-today-status-card");
     expect(screen.getByTestId("school-daily-present")).toHaveTextContent("297");
-    expect(screen.getByTestId("school-continuous-absent")).toHaveTextContent("9");
+    expect(screen.getByTestId("school-daily-absent")).toHaveTextContent("23");
+    expect(screen.getByTestId("school-partial-absence")).toHaveTextContent("14");
     expect(screen.getByTestId("school-current-leave")).toHaveTextContent("5");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("250 حاضرًا");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("18 غائبًا عن الحصة");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("بانتظار تحضير 2 فصل");
-    expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("260 من 320 طالبًا");
-    expect(card).not.toHaveTextContent("الغياب اليوم");
+    expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("يشمل جميع 320 طالبًا");
   });
 
-  it("لا تعرض غياب حصة واحدة كأنه الغياب المتتابع لليوم", async () => {
+  it("تعرض الغائب الكامل والغياب الجزئي من التحاضير المعتمدة", async () => {
     mockDashboard();
     renderApp("/dashboard");
 
     const card = await screen.findByTestId("school-today-status-card");
-    expect(screen.getByTestId("school-continuous-absent")).toHaveTextContent("9");
-    expect(card).not.toHaveTextContent("23");
-    expect(card).toHaveTextContent("الغياب المتتابع لا يشمل غياب حصة واحدة فقط");
+    expect(screen.getByTestId("school-daily-absent")).toHaveTextContent("23");
+    expect(screen.getByTestId("school-partial-absence")).toHaveTextContent("14");
+    expect(card).toHaveTextContent("حضور واحد في أي حصة يجعل الطالب حاضرًا");
   });
 
   it("لا تبقي الاعتماد المتأخر كمهمة مفتوحة بعد اكتمال كل الفصول", async () => {
@@ -663,7 +664,7 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.getByTestId("today-card")).toBeInTheDocument();
   });
 
-  it("تعرض للمدير والوكيل الحضور اليومي والغياب المتتابع والاستئذان بالدلالة نفسها", async () => {
+  it("تعرض للمدير والوكيل الحضور والغياب الكامل والجزئي بالدلالة نفسها", async () => {
     const scenario = {
       ...OVERVIEW.today_operations,
       summary: { total: 10, submitted: 10, in_progress: 0, not_started: 0, overdue_total: 0 },
@@ -671,8 +672,8 @@ describe("لوحة إدارة المدرسة", () => {
       daily_attendance: {
         total_students: 800,
         present_students: 500,
-        // غاب بعض هؤلاء عن حصة واحدة فقط؛ لا ينبغي عرضه كغياب متتابع.
-        absent_students: 380,
+        absent_students: 300,
+        partial_absence_students: 80,
         unrecorded_students: 0,
       },
       live_attendance: {
@@ -700,14 +701,13 @@ describe("لوحة إدارة المدرسة", () => {
 
       const card = await screen.findByTestId("school-today-status-card");
       expect(within(card).getByTestId("school-daily-present")).toHaveTextContent("500");
-      expect(within(card).getByTestId("school-continuous-absent")).toHaveTextContent("300");
+      expect(within(card).getByTestId("school-daily-absent")).toHaveTextContent("300");
+      expect(within(card).getByTestId("school-partial-absence")).toHaveTextContent("80");
       expect(within(card).getByTestId("school-current-leave")).toHaveTextContent("50");
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("420 حاضرًا");
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("330 غائبًا عن الحصة");
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("50 مستأذنًا");
-      expect(within(card).getByTestId("school-coverage-line")).toHaveTextContent("مكتملة لجميع 800 طالبًا");
-      expect(card).not.toHaveTextContent("380");
-
+      expect(within(card).getByTestId("school-coverage-line")).toHaveTextContent("يشمل جميع 800 طالبًا");
       view.unmount();
       queryClient.clear();
     }

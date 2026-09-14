@@ -834,7 +834,7 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-100 text-blue-800"><UsersRound aria-hidden size={21} /></span>
           <div>
             <h2 className="text-lg font-black text-slate-900">حالة المدرسة حتى الآن</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">الحضور تراكمي لليوم، والغياب المتتابع لا يشمل غياب حصة واحدة فقط.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">الأرقام من التحاضير المعتمدة فقط؛ حضور واحد في أي حصة يجعل الطالب حاضرًا.</p>
           </div>
         </div>
         <Link to="/attendance/monitoring" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800">
@@ -842,9 +842,10 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
         </Link>
       </div>
 
-      <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5" data-testid="vice-day-summary">
-        <SchoolDayMetric testId="school-daily-present" label="حضر اليوم" value={daily?.present_students ?? 0} detail={`ثبت حضور ${studentWord} في حصة واحدة على الأقل`} tone="green" />
-        <SchoolDayMetric testId="school-continuous-absent" label="غائب حتى الآن" value={live?.daily_absent_students ?? "—"} detail={live ? "غاب في كل الحصص المكتملة حتى الحالية" : "يظهر أثناء الحصة الجارية بعد اكتمال التحضير"} tone="red" />
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4 sm:p-5" data-testid="vice-day-summary">
+        <SchoolDayMetric testId="school-daily-present" label="حاضر اليوم" value={daily?.present_students ?? 0} detail={`يشمل كل ${studentWord} حضر في تحضير معتمد ولو غاب في حصة أخرى`} tone="green" />
+        <SchoolDayMetric testId="school-daily-absent" label="غائب اليوم" value={daily?.absent_students ?? 0} detail="غاب في جميع التحاضير المعتمدة، بلا شرط لعدد الحصص" tone="red" />
+        <SchoolDayMetric testId="school-partial-absence" label="غياب جزئي" value={daily?.partial_absence_students ?? 0} detail="محسوب ضمن الحاضرين مع حفظ غياب الحصة" tone="amber" />
         <SchoolDayMetric testId="school-current-leave" label="مستأذن الآن" value={live?.leave_students ?? "—"} detail="قد يكون ضمن الحضور اليومي إذا حضر قبل خروجه" tone="blue" />
       </div>
 
@@ -862,11 +863,11 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
             <p data-testid="monitoring-summary-line"><strong>اعتماد التحضير:</strong> {summary.submitted} من {summary.total} فصلًا · {summary.in_progress} قيد التحضير · {openOverdue} يحتاج متابعة الآن.</p>
           </div>
         )}
-        {live && (
-          <p className={live.daily_pending_sections > 0 ? "text-amber-800" : "text-emerald-800"} data-testid="school-coverage-line">
-            {live.daily_pending_sections > 0
-              ? `رقم الغياب المتتابع مكتمل لـ ${live.daily_covered_students} من ${live.total_students} ${studentCountLabel(schoolType)}؛ بانتظار اكتمال تحضير ${live.daily_pending_sections} فصل.`
-              : `تغطية الغياب المتتابع مكتملة لجميع ${live.total_students} ${studentCountLabel(schoolType)} من أول حصة حتى الحالية.`}
+        {daily && (
+          <p className={daily.unrecorded_students > 0 ? "text-amber-800" : "text-emerald-800"} data-testid="school-coverage-line">
+            {daily.unrecorded_students > 0
+              ? `لم يعتمد تحضير يشمل ${daily.unrecorded_students} ${studentCountLabel(schoolType)} بعد؛ لا يحسبون حضورًا ولا غيابًا.`
+              : `تم اعتماد تحضير يشمل جميع ${daily.total_students} ${studentCountLabel(schoolType)}.`}
           </p>
         )}
       </div>
@@ -874,10 +875,11 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
   );
 }
 
-function SchoolDayMetric({ testId, label, value, detail, tone }: { testId: string; label: string; value: number | string; detail: string; tone: "green" | "red" | "blue" }) {
+function SchoolDayMetric({ testId, label, value, detail, tone }: { testId: string; label: string; value: number | string; detail: string; tone: "green" | "red" | "amber" | "blue" }) {
   const tones = {
     green: "border-emerald-200 bg-emerald-50 text-emerald-900",
     red: "border-red-200 bg-red-50 text-red-900",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
     blue: "border-blue-200 bg-blue-50 text-blue-900",
   };
   return (

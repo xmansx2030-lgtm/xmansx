@@ -336,6 +336,8 @@ def test_dashboard_keeps_daily_presence_continuous_absence_and_leave_distinct(en
 
     assert daily["total_students"] == 5
     assert daily["present_students"] == 3
+    assert daily["absent_students"] == 2
+    assert daily["partial_absence_students"] == 1
     assert live["daily_absent_students"] == 2
     assert live["leave_students"] == 1
     assert live["present_students"] == 2
@@ -369,6 +371,7 @@ def test_daily_attendance_counts_proven_presence_not_every_prepared_student(env)
         "total_students": 6,
         "present_students": 4,
         "absent_students": 1,
+        "partial_absence_students": 0,
         "unrecorded_students": 1,
     }
 
@@ -394,13 +397,14 @@ def test_daily_attendance_counts_proven_presence_not_every_prepared_student(env)
     )
     assert corrected["present_students"] == 5
     assert corrected["absent_students"] == 0
+    assert corrected["partial_absence_students"] == 0
     assert build_key(
         school_id=env["school"].id, section="today", parts=cache_parts
     ) != before_cache_key
 
 
 @pytest.mark.django_db
-def test_daily_attendance_accepts_morning_arrival_as_presence_proof(env):
+def test_daily_attendance_uses_submitted_preparation_not_morning_arrival(env):
     student = make_students(
         env["school"], env["section_b"], env["year"], 1, prefix="90600"
     )[0]
@@ -412,9 +416,10 @@ def test_daily_attendance_accepts_morning_arrival_as_presence_proof(env):
 
     assert snapshot == {
         "total_students": 6,
-        "present_students": 1,
+        "present_students": 0,
         "absent_students": 0,
-        "unrecorded_students": 5,
+        "partial_absence_students": 0,
+        "unrecorded_students": 6,
     }
 
 
