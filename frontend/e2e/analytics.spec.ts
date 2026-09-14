@@ -177,7 +177,7 @@ test("import + seed, then single-period and multi-period reports behave exactly"
   await expect(page.getByTestId("analytics-students")).not.toContainText(fahd);
 });
 
-test("daily summary: full, partial, and incomplete totals", async ({ page }) => {
+test("daily summary follows submitted-period absence classification", async ({ page }) => {
   const m = meta();
   const [mohammed, khaled, saad] = m.analytics_students_1;
   const [fahd] = m.analytics_students_2;
@@ -187,12 +187,13 @@ test("daily summary: full, partial, and incomplete totals", async ({ page }) => 
   await expect(page.getByTestId("daily-kpis")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("daily-grade-filter").selectOption({ label: m.analytics_grade });
 
-  // غياب يوم كامل: محمد (24/24 معتمدة وكلها غياب)
+  // غياب يوم كامل: محمد في كل الحصص، وفهد في الحصة الوحيدة المعتمدة لفصله.
+  // عدم اعتماد الحصص اللاحقة لا يلغي الغياب الذي ثبت في كل الحصص المعتمدة.
   await page.getByTestId("daily-status-filter").selectOption("FULL");
   await expect(page.getByTestId("daily-students")).toContainText(mohammed, {
     timeout: 15_000,
   });
-  await expect(page.getByTestId("daily-students")).not.toContainText(fahd);
+  await expect(page.getByTestId("daily-students")).toContainText(fahd);
 
   // غياب جزئي: خالد وسعد، لكل منهما حصة غياب واحدة
   await page.getByTestId("daily-status-filter").selectOption("PARTIAL");
@@ -200,9 +201,9 @@ test("daily summary: full, partial, and incomplete totals", async ({ page }) => 
     timeout: 15_000,
   });
   await expect(page.getByTestId("daily-students")).toContainText(saad);
-  // بيانات غير مكتملة: فهد غائب في كل المسجل لفصله لكن 23 حصة لم تحضر → UNDETERMINED
+  // غير محسوم لا يظهر إلا عند عدم اعتماد أي حصة؛ فهد له حصة معتمدة ولذلك هو FULL.
   await page.getByTestId("daily-status-filter").selectOption("UNDETERMINED");
-  await expect(page.getByTestId("daily-students")).toContainText(fahd, {
+  await expect(page.getByTestId("daily-students")).not.toContainText(fahd, {
     timeout: 15_000,
   });
   await expect(page.getByTestId("daily-students")).not.toContainText(mohammed);
