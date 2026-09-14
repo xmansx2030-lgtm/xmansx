@@ -120,6 +120,7 @@ def test_day_detail_timeline_statuses(role_client):
     )
     assert response.status_code == 200
     payload = response.json()
+    assert payload["absence_status"] == "PARTIAL"
     assert payload["expected_periods"] == 3
     assert payload["submitted_periods"] == 2
     assert payload["present_periods"] == 1

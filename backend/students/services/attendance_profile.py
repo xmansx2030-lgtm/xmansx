@@ -212,26 +212,29 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             **payload,
         })
 
+    # تفاصيل اليوم تُشتق من الجلسات المعتمدة نفسها، لا من عدادات الملخص المخزنة؛
+    # وبذلك تبقى الشاشة صحيحة حتى لو كان صف الملخص قديمًا وينتظر إعادة البناء.
     submitted_periods = len(sessions)
-    absent_periods = summary.absent_periods if summary else sum(
+    absent_periods = sum(
         period["status"] == AttendanceMarkStatus.ABSENT for period in periods
     )
-    present_periods = summary.present_periods if summary else max(
-        submitted_periods - absent_periods, 0
-    )
-    excused_absent_periods = summary.excused_absent_periods if summary else sum(
+    present_periods = max(submitted_periods - absent_periods, 0)
+    excused_absent_periods = sum(
         period["excused"] is True for period in periods
     )
-    unexcused_absent_periods = (
-        summary.unexcused_absent_periods
-        if summary
-        else max(absent_periods - excused_absent_periods, 0)
-    )
+    unexcused_absent_periods = max(absent_periods - excused_absent_periods, 0)
+    if submitted_periods == 0:
+        absence_status = DailyAbsenceStatus.UNDETERMINED
+    elif absent_periods >= submitted_periods:
+        absence_status = DailyAbsenceStatus.FULL
+    elif absent_periods == 0:
+        absence_status = DailyAbsenceStatus.NONE
+    else:
+        absence_status = DailyAbsenceStatus.PARTIAL
     return {
         "date": attendance_date.isoformat(),
-        "absence_status": summary.absence_status if summary else DailyAbsenceStatus.UNDETERMINED,
-        "absence_status_label": ABSENCE_LABELS[summary.absence_status]
-        if summary else ABSENCE_LABELS[DailyAbsenceStatus.UNDETERMINED],
+        "absence_status": absence_status,
+        "absence_status_label": ABSENCE_LABELS[absence_status],
         "section": {
             "id": summary.section_id,
             "name": summary.section.name,
@@ -239,7 +242,7 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
         }
         if summary else None,
         "expected_periods": len(expected),
-        "submitted_periods": summary.submitted_periods if summary else submitted_periods,
+        "submitted_periods": submitted_periods,
         "present_periods": present_periods,
         "absent_periods": absent_periods,
         "excused_absent_periods": excused_absent_periods,
