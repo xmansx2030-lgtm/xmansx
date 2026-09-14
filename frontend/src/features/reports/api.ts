@@ -38,6 +38,7 @@ export interface ReportResponse<TSummary, TRow> {
 export interface AbsenceRow {
   student_id: number;
   full_name: string;
+  guardian_mobile: string;
   grade_name: string;
   section_name: string;
   full_absence_days: number;

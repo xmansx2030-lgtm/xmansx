@@ -112,6 +112,7 @@ def absence_report(*, school, date_range, scope, params) -> dict:
         rows.values(
             "student_id",
             "student__full_name",
+            "student__guardian_mobile",
             "section_id",
             "section__name",
             "section__grade__name",
@@ -136,6 +137,7 @@ def absence_report(*, school, date_range, scope, params) -> dict:
         {
             "student_id": row["student_id"],
             "full_name": row["student__full_name"],
+            "guardian_mobile": row["student__guardian_mobile"] or "",
             "grade_name": row["section__grade__name"],
             "section_name": row["section__name"],
             "full_absence_days": row["full_absence_days"],

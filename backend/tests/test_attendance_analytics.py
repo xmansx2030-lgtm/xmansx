@@ -308,8 +308,8 @@ def test_daily_full_partial_and_no_absence(env):
 
 
 @pytest.mark.django_db
-def test_incomplete_day_undetermined_then_full(env):
-    """‏6/7 حصص: غائب الستة → UNDETERMINED لا FULL؛ اعتماد السابعة يقلبه FULL (118-119)."""
+def test_incomplete_day_is_full_when_absent_in_every_submitted_period(env):
+    """‏6/7 حصص: غيابه في كل المعتمد يكفي لغياب يوم كامل."""
     mohammed = env["sa"][0]
     build_full_day(env, {mohammed: dict.fromkeys(range(1, 7), "A")}, periods=6)
     recalculate_daily_attendance_for_section(
@@ -317,8 +317,8 @@ def test_incomplete_day_undetermined_then_full(env):
     )
     row = DailyAttendanceSummary.objects.get(student=mohammed)
     assert row.completeness_status == "INCOMPLETE"
-    assert row.absence_status == "UNDETERMINED"
-    assert row.absent_periods == 6  # الغيابات المعروفة تعرض — الحكم فقط مؤجل
+    assert row.absence_status == "FULL"
+    assert row.absent_periods == 6
 
     seventh = make_session(env, env["a"], 7)
     mark(env, seventh, mohammed, "ABSENT")
@@ -328,6 +328,24 @@ def test_incomplete_day_undetermined_then_full(env):
     row.refresh_from_db()
     assert row.completeness_status == "COMPLETE"
     assert row.absence_status == "FULL"
+
+
+@pytest.mark.django_db
+def test_presence_in_later_submitted_period_makes_day_partial(env):
+    """حضور واحد بعد غياب واحد يجعل الحالة جزئية ولو بقيت حصص لم تعتمد."""
+    mohammed = env["sa"][0]
+    first = make_session(env, env["a"], 1)
+    mark(env, first, mohammed, "ABSENT")
+    make_session(env, env["a"], 2)  # لا علامة = حاضر
+
+    recalculate_daily_attendance_for_section(
+        school=env["school"], section=env["a"], attendance_date=DAY
+    )
+
+    row = DailyAttendanceSummary.objects.get(student=mohammed)
+    assert row.completeness_status == "INCOMPLETE"
+    assert row.absence_status == "PARTIAL"
+    assert (row.absent_periods, row.present_periods) == (1, 1)
 
 
 @pytest.mark.django_db

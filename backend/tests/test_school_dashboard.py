@@ -156,8 +156,7 @@ def test_each_student_lands_in_exactly_one_bucket(env):
     arrival(env, e, late_minutes=12)
     recalc(env)
 
-    # اليوم الناقص في فصل مستقل: إعادة الحساب تنشئ صفًا لكل طلاب الفصل، فخلطه
-    # مع الفصل المكتمل يجعل كل طلابه UNDETERMINED
+    # اليوم الناقص في فصل مستقل: غياب الحصة المعتمدة الوحيدة يعد غيابًا كاملًا.
     incomplete_student = make_students(
         env["school"], env["section_b"], env["year"], 1, prefix="90300"
     )[0]
@@ -180,12 +179,12 @@ def test_each_student_lands_in_exactly_one_bucket(env):
     kpis = attendance_selectors.attendance_kpis(
         school=env["school"], date_range=Range(DAY, DAY2)
     )
-    assert kpis["full_absence_days"] == 2            # A و B
-    assert kpis["unexcused_full_absence_days"] == 1  # A فقط
+    assert kpis["full_absence_days"] == 3            # A و B + غياب الحصة الوحيدة
+    assert kpis["unexcused_full_absence_days"] == 2  # A + غياب الحصة الوحيدة
     assert kpis["excused_full_absence_days"] == 1    # B فقط
     assert kpis["partial_absence_days"] == 1         # C
     assert kpis["no_absence_days"] == 2              # D و E حضرا
-    assert kpis["undetermined_days"] == 1            # اليوم الناقص — ليس غيابًا
+    assert kpis["undetermined_days"] == 0
     assert kpis["morning_late_occurrences"] == 1     # E
 
 
@@ -219,7 +218,7 @@ def test_mixed_full_day_counted_in_neither_bucket(env):
 
 
 @pytest.mark.django_db
-def test_undetermined_never_counted_as_absence(env):
+def test_absence_in_one_submitted_period_is_full_while_day_is_incomplete(env):
     student = env["students"][0]
     session = make_session(env, 1)
     mark(env, session, student, "ABSENT")
@@ -227,10 +226,11 @@ def test_undetermined_never_counted_as_absence(env):
     kpis = attendance_selectors.attendance_kpis(
         school=env["school"], date_range=Range(DAY, DAY)
     )
-    # كل طلاب الفصل الخمسة يومهم ناقص (حصة واحدة من سبع) — ولا أحد منهم «غائب»
-    assert kpis["undetermined_days"] == 5
-    assert kpis["full_absence_days"] == 0
+    # غياب الحصة المعتمدة الوحيدة = كامل؛ الحاضرون فيها حاضرون لا غير محسومين.
+    assert kpis["undetermined_days"] == 0
+    assert kpis["full_absence_days"] == 1
     assert kpis["partial_absence_days"] == 0
+    assert kpis["no_absence_days"] == 4
     assert kpis["completeness"]["incomplete_student_days"] == 5
     assert kpis["completeness"]["incomplete_pct"] == 100.0
     assert kpis["completeness"]["is_significant"] is True

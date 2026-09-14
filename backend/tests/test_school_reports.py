@@ -46,6 +46,14 @@ def report_env(make_school, role_client):
         national_id_lookup_hash="a" * 64,
         national_id_masked="******1111",
         full_name="طالب التقرير",
+        guardian_mobile="0550000001",
+    )
+    partial_student = Student.objects.create(
+        school=school,
+        national_id_encrypted="encrypted-partial",
+        national_id_lookup_hash="b" * 64,
+        national_id_masked="******2222",
+        full_name="طالب غياب حصة",
     )
     DailyAttendanceSummary.objects.create(
         school=school,
@@ -73,11 +81,28 @@ def report_env(make_school, role_client):
         status=ArrivalStatus.LATE,
         source=ArrivalSource.MANUAL,
     )
+    DailyAttendanceSummary.objects.create(
+        school=school,
+        student=partial_student,
+        academic_year=year,
+        section=section,
+        attendance_date=TODAY,
+        expected_periods=7,
+        submitted_periods=2,
+        absent_periods=1,
+        present_periods=1,
+        excused_absent_periods=0,
+        unexcused_absent_periods=1,
+        completeness_status=DailyCompleteness.INCOMPLETE,
+        absence_status=DailyAbsenceStatus.PARTIAL,
+        calculated_at=timezone.now(),
+    )
     return {
         "school": school,
         "manager": manager_client,
         "vice": vice_client,
         "student": student,
+        "partial_student": partial_student,
         "grade": grade,
         "section": section,
     }
@@ -94,7 +119,23 @@ def test_manager_and_vice_principal_receive_filtered_absence_report(report_env):
         assert response.status_code == 200
         assert response.json()["summary"]["students"] == 1
         assert response.json()["results"][0]["full_name"] == "طالب التقرير"
+        assert response.json()["results"][0]["guardian_mobile"] == "0550000001"
         assert response.json()["results"][0]["unexcused_absent_periods"] == 5
+
+
+@pytest.mark.django_db
+def test_absence_report_includes_a_known_absence_before_day_completion(report_env):
+    response = report_env["manager"].get(
+        "/api/v1/reports/absence/?preset=TODAY&absence_type=PARTIAL"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["students"] == 1
+    assert payload["summary"]["partial_absence_days"] == 1
+    assert payload["summary"]["unexcused_absent_periods"] == 1
+    assert payload["summary"]["incomplete_days"] == 1
+    assert payload["results"][0]["student_id"] == report_env["partial_student"].id
 
 
 @pytest.mark.django_db
@@ -108,9 +149,11 @@ def test_absence_report_exports_real_xlsx(report_env):
     sheet = workbook["الغياب"]
     assert sheet["A1"].value == "تقرير الغياب"
     assert sheet["A7"].value == "الطالب"
-    assert sheet["H7"].value == "حصص دون عذر"
+    assert sheet["B7"].value == "جوال ولي الأمر"
+    assert sheet["I7"].value == "حصص دون عذر"
     assert sheet["A8"].value == "طالب التقرير"
-    assert sheet["H8"].value == 5
+    assert sheet["B8"].value == "0550000001"
+    assert sheet["I8"].value == 5
 
 
 @pytest.mark.django_db

@@ -20,6 +20,7 @@ REPORT_DEFINITIONS: dict[str, dict[str, Any]] = {
         "filename": "absence-report.xlsx",
         "columns": [
             ("الطالب", "full_name", 24),
+            ("جوال ولي الأمر", "guardian_mobile", 18),
             ("الصف", "grade_name", 14),
             ("الفصل", "section_name", 12),
             ("أيام غياب كامل", "full_absence_days", 16),

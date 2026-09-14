@@ -47,6 +47,7 @@ describe("school reports", () => {
           results: [{
             student_id: 7,
             full_name: "محمد أحمد",
+            guardian_mobile: "0550000001",
             grade_name: "الأول",
             section_name: "أ",
             full_absence_days: 2,
@@ -74,6 +75,7 @@ describe("school reports", () => {
     expect(await screen.findByRole("heading", { name: "مركز التقارير" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "التقارير" })).toBeInTheDocument();
     expect(await screen.findByText("محمد أحمد")).toBeInTheDocument();
+    expect(screen.getByText("0550000001")).toBeInTheDocument();
     expect(screen.getByText("تقرير مدرسي رسمي")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /تصدير Excel/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /تصدير المعروض CSV/ })).toBeInTheDocument();

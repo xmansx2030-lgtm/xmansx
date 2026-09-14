@@ -151,7 +151,7 @@ class DailyCompleteness(models.TextChoices):
 
 
 class DailyAbsenceStatus(models.TextChoices):
-    # UNDETERMINED: يوم غير مكتمل — لا حكم نهائيًا ولو عرفنا غيابات جزئية
+    # UNDETERMINED: لا توجد حصة معتمدة بعد، فلا حقيقة حضور أو غياب لليوم.
     UNDETERMINED = "UNDETERMINED", "غير محسوم"
     NONE = "NONE", "لا غياب"
     PARTIAL = "PARTIAL", "غياب جزئي"
@@ -162,7 +162,8 @@ class DailyAttendanceSummary(TimestampedModel):
     """ملخص يوم الطالب (م8) — يعاد حسابه idempotent عند الاعتماد/التعديل.
 
     - present + absent = submitted؛ تحضير الحصة ثنائي، والتأخر صباحي فقط.
-    - ‏FULL فقط عند اكتمال كل الحصص وغيابها كلها — الناقص UNDETERMINED أبدًا لا FULL.
+    - ‏FULL عند غياب كل الحصص المعتمدة، ولو بقيت حصص في الجدول لم تُعتمد بعد.
+      حضور حصة معتمدة واحدة مع غياب أخرى = PARTIAL.
     - ‏section = فصل الطالب ذلك اليوم (من تاريخ القيد) — النقل لاحقًا لا يغير الماضي.
     - ‏student بـ PROTECT: نسيان تسجيل الحذف النهائي يفشل صاخبًا (نمط م4.1).
     - جاهز لإضافة excused/unexcused في مرحلة الأعذار دون هدم (أعمدة جديدة فقط).

@@ -4,7 +4,8 @@
 - expected من AttendanceDayContext (حصص تحضير فقط) — تعديل الجدول لاحقًا لا يغير
   أيامًا مضت.
 - submitted = حصص SUBMITTED فقط — مسودات IN_PROGRESS ليست حقيقة رسمية.
-- present + absent = submitted؛ اليوم الناقص UNDETERMINED أبدًا لا FULL.
+- present + absent = submitted؛ الحصص المعتمدة وحدها تحدد حالة اليوم: الغائب
+  فيها كلها FULL، ومن حضر واحدة وغاب أخرى PARTIAL، بلا شرط لعدد حصص الجدول.
 - عضوية الطالب بالفصل من تاريخ القيد (enrollments_on_date) — لا القيد الحالي.
 """
 
@@ -29,13 +30,17 @@ from students.services.enrollments import enrollments_on_date
 
 def _classify(*, expected: int, submitted: int, absent: int) -> tuple[str, str]:
     complete = expected > 0 and submitted >= expected
-    if not complete:
+    completeness = DailyCompleteness.COMPLETE if complete else DailyCompleteness.INCOMPLETE
+    # لا توجد حقيقة حضور أو غياب لليوم قبل اعتماد أي حصة.
+    if submitted == 0:
         return DailyCompleteness.INCOMPLETE, DailyAbsenceStatus.UNDETERMINED
+    # الحصص المعتمدة هي مصدر الحقيقة: لا يُنتظر عدد الحصص المخطط لها. حضور واحد
+    # يمنع FULL، وغياب واحد مع حضور آخر يصبح PARTIAL.
+    if absent >= submitted:
+        return completeness, DailyAbsenceStatus.FULL
     if absent == 0:
-        return DailyCompleteness.COMPLETE, DailyAbsenceStatus.NONE
-    if absent >= expected:
-        return DailyCompleteness.COMPLETE, DailyAbsenceStatus.FULL
-    return DailyCompleteness.COMPLETE, DailyAbsenceStatus.PARTIAL
+        return completeness, DailyAbsenceStatus.NONE
+    return completeness, DailyAbsenceStatus.PARTIAL
 
 
 def recalculate_daily_attendance_for_section(*, school, section, attendance_date: date_cls) -> int:

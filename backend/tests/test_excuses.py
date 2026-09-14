@@ -238,7 +238,7 @@ def test_incomplete_day_preview_and_partial_coverage(env):
     approve(env, excuse)
     assert AbsenceExcuseCoverage.objects.filter(excuse=excuse).count() == 4
     row = summary(env, student)
-    assert row.absence_status == DailyAbsenceStatus.UNDETERMINED  # العذر لا يكمل التحضير
+    assert row.absence_status == DailyAbsenceStatus.FULL  # العذر لا يكمل التحضير
 
 
 @pytest.mark.django_db
@@ -687,7 +687,7 @@ def test_phase11_selectors(env):
 
 
 @pytest.mark.django_db
-def test_undetermined_day_unaffected_by_excuse(env):
+def test_single_submitted_absence_stays_full_when_excused(env):
     student = env["students"][0]
     session = make_session(env, 1)
     mark(env, session, student, "ABSENT")
@@ -695,7 +695,7 @@ def test_undetermined_day_unaffected_by_excuse(env):
     excuse = excuse_for(env, student, [{"attendance_date": DAY}])
     approve(env, excuse)
     row = summary(env, student)
-    assert row.absence_status == DailyAbsenceStatus.UNDETERMINED  # لا يتحول FULL (بند 65)
+    assert row.absence_status == DailyAbsenceStatus.FULL
     assert row.excused_absent_periods == 1
 
 
