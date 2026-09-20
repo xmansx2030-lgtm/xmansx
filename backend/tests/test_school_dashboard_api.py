@@ -254,12 +254,21 @@ def test_trend_sections_and_attention(api_env):
     assert today["updated_at"] == today["school_time"]
     daily = today["daily_attendance"]
     assert set(daily) == {
+        "roster_students",
         "total_students",
         "present_students",
         "absent_students",
         "partial_absence_students",
         "unrecorded_students",
+        "excluded_students",
+        "inactive_assignment_students",
+        "awaiting_preparation_students",
+        "missing_summary_students",
     }
+    assert daily["roster_students"] == daily["total_students"] + daily["excluded_students"]
+    assert daily["unrecorded_students"] == (
+        daily["awaiting_preparation_students"] + daily["missing_summary_students"]
+    )
     assert daily["present_students"] <= daily["total_students"]
     assert daily["absent_students"] <= daily["total_students"]
     assert daily["unrecorded_students"] <= daily["total_students"]
