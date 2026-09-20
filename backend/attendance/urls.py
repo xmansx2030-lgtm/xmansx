@@ -12,6 +12,10 @@ urlpatterns = [
     path("attendance/sessions/start/", views.StartSessionView.as_view()),
     path("attendance/sessions/<int:session_id>/", views.SessionDetailView.as_view()),
     path(
+        "attendance/sessions/<int:session_id>/students/<int:student_id>/",
+        views.StudentAttendanceCorrectionView.as_view(),
+    ),
+    path(
         "attendance/sessions/<int:session_id>/submit/",
         views.SubmitSessionView.as_view(),
     ),

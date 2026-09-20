@@ -13,6 +13,8 @@ from rest_framework.response import Response
 from attendance.api.serializers import (
     AttendancePreviewSerializer,
     AttendanceSectionSerializer,
+    CorrectStudentAttendanceResponseSerializer,
+    CorrectStudentAttendanceSerializer,
     CurrentPeriodResponseSerializer,
     DailyResponseSerializer,
     EditSessionSerializer,
@@ -35,7 +37,7 @@ from common.errors import ApiError
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
 from schools.services.settings import get_or_create_settings
-from students.models import EnrollmentStatus, Section
+from students.models import EnrollmentStatus, Section, Student
 
 TEACHER_ROLES = (SchoolRole.TEACHER,)
 ATTENDANCE_ROLES = (
@@ -279,6 +281,30 @@ class SessionDetailView(SchoolScopedAPIView):
         return Response(
             serialize_session(session, roster, can_edit=_can_edit(session, request))
         )
+
+
+class StudentAttendanceCorrectionView(SchoolScopedAPIView):
+    write_roles = (SchoolRole.VICE_PRINCIPAL, SchoolRole.SCHOOL_MANAGER)
+
+    @extend_schema(
+        request=CorrectStudentAttendanceSerializer,
+        responses=CorrectStudentAttendanceResponseSerializer,
+    )
+    def patch(self, request: Request, session_id: int, student_id: int) -> Response:
+        serializer = CorrectStudentAttendanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        get_object_or_404(AttendanceSession, id=session_id, school=request.school)
+        get_object_or_404(Student, id=student_id, school=request.school)
+        result = sessions_service.correct_student_attendance(
+            session_id=session_id,
+            student_id=student_id,
+            school=request.school,
+            membership=request.membership,
+            status=serializer.validated_data["status"],
+            reason=serializer.validated_data["reason"],
+            request=request,
+        )
+        return Response(result)
 
 
 class SubmitSessionView(SchoolScopedAPIView):

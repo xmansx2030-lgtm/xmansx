@@ -72,6 +72,7 @@ export interface AttendancePeriod {
 export interface AttendanceDayDetail extends AttendanceDay {
   periods: Array<{
     sequence: number;
+    session_id: number | null;
     name: string;
     start_time?: string | null;
     end_time?: string | null;
@@ -279,6 +280,16 @@ export const getAttendanceDayDetail = (
   date: string,
   signal?: AbortSignal,
 ) => apiRequest<AttendanceDayDetail>(`/students/${studentId}/attendance-days/${date}/`, { signal });
+
+export const correctStudentAttendance = (
+  studentId: number,
+  sessionId: number,
+  status: "PRESENT" | "ABSENT",
+  reason: string,
+) => apiRequest<{ student_id: number; session_id: number; status: string }>(
+  `/attendance/sessions/${sessionId}/students/${studentId}/`,
+  { method: "PATCH", body: { status, reason } },
+);
 
 export const getMorningAttendance = (
   studentId: number,

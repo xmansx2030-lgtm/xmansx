@@ -174,7 +174,17 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
     ).first()
     expected = context.schedule_snapshot.get("periods", []) if context else []
     expected = [period for period in expected if period.get("is_attendance_period", True)]
-    section_id = summary.section_id if summary else None
+    historical_enrollment = None
+    if summary is None:
+        from students.services.enrollments import enrollments_on_date
+
+        historical_enrollment = enrollments_on_date(
+            school=school, on_date=attendance_date,
+        ).filter(student=student).select_related("section__grade").first()
+    section = summary.section if summary else (
+        historical_enrollment.section if historical_enrollment else None
+    )
+    section_id = section.id if section else None
     sessions = {
         session.period_sequence: session
         for session in AttendanceSession.objects.filter(
@@ -207,6 +217,7 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
         periods.append({
             "sequence": period["sequence"],
             "name": period["name"],
+            "session_id": session.id if session else None,
             "start_time": period.get("start_time"),
             "end_time": period.get("end_time"),
             **payload,
@@ -236,11 +247,11 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
         "absence_status": absence_status,
         "absence_status_label": ABSENCE_LABELS[absence_status],
         "section": {
-            "id": summary.section_id,
-            "name": summary.section.name,
-            "grade_name": summary.section.grade.name,
+            "id": section.id,
+            "name": section.name,
+            "grade_name": section.grade.name,
         }
-        if summary else None,
+        if section else None,
         "expected_periods": len(expected),
         "submitted_periods": submitted_periods,
         "present_periods": present_periods,

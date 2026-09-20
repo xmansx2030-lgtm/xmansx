@@ -408,3 +408,82 @@ def edit_session(
 
         invalidate_school(school.id)
     return session
+
+
+def correct_student_attendance(
+    *, session_id: int, student_id: int, school, membership, status: str,
+    reason: str, request=None,
+) -> dict:
+    """تصحيح علامة طالب واحد في جلسة معتمدة دون إعادة كتابة علامات الفصل."""
+    from students.services.enrollments import enrollments_on_date
+
+    if not (set(membership.role_codes()) & ADMIN_CORRECTION_ROLES):
+        raise ApiError(
+            "ATTENDANCE_PERMISSION_DENIED", "ليست لديك صلاحية تصحيح الحضور.",
+            status_code=403,
+        )
+    reason = reason.strip()
+    if not reason:
+        raise ApiError("VALIDATION_ERROR", "سبب التصحيح مطلوب.")
+    if status not in ("PRESENT", AttendanceMarkStatus.ABSENT):
+        raise ApiError("VALIDATION_ERROR", "حالة الحضور غير صحيحة.")
+
+    with transaction.atomic():
+        session = (
+            AttendanceSession.objects.select_for_update()
+            .select_related("section")
+            .get(id=session_id, school=school)
+        )
+        if session.status != AttendanceSessionStatus.SUBMITTED:
+            raise ApiError("VALIDATION_ERROR", "لا يمكن تصحيح تحضير غير معتمد.")
+        mark = AttendanceMark.objects.filter(
+            school=school, session=session, student_id=student_id,
+        ).first()
+        enrolled = enrollments_on_date(
+            school=school, on_date=session.attendance_date, section=session.section,
+        ).filter(student_id=student_id, academic_year=session.academic_year).exists()
+        # يمكن إزالة علامة غياب قديمة ولو تغير قيد الطالب لاحقًا. إضافة غياب
+        # تتطلب إثبات انتمائه للفصل في تاريخ التحضير نفسه.
+        if not enrolled and not (mark and status == "PRESENT"):
+            raise ApiError(
+                "INVALID_ATTENDANCE_STUDENT",
+                "الطالب لم يكن في هذا الفصل بتاريخ التحضير.",
+                status_code=400,
+            )
+        previous_status = AttendanceMarkStatus.ABSENT if mark else "PRESENT"
+        if previous_status == status:
+            raise ApiError(
+                "ATTENDANCE_STATUS_UNCHANGED", "حالة الطالب مسجلة بالفعل بهذه القيمة.",
+                status_code=409,
+            )
+        if status == AttendanceMarkStatus.ABSENT:
+            AttendanceMark.objects.create(
+                school=school, session=session, student_id=student_id, status=status,
+            )
+        else:
+            mark.delete()
+        AttendanceChange.objects.create(
+            school=school, session=session, student_id=student_id,
+            actor_membership=membership, previous_status=previous_status,
+            new_status=status, reason=reason[:300],
+        )
+        session.save(update_fields=["updated_at"])
+        record_event(
+            AuditAction.ATTENDANCE_EDITED, request=request,
+            actor=membership.user, school=school,
+            target_type="AttendanceSession", target_id=session.id,
+            metadata={"changes": 1},
+        )
+
+    from attendance.services.daily_summary import recalculate_daily_attendance_for_section
+    from excuses.services.coverage import reconcile_excuse_coverage_for_date
+    from school_dashboard.cache import invalidate_school
+
+    reconcile_excuse_coverage_for_date(
+        school=school, attendance_date=session.attendance_date, student_ids=[student_id],
+    )
+    recalculate_daily_attendance_for_section(
+        school=school, section=session.section, attendance_date=session.attendance_date,
+    )
+    invalidate_school(school.id)
+    return {"student_id": student_id, "session_id": session.id, "status": status}

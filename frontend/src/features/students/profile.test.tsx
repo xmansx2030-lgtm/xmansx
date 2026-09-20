@@ -319,4 +319,49 @@ describe("student attendance profile (Phase 9)", () => {
     expect(within(overview).getByText("حضور", { exact: true }).parentElement).toHaveTextContent("1");
     expect(within(overview).getByText("غياب", { exact: true }).parentElement).toHaveTextContent("1");
   });
+
+  it("lets a manager correct only a submitted student's period with a reason", async () => {
+    const today = localIsoDate(new Date());
+    let corrected = false;
+    const { calls } = mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/attendance-profile/": { body: { ...PROFILE, period: { from: today, to: today } } },
+      [`/attendance-days/${today}/`]: () => ({
+        body: {
+          date: today,
+          absence_status: corrected ? "NONE" : "FULL",
+          section: { id: 2, name: "2", grade_name: "الأول الثانوي" },
+          expected_periods: 2,
+          submitted_periods: 1,
+          present_periods: corrected ? 1 : 0,
+          absent_periods: corrected ? 0 : 1,
+          excused_absent_periods: 0,
+          unexcused_absent_periods: corrected ? 0 : 1,
+          periods: [
+            { sequence: 1, session_id: 44, name: "الحصة الأولى", status: corrected ? "PRESENT" : "ABSENT", excused: corrected ? null : false },
+            { sequence: 2, session_id: null, name: "الحصة الثانية", status: "NOT_RECORDED", excused: null },
+          ],
+        },
+      }),
+      "/attendance/sessions/44/students/5/": () => {
+        corrected = true;
+        return { body: { student_id: 5, session_id: 44, status: "PRESENT" } };
+      },
+    });
+    renderApp("/students/5/attendance");
+    const user = userEvent.setup();
+    const firstPeriod = await screen.findByTestId("period-status-1");
+    expect(within(screen.getByTestId("period-status-2")).queryByText("تصحيح الحضور")).toBeNull();
+    await user.click(within(firstPeriod).getByRole("button", { name: "تصحيح الحضور" }));
+    expect(within(firstPeriod).getByRole("button", { name: "تصحيح إلى حاضر" })).toBeDisabled();
+    await user.type(within(firstPeriod).getByLabelText("سبب التصحيح"), "تم تسجيل الغياب بالخطأ");
+    await user.click(within(firstPeriod).getByRole("button", { name: "تصحيح إلى حاضر" }));
+    expect(await screen.findByText("تم حفظ التصحيح وتحديث سجل الحضور.")).toBeInTheDocument();
+    expect(await screen.findByTestId("period-status-1")).toHaveTextContent("حاضر");
+    const patch = calls.find((call) => call.url.includes("/attendance/sessions/44/students/5/"));
+    expect(patch?.init?.method).toBe("PATCH");
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({
+      status: "PRESENT", reason: "تم تسجيل الغياب بالخطأ",
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, CircleAlert, Clock3, GraduationCap, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -20,6 +20,7 @@ import { StudentLeavesTab } from "@/features/leaves/StudentLeavesTab";
 import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
 import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
 import {
+  correctStudentAttendance,
   getAttendanceChanges,
   getAttendanceDayDetail,
   getAttendanceDays,
@@ -598,6 +599,14 @@ function AttendanceDayOverview({ detail, canManageExcuses, onQuickExcuse }: {
                   )}
                 </div>
               )}
+              {canManageExcuses && period.session_id && (isAbsent || isPresent) && (
+                <AttendanceCorrectionControl
+                  sessionId={period.session_id}
+                  date={detail.date}
+                  periodName={period.name || `الحصة ${period.sequence}`}
+                  currentStatus={period.status as "PRESENT" | "ABSENT"}
+                />
+              )}
             </article>
           );
         })}
@@ -605,6 +614,66 @@ function AttendanceDayOverview({ detail, canManageExcuses, onQuickExcuse }: {
           <p className="text-sm text-slate-500">لا توجد حصص تحضير مجدولة لهذا اليوم.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function AttendanceCorrectionControl({ sessionId, date, periodName, currentStatus }: {
+  sessionId: number;
+  date: string;
+  periodName: string;
+  currentStatus: "PRESENT" | "ABSENT";
+}) {
+  const { studentId } = useParams<{ studentId: string }>();
+  const schoolId = useActiveSchoolId();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [saved, setSaved] = useState(false);
+  const nextStatus = currentStatus === "ABSENT" ? "PRESENT" : "ABSENT";
+  const action = nextStatus === "PRESENT" ? "تصحيح إلى حاضر" : "تصحيح إلى غائب";
+  const mutation = useMutation({
+    mutationFn: () => correctStudentAttendance(Number(studentId), sessionId, nextStatus, reason.trim()),
+    onSuccess: () => {
+      setOpen(false);
+      setReason("");
+      setSaved(true);
+      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId) });
+    },
+  });
+
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3 text-sm">
+      {!open ? (
+        <button type="button" className="font-bold text-blue-700 underline" onClick={() => { setOpen(true); setSaved(false); mutation.reset(); }}>
+          تصحيح الحضور
+        </button>
+      ) : (
+        <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }} className="space-y-2">
+          <p className="font-bold text-slate-800">{action} — {periodName}، {formatDate(date)}</p>
+          <label className="block font-medium text-slate-700">
+            سبب التصحيح
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              required
+              maxLength={300}
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"
+              placeholder="مثال: تم تسجيل الغياب بالخطأ"
+            />
+          </label>
+          {currentStatus === "ABSENT" && (
+            <p className="text-xs text-slate-600">إذا صدر إنذار سابق بسبب هذا الغياب، راجعه من قسم الإنذارات بعد التصحيح.</p>
+          )}
+          {mutation.isError && <p role="alert" className="text-red-700">{mutation.error.message}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" disabled={!reason.trim() || mutation.isPending}>{mutation.isPending ? "جارٍ الحفظ..." : action}</Button>
+            <Button type="button" variant="secondary" onClick={() => { setOpen(false); mutation.reset(); }}>إلغاء</Button>
+          </div>
+        </form>
+      )}
+      {saved && <p role="status" className="mt-2 font-bold text-emerald-700">تم حفظ التصحيح وتحديث سجل الحضور.</p>}
     </div>
   );
 }

@@ -38,6 +38,14 @@ def _edit(client, session_id, marks, reason=""):
     )
 
 
+def _correct(client, session_id, student_id, status, reason="تصحيح إداري"):
+    return client.patch(
+        f"/api/v1/attendance/sessions/{session_id}/students/{student_id}/",
+        {"status": status, "reason": reason},
+        content_type="application/json",
+    )
+
+
 @pytest.fixture
 def teacher_env(role_client):
     client, school, user = role_client(["TEACHER"])
@@ -348,6 +356,98 @@ def test_edit_window_expired_for_teacher_but_admin_allowed(teacher_env, role_cli
     assert AttendanceMark.objects.filter(session_id=session["id"]).count() == 0
     assert AttendanceChange.objects.filter(
         session_id=session["id"], previous_status="ABSENT", new_status="PRESENT"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_manager_and_vice_correct_one_student_from_profile(teacher_env, role_client):
+    from attendance.models import DailyAttendanceSummary
+
+    students = teacher_env["students"]
+    session = _start(teacher_env["client"], teacher_env["section"].id).json()
+    assert _submit(teacher_env["client"], session["id"], [
+        {"student_id": students[0].id, "status": "ABSENT"},
+        {"student_id": students[1].id, "status": "ABSENT"},
+    ]).status_code == 200
+    AttendanceSession.objects.filter(id=session["id"]).update(
+        submitted_at=dj_timezone.now() - timedelta(days=2)
+    )
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=teacher_env["school"])
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=teacher_env["school"])
+
+    corrected = _correct(manager, session["id"], students[0].id, "PRESENT")
+    assert corrected.status_code == 200
+    assert corrected.json()["status"] == "PRESENT"
+    remaining = AttendanceMark.objects.filter(session_id=session["id"]).values_list(
+        "student_id", flat=True
+    )
+    assert set(remaining) == {students[1].id}
+    summary = DailyAttendanceSummary.objects.get(
+        school=teacher_env["school"], student=students[0],
+        attendance_date=AttendanceSession.objects.get(id=session["id"]).attendance_date,
+    )
+    assert summary.absence_status == "NONE"
+    detail = manager.get(
+        f"/api/v1/students/{students[0].id}/attendance-days/{summary.attendance_date}/"
+    )
+    assert detail.status_code == 200
+    assert detail.json()["periods"][0]["session_id"] == session["id"]
+    assert detail.json()["periods"][0]["status"] == "PRESENT"
+
+    absent = _correct(vice, session["id"], students[0].id, "ABSENT", "تحقق الوكيل")
+    assert absent.status_code == 200
+    summary.refresh_from_db()
+    assert summary.absence_status == "FULL"
+    changes = AttendanceChange.objects.filter(session_id=session["id"], student=students[0])
+    assert list(changes.values_list("previous_status", "new_status", "reason")) == [
+        ("ABSENT", "PRESENT", "تصحيح إداري"),
+        ("PRESENT", "ABSENT", "تحقق الوكيل"),
+    ]
+    assert AuditLog.objects.filter(action=AuditAction.ATTENDANCE_EDITED).count() == 2
+
+
+@pytest.mark.django_db
+def test_single_student_correction_rejects_wrong_role_student_and_reason(teacher_env, role_client):
+    students = teacher_env["students"]
+    session = _start(teacher_env["client"], teacher_env["section"].id).json()
+    manager, _, _ = role_client(["SCHOOL_MANAGER"], school=teacher_env["school"])
+    assert _correct(manager, session["id"], students[0].id, "ABSENT").status_code == 400
+    assert _submit(teacher_env["client"], session["id"], []).status_code == 200
+
+    teacher_response = _correct(teacher_env["client"], session["id"], students[0].id, "ABSENT")
+    assert teacher_response.status_code == 403
+    assert _correct(manager, session["id"], students[0].id, "ABSENT", "  ").status_code == 400
+    assert _correct(manager, session["id"], students[0].id, "PRESENT").status_code == 409
+    foreign_client, foreign_school, _ = role_client(["SCHOOL_MANAGER"])
+    foreign = setup_attendance_env(foreign_school, students_count=1)["students"][0]
+    assert _correct(manager, session["id"], foreign.id, "ABSENT").status_code == 404
+    assert _correct(foreign_client, session["id"], students[0].id, "ABSENT").status_code == 404
+    assert not AttendanceChange.objects.filter(session_id=session["id"]).exists()
+
+
+@pytest.mark.django_db
+def test_day_detail_can_offer_correction_when_daily_summary_is_missing(teacher_env, role_client):
+    from attendance.models import DailyAttendanceSummary
+
+    student = teacher_env["students"][0]
+    session = _start(teacher_env["client"], teacher_env["section"].id).json()
+    assert _submit(teacher_env["client"], session["id"], [
+        {"student_id": student.id, "status": "ABSENT"},
+    ]).status_code == 200
+    attendance_date = AttendanceSession.objects.get(id=session["id"]).attendance_date
+    DailyAttendanceSummary.objects.filter(
+        school=teacher_env["school"], student=student, attendance_date=attendance_date,
+    ).delete()
+    vice, _, _ = role_client(["VICE_PRINCIPAL"], school=teacher_env["school"])
+    detail = vice.get(f"/api/v1/students/{student.id}/attendance-days/{attendance_date}/")
+    assert detail.status_code == 200
+    assert detail.json()["section"]["id"] == teacher_env["section"].id
+    assert detail.json()["periods"][0]["session_id"] == session["id"]
+    assert detail.json()["periods"][0]["status"] == "ABSENT"
+    assert _correct(vice, session["id"], student.id, "PRESENT").status_code == 200
+    assert DailyAttendanceSummary.objects.filter(
+        school=teacher_env["school"], student=student, attendance_date=attendance_date,
+        absence_status="NONE",
     ).exists()
 
 

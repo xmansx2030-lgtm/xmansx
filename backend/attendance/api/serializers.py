@@ -36,6 +36,17 @@ class EditSessionSerializer(SubmitSessionSerializer):
     reason = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
 
 
+class CorrectStudentAttendanceSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["PRESENT", AttendanceMarkStatus.ABSENT])
+    reason = serializers.CharField(max_length=300, trim_whitespace=True, allow_blank=False)
+
+
+class CorrectStudentAttendanceResponseSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    session_id = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=["PRESENT", AttendanceMarkStatus.ABSENT])
+
+
 class QrResolveSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=64)
 
