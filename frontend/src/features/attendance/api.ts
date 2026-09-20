@@ -233,6 +233,14 @@ export interface DailyAnalyticsResponse {
     no_absence: number;
     undetermined: number;
   };
+  current_scope?: {
+    roster_students: number;
+    total_students: number;
+    excluded_students: number;
+    inactive_assignment_students: number;
+    awaiting_preparation_students: number;
+    missing_summary_students: number;
+  } | null;
   students: {
     student_id: number;
     full_name: string;
@@ -241,6 +249,7 @@ export interface DailyAnalyticsResponse {
     absent_periods: number;
     submitted_periods: number;
     expected_periods: number;
+    unrecorded_reason?: "INACTIVE_ASSIGNMENT" | "OUTSIDE_SCOPE" | "MISSING_SUMMARY" | "NO_SUBMISSION";
   }[];
   page: number;
   page_size: number;

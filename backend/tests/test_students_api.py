@@ -437,6 +437,31 @@ def test_manager_edits_and_safely_changes_structure_status(role_client):
 
 
 @pytest.mark.django_db
+def test_active_enrollment_prevents_disabling_its_grade_or_section(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    student = _make_student(school, "1012345689", "طالب قيده نشط")
+    enrollment = _enroll(school, student)
+
+    stopped_section = manager.patch(
+        f"/api/v1/sections/{enrollment.section_id}/",
+        {"is_active": False}, content_type="application/json",
+    )
+    assert stopped_section.status_code == 409
+    assert stopped_section.json()["code"] == "SECTION_HAS_ACTIVE_STUDENTS"
+
+    stopped_grade = manager.patch(
+        f"/api/v1/grades/{enrollment.grade_id}/",
+        {"is_active": False}, content_type="application/json",
+    )
+    assert stopped_grade.status_code == 409
+    assert stopped_grade.json()["code"] == "GRADE_HAS_ACTIVE_STUDENTS"
+    enrollment.section.refresh_from_db()
+    enrollment.grade.refresh_from_db()
+    assert enrollment.section.is_active is True
+    assert enrollment.grade.is_active is True
+
+
+@pytest.mark.django_db
 def test_structure_delete_is_only_for_unused_items(role_client):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     grade = Grade.objects.create(school=school, name="صف مستخدم", code="USED", sequence=1)

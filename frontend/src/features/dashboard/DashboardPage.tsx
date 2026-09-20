@@ -821,6 +821,10 @@ function TodayCard({ data: today }: { data: TodayOperations }) {
 
 function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { data: TodayOperations; schoolType: SchoolType; showPreparation: boolean }) {
   const daily = today.daily_attendance;
+  const awaitingPreparation = daily?.awaiting_preparation_students ?? daily?.unrecorded_students ?? 0;
+  const missingSummary = daily?.missing_summary_students ?? 0;
+  const excluded = daily?.excluded_students ?? 0;
+  const inactiveAssignments = daily?.inactive_assignment_students ?? 0;
   const live = today.live_attendance?.status === "AVAILABLE" ? today.live_attendance : undefined;
   const summary = today.summary;
   const openOverdue = actionableOverdue(summary);
@@ -864,11 +868,32 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
           </div>
         )}
         {daily && (
-          <p className={daily.unrecorded_students > 0 ? "text-amber-800" : "text-emerald-800"} data-testid="school-coverage-line">
-            {daily.unrecorded_students > 0
-              ? `لم يعتمد تحضير يشمل ${daily.unrecorded_students} ${studentCountLabel(schoolType)} بعد؛ لا يحسبون حضورًا ولا غيابًا.`
-              : `تم اعتماد تحضير يشمل جميع ${daily.total_students} ${studentCountLabel(schoolType)}.`}
-          </p>
+          <div className="space-y-1" data-testid="school-coverage-line">
+            <p data-testid="school-population-line">
+              {studentPluralLabel(schoolType)} النشطون في السجل: {daily.roster_students ?? daily.total_students} · ضمن نطاق تحضير اليوم: {daily.total_students}.
+            </p>
+            {excluded > 0 && (
+              <p className="text-amber-800" data-testid="school-excluded-students">
+                خارج نطاق تحضير اليوم: {excluded}؛ منهم {inactiveAssignments} مرتبطون بصفوف أو فصول غير فعالة. راجع قيودهم في سجل {studentPluralLabel(schoolType)}.
+              </p>
+            )}
+            {awaitingPreparation > 0 && (
+              <p className="text-amber-800" data-testid="school-awaiting-preparation">
+                بلا تحضير معتمد في فصولهم: {awaitingPreparation}. لا يدخلون في الحضور أو الغياب بعد.
+              </p>
+            )}
+            {missingSummary > 0 && (
+              <p className="text-red-800" data-testid="school-missing-summary">
+                تحضير الفصل معتمد لكن ملخص الحضور اليومي مفقود: {missingSummary}. يحتاج السجل إلى مراجعة، ولا يُحسبون حضورًا أو غيابًا حتى يُصحح.
+              </p>
+            )}
+            {(excluded > 0 || daily.unrecorded_students > 0) && (
+              <Link to="/attendance/analytics?tab=daily&status=UNDETERMINED" className="inline-flex font-bold text-blue-800 underline underline-offset-2" data-testid="school-unrecorded-link">
+                عرض الطلاب وأسباب عدم التصنيف
+              </Link>
+            )}
+            {daily.unrecorded_students === 0 && <p className="text-emerald-800">صُنّف جميع من يشملهم تحضير اليوم.</p>}
+          </div>
         )}
       </div>
     </section>

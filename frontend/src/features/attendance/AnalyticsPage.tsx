@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -40,10 +41,11 @@ type Tab = "period" | "multi" | "daily";
 
 /** صفحة «الغياب والحضور» (م8) — الحالة كلها من الخادم؛ الواجهة اختيار وعرض فقط. */
 export function AnalyticsPage() {
+  const [searchParams] = useSearchParams();
   const me = useMe();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
-  const [tab, setTab] = useState<Tab>("period");
+  const [tab, setTab] = useState<Tab>(searchParams.get("tab") === "daily" ? "daily" : "period");
   const [date, setDate] = useState(todayIso());
   const isToday = date === todayIso();
 
@@ -408,7 +410,7 @@ function ReportResults({
 const DAILY_FILTERS: { value: string; label: string }[] = [
   { value: "FULL", label: "غائب في جميع التحاضير المعتمدة" },
   { value: "PARTIAL", label: "حاضر مع غياب جزئي" },
-  { value: "UNDETERMINED", label: "لم يعتمد له تحضير" },
+  { value: "UNDETERMINED", label: "غير مصنفين (تفاصيل السبب)" },
   { value: "NONE", label: "حاضر بلا غياب" },
 ];
 
@@ -425,14 +427,18 @@ function DailyTab({
   grades: [number, string][];
   schoolType: SchoolType;
 }) {
-  const [status, setStatus] = useState("");
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState(
+    searchParams.get("status") === "UNDETERMINED" ? "UNDETERMINED" : "",
+  );
+  const [page, setPage] = useState(1);
   const studentsLabel = studentPluralLabel(schoolType);
   const [gradeId, setGradeId] = useState<number | "">("");
   const listQuery = useQuery({
     queryKey: schoolScopedKey(
-      activeSchoolId, "attendance", "analytics", "daily-list", date, status, gradeId,
+      activeSchoolId, "attendance", "analytics", "daily-list", date, status, gradeId, page,
     ),
-    queryFn: ({ signal }) => getDailyAnalytics({ date, status, grade: gradeId }, signal),
+    queryFn: ({ signal }) => getDailyAnalytics({ date, status, grade: gradeId, page }, signal),
     enabled: status !== "",
   });
 
@@ -442,7 +448,7 @@ function DailyTab({
     ["daily-present", "حاضرون (يشمل الجزئي)", s.present_students],
     ["daily-full", "غائبون", s.absent_students],
     ["daily-partial", "من الحاضرين لديهم غياب جزئي", s.partial_absent],
-    ["daily-incomplete", "لم يعتمد لهم تحضير", s.incomplete_students],
+    ["daily-incomplete", "غير مصنفين في اليوم", s.incomplete_students],
   ];
 
   return (
@@ -459,6 +465,14 @@ function DailyTab({
           </div>
         ))}
       </section>
+      {data.current_scope && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-950" data-testid="daily-scope-explanation">
+          <p>السجل النشط: {data.current_scope.roster_students} · نطاق التحضير: {data.current_scope.total_students}.</p>
+          {data.current_scope.excluded_students > 0 && <p>خارج نطاق التحضير: {data.current_scope.excluded_students}؛ منهم {data.current_scope.inactive_assignment_students} في صفوف أو فصول غير فعالة.</p>}
+          {data.current_scope.awaiting_preparation_students > 0 && <p>بانتظار اعتماد تحضير فصولهم: {data.current_scope.awaiting_preparation_students}.</p>}
+          {data.current_scope.missing_summary_students > 0 && <p>تحضير الفصل معتمد لكن ملخص الطالب اليومي مفقود: {data.current_scope.missing_summary_students}.</p>}
+        </div>
+      )}
       {!data.is_school_day && (
         <p className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">
           لا يوجد جدول دراسي لهذا اليوم.
@@ -470,7 +484,7 @@ function DailyTab({
           عرض {studentsLabel} حسب الحالة{" "}
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => { setStatus(e.target.value); setPage(1); }}
             className="rounded-lg border border-slate-300 px-2 py-1.5"
             data-testid="daily-status-filter"
           >
@@ -486,7 +500,7 @@ function DailyTab({
           الصف{" "}
           <select
             value={gradeId}
-            onChange={(e) => setGradeId(e.target.value === "" ? "" : Number(e.target.value))}
+            onChange={(e) => { setGradeId(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}
             className="rounded-lg border border-slate-300 px-2 py-1.5"
             data-testid="daily-grade-filter"
           >
@@ -517,11 +531,22 @@ function DailyTab({
                   </p>
                 </div>
                 <p className="text-sm text-slate-600">
-                  غياب {student.absent_periods} من {student.submitted_periods} تحضير معتمد
+                  {student.unrecorded_reason === "INACTIVE_ASSIGNMENT" && "القيد مرتبط بصف أو فصل غير فعال"}
+                  {student.unrecorded_reason === "OUTSIDE_SCOPE" && "القيد خارج نطاق تحضير اليوم"}
+                  {student.unrecorded_reason === "MISSING_SUMMARY" && "تحضير الفصل معتمد؛ ملخص الطالب مفقود"}
+                  {student.unrecorded_reason === "NO_SUBMISSION" && "لم يعتمد تحضير الفصل بعد"}
+                  {!student.unrecorded_reason && `غياب ${student.absent_periods} من ${student.submitted_periods} تحضير معتمد`}
                 </p>
               </li>
             ))}
           </ul>
+        )}
+        {listQuery.isSuccess && status !== "" && listQuery.data.total_students_filtered > listQuery.data.page_size && (
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+            <button type="button" onClick={() => setPage((current) => Math.max(current - 1, 1))} disabled={page === 1}>السابق</button>
+            <span>صفحة {page} من {Math.ceil(listQuery.data.total_students_filtered / listQuery.data.page_size)}</span>
+            <button type="button" onClick={() => setPage((current) => current + 1)} disabled={page * listQuery.data.page_size >= listQuery.data.total_students_filtered}>التالي</button>
+          </div>
         )}
       </section>
     </div>

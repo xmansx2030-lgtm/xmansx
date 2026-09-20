@@ -3,10 +3,24 @@
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 
+from academics.models import AcademicYearStatus
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
-from students.models import Grade, Section
+from students.models import EnrollmentStatus, Grade, Section, StudentEnrollment, StudentStatus
+
+
+def _current_students_in_structure(*, grade=None, section=None) -> int:
+    scope = StudentEnrollment.objects.filter(
+        academic_year__status=AcademicYearStatus.ACTIVE,
+        status=EnrollmentStatus.ACTIVE,
+        student__status=StudentStatus.ACTIVE,
+    )
+    if grade is not None:
+        scope = scope.filter(grade=grade)
+    if section is not None:
+        scope = scope.filter(section=section)
+    return scope.values("student_id").distinct().count()
 
 
 def _duplicate_grade_code(*, school, grade_id: int, code: str) -> bool:
@@ -40,6 +54,12 @@ def update_grade(*, grade: Grade, data: dict, actor, request=None) -> Grade:
 
     cascaded_sections = 0
     if old_active and not grade.is_active:
+        if _current_students_in_structure(grade=grade):
+            raise ApiError(
+                "GRADE_HAS_ACTIVE_STUDENTS",
+                "انقل قيود الطلاب النشطين إلى صف فعال قبل إيقاف هذا الصف.",
+                409,
+            )
         cascaded_sections = grade.sections.filter(is_active=True).update(is_active=False)
 
     try:
@@ -93,6 +113,12 @@ def update_section(*, section: Section, data: dict, actor, request=None) -> Sect
         )
 
     old_active = section.is_active
+    if old_active and not resulting_active and _current_students_in_structure(section=section):
+        raise ApiError(
+            "SECTION_HAS_ACTIVE_STUDENTS",
+            "انقل قيود الطلاب النشطين إلى فصل فعال قبل إيقاف هذا الفصل.",
+            409,
+        )
     changed_fields: list[str] = []
     for field in ("name", "code", "is_active"):
         if field in data and getattr(section, field) != data[field]:

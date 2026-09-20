@@ -171,6 +171,8 @@ class DailySummaryKpisSerializer(serializers.Serializer):
     total_students = serializers.IntegerField()
     complete_students = serializers.IntegerField()
     incomplete_students = serializers.IntegerField()
+    present_students = serializers.IntegerField()
+    absent_students = serializers.IntegerField()
     full_absent = serializers.IntegerField()
     partial_absent = serializers.IntegerField()
     no_absence = serializers.IntegerField()
@@ -185,6 +187,16 @@ class DailyStudentSerializer(serializers.Serializer):
     absent_periods = serializers.IntegerField()
     submitted_periods = serializers.IntegerField()
     expected_periods = serializers.IntegerField()
+    unrecorded_reason = serializers.CharField(required=False)
+
+
+class DailyCurrentScopeSerializer(serializers.Serializer):
+    roster_students = serializers.IntegerField()
+    total_students = serializers.IntegerField()
+    excluded_students = serializers.IntegerField()
+    inactive_assignment_students = serializers.IntegerField()
+    awaiting_preparation_students = serializers.IntegerField()
+    missing_summary_students = serializers.IntegerField()
 
 
 class DailyResponseSerializer(serializers.Serializer):
@@ -193,6 +205,7 @@ class DailyResponseSerializer(serializers.Serializer):
     expected_periods = serializers.IntegerField()
     day_periods = PeriodNameSerializer(many=True)
     summary = DailySummaryKpisSerializer()
+    current_scope = DailyCurrentScopeSerializer(allow_null=True)
     students = DailyStudentSerializer(many=True)
     page = serializers.IntegerField()
     page_size = serializers.IntegerField()

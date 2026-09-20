@@ -268,6 +268,45 @@ describe("attendance analytics", () => {
     expect(screen.getByTestId("daily-student-9")).toHaveTextContent("غياب 3 من 3");
   });
 
+  it("explains unclassified students without calling an approved class unprepared", async () => {
+    const currentScope = {
+      roster_students: 970, total_students: 966, excluded_students: 4,
+      inactive_assignment_students: 4, awaiting_preparation_students: 0,
+      missing_summary_students: 1,
+    };
+    const summary = {
+      ...dailyBody().summary,
+      total_students: 970, complete_students: 965, incomplete_students: 5,
+      present_students: 810, absent_students: 155,
+    };
+    mockApi({
+      "/auth/me/": { body: viceMe() },
+      "status=UNDETERMINED": {
+        body: dailyBody({
+          summary, current_scope: currentScope, total_students_filtered: 2,
+          students: [
+            { student_id: 1, full_name: "طالب قيده معطل", grade_name: "الأول الثانوي",
+              section_name: "2", absent_periods: 0, submitted_periods: 0,
+              expected_periods: 3, unrecorded_reason: "INACTIVE_ASSIGNMENT" },
+            { student_id: 2, full_name: "طالب ملخصه مفقود", grade_name: "الثاني الثانوي",
+              section_name: "1", absent_periods: 0, submitted_periods: 0,
+              expected_periods: 3, unrecorded_reason: "MISSING_SUMMARY" },
+          ],
+        }),
+      },
+      "/attendance/analytics/daily/": { body: dailyBody({ summary, current_scope: currentScope }) },
+      "/attendance/sections/": { body: SECTIONS },
+    });
+
+    renderApp("/attendance/analytics?tab=daily&status=UNDETERMINED");
+    expect(await screen.findByRole("tab", { name: "ملخص اليوم" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByTestId("daily-scope-explanation")).toHaveTextContent("نطاق التحضير: 966");
+    expect(screen.getByTestId("daily-incomplete")).toHaveTextContent("غير مصنفين في اليوم");
+    expect(screen.getByTestId("daily-status-filter")).toHaveValue("UNDETERMINED");
+    expect(await screen.findByTestId("daily-student-1")).toHaveTextContent("القيد مرتبط بصف أو فصل غير فعال");
+    expect(screen.getByTestId("daily-student-2")).toHaveTextContent("تحضير الفصل معتمد؛ ملخص الطالب مفقود");
+  });
+
   it("non-school day shows a clear message instead of selectors", async () => {
     mockApi({
       "/auth/me/": { body: viceMe() },

@@ -371,61 +371,13 @@ def daily_attendance_snapshot(*, school, attendance_date: date_cls) -> dict:
 
     التقسيم غير متداخل: حضور واحد في أي تحضير معتمد يجعل الطالب حاضرًا، ولو
     غاب في تحضير معتمد آخر (غياب جزئي). ولا يعد غائبًا إلا من غاب في جميع
-    التحاضير المعتمدة لفصله. من لم يعتمد لفصله أي تحضير يبقى غير مسجل.
+    التحاضير المعتمدة لفصله. غير المصنف يفصل بين فصل لم يعتمد تحضيره وملخص
+    مفقود رغم اعتماد تحضير الفصل.
     """
-    from attendance.selectors.monitoring import expected_sections_queryset
-    from attendance.services.sessions import _active_year
-    from students.models import EnrollmentStatus
-    from students.services.enrollments import enrollments_on_date
+    from attendance.selectors.daily_scope import current_day_scope
 
-    year = _active_year(school)
-    section_ids = list(
-        expected_sections_queryset(school=school, year=year).values_list("id", flat=True)
-    )
-    student_ids = set(
-        enrollments_on_date(school=school, on_date=attendance_date)
-        .filter(
-            section_id__in=section_ids,
-            status=EnrollmentStatus.ACTIVE,
-            student__status="ACTIVE",
-        )
-        .values_list("student_id", flat=True)
-        .distinct()
-    )
-    if not student_ids:
-        return {
-            "total_students": 0,
-            "present_students": 0,
-            "absent_students": 0,
-            "partial_absence_students": 0,
-            "unrecorded_students": 0,
-        }
-
-    summary_rows = DailyAttendanceSummary.objects.filter(
-        school=school,
-        attendance_date=attendance_date,
-        student_id__in=student_ids,
-        submitted_periods__gt=0,
-    )
-    present_students = summary_rows.filter(
-        absence_status__in=[DailyAbsenceStatus.NONE, DailyAbsenceStatus.PARTIAL]
-    ).count()
-    absent_students = summary_rows.filter(
-        absence_status=DailyAbsenceStatus.FULL
-    ).count()
-    partial_absence_students = summary_rows.filter(
-        absence_status=DailyAbsenceStatus.PARTIAL
-    ).count()
-    recorded_student_ids = set(
-        summary_rows.values_list("student_id", flat=True).distinct()
-    )
-    return {
-        "total_students": len(student_ids),
-        "present_students": present_students,
-        "absent_students": absent_students,
-        "partial_absence_students": partial_absence_students,
-        "unrecorded_students": max(len(student_ids) - len(recorded_student_ids), 0),
-    }
+    scope = current_day_scope(school=school, attendance_date=attendance_date)
+    return {key: value for key, value in scope.items() if not key.endswith("_ids")}
 
 
 def live_attendance_snapshot(

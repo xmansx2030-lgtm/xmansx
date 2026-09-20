@@ -368,11 +368,16 @@ def test_daily_attendance_counts_proven_presence_not_every_prepared_student(env)
     )
 
     assert snapshot == {
+        "roster_students": 6,
         "total_students": 6,
         "present_students": 4,
         "absent_students": 1,
         "partial_absence_students": 0,
         "unrecorded_students": 1,
+        "awaiting_preparation_students": 1,
+        "missing_summary_students": 0,
+        "excluded_students": 0,
+        "inactive_assignment_students": 0,
     }
 
     # تصحيح الغائب إلى حاضر يحدث ملخص اليوم فورًا، بلا اعتماد على حصة جارية.
@@ -415,12 +420,72 @@ def test_daily_attendance_uses_submitted_preparation_not_morning_arrival(env):
     )
 
     assert snapshot == {
+        "roster_students": 6,
         "total_students": 6,
         "present_students": 0,
         "absent_students": 0,
         "partial_absence_students": 0,
         "unrecorded_students": 6,
+        "awaiting_preparation_students": 6,
+        "missing_summary_students": 0,
+        "excluded_students": 0,
+        "inactive_assignment_students": 0,
     }
+
+
+@pytest.mark.django_db
+def test_daily_attendance_separates_inactive_assignment_from_missing_summary(env, monkeypatch):
+    """An active roster entry can be outside preparation; an approved class can lack a row."""
+    from attendance.selectors.analytics import get_daily_report
+
+    make_session(env, 1)
+    recalc(env)
+    added_after_submission = make_students(
+        env["school"], env["section"], env["year"], 1, prefix="90610"
+    )[0]
+    inactive_grade = Grade.objects.create(
+        school=env["school"], name=env["grade"].name, code="OLD-G1",
+        sequence=env["grade"].sequence, is_active=False,
+    )
+    inactive_section = Section.objects.create(
+        school=env["school"], grade=inactive_grade, name=env["section"].name,
+        code="OLD-1", is_active=False,
+    )
+    inactive_student = make_students(
+        env["school"], inactive_section, env["year"], 1, prefix="90620"
+    )[0]
+
+    snapshot = attendance_selectors.daily_attendance_snapshot(
+        school=env["school"], attendance_date=DAY
+    )
+    assert snapshot == {
+        "roster_students": 7,
+        "total_students": 6,
+        "present_students": 5,
+        "absent_students": 0,
+        "partial_absence_students": 0,
+        "unrecorded_students": 1,
+        "awaiting_preparation_students": 0,
+        "missing_summary_students": 1,
+        "excluded_students": 1,
+        "inactive_assignment_students": 1,
+    }
+
+    monkeypatch.setattr(
+        "attendance.services.periods.school_now",
+        lambda school: datetime(2026, 8, 16, 12, 0, tzinfo=TZ),
+    )
+    report = get_daily_report(
+        school=env["school"], attendance_date=DAY, status_filter="UNDETERMINED"
+    )
+    assert report["summary"]["total_students"] == 7
+    assert report["summary"]["incomplete_students"] == 2
+    assert report["total_students_filtered"] == 2
+    assert {row["student_id"]: row["unrecorded_reason"] for row in report["students"]} == {
+        added_after_submission.id: "MISSING_SUMMARY",
+        inactive_student.id: "INACTIVE_ASSIGNMENT",
+    }
+    assert report["current_scope"]["total_students"] == 6
 
 
 # ---------- الاتجاه والفصول ----------

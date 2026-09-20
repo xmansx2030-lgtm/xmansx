@@ -254,21 +254,27 @@ def get_daily_report(
     page: int = 1,
     page_size: int = 25,
 ) -> dict:
-    """ملخص اليوم من DailyAttendanceSummary — بلا عدادات مخبأة منفصلة."""
+    """ملخص اليوم مع فصل نقص التحضير عن الطلاب خارج نطاقه."""
     _active_year(school)
+    from attendance.services.periods import school_now
+
+    current_scope = None
+    if attendance_date == school_now(school).date():
+        from attendance.selectors.daily_scope import current_day_scope
+
+        current_scope = current_day_scope(school=school, attendance_date=attendance_date)
     context = get_or_create_attendance_day_context(
         school=school, attendance_date=attendance_date
     )
     rows = DailyAttendanceSummary.objects.filter(
         school=school, attendance_date=attendance_date
     )
+    if current_scope:
+        rows = rows.filter(student_id__in=current_scope["eligible_ids"])
     if grade_id:
         rows = rows.filter(section__grade_id=grade_id)
     aggregates = rows.aggregate(
         total_rows=Count("id"),
-        recorded=Count(
-            "id", filter=~Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
-        ),
         full=Count("id", filter=Q(absence_status=DailyAbsenceStatus.FULL)),
         partial=Count("id", filter=Q(absence_status=DailyAbsenceStatus.PARTIAL)),
         none=Count("id", filter=Q(absence_status=DailyAbsenceStatus.NONE)),
@@ -285,12 +291,68 @@ def get_daily_report(
     total_students = enrollments.values("student_id").distinct().count()
     # لا يشترط عدد حصص مخطط: يكفي اعتماد حصة واحدة لتحديد حاضر/غائب.
     # غير المسجل فقط هو من لم يعتمد لفصله أي تحضير.
-    recorded_students = aggregates["recorded"]
+    recorded_students = aggregates["full"] + aggregates["partial"] + aggregates["none"]
     incomplete_students = total_students - recorded_students
 
     students = []
     total_filtered = 0
-    if status_filter:
+    if status_filter == DailyAbsenceStatus.UNDETERMINED:
+        submitted_section_ids = set(
+            AttendanceSession.objects.filter(
+                school=school,
+                attendance_date=attendance_date,
+                status=AttendanceSessionStatus.SUBMITTED,
+            ).values_list("section_id", flat=True)
+        )
+        classified_ids = set(
+            rows.filter(absence_status__in=[
+                DailyAbsenceStatus.FULL, DailyAbsenceStatus.PARTIAL,
+                DailyAbsenceStatus.NONE,
+            ]).values_list("student_id", flat=True)
+        )
+        existing = {
+            row.student_id: row
+            for row in rows.filter(absence_status=DailyAbsenceStatus.UNDETERMINED)
+        }
+        seen = set()
+        rows_list = []
+        for enrollment in enrollments.select_related(
+            "student", "section__grade"
+        ).order_by(
+            "section__grade__sequence", "section__code", "student__full_name"
+        ):
+            student_id = enrollment.student_id
+            if student_id in seen or student_id in classified_ids:
+                continue
+            seen.add(student_id)
+            row = existing.get(student_id)
+            if current_scope and student_id in current_scope["inactive_assignment_ids"]:
+                reason = "INACTIVE_ASSIGNMENT"
+            elif current_scope and student_id in current_scope["excluded_ids"]:
+                reason = "OUTSIDE_SCOPE"
+            elif current_scope and student_id in current_scope["missing_summary_ids"]:
+                reason = "MISSING_SUMMARY"
+            elif enrollment.section_id in submitted_section_ids:
+                reason = "MISSING_SUMMARY"
+            else:
+                reason = "NO_SUBMISSION"
+            rows_list.append({
+                "student_id": student_id,
+                "full_name": enrollment.student.full_name,
+                "grade_name": enrollment.section.grade.name,
+                "section_name": enrollment.section.name,
+                "absent_periods": row.absent_periods if row else 0,
+                "excused_absent_periods": row.excused_absent_periods if row else 0,
+                "unexcused_absent_periods": row.unexcused_absent_periods if row else 0,
+                "submitted_periods": row.submitted_periods if row else 0,
+                "expected_periods": (
+                    row.expected_periods if row else len(context.attendance_periods)
+                ),
+                "unrecorded_reason": reason,
+            })
+        total_filtered = len(rows_list)
+        students, page_size = _paginate(rows_list, page, page_size)
+    elif status_filter:
         filtered = (
             rows.filter(absence_status=status_filter)
             .select_related("student", "section__grade")
@@ -334,6 +396,17 @@ def get_daily_report(
             "excused_absent_periods": aggregates["excused_periods_total"] or 0,
             "unexcused_absent_periods": aggregates["unexcused_periods_total"] or 0,
         },
+        "current_scope": (
+            {
+                key: current_scope[key]
+                for key in (
+                    "roster_students", "total_students", "excluded_students",
+                    "inactive_assignment_students", "awaiting_preparation_students",
+                    "missing_summary_students",
+                )
+            }
+            if current_scope else None
+        ),
         "students": students,
         "page": max(page, 1),
         "page_size": page_size,

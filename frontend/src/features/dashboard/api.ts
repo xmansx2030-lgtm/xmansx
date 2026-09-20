@@ -96,11 +96,16 @@ export interface TodayOperations {
     current_period_sequence: number | null;
   };
   daily_attendance?: {
+    roster_students?: number;
     total_students: number;
     present_students: number;
     absent_students: number;
     partial_absence_students: number;
     unrecorded_students: number;
+    awaiting_preparation_students?: number;
+    missing_summary_students?: number;
+    excluded_students?: number;
+    inactive_assignment_students?: number;
   };
 }
 

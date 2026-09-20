@@ -487,7 +487,40 @@ describe("لوحة إدارة المدرسة", () => {
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("250 حاضرًا");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("18 غائبًا عن الحصة");
     expect(screen.getByTestId("school-current-period-line")).toHaveTextContent("بانتظار تحضير 2 فصل");
-    expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("يشمل جميع 320 طالبًا");
+    expect(screen.getByTestId("school-population-line")).toHaveTextContent("ضمن نطاق تحضير اليوم: 320");
+    expect(screen.getByTestId("school-coverage-line")).toHaveTextContent("صُنّف جميع من يشملهم تحضير اليوم");
+  });
+
+  it("توضح فرق السجل والقيود المعطلة والملخص المفقود للمدير", async () => {
+    const scenario = {
+      ...OVERVIEW.today_operations,
+      daily_attendance: {
+        roster_students: 970,
+        total_students: 966,
+        present_students: 810,
+        absent_students: 155,
+        partial_absence_students: 11,
+        unrecorded_students: 1,
+        awaiting_preparation_students: 0,
+        missing_summary_students: 1,
+        excluded_students: 4,
+        inactive_assignment_students: 4,
+      },
+    };
+    mockDashboard({
+      "/dashboard/today/": { body: scenario },
+      "/dashboard/overview/": { body: { ...OVERVIEW, today_operations: scenario } },
+    });
+    renderApp("/dashboard");
+
+    expect(await screen.findByTestId("school-population-line")).toHaveTextContent("970");
+    expect(screen.getByTestId("school-population-line")).toHaveTextContent("966");
+    expect(screen.getByTestId("school-excluded-students")).toHaveTextContent("4");
+    expect(screen.getByTestId("school-missing-summary")).toHaveTextContent("ملخص الحضور اليومي مفقود: 1");
+    expect(screen.queryByTestId("school-awaiting-preparation")).not.toBeInTheDocument();
+    expect(screen.getByTestId("school-unrecorded-link")).toHaveAttribute(
+      "href", "/attendance/analytics?tab=daily&status=UNDETERMINED",
+    );
   });
 
   it("تعرض الغائب الكامل والغياب الجزئي من التحاضير المعتمدة", async () => {
@@ -707,7 +740,7 @@ describe("لوحة إدارة المدرسة", () => {
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("420 حاضرًا");
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("330 غائبًا عن الحصة");
       expect(within(card).getByTestId("school-current-period-line")).toHaveTextContent("50 مستأذنًا");
-      expect(within(card).getByTestId("school-coverage-line")).toHaveTextContent("يشمل جميع 800 طالبًا");
+      expect(within(card).getByTestId("school-population-line")).toHaveTextContent("ضمن نطاق تحضير اليوم: 800");
       view.unmount();
       queryClient.clear();
     }

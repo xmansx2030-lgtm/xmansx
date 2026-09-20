@@ -188,6 +188,13 @@ def _commit_locked(
                 defaults={"name": row["grade_name"], "sequence": row["grade_sequence"]},
             )
             grades[gcode] = grade
+            if not grade.is_active:
+                raise ApiError(
+                    "IMPORT_INACTIVE_GRADE",
+                    "يشير ملف الاستيراد إلى صف غير فعال. "
+                    "صحح رمز الصف أو فعّله بعد مراجعة قيود الطلاب.",
+                    409,
+                )
             if created:
                 created_grades.append(grade.name)
                 record_event(
@@ -204,6 +211,13 @@ def _commit_locked(
                 defaults={"name": row["section_name"]},
             )
             sections[skey] = section
+            if not section.is_active:
+                raise ApiError(
+                    "IMPORT_INACTIVE_SECTION",
+                    "يشير ملف الاستيراد إلى فصل غير فعال. "
+                    "صحح رمز الفصل أو فعّله بعد مراجعة قيود الطلاب.",
+                    409,
+                )
             if created:
                 created_sections.append(str(section))
                 record_event(
