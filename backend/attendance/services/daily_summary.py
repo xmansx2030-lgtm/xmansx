@@ -187,3 +187,59 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
             if raced:
                 DailyAttendanceSummary.objects.bulk_update(raced, updated_fields)
     return len(students)
+
+
+def repair_student_daily_attendance_summary(*, school, student, attendance_date: date_cls) -> dict:
+    """Rebuild a missing derived row from approved sessions without changing marks."""
+    from common.errors import ApiError
+    from school_dashboard.cache import invalidate_school
+
+    enrollment = (
+        enrollments_on_date(school=school, on_date=attendance_date)
+        .filter(student=student)
+        .select_related("section")
+        .order_by("-enrolled_at", "-id")
+        .first()
+    )
+    if enrollment is None:
+        raise ApiError(
+            "ATTENDANCE_ENROLLMENT_NOT_FOUND",
+            "لا يوجد قيد مدرسي للطالب في تاريخ التحضير المحدد.",
+        )
+    if not AttendanceSession.objects.filter(
+        school=school,
+        section=enrollment.section,
+        attendance_date=attendance_date,
+        status=AttendanceSessionStatus.SUBMITTED,
+    ).exists():
+        raise ApiError(
+            "ATTENDANCE_NOT_SUBMITTED",
+            "لم يعتمد تحضير الفصل في هذا التاريخ؛ تابع اعتماد التحضير أولاً.",
+        )
+
+    recalculate_daily_attendance_for_section(
+        school=school,
+        section=enrollment.section,
+        attendance_date=attendance_date,
+    )
+    summary = DailyAttendanceSummary.objects.filter(
+        school=school,
+        student=student,
+        attendance_date=attendance_date,
+    ).first()
+    if summary is None or summary.submitted_periods == 0:
+        raise ApiError(
+            "ATTENDANCE_SUMMARY_REPAIR_FAILED",
+            "تعذر إعادة احتساب الملخص من التحاضير المعتمدة.",
+        )
+
+    invalidate_school(school.id)
+    return {
+        "student_id": student.id,
+        "date": attendance_date.isoformat(),
+        "section_id": enrollment.section_id,
+        "absence_status": summary.absence_status,
+        "submitted_periods": summary.submitted_periods,
+        "absent_periods": summary.absent_periods,
+        "present_periods": summary.present_periods,
+    }

@@ -21,6 +21,7 @@ from attendance.models import (
 )
 from attendance.selectors.analytics import get_daily_report, get_multi_period_report
 from attendance.services.daily_summary import recalculate_daily_attendance_for_section
+from audit.models import AuditAction, AuditLog
 from common.errors import ApiError
 from students.models import Grade, Section
 from tests.attendance_helpers import make_students
@@ -549,6 +550,82 @@ def test_analytics_roles(role_client, roles, expected):
         content_type="application/json",
     )
     assert response.status_code == (400 if expected == 200 else 403)
+
+
+@pytest.mark.django_db
+def test_manager_repairs_missing_daily_summary_without_changing_marks(env, role_client):
+    target = env["sa"][0]
+    make_session(env, env["a"], 1)
+    manager_client, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
+    assert not DailyAttendanceSummary.objects.filter(student=target, attendance_date=DAY).exists()
+    marks_before = AttendanceMark.objects.filter(student=target).count()
+
+    response = manager_client.post(
+        "/api/v1/attendance/analytics/daily/repair/",
+        {"student_id": target.id, "date": str(DAY)},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "student_id": target.id,
+        "date": str(DAY),
+        "section_id": env["a"].id,
+        "absence_status": "NONE",
+        "submitted_periods": 1,
+        "absent_periods": 0,
+        "present_periods": 1,
+    }
+    assert AttendanceMark.objects.filter(student=target).count() == marks_before
+    assert DailyAttendanceSummary.objects.filter(
+        student=target,
+        attendance_date=DAY,
+        absence_status="NONE",
+        submitted_periods=1,
+    ).exists()
+    assert AuditLog.objects.filter(
+        school=env["school"],
+        action=AuditAction.ATTENDANCE_SUMMARY_REBUILT,
+        target_id=str(target.id),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_daily_summary_repair_requires_approved_preparation_and_admin_role(env, role_client):
+    target = env["sc"][0]
+    manager_client, _, _ = role_client(["SCHOOL_MANAGER"], school=env["school"])
+    response = manager_client.post(
+        "/api/v1/attendance/analytics/daily/repair/",
+        {"student_id": target.id, "date": str(DAY)},
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "ATTENDANCE_NOT_SUBMITTED"
+
+    make_session(env, env["c"], 1)
+    vice_client, _, _ = role_client(["VICE_PRINCIPAL"], school=env["school"])
+    allowed = vice_client.post(
+        "/api/v1/attendance/analytics/daily/repair/",
+        {"student_id": target.id, "date": str(DAY)},
+        content_type="application/json",
+    )
+    assert allowed.status_code == 200
+
+    teacher_client, _, _ = role_client(["TEACHER"], school=env["school"])
+    denied = teacher_client.post(
+        "/api/v1/attendance/analytics/daily/repair/",
+        {"student_id": target.id, "date": str(DAY)},
+        content_type="application/json",
+    )
+    assert denied.status_code == 403
+
+    foreign_client, _, _ = role_client(["SCHOOL_MANAGER"])
+    foreign = foreign_client.post(
+        "/api/v1/attendance/analytics/daily/repair/",
+        {"student_id": target.id, "date": str(DAY)},
+        content_type="application/json",
+    )
+    assert foreign.status_code == 404
 
 
 @pytest.mark.django_db

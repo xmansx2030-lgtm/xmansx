@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -16,6 +16,7 @@ import {
   getAttendanceSections,
   getDailyAnalytics,
   postMultiPeriodAnalytics,
+  repairDailyAttendanceSummary,
 } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import type { SchoolType } from "@/types/auth";
@@ -434,12 +435,26 @@ function DailyTab({
   const [page, setPage] = useState(1);
   const studentsLabel = studentPluralLabel(schoolType);
   const [gradeId, setGradeId] = useState<number | "">("");
+  const [repairTarget, setRepairTarget] = useState<{ id: number; name: string } | null>(null);
+  const [repairNotice, setRepairNotice] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const listQuery = useQuery({
     queryKey: schoolScopedKey(
       activeSchoolId, "attendance", "analytics", "daily-list", date, status, gradeId, page,
     ),
     queryFn: ({ signal }) => getDailyAnalytics({ date, status, grade: gradeId, page }, signal),
     enabled: status !== "",
+  });
+  const repairMutation = useMutation({
+    mutationFn: ({ studentId }: { studentId: number; name: string }) =>
+      repairDailyAttendanceSummary(studentId, date),
+    onSuccess: (_result, target) => {
+      setRepairTarget(null);
+      setRepairNotice(`تمت إعادة احتساب ملخص ${target.name} من التحاضير المعتمدة دون تغيير علامات الحضور.`);
+      void queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(activeSchoolId, "attendance", "analytics"),
+      });
+    },
   });
 
   const s = data.summary;
@@ -473,6 +488,22 @@ function DailyTab({
           {data.current_scope.missing_summary_students > 0 && <p>تحضير الفصل معتمد لكن ملخص الطالب اليومي مفقود: {data.current_scope.missing_summary_students}.</p>}
         </div>
       )}
+      {status === "UNDETERMINED" && (
+        <aside className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-7 text-blue-950" data-testid="daily-correction-guide">
+          <h2 className="font-black">آلية المعالجة لمدير المدرسة</h2>
+          <ul className="mt-1 list-disc space-y-1 pe-5">
+            <li><b>ملخص مفقود:</b> راجع سجل الحضور، ثم استخدم «إعادة احتساب الملخص»؛ لا تتغير علامات حاضر أو غائب.</li>
+            <li><b>صف أو فصل غير فعّال:</b> صحح قيد الطالب إلى فصل فعّال، أو أعد تفعيل الصف/الفصل إذا كان إيقافه غير مقصود.</li>
+            <li><b>لم يعتمد التحضير:</b> تابع الفصل من شاشة «متابعة التحضير» واعتمد التحضير أولًا.</li>
+            <li><b>علامة خاطئة:</b> افتح سجل حضور الطالب واستخدم «تصحيح الحضور» مع كتابة السبب.</li>
+          </ul>
+        </aside>
+      )}
+      {repairNotice && (
+        <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+          {repairNotice}
+        </p>
+      )}
       {!data.is_school_day && (
         <p className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">
           لا يوجد جدول دراسي لهذا اليوم.
@@ -484,7 +515,7 @@ function DailyTab({
           عرض {studentsLabel} حسب الحالة{" "}
           <select
             value={status}
-            onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+            onChange={(e) => { setStatus(e.target.value); setPage(1); setRepairTarget(null); setRepairNotice(null); repairMutation.reset(); }}
             className="rounded-lg border border-slate-300 px-2 py-1.5"
             data-testid="daily-status-filter"
           >
@@ -519,24 +550,46 @@ function DailyTab({
               <li className="p-3 text-slate-600">لا يوجد {studentsLabel} في هذه الحالة.</li>
             )}
             {listQuery.data.students.map((student) => (
-              <li
-                key={student.student_id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
-                data-testid={`daily-student-${student.student_id}`}
-              >
-                <div>
-                  <p className="font-medium text-slate-800">{student.full_name}</p>
-                  <p className="text-xs text-slate-500">
-                    {student.grade_name} / {student.section_name}
-                  </p>
+              <li key={student.student_id} className="p-3" data-testid={`daily-student-${student.student_id}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-800">{student.full_name}</p>
+                    <p className="text-xs text-slate-500">{student.grade_name} / {student.section_name}</p>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    <p>
+                      {student.unrecorded_reason === "INACTIVE_ASSIGNMENT" && "القيد مرتبط بصف أو فصل غير فعال"}
+                      {student.unrecorded_reason === "OUTSIDE_SCOPE" && "القيد خارج نطاق تحضير اليوم"}
+                      {student.unrecorded_reason === "MISSING_SUMMARY" && "تحضير الفصل معتمد؛ ملخص الطالب مفقود"}
+                      {student.unrecorded_reason === "NO_SUBMISSION" && "لم يعتمد تحضير الفصل بعد"}
+                      {!student.unrecorded_reason && `غياب ${student.absent_periods} من ${student.submitted_periods} تحضير معتمد`}
+                    </p>
+                    <div className="mt-2 flex flex-wrap justify-end gap-3 text-xs font-bold">
+                      {student.unrecorded_reason === "MISSING_SUMMARY" && (
+                        <>
+                          <Link className="text-blue-700 underline" to={`/students/${student.student_id}/attendance?date=${date}`}>مراجعة سجل الحضور</Link>
+                          <button type="button" className="text-blue-700 underline" onClick={() => { setRepairTarget({ id: student.student_id, name: student.full_name }); setRepairNotice(null); repairMutation.reset(); }}>إعادة احتساب الملخص</button>
+                        </>
+                      )}
+                      {(student.unrecorded_reason === "INACTIVE_ASSIGNMENT" || student.unrecorded_reason === "OUTSIDE_SCOPE") && (
+                        <Link className="text-blue-700 underline" to={`/students?search=${encodeURIComponent(student.full_name)}`}>مراجعة بيانات الطالب</Link>
+                      )}
+                      {student.unrecorded_reason === "NO_SUBMISSION" && (
+                        <Link className="text-blue-700 underline" to="/attendance/monitoring">فتح متابعة التحضير</Link>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-slate-600">
-                  {student.unrecorded_reason === "INACTIVE_ASSIGNMENT" && "القيد مرتبط بصف أو فصل غير فعال"}
-                  {student.unrecorded_reason === "OUTSIDE_SCOPE" && "القيد خارج نطاق تحضير اليوم"}
-                  {student.unrecorded_reason === "MISSING_SUMMARY" && "تحضير الفصل معتمد؛ ملخص الطالب مفقود"}
-                  {student.unrecorded_reason === "NO_SUBMISSION" && "لم يعتمد تحضير الفصل بعد"}
-                  {!student.unrecorded_reason && `غياب ${student.absent_periods} من ${student.submitted_periods} تحضير معتمد`}
-                </p>
+                {repairTarget?.id === student.student_id && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" data-testid={`repair-summary-confirm-${student.student_id}`}>
+                    <p>سيُعاد بناء الملخص من التحاضير المعتمدة فقط، دون تغيير أي علامة حضور أو غياب. إذا كانت العلامة نفسها خاطئة، راجع سجل الحضور أولًا.</p>
+                    {repairMutation.isError && <p role="alert" className="mt-2 font-bold text-red-700">{repairMutation.error.message}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" loading={repairMutation.isPending} loadingLabel="جارٍ إعادة الاحتساب..." onClick={() => repairMutation.mutate({ studentId: student.student_id, name: student.full_name })}>إعادة الاحتساب الآن</Button>
+                      <Button size="sm" variant="secondary" disabled={repairMutation.isPending} onClick={() => { setRepairTarget(null); repairMutation.reset(); }}>إلغاء</Button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

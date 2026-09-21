@@ -17,6 +17,8 @@ export default defineConfig({
         name: "منصة المواظبة والمتابعة الطلابية",
         short_name: "المواظبة",
         description: "منصة مدرسية للمواظبة والمتابعة الطلابية",
+        categories: ["education", "productivity", "business"],
+        prefer_related_applications: false,
         lang: "ar",
         dir: "rtl",
         start_url: "/",

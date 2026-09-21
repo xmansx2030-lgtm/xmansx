@@ -47,6 +47,21 @@ class CorrectStudentAttendanceResponseSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["PRESENT", AttendanceMarkStatus.ABSENT])
 
 
+class RepairDailyAttendanceSummarySerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(min_value=1)
+    date = serializers.DateField()
+
+
+class RepairDailyAttendanceSummaryResponseSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    date = serializers.DateField()
+    section_id = serializers.IntegerField()
+    absence_status = serializers.CharField()
+    submitted_periods = serializers.IntegerField()
+    absent_periods = serializers.IntegerField()
+    present_periods = serializers.IntegerField()
+
+
 class QrResolveSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=64)
 

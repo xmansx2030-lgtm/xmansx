@@ -311,7 +311,7 @@ function AbsenceReport({ schoolId, filters, onPage, schoolType, schoolName, isCl
       rows={report.data?.results ?? []}
       columns={absenceColumns}
       controls={<><Select label="نوع الغياب" value={absenceType} onChange={(value) => { setAbsenceType(value); onPage(1); }} options={[["ALL", "الكل"], ["FULL", "يوم كامل"], ["PARTIAL", "جزئي"]]} /><Select label="حالة العذر" value={excuseType} onChange={(value) => { setExcuseType(value); onPage(1); }} options={[["ALL", "الكل"], ["UNEXCUSED", "دون عذر"], ["EXCUSED", "بعذر فقط"], ["MIXED", "مختلط"]]} /></>}
-      summary={report.data && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><MetricCard label={studentPluralLabel(schoolType)} value={report.data.summary.students} /><MetricCard label="أيام غياب كامل" value={report.data.summary.full_absence_days} tone="red" /><MetricCard label="أيام غياب جزئي" value={report.data.summary.partial_absence_days} tone="amber" /><MetricCard label="حصص دون عذر" value={report.data.summary.unexcused_absent_periods} tone="red" /></div>}
+      summary={report.data && <div className="max-w-sm"><MetricCard label={studentPluralLabel(schoolType)} value={report.data.summary.students} /></div>}
       table={report.data && <AbsenceTable rows={report.data.results} />}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}
@@ -351,7 +351,7 @@ function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isC
       rows={report.data?.results ?? []}
       columns={latenessColumns}
       controls={<><NumberFilter label="الحد الأدنى للمرات" value={minOccurrences} onChange={setMinOccurrences} /><NumberFilter label="الحد الأدنى للدقائق" value={minMinutes} onChange={setMinMinutes} /></>}
-      summary={report.data && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3"><MetricCard label={studentCountLabel(schoolType)} value={report.data.summary.students} /><MetricCard label="مرات التأخر الصباحي" value={report.data.summary.morning_occurrences} tone="amber" /><MetricCard label="دقائق التأخر الصباحي" value={report.data.summary.morning_minutes} /></div>}
+      summary={report.data && <div className="max-w-sm"><MetricCard label={studentCountLabel(schoolType)} value={report.data.summary.students} /></div>}
       table={report.data && <LatenessTable rows={report.data.results} />}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}

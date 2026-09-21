@@ -42,6 +42,10 @@ class AuditAction(models.TextChoices):
     ATTENDANCE_STARTED = "ATTENDANCE_STARTED", "بدء تحضير"
     ATTENDANCE_SUBMITTED = "ATTENDANCE_SUBMITTED", "اعتماد تحضير"
     ATTENDANCE_EDITED = "ATTENDANCE_EDITED", "تعديل تحضير"
+    ATTENDANCE_SUMMARY_REBUILT = (
+        "ATTENDANCE_SUMMARY_REBUILT",
+        "إعادة احتساب ملخص حضور",
+    )
     SECTION_QR_ROTATED = "SECTION_QR_ROTATED", "تجديد QR فصل"
     # المرحلة 11 — الإنذارات (لا Audit لحساب الاستحقاق: ضجيج ممنوع)
     WARNING_RULES_UPDATED = "WARNING_RULES_UPDATED", "تعديل قواعد الإنذارات"

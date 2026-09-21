@@ -26,6 +26,10 @@ urlpatterns = [
     path("attendance/analytics/period/", views.PeriodAnalyticsView.as_view()),
     path("attendance/analytics/multi-period/", views.MultiPeriodAnalyticsView.as_view()),
     path("attendance/analytics/daily/", views.DailyAnalyticsView.as_view()),
+    path(
+        "attendance/analytics/daily/repair/",
+        views.RepairDailyAttendanceSummaryView.as_view(),
+    ),
     # GET = عرض/توليد أول مرة، POST = تجديد (يبطل القديم)
     path("sections/<int:section_id>/qr/", views.SectionQrView.as_view()),
 ]

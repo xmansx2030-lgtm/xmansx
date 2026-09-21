@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Filter, Pencil, Plus, Upload, UsersRound } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
@@ -34,6 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
 const READ_ROLES = ["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"];
 
 export function StudentsPage() {
+  const [searchParams] = useSearchParams();
   const me = useMe();
   const schoolId = useActiveSchoolId();
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
@@ -43,7 +44,7 @@ export function StudentsPage() {
   const canRead = me.data?.roles.some((r) => READ_ROLES.includes(r)) ?? true;
 
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [nationalId, setNationalId] = useState("");
   const [gradeFilter, setGradeFilter] = useState<number | "">("");
   const [sectionFilter, setSectionFilter] = useState<number | "">("");

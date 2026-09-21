@@ -23,6 +23,8 @@ from attendance.api.serializers import (
     MultiPeriodResponseSerializer,
     QrInfoSerializer,
     QrResolveSerializer,
+    RepairDailyAttendanceSummaryResponseSerializer,
+    RepairDailyAttendanceSummarySerializer,
     SessionSerializer,
     StartSessionSerializer,
     SubmitSessionSerializer,
@@ -496,6 +498,51 @@ class DailyAnalyticsView(SchoolScopedAPIView):
             page_size=_int_or_none(request.query_params.get("page_size")) or 25,
         )
         return Response(payload)
+
+
+class RepairDailyAttendanceSummaryView(SchoolScopedAPIView):
+    """Repair a derived daily row; approved attendance marks remain unchanged."""
+
+    read_roles = MONITORING_ROLES
+    write_roles = MONITORING_ROLES
+
+    @extend_schema(
+        request=RepairDailyAttendanceSummarySerializer,
+        responses=RepairDailyAttendanceSummaryResponseSerializer,
+    )
+    def post(self, request: Request) -> Response:
+        from attendance.services.daily_summary import (
+            repair_student_daily_attendance_summary,
+        )
+        from audit.models import AuditAction
+        from audit.services import record_event
+
+        serializer = RepairDailyAttendanceSummarySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        student = get_object_or_404(
+            Student,
+            id=data["student_id"],
+            school=request.school,
+        )
+        result = repair_student_daily_attendance_summary(
+            school=request.school,
+            student=student,
+            attendance_date=data["date"],
+        )
+        record_event(
+            AuditAction.ATTENDANCE_SUMMARY_REBUILT,
+            request=request,
+            actor=request.user,
+            school=request.school,
+            target_type="Student",
+            target_id=student.id,
+            metadata={
+                "attendance_date": result["date"],
+                "section_id": result["section_id"],
+            },
+        )
+        return Response(result)
 
 
 class MonitoringCurrentView(SchoolScopedAPIView):

@@ -81,6 +81,9 @@ describe("school reports", () => {
     expect(screen.getByRole("button", { name: /تصدير المعروض CSV/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /طباعة واضحة/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /مسح النتائج المعروضة/ })).toBeInTheDocument();
+    expect(screen.queryByText("أيام غياب كامل")).not.toBeInTheDocument();
+    expect(screen.queryByText("أيام غياب جزئي")).not.toBeInTheDocument();
+    expect(screen.queryByText("حصص دون عذر")).not.toBeInTheDocument();
     expect(screen.queryByText("المخالفات")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /مسح النتائج المعروضة/ }));
@@ -91,8 +94,9 @@ describe("school reports", () => {
     expect(await screen.findByText("محمد أحمد")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "التأخر" }));
-    expect(await screen.findByText("مرات التأخر الصباحي")).toBeInTheDocument();
-    expect(screen.getByText("22")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "تقرير التأخر الصباحي" })).toBeInTheDocument();
+    expect(screen.queryByText("مرات التأخر الصباحي")).not.toBeInTheDocument();
+    expect(screen.queryByText("دقائق التأخر الصباحي")).not.toBeInTheDocument();
   });
 
   it("يعيد جلب النتائج مباشرة بالقيم الظاهرة في فلاتر النطاق", async () => {

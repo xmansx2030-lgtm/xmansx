@@ -269,3 +269,19 @@ export const getDailyAnalytics = (
     { signal },
   );
 };
+
+export interface DailyAttendanceSummaryRepair {
+  student_id: number;
+  date: string;
+  section_id: number;
+  absence_status: "FULL" | "PARTIAL" | "NONE" | "UNDETERMINED";
+  submitted_periods: number;
+  absent_periods: number;
+  present_periods: number;
+}
+
+export const repairDailyAttendanceSummary = (studentId: number, date: string) =>
+  apiRequest<DailyAttendanceSummaryRepair>("/attendance/analytics/daily/repair/", {
+    method: "POST",
+    body: { student_id: studentId, date },
+  });

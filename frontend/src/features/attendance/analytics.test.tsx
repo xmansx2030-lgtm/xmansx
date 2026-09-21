@@ -279,8 +279,15 @@ describe("attendance analytics", () => {
       total_students: 970, complete_students: 965, incomplete_students: 5,
       present_students: 810, absent_students: 155,
     };
-    mockApi({
+    const { calls } = mockApi({
       "/auth/me/": { body: viceMe() },
+      "/attendance/analytics/daily/repair/": {
+        body: {
+          student_id: 2, date: "2026-08-19", section_id: 20,
+          absence_status: "NONE", submitted_periods: 1,
+          absent_periods: 0, present_periods: 1,
+        },
+      },
       "status=UNDETERMINED": {
         body: dailyBody({
           summary, current_scope: currentScope, total_students_filtered: 2,
@@ -299,12 +306,24 @@ describe("attendance analytics", () => {
     });
 
     renderApp("/attendance/analytics?tab=daily&status=UNDETERMINED");
+    const user = userEvent.setup();
     expect(await screen.findByRole("tab", { name: "ملخص اليوم" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByTestId("daily-scope-explanation")).toHaveTextContent("نطاق التحضير: 966");
     expect(screen.getByTestId("daily-incomplete")).toHaveTextContent("غير مصنفين في اليوم");
     expect(screen.getByTestId("daily-status-filter")).toHaveValue("UNDETERMINED");
     expect(await screen.findByTestId("daily-student-1")).toHaveTextContent("القيد مرتبط بصف أو فصل غير فعال");
-    expect(screen.getByTestId("daily-student-2")).toHaveTextContent("تحضير الفصل معتمد؛ ملخص الطالب مفقود");
+    expect(screen.getByTestId("daily-correction-guide")).toHaveTextContent("آلية المعالجة لمدير المدرسة");
+    const missingSummaryRow = screen.getByTestId("daily-student-2");
+    expect(missingSummaryRow).toHaveTextContent("تحضير الفصل معتمد؛ ملخص الطالب مفقود");
+    expect(within(missingSummaryRow).getByRole("link", { name: "مراجعة سجل الحضور" })).toHaveAttribute("href", expect.stringContaining("/students/2/attendance?date="));
+
+    await user.click(within(missingSummaryRow).getByRole("button", { name: "إعادة احتساب الملخص" }));
+    expect(screen.getByTestId("repair-summary-confirm-2")).toHaveTextContent("دون تغيير أي علامة حضور أو غياب");
+    await user.click(within(missingSummaryRow).getByRole("button", { name: "إعادة الاحتساب الآن" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("تمت إعادة احتساب ملخص طالب ملخصه مفقود");
+    const repairCall = calls.find((call) => call.url.includes("/attendance/analytics/daily/repair/"));
+    expect(repairCall?.init?.method).toBe("POST");
+    expect(JSON.parse(String(repairCall?.init?.body))).toMatchObject({ student_id: 2 });
   });
 
   it("non-school day shows a clear message instead of selectors", async () => {

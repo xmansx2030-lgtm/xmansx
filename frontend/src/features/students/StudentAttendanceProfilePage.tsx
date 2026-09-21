@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, CircleAlert, Clock3, GraduationCap, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -90,15 +90,20 @@ function formatDate(value: string) {
 
 export function StudentAttendanceProfilePage() {
   const { studentId } = useParams<{ studentId: string }>();
+  const [searchParams] = useSearchParams();
   const schoolId = useActiveSchoolId();
   const me = useMe();
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const studentLabelText = studentLabel(schoolType, true);
   const id = Number(studentId);
-  const today = isoDate(new Date());
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
-  const [preset, setPresetValue] = useState("today");
+  const requestedDate = searchParams.get("date");
+  const currentDate = isoDate(new Date());
+  const initialDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+    ? requestedDate
+    : currentDate;
+  const [fromDate, setFromDate] = useState(initialDate);
+  const [toDate, setToDate] = useState(initialDate);
+  const [preset, setPresetValue] = useState(initialDate === currentDate ? "today" : "custom");
   const [tab, setTab] = useState<Tab>("summary");
   const [page, setPage] = useState(1);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
