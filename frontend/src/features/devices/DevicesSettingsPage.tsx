@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -48,6 +49,8 @@ const DEVICE_STATUS_LABELS: Record<string, string> = {
   DISABLED: "موقوف",
   UNKNOWN: "غير معروف",
 };
+
+const deviceStatusPollInterval = adaptivePollingInterval(POLLING.deviceStatus);
 
 interface DeviceFormState {
   name: string;
@@ -138,7 +141,8 @@ export function DevicesSettingsPage() {
     queryKey: schoolScopedKey(schoolId, "devices", "list"),
     queryFn: ({ signal }) => getDevicesFull(signal),
     enabled: schoolId > 0,
-    refetchInterval: 30_000, // حالة الأجهزة تتغير مع النبضات
+    refetchInterval: deviceStatusPollInterval,
+    refetchIntervalInBackground: false,
   });
   const identitiesQuery = useQuery({
     queryKey: schoolScopedKey(schoolId, "devices", "identities", identityTab),

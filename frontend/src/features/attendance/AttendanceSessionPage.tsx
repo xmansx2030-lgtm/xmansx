@@ -149,7 +149,7 @@ export function AttendanceSessionPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <ErrorState error={previewQuery.error} />
         <p className="mt-3">
-          <Link to="/" className="text-blue-700 underline">
+          <Link to="/workspace" className="text-blue-700 underline">
             العودة للرئيسية
           </Link>
         </p>
@@ -171,7 +171,7 @@ export function AttendanceSessionPage() {
           meta={<><span>{preview.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{preview.period.start_time} – {preview.period.end_time}</span><span className="text-white/30">•</span><span>{preview.attendance_date}</span></>}
           actions={(
             <Link
-              to="/"
+              to="/workspace"
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto"
             >
               <ArrowRight aria-hidden size={17} />
@@ -203,7 +203,7 @@ export function AttendanceSessionPage() {
           {startMutation.isError && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
           <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <Link
-              to="/"
+              to="/workspace"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50 sm:w-auto"
             >
               إلغاء واختيار فصل آخر
@@ -292,7 +292,7 @@ export function AttendanceSessionPage() {
         meta={<><span>{session.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{session.period.start_time} – {session.period.end_time}</span><span className="text-white/30">•</span><span>{session.attendance_date}</span></>}
         actions={(
           <Link
-            to={me.data?.roles.includes("TEACHER") ? "/" : "/attendance/monitoring"}
+            to={me.data?.roles.includes("TEACHER") ? "/workspace" : "/attendance/monitoring"}
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto"
           >
             <ArrowRight aria-hidden size={17} />

@@ -147,8 +147,56 @@ textarea {
   color: #071b19;
 }
 
+/* الواجهة العامة: شبكة هادئة ووهج محسوب يحافظان على الطابع التقني دون صور زخرفية. */
+.landing-page,
+.registration-shell {
+  background-image:
+    radial-gradient(circle at 82% 10%, rgb(20 184 159 / 0.12), transparent 27rem),
+    radial-gradient(circle at 12% 35%, rgb(45 212 180 / 0.07), transparent 24rem);
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, #000, transparent 88%);
+}
+
+.landing-shimmer {
+  background: linear-gradient(115deg, #99f6e4 10%, #5eead4 42%, #f0fdfa 56%, #5eead4 72%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landing-shimmer 7s ease-in-out infinite;
+}
+
+.landing-product {
+  animation: landing-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-float {
+  animation: landing-float 5s ease-in-out infinite;
+}
+
+@keyframes landing-shimmer {
+  0%, 55%, 100% { background-position: 100% 50%; }
+  75% { background-position: 0% 50%; }
+}
+
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
 .skip-link {
-  @apply fixed start-3 top-3 z-[100] -translate-y-24 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-xl transition-transform focus:translate-y-0;
+  @apply fixed start-3 top-3 z-[100] inline-flex min-h-11 -translate-y-24 items-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-xl transition-transform focus:translate-y-0;
 }
 
 /* طبقة توافق مرحلية للأسطح الحالية؛ المكوّنات الجديدة تستخدم .ds-surface مباشرة. */

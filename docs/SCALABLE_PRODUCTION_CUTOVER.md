@@ -27,15 +27,44 @@ objects are copied would be destructive.
 
 ## Capacity topology
 
-- Two private Gunicorn instances; no local disk, so horizontal scaling works.
+- Two private Gunicorn instances, each with two processes and four threads; no
+  local disk, so horizontal scaling works.
+- A bounded native psycopg pool per process (`1..4` web connections and `1..2`
+  worker connections). Recalculate the total before increasing replica,
+  process, thread, or Celery concurrency counts.
 - Two import workers consuming only `imports`, isolated from web requests and
   maintenance work.
 - One maintenance worker for heartbeat, purge, and backup queues.
 - Exactly one scheduler instance.
-- Managed 1 GB Key Value with persistence and `noeviction`.
+- Three independent Key Value roles: an evictable, non-persistent application
+  cache; a persistent `noeviction` security/rate-limit store; and a persistent
+  `noeviction` Celery broker/result store. Cache pressure therefore cannot
+  evict security counters or queued jobs.
 - PostgreSQL 1 CPU / 2 GB, 50 GB autoscaling storage, private ingress, and an HA
   standby. Increase compute after load-test evidence, not by guesswork.
+- Visible browser tabs use staggered polling and exponential failure backoff;
+  hidden tabs stop polling. High-frequency current-period and monitoring reads
+  are school-scoped, short-lived, and request-coalesced in the shared cache.
 
 The Blueprint requires a Render Pro workspace for PostgreSQL HA. Do not route
 the application through transaction-mode PgBouncer: tenant RLS context is held
 in PostgreSQL session settings for the duration of each request.
+
+## Connection budget
+
+The current Blueprint can open at most 16 web-pool connections (2 replicas x 2
+processes x 4) and 16 import-worker pool connections (2 replicas x 4 prefork
+children x 2). The maintenance worker and scheduler are bounded separately by
+the shared `1..2` worker setting. Treat this as a ceiling, not an expected
+steady-state count, and leave room for migrations, administration, health
+checks, and failover before changing any concurrency value.
+
+## Required post-cutover benchmark
+
+The code and topology remove known synchronization and shared-resource
+bottlenecks, but they do not create a new verified concurrency number by
+themselves. After cutover, rerun the Locust teacher, composite, login, dashboard,
+soak, Redis-restart, and backend-restart profiles against the real topology.
+Record P50/P95/P99, error rate, PostgreSQL pool wait/connect counts, Key Value
+memory/connections, and Celery queue drain time before raising the pilot limit
+or publishing an SLA.

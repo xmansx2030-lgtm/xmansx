@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpenCheck, Clock3, GraduationCap, ScanLine, Search } fro
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -17,6 +18,8 @@ interface TeacherHomeProps {
   activeSchoolId: number;
 }
 
+const teacherPeriodPollInterval = adaptivePollingInterval(POLLING.teacherPeriod);
+
 /** شاشة المعلم: الحصة الحالية + جميع الفصول النشطة + مسح QR — Mobile-first. */
 export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
   const navigate = useNavigate();
@@ -28,7 +31,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
   const periodQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "current-period"),
     queryFn: ({ signal }) => getCurrentPeriod(signal),
-    refetchInterval: 5_000, // يلتقط تعديل توقيت الجدول على أجهزة المعلمين سريعًا
+    refetchInterval: teacherPeriodPollInterval,
     // التبويب المخفي لا يحتاج تحديثًا حيًا؛ TanStack يعيد الجلب عند العودة.
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: "always",

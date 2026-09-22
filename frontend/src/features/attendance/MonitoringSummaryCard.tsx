@@ -4,8 +4,8 @@ import { Link } from "react-router-dom";
 import { Spinner } from "@/components/Spinner";
 import { getMonitoring } from "@/features/attendance/api";
 import {
-  MONITORING_POLL_MS,
   monitoringKey,
+  monitoringPollInterval,
 } from "@/features/attendance/monitoringShared";
 
 interface MonitoringSummaryCardProps {
@@ -18,7 +18,8 @@ export function MonitoringSummaryCard({ activeSchoolId }: MonitoringSummaryCardP
   const query = useQuery({
     queryKey: monitoringKey(activeSchoolId),
     queryFn: ({ signal }) => getMonitoring(signal),
-    refetchInterval: MONITORING_POLL_MS,
+    refetchInterval: monitoringPollInterval,
+    refetchIntervalInBackground: false,
   });
 
   return (

@@ -1,8 +1,10 @@
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import type { MonitoringSection } from "@/features/attendance/api";
 import { schoolScopedKey } from "@/features/auth/useMe";
 
 /** نافذة قصيرة لالتقاط تعديل توقيت الجدول والتحضير على شاشات الإدارة. */
-export const MONITORING_POLL_MS = 5_000;
+export const MONITORING_POLL_MS = POLLING.monitoring;
+export const monitoringPollInterval = adaptivePollingInterval(MONITORING_POLL_MS);
 
 export const monitoringKey = (activeSchoolId: number) =>
   schoolScopedKey(activeSchoolId, "attendance", "monitoring");

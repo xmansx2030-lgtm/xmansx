@@ -13,12 +13,16 @@ import { HomePage } from "@/routes/HomePage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { RouteErrorPage } from "@/routes/RouteErrorPage";
 import { PageSkeleton } from "@/components/Skeleton";
+import { PublicRootPage } from "@/features/public/PublicRootPage";
+import { RegisterSchoolPage } from "@/features/public/RegisterSchoolPage";
 
 export const routes = [
   {
     errorElement: <RouteErrorPage />,
     hydrateFallbackElement: <div className="min-h-screen bg-slate-50 p-4 sm:p-8"><PageSkeleton label="جارٍ تحميل المنصة" /></div>,
     children: [
+      { path: "/", element: <PublicRootPage /> },
+      { path: "/register", element: <RegisterSchoolPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },
       {
@@ -46,10 +50,9 @@ export const routes = [
             element: <RequireActiveSchool />,
             children: [
               {
-                path: "/",
                 lazy: async () => ({ Component: (await import("@/app/AppShell")).AppShell }),
                 children: [
-                  { index: true, element: <HomePage /> },
+                  { path: "workspace", element: <HomePage /> },
                   {
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL"]} />,
                     children: [

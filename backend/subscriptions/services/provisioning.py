@@ -44,6 +44,8 @@ def create_school(
     subscription_mode: str = "TRIAL",
     trial_days: int | None = None,
     months: int = 12,
+    manager_password: str | None = None,
+    source: str = "platform",
     request=None,
 ) -> dict:
     """مدرسة + مدير + اشتراك في معاملة واحدة — أي فشل يلغي الكل."""
@@ -69,12 +71,22 @@ def create_school(
     temporary_password = None
     user = User.objects.filter(mobile=mobile).first()
     if user is None:
-        # حساب جديد: كلمة مرور مؤقتة تُعاد في الاستجابة فقط ولا تُخزن نصًا
-        temporary_password = generate_temporary_password()
-        user = User.objects.create_user(mobile=mobile, password=temporary_password)
+        # لوحة المنصة تنشئ كلمة مؤقتة؛ التسجيل الذاتي يستقبل كلمة اختارها المدير.
+        password = manager_password
+        if password is None:
+            temporary_password = generate_temporary_password()
+            password = temporary_password
+        user = User.objects.create_user(mobile=mobile, password=password)
         user.first_name = manager_name.strip()[:150]
-        user.must_change_password = True
+        user.must_change_password = manager_password is None
         user.save(update_fields=["first_name", "must_change_password"])
+    elif manager_password is not None:
+        # دفاع إضافي: التسجيل العام لا يضم مدرسة إلى حساب موجود بلا جلسة موثقة.
+        raise ApiError(
+            "SELF_REGISTRATION_CONFLICT",
+            "تعذر إنشاء حساب جديد بهذه البيانات. إذا كان لديك حساب فسجّل الدخول.",
+            status_code=409,
+        )
 
     membership = SchoolMembership.objects.create(
         user=user, school=school, status=MembershipStatus.ACTIVE
@@ -114,6 +126,7 @@ def create_school(
             "slug": school.slug,
             "school_type": school.school_type,
             "has_subscription": subscription is not None,
+            "source": source,
         },
     )
     return {

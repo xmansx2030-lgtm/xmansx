@@ -4,6 +4,32 @@ This document records observed local capacity, not guaranteed production capacit
 sizing must be repeated on the real topology with TLS termination, production database storage,
 network latency, monitoring, and explicit container resource limits.
 
+> A partial local rebaseline was completed on 2026-09-22 after polling,
+> live-read caching, database pooling, Redis role isolation, and proxy changes.
+> Production revalidation remains pending; neither local result is a Render SLA.
+
+## Post-hardening local check (2026-09-22)
+
+One production-image backend replica used two Gunicorn processes with four
+threads each and a bounded `1..4` psycopg pool. Local PostgreSQL/Redis served 10
+synthetic schools, each with 500 students and 100 staff. Requests went directly
+to Gunicorn, without Nginx, TLS, Render networking, HA, or separate managed Key
+Value services.
+
+| Workload | Users | P50 | P95 | P99 | RPS | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mixed | 100 | 420 ms | 1.5 s | 1.9 s | 99.73 | 0% |
+| Dashboard | 100 | 800 ms | 1.3 s | 1.7 s | 95.82 | 0% |
+| Dashboard | 150 | 1.3 s | 2.0 s | 2.4 s | 95.61 | 0% |
+| Dashboard | 250 | 2.3 s | 3.9 s | 4.7 s | 93.11 | 0% |
+| Dashboard | 500 | 4.3 s | 6.4 s | 6.7 s | 102.51 | 0% |
+| Dashboard | 1,000 | 9.8 s | 11 s | 11 s | 93.66 | 0% |
+
+The application stayed correct through the highest exercised dashboard load,
+but throughput flattened near 100 RPS and latency became unacceptable. Treat
+100 dashboard users as the locally responsive data point, not 1,000 as usable
+capacity. The older baseline below is preserved for historical comparison.
+
 ## Tested topology
 
 - Intel Core i7-1355U, 12 logical CPUs; 15.64 GiB host RAM; NVMe SSD.
@@ -35,4 +61,3 @@ connection saturation, Redis errors, and non-draining Celery queues.
 
 These are deliberately conservative launch controls. They are not a claim that 50 is the maximum
 the architecture can support, nor that the local 100-user result transfers directly to production.
-

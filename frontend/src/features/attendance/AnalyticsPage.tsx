@@ -3,6 +3,7 @@ import { BarChart3, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -22,7 +23,7 @@ import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import type { SchoolType } from "@/types/auth";
 import { studentCountLabel, studentPluralLabel } from "@/utils/roles";
 
-const POLL_MS = 20_000; // اليوم الحالي فقط — التواريخ الماضية لا تتغير
+const analyticsPollInterval = adaptivePollingInterval(POLLING.attendanceAnalytics);
 
 function todayIso(): string {
   const d = new Date();
@@ -55,7 +56,8 @@ export function AnalyticsPage() {
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "analytics", "daily", date),
     queryFn: ({ signal }) => getDailyAnalytics({ date }, signal),
     enabled: activeSchoolId > 0,
-    refetchInterval: isToday ? POLL_MS : false,
+    refetchInterval: isToday ? analyticsPollInterval : false,
+    refetchIntervalInBackground: false,
   });
   const sectionsQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
@@ -173,7 +175,8 @@ function PeriodsReport({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "analytics", "report", params),
     queryFn: () => postMultiPeriodAnalytics(params as MultiPeriodParams),
     enabled: params !== null,
-    refetchInterval: isToday ? POLL_MS : false,
+    refetchInterval: isToday ? analyticsPollInterval : false,
+    refetchIntervalInBackground: false,
   });
 
   const toggle = (sequence: number) => {

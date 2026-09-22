@@ -146,7 +146,7 @@ export function MyReferralsPage() {
         tone="teacher"
         badge={list.isPending ? "جارٍ التحديث" : `${total} إحالة`}
         actions={(
-          <Link to="/" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto">
+          <Link to="/workspace" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto">
             <ArrowRight aria-hidden size={17} />
             العودة للتحضير
           </Link>

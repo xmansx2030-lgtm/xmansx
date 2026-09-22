@@ -32,7 +32,7 @@ export function ChangeInitialPasswordPage() {
         updated.is_platform_admin
           ? "/platform"
           : updated.active_school
-            ? "/"
+            ? "/workspace"
             : "/select-school",
         { replace: true },
       );
@@ -44,7 +44,7 @@ export function ChangeInitialPasswordPage() {
   });
 
   if (me.isSuccess && !me.data.must_change_password) {
-    return <Navigate to={me.data.is_platform_admin ? "/platform" : "/"} replace />;
+    return <Navigate to={me.data.is_platform_admin ? "/platform" : "/workspace"} replace />;
   }
   if (me.isError) return <Navigate to="/login" replace />;
 

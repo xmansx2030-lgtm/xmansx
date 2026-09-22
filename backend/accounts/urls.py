@@ -4,6 +4,16 @@ from accounts.api import views
 
 urlpatterns = [
     path("csrf/", views.CsrfView.as_view(), name="auth-csrf"),
+    path(
+        "registration/plans/",
+        views.PublicRegistrationPlansView.as_view(),
+        name="auth-registration-plans",
+    ),
+    path(
+        "register-school/",
+        views.SchoolSelfRegistrationView.as_view(),
+        name="auth-register-school",
+    ),
     path("login/", views.LoginView.as_view(), name="auth-login"),
     path("logout/", views.LogoutView.as_view(), name="auth-logout"),
     path("me/", views.MeView.as_view(), name="auth-me"),

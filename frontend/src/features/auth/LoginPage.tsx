@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/client";
@@ -10,48 +10,19 @@ import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { TextField } from "@/components/TextField";
+import { toCanonicalMobile, toLatinDigits } from "@/features/auth/mobile";
 import { safeReturnTo, withReturnTo } from "@/features/auth/returnTo";
 import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
 import type { Me } from "@/types/auth";
 
-const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
-const MOBILE_SEPARATORS_RE = /[\s\-().]/g;
 const WHATSAPP_MESSAGE =
   "السلام عليكم، أحتاج التواصل معكم بخصوص منصة المواظبة XMANSX.";
 const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
-function toLatinDigits(value: string): string {
-  return [...value].map((char) => {
-    const index = ARABIC_DIGITS.indexOf(char);
-    return index === -1 ? char : String(index);
-  }).join("");
-}
-
-function toCanonicalMobile(value: string): string | null {
-  const compact = toLatinDigits(value.trim()).replace(MOBILE_SEPARATORS_RE, "");
-  const digits = compact.startsWith("+")
-    ? compact.slice(1)
-    : compact.startsWith("00")
-      ? compact.slice(2)
-      : compact;
-
-  if (!/^\d+$/.test(digits)) return null;
-
-  const national = digits.startsWith("966")
-    ? digits.slice(3)
-    : digits.startsWith("05")
-      ? digits.slice(1)
-      : digits.startsWith("5")
-        ? digits
-        : null;
-
-  return national && /^5\d{8}$/.test(national) ? `+966${national}` : null;
-}
-
 function authenticatedDestination(me: Me, returnTo: string | null) {
   if (me.must_change_password) return "/change-password";
   if (me.is_platform_admin) return "/platform";
-  if (me.active_school) return returnTo ?? "/";
+  if (me.active_school) return returnTo ?? "/workspace";
   return withReturnTo("/select-school", returnTo);
 }
 
@@ -131,7 +102,7 @@ export function LoginPage() {
             type="tel"
             inputMode="tel"
             dir="ltr"
-            placeholder="05XXXXXXXX أو +9665XXXXXXXX"
+            placeholder="05XXXXXXXX"
             maxLength={20}
             autoComplete="tel"
             required
@@ -158,6 +129,10 @@ export function LoginPage() {
           )}
 
           <Button type="submit" size="lg" fullWidth className="mt-1" loading={loginMutation.isPending} loadingLabel="جارٍ الدخول...">تسجيل الدخول</Button>
+          <div className="mt-5 flex flex-col items-center gap-2 border-t border-slate-100 pt-5 text-sm">
+            <Link to="/register" className="inline-flex min-h-11 items-center gap-2 font-black text-teal-800 hover:text-teal-950">مدرستك غير مسجلة؟ أنشئها الآن <ArrowRight aria-hidden size={16} /></Link>
+            <Link to="/" className="inline-flex min-h-11 items-center text-slate-500 hover:text-slate-800">العودة إلى الصفحة الرئيسية</Link>
+          </div>
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400"><ShieldCheck aria-hidden size={15} /> اتصال آمن ومحمي</p>
         </form>
       </div>

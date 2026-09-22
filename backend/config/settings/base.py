@@ -6,6 +6,7 @@ production.py يعيد فرض المتغيرات الحساسة كمتغيرات
 
 from pathlib import Path
 
+from config.database import postgres_database
 from config.env import env_bool, env_float, env_int, env_list, env_str
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -92,19 +93,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # ---- Database: PostgreSQL فقط (لا SQLite — نعتمد constraints/locking/RLS لاحقًا) ----
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env_str("POSTGRES_DB", "xmansx"),
-        "USER": env_str("POSTGRES_USER", "xmansx"),
-        "PASSWORD": env_str("POSTGRES_PASSWORD", "xmansx-dev"),
-        "HOST": env_str("POSTGRES_HOST", "localhost"),
-        # Docker publishes PostgreSQL on host port 5433; compose overrides this
-        # to 5432 for containers talking to the postgres service directly.
-        "PORT": env_int("POSTGRES_PORT", 5433),
-        "CONN_MAX_AGE": 60,
-    }
-}
+DATABASES = {"default": postgres_database(production=False)}
 DATABASE_RLS_ENFORCED = False
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -137,6 +126,13 @@ MEDIA_ROOT = Path(env_str("MEDIA_ROOT", str(BASE_DIR / "mediafiles")))
 
 # ---- Redis / Celery (foundation فقط — لا مهام أعمال بعد) ----
 REDIS_URL = env_str("REDIS_URL", "redis://localhost:6379/0")
+# Backward-compatible defaults keep development simple. Scalable deployments
+# provide separate services so cache eviction can never discard security
+# counters or queued Celery work.
+CACHE_REDIS_URL = env_str("CACHE_REDIS_URL", REDIS_URL)
+SECURITY_REDIS_URL = env_str("SECURITY_REDIS_URL", REDIS_URL)
+CELERY_BROKER_URL = env_str("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = env_str("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 READINESS_CHECK_TIMEOUT_SECONDS = 2
 OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS = env_int("OPERATIONAL_HEARTBEAT_MAX_AGE_SECONDS", 5 * 60)
 BRIDGE_STALE_AFTER_SECONDS = env_int("BRIDGE_STALE_AFTER_SECONDS", 2 * 60)
@@ -155,12 +151,12 @@ SENTRY_TRACES_SAMPLE_RATE = env_float("SENTRY_TRACES_SAMPLE_RATE", 0.0)
 CACHES = {
     "default": {
         "BACKEND": "common.cache.ResilientRedisCache",
-        "LOCATION": REDIS_URL,
+        "LOCATION": CACHE_REDIS_URL,
         "KEY_PREFIX": "xmansx",
     },
     "security": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": REDIS_URL,
+        "LOCATION": SECURITY_REDIS_URL,
         "KEY_PREFIX": "xmansx-security",
     },
 }
@@ -170,8 +166,21 @@ CACHES = {
 LOGIN_RATE_LIMIT_IP = (env_int("LOGIN_RATE_LIMIT_IP_MAX", 20), 300)
 LOGIN_RATE_LIMIT_MOBILE = (env_int("LOGIN_RATE_LIMIT_MOBILE_MAX", 5), 300)
 
+# التسجيل الذاتي قابل للإيقاف تشغيليًا، وحدوده أضيق لأنه ينشئ مستأجرًا جديدًا.
+SELF_REGISTRATION_ENABLED = env_bool("SELF_REGISTRATION_ENABLED", True)
+SELF_REGISTRATION_RATE_LIMIT_IP = (
+    env_int("SELF_REGISTRATION_RATE_LIMIT_IP_MAX", 5),
+    60 * 60,
+)
+SELF_REGISTRATION_RATE_LIMIT_MOBILE = (
+    env_int("SELF_REGISTRATION_RATE_LIMIT_MOBILE_MAX", 3),
+    24 * 60 * 60,
+)
+
 # Keep synchronous PDF rendering from occupying every web worker under bursts.
 PDF_RENDER_CONCURRENCY = env_int("PDF_RENDER_CONCURRENCY", 4)
+ATTENDANCE_CURRENT_PERIOD_CACHE_TTL = env_int("ATTENDANCE_CURRENT_PERIOD_CACHE_TTL", 10)
+ATTENDANCE_MONITORING_CACHE_TTL = env_int("ATTENDANCE_MONITORING_CACHE_TTL", 5)
 
 # ---- تشفير المعرفات الحساسة (ADR-009) ----
 # مفاتيح تطوير فقط — production.py يفرضها من البيئة ويفشل بدونها
@@ -265,8 +274,6 @@ else:
         },
     }
 
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
 # Application workflows persist their progress in PostgreSQL and clients poll that
 # durable state. Keep the result backend only for the small number of diagnostic
 # tasks that opt in, and expire those values predictably instead of letting them

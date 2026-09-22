@@ -3,6 +3,7 @@
 can_edit المحسوب هنا للواجهة فقط — الإنفاذ الحقيقي في الخدمة.
 """
 
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as dj_timezone
 from drf_spectacular.utils import extend_schema
@@ -38,6 +39,7 @@ from attendance.services.periods import get_current_attendance_period
 from common.errors import ApiError
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
+from school_dashboard.cache import build_key, cached
 from schools.services.settings import get_or_create_settings
 from students.models import EnrollmentStatus, Section, Student
 
@@ -46,6 +48,21 @@ ATTENDANCE_ROLES = (
     SchoolRole.TEACHER, SchoolRole.VICE_PRINCIPAL, SchoolRole.SCHOOL_MANAGER,
 )
 MANAGER_ONLY = (SchoolRole.SCHOOL_MANAGER,)
+
+
+def _current_period_payload(school) -> dict:
+    period, local_date = get_current_attendance_period(school)
+    payload = None
+    if period is not None:
+        settings_obj = get_or_create_settings(school=school)
+        payload = {
+            "sequence": period.sequence,
+            "name": period.name,
+            "start_time": period.start_time.strftime("%H:%M"),
+            "end_time": period.end_time.strftime("%H:%M"),
+            "timezone": settings_obj.timezone,
+        }
+    return {"period": payload, "date": local_date.isoformat()}
 
 
 def _teacher_membership(request: Request):
@@ -77,18 +94,19 @@ class CurrentPeriodView(SchoolScopedAPIView):
 
     @extend_schema(responses=CurrentPeriodResponseSerializer)
     def get(self, request: Request) -> Response:
-        period, local_date = get_current_attendance_period(request.school)
-        payload = None
-        if period is not None:
-            settings_obj = get_or_create_settings(school=request.school)
-            payload = {
-                "sequence": period.sequence,
-                "name": period.name,
-                "start_time": period.start_time.strftime("%H:%M"),
-                "end_time": period.end_time.strftime("%H:%M"),
-                "timezone": settings_obj.timezone,
-            }
-        return Response({"period": payload, "date": local_date.isoformat()})
+        ttl = settings.ATTENDANCE_CURRENT_PERIOD_CACHE_TTL
+        key = build_key(
+            school_id=request.school.id,
+            section="attendance-current-period",
+            parts={},
+        )
+        payload = cached(
+            key=key,
+            ttl=ttl,
+            stale_grace_seconds=ttl,
+            builder=lambda: _current_period_payload(request.school),
+        )
+        return Response(payload)
 
 
 class AttendanceSectionsView(SchoolScopedAPIView):
@@ -557,7 +575,18 @@ class MonitoringCurrentView(SchoolScopedAPIView):
 
     @extend_schema(responses=MonitoringResponseSerializer)
     def get(self, request: Request) -> Response:
-        payload = get_current_section_attendance_statuses(school=request.school)
+        ttl = settings.ATTENDANCE_MONITORING_CACHE_TTL
+        key = build_key(
+            school_id=request.school.id,
+            section="attendance-monitoring",
+            parts={},
+        )
+        payload = cached(
+            key=key,
+            ttl=ttl,
+            stale_grace_seconds=ttl,
+            builder=lambda: get_current_section_attendance_statuses(school=request.school),
+        )
         return Response(payload)
 
 

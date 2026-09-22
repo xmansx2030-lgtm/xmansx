@@ -5,7 +5,18 @@ generator creates synthetic schools, users, students, history, devices, and atte
 
 ## Reproduce
 
-1. Start the `xmansx-phase19-final` Compose project with unique host ports.
+1. Start an isolated Compose project with unique host ports and the
+   production-like overlay. For example:
+
+   ```powershell
+   $env:POSTGRES_HOST_PORT = "58003"
+   $env:REDIS_HOST_PORT = "58004"
+   $env:BACKEND_HOST_PORT = "58005"
+   $env:BACKEND_IMAGE = "xmansx-backend:scale-verify"
+   docker compose -p xmansx-scalecheck -f docker-compose.yml -f docker-compose.loadtest.yml `
+     up --no-build -d postgres redis backend
+   ```
+
 2. Run migrations and `generate_phase19_data` with the required school/student/history sizes.
 3. Run `scripts/run_phase19_load.ps1` with a named Locust profile.
 4. Run `scripts/capture_phase19_metrics.ps1` in parallel for Docker, PostgreSQL, Redis, and
@@ -14,6 +25,42 @@ generator creates synthetic schools, users, students, history, devices, and atte
 The harness reads its host and credentials from environment variables. Do not hard-code a
 shared database or production URL. CSV and log artifacts are written under the ignored
 `phase19-results/` directory.
+
+## 2026-09-22 scale-hardening rebaseline
+
+The application now staggers browser polling, backs off after failures, stops
+polling in hidden tabs, coalesces school-scoped live attendance reads, uses
+bounded native PostgreSQL pools, and separates cache, security, and Celery Key
+Value roles in `render.scalable.yaml`. Nginx also compresses API and static text
+responses and reuses upstream HTTP/1.1 connections.
+
+A partial local rebaseline was completed against one production-image backend
+replica (two Gunicorn processes x four threads, native pool `1..4`) with local
+PostgreSQL/Redis and 10 schools containing 500 students and 100 staff each.
+Traffic went directly to Gunicorn, so this did not include frontend Nginx, TLS,
+Render networking, HA failover, or the split managed Key Value services.
+
+| Profile | Users | Requests | RPS | P50 | P95 | P99 | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mixed | 100 | 5,913 | 99.73 | 420 ms | 1.5 s | 1.9 s | 0% |
+| Dashboard | 100 | 5,723 | 95.82 | 800 ms | 1.3 s | 1.7 s | 0% |
+| Dashboard | 150 | 5,802 | 95.61 | 1.3 s | 2.0 s | 2.4 s | 0% |
+| Dashboard | 250 | 5,468 | 93.11 | 2.3 s | 3.9 s | 4.7 s | 0% |
+| Dashboard | 500 | 6,112 | 102.51 | 4.3 s | 6.4 s | 6.7 s | 0% |
+| Dashboard | 1,000 | 5,599 | 93.66 | 9.8 s | 11 s | 11 s | 0% |
+
+The highest error-free level exercised was 1,000 dashboard users, but it is not
+usable capacity: throughput plateaued near 100 RPS and latency queued sharply.
+The responsive local range was around 100 dashboard users; 150 already reached
+a two-second P95. After the run, readiness remained green, Gunicorn had exactly
+eight idle PostgreSQL connections (the configured per-process maximum), Redis
+had no blocked clients, and backend logs contained no traceback, error, critical,
+or worker-timeout entry.
+
+Do not claim these results as Render capacity. The same profiles still need to
+be rerun on the target services with application, PostgreSQL, Key Value, and
+Celery metrics captured together before changing the production pilot limit or
+publishing an SLA.
 
 ## Environment
 

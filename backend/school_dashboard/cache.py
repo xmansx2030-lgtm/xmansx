@@ -42,7 +42,13 @@ def build_key(*, school_id: int, section: str, parts: dict) -> str:
     return f"{_NAMESPACE}:{school_id}:{section}:v{version}:{digest}"
 
 
-def cached(*, key: str, ttl: int, builder):
+def cached(
+    *,
+    key: str,
+    ttl: int,
+    builder,
+    stale_grace_seconds: int = STALE_GRACE_SECONDS,
+):
     """Return a fresh value, or briefly stale data while one request refreshes it.
 
     ``cache.add`` is atomic in Redis. Its short lease coalesces TTL-boundary
@@ -63,7 +69,7 @@ def cached(*, key: str, ttl: int, builder):
     if cache.add(lock_key, "1", timeout=lock_timeout):
         value = builder()
         cache.set(key, value, timeout=ttl)
-        cache.set(stale_key, value, timeout=ttl + STALE_GRACE_SECONDS)
+        cache.set(stale_key, value, timeout=ttl + stale_grace_seconds)
         return value
 
     if stale is not None:
@@ -81,7 +87,7 @@ def cached(*, key: str, ttl: int, builder):
 
     value = builder()
     cache.set(key, value, timeout=ttl)
-    cache.set(stale_key, value, timeout=ttl + STALE_GRACE_SECONDS)
+    cache.set(stale_key, value, timeout=ttl + stale_grace_seconds)
     return value
 
 

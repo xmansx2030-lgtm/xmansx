@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from cryptography.fernet import Fernet
 from django.core.exceptions import ImproperlyConfigured
 
+from config.database import postgres_database
 from config.env import env_bool, env_int, env_list, env_str
 
 from .base import *
@@ -20,24 +21,18 @@ DJANGO_ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", False)
 SECRET_KEY = env_str("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS")
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env_str("POSTGRES_DB"),
-        "USER": env_str("POSTGRES_USER"),
-        "PASSWORD": env_str("POSTGRES_PASSWORD"),
-        "HOST": env_str("POSTGRES_HOST"),
-        "PORT": env_int("POSTGRES_PORT", 5432),
-        "CONN_MAX_AGE": 60,
-    }
-}
+DATABASES = {"default": postgres_database(production=True)}
 # Activates request/task context management and readiness verification. PostgreSQL
 # policies themselves are always fail-closed for non-privileged database roles.
 DATABASE_RLS_ENFORCED = True
 
 REDIS_URL = env_str("REDIS_URL")
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+CACHE_REDIS_URL = env_str("CACHE_REDIS_URL", REDIS_URL)
+SECURITY_REDIS_URL = env_str("SECURITY_REDIS_URL", REDIS_URL)
+CELERY_BROKER_URL = env_str("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = env_str("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CACHES["default"]["LOCATION"] = CACHE_REDIS_URL
+CACHES["security"]["LOCATION"] = SECURITY_REDIS_URL
 SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "production")
 BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "production")
 BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", True)

@@ -27,9 +27,14 @@ describe("Protected routes & guards", () => {
     document.cookie = "csrftoken=test-token";
   });
 
-  it("unauthenticated user is redirected to login (401/403 handling)", async () => {
-    mockApi({ "/auth/me/": UNAUTHENTICATED });
-        renderApp("/");
+  it("public root shows the landing page while protected workspace redirects to login", async () => {
+    mockApi({ "/auth/me/": UNAUTHENTICATED, "/auth/registration/plans/": { body: [] } });
+    const landing = renderApp("/");
+    expect(await screen.findByRole("heading", { name: /كل تفاصيل المواظبة/ })).toBeInTheDocument();
+
+    landing.unmount();
+    queryClient.clear();
+    renderApp("/workspace");
     expect(await screen.findByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
   });
 

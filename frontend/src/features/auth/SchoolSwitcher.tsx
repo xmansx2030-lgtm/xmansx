@@ -17,7 +17,7 @@ export function SchoolSwitcher() {
     mutationFn: (schoolId: number) => switchSchool(schoolId),
     onSuccess: () => {
       setOpen(false);
-      navigate("/", { replace: true });
+      navigate("/workspace", { replace: true });
     },
   });
 

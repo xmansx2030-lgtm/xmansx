@@ -13,6 +13,22 @@ services:
     maxmemoryPolicy: noeviction
     persistenceMode: journal-snapshot
 
+  - type: keyvalue
+    name: xmansx-scalable-cache
+    region: frankfurt
+    plan: 1g
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: "off"
+
+  - type: keyvalue
+    name: xmansx-scalable-security
+    region: frankfurt
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
   - type: pserv
     name: xmansx-scalable-core
     runtime: docker
@@ -68,6 +84,26 @@ services:
       - key: REDIS_URL
         fromService:
           type: keyvalue
+          name: xmansx-scalable-cache
+          property: connectionString
+      - key: CACHE_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-cache
+          property: connectionString
+      - key: SECURITY_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-security
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: keyvalue
           name: xmansx-scalable-redis
           property: connectionString
       - key: FIELD_ENCRYPTION_KEYS
@@ -103,11 +139,25 @@ services:
       - key: BACKUP_SCHEDULE_ENABLED
         value: "true"
       - key: GUNICORN_WORKERS
-        value: "3"
+        value: "2"
       - key: GUNICORN_THREADS
-        value: "1"
+        value: "4"
       - key: GUNICORN_TIMEOUT
         value: "60"
+      - key: DATABASE_POOL_ENABLED
+        value: "true"
+      - key: DATABASE_POOL_MIN_SIZE
+        value: "1"
+      - key: DATABASE_POOL_MAX_SIZE
+        value: "4"
+      - key: DATABASE_POOL_TIMEOUT_SECONDS
+        value: "5"
+      - key: DATABASE_POOL_MAX_IDLE_SECONDS
+        value: "300"
+      - key: DATABASE_POOL_MAX_LIFETIME_SECONDS
+        value: "1800"
+      - key: DATABASE_CONNECT_TIMEOUT_SECONDS
+        value: "5"
       - key: PDF_RENDER_CONCURRENCY
         value: "2"
       - key: SENTRY_ENVIRONMENT
@@ -169,8 +219,42 @@ services:
       - key: REDIS_URL
         fromService:
           type: keyvalue
+          name: xmansx-scalable-cache
+          property: connectionString
+      - key: CACHE_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-cache
+          property: connectionString
+      - key: SECURITY_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-security
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: keyvalue
           name: xmansx-scalable-redis
           property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: xmansx-scalable-redis
+          property: connectionString
+      - key: DATABASE_POOL_ENABLED
+        value: "true"
+      - key: DATABASE_POOL_MIN_SIZE
+        value: "1"
+      - key: DATABASE_POOL_MAX_SIZE
+        value: "2"
+      - key: DATABASE_POOL_TIMEOUT_SECONDS
+        value: "10"
+      - key: DATABASE_POOL_MAX_IDLE_SECONDS
+        value: "300"
+      - key: DATABASE_POOL_MAX_LIFETIME_SECONDS
+        value: "1800"
+      - key: DATABASE_CONNECT_TIMEOUT_SECONDS
+        value: "5"
       - key: FIELD_ENCRYPTION_KEYS
         fromService:
           type: pserv

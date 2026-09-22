@@ -10,6 +10,7 @@
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from django.db import IntegrityError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import status
@@ -18,10 +19,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts import rate_limit
+from accounts import rate_limit, registration_rate_limit
 from accounts.api.serializers import (
     ActiveSchoolSerializer,
     LoginSerializer,
+    SchoolRegistrationSerializer,
     build_me_payload,
     serialize_invitation,
     serialize_membership,
@@ -30,7 +32,7 @@ from accounts.mobile import mask_mobile
 from audit.models import AuditAction
 from audit.services import client_ip, record_event
 from common.errors import ApiError
-from common.tenant_rls import set_tenant_context
+from common.tenant_rls import set_tenant_context, tenant_context
 from memberships.middleware import ACTIVE_SCHOOL_SESSION_KEY
 from memberships.models import MembershipStatus, SchoolMembership
 from memberships.selectors import (
@@ -39,6 +41,8 @@ from memberships.selectors import (
     invited_memberships_for_user,
 )
 from schools.models import SchoolStatus
+from subscriptions.models import NUMERIC_ENTITLEMENTS, SaaSPlan
+from subscriptions.services.provisioning import create_school
 
 INVALID_CREDENTIALS_MESSAGE = "رقم الجوال أو كلمة المرور غير صحيحة."
 
@@ -62,6 +66,110 @@ class CsrfView(APIView):
 
     def get(self, request: Request) -> Response:
         return Response({"detail": "ok"})
+
+
+class PublicRegistrationPlansView(APIView):
+    """الباقات التي سمح مشغل المنصة بعرضها وبدء تجربة منها فقط."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request) -> Response:
+        plans = (
+            SaaSPlan.objects.filter(is_active=True, is_public=True, trial_days_default__gt=0)
+            .prefetch_related("entitlements")
+            .order_by("price_amount", "id")
+        )
+        return Response(
+            [
+                {
+                    "id": plan.id,
+                    "name": plan.name_ar,
+                    "description": plan.description,
+                    "billing_period": plan.billing_period,
+                    "price_amount": str(plan.price_amount),
+                    "currency": plan.currency,
+                    "trial_days": plan.trial_days_default,
+                    "entitlements": {
+                        row.key: (
+                            row.numeric_value if row.key in NUMERIC_ENTITLEMENTS else row.is_enabled
+                        )
+                        for row in plan.entitlements.all()
+                    },
+                }
+                for plan in plans
+            ]
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SchoolSelfRegistrationView(APIView):
+    """ينشئ مدرسة ومديرًا وتجربة عامة واحدة ثم يبدأ الجلسة مباشرة."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        if not settings.SELF_REGISTRATION_ENABLED:
+            raise ApiError(
+                "SELF_REGISTRATION_UNAVAILABLE",
+                "التسجيل الذاتي غير متاح مؤقتًا. تواصل مع الدعم لإضافة مدرستك.",
+                status_code=503,
+            )
+
+        serializer = SchoolRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        ip = client_ip(request) or "unknown"
+        mobile = data["manager_mobile"]
+        registration_rate_limit.precheck(ip, mobile)
+        registration_rate_limit.register_attempt(ip, mobile)
+
+        try:
+            # الباقة والوجود وفعل الإنشاء ضمن bypass ضيق؛ المدخلات لا تمنح أي
+            # قدرة على قراءة مستأجر قائم أو اختيار حالة/مدة عقد.
+            with tenant_context(bypass=True):
+                plan = SaaSPlan.objects.filter(
+                    id=data["plan_id"],
+                    is_active=True,
+                    is_public=True,
+                    trial_days_default__gt=0,
+                ).first()
+                if plan is None:
+                    raise ApiError(
+                        "REGISTRATION_PLAN_UNAVAILABLE",
+                        "الباقة المحددة غير متاحة للتسجيل حاليًا.",
+                        status_code=409,
+                    )
+                result = create_school(
+                    actor=None,
+                    school_name=data["school_name"],
+                    school_type=data["school_type"],
+                    manager_name=data["manager_name"],
+                    manager_mobile=mobile,
+                    manager_password=data["password"],
+                    plan_id=plan.id,
+                    subscription_mode="TRIAL",
+                    source="self_registration",
+                    request=request,
+                )
+                user = result["manager_membership"].user
+                school = result["school"]
+        except IntegrityError as exc:
+            raise ApiError(
+                "SELF_REGISTRATION_CONFLICT",
+                "تعذر إنشاء حساب جديد بهذه البيانات. إذا كان لديك حساب فسجّل الدخول.",
+                status_code=409,
+            ) from exc
+
+        login(request, user)
+        request.session[ACTIVE_SCHOOL_SESSION_KEY] = school.id
+        if settings.DATABASE_RLS_ENFORCED:
+            set_tenant_context(user_id=user.id)
+        memberships = list(active_memberships_for_user(user))
+        active = next((item for item in memberships if item.school_id == school.id), None)
+        return Response(
+            build_me_payload(user, memberships, active),
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -270,13 +378,9 @@ def _get_own_invitation(user, invitation_id: int) -> SchoolMembership:
     if membership is None:
         raise ApiError("INVITATION_NOT_FOUND", "هذه الدعوة غير موجودة.", status_code=404)
     if membership.status == MembershipStatus.ACTIVE:
-        raise ApiError(
-            "INVITATION_ALREADY_ACCEPTED", "هذه الدعوة مقبولة بالفعل.", status_code=409
-        )
+        raise ApiError("INVITATION_ALREADY_ACCEPTED", "هذه الدعوة مقبولة بالفعل.", status_code=409)
     if membership.status == MembershipStatus.DECLINED:
-        raise ApiError(
-            "INVITATION_ALREADY_DECLINED", "هذه الدعوة لم تعد متاحة.", status_code=409
-        )
+        raise ApiError("INVITATION_ALREADY_DECLINED", "هذه الدعوة لم تعد متاحة.", status_code=409)
     if membership.status != MembershipStatus.INVITED:
         raise ApiError("INVITATION_NOT_FOUND", "هذه الدعوة غير موجودة.", status_code=404)
     return membership

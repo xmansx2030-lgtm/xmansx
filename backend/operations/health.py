@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from common.health import _check_database, _check_redis
+from common.redis_services import configured_redis_urls, unique_redis_urls
 from devices.models import AttendanceDevice, DeviceBridgeInstallation
 from operations.models import BackupRun, BackupStatus, BackupType
 from operations.tasks import BEAT_HEARTBEAT_CACHE_KEY
@@ -115,29 +116,47 @@ def database_resource_usage() -> dict | None:
 
 
 def redis_resource_usage() -> dict | None:
-    """Return memory/client/queue pressure without exposing Redis contents."""
+    """Return aggregate pressure across distinct Redis roles without secrets."""
+    clients = []
     try:
-        client = redis.Redis.from_url(
-            settings.REDIS_URL,
+        totals = {
+            "used_memory_bytes": 0,
+            "used_memory_peak_bytes": 0,
+            "maxmemory_bytes": 0,
+            "connected_clients": 0,
+            "blocked_clients": 0,
+        }
+        for url in unique_redis_urls():
+            client = redis.Redis.from_url(
+                url,
+                socket_connect_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
+                socket_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
+            )
+            clients.append(client)
+            memory = client.info("memory")
+            client_info = client.info("clients")
+            totals["used_memory_bytes"] += int(memory.get("used_memory", 0))
+            totals["used_memory_peak_bytes"] += int(memory.get("used_memory_peak", 0))
+            totals["maxmemory_bytes"] += int(memory.get("maxmemory", 0))
+            totals["connected_clients"] += int(client_info.get("connected_clients", 0))
+            totals["blocked_clients"] += int(client_info.get("blocked_clients", 0))
+
+        broker = redis.Redis.from_url(
+            configured_redis_urls()["celery_broker"],
             socket_connect_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
             socket_timeout=settings.READINESS_CHECK_TIMEOUT_SECONDS,
         )
-        memory = client.info("memory")
-        clients = client.info("clients")
+        clients.append(broker)
         queues = {
-            queue: int(client.llen(queue))
+            queue: int(broker.llen(queue))
             for queue in ("celery", "imports", "maintenance")
         }
     except Exception:
         return None
-    return {
-        "used_memory_bytes": int(memory.get("used_memory", 0)),
-        "used_memory_peak_bytes": int(memory.get("used_memory_peak", 0)),
-        "maxmemory_bytes": int(memory.get("maxmemory", 0)),
-        "connected_clients": int(clients.get("connected_clients", 0)),
-        "blocked_clients": int(clients.get("blocked_clients", 0)),
-        "queue_depths": queues,
-    }
+    finally:
+        for client in clients:
+            client.close()
+    return {**totals, "queue_depths": queues}
 
 
 def operational_snapshot() -> dict:

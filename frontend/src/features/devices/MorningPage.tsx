@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -52,6 +53,8 @@ function useOnlineStatus() {
 
 type Tab = "today" | "late" | "history";
 
+const morningPollInterval = adaptivePollingInterval(POLLING.morning);
+
 /** التأخر الصباحي: الإدارة والمعلم المكلّف، مع حساب خادمي وسجل تدقيق.
  *  قاعدة صلبة: لا قائمة «غائبين» هنا — غياب البصمة لا يعني غيابًا عن المدرسة. */
 export function MorningPage() {
@@ -69,7 +72,8 @@ export function MorningPage() {
     queryKey: schoolScopedKey(schoolId, "morning", "summary", date),
     queryFn: ({ signal }) => getMorningSummary(date, signal),
     enabled: schoolId > 0,
-    refetchInterval: isToday ? 30_000 : false, // البصمات تتدفق أثناء الصباح
+    refetchInterval: isToday ? morningPollInterval : false,
+    refetchIntervalInBackground: false,
   });
 
   const refresh = () => Promise.all([

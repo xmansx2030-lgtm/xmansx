@@ -23,7 +23,7 @@ export function SelectSchoolPage() {
 
   const switchMutation = useMutation({
     mutationFn: (schoolId: number) => switchSchool(schoolId),
-    onSuccess: () => navigate(returnTo ?? "/", { replace: true }),
+    onSuccess: () => navigate(returnTo ?? "/workspace", { replace: true }),
     onSettled: () => setPendingId(null),
   });
 

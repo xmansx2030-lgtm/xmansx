@@ -17,6 +17,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from common.redis_services import unique_redis_urls
+
 logger = logging.getLogger("xmansx.health")
 
 
@@ -59,15 +61,18 @@ def _check_database() -> bool:
 def _check_redis() -> bool:
     timeout = settings.READINESS_CHECK_TIMEOUT_SECONDS
     try:
-        client = redis.Redis.from_url(
-            settings.REDIS_URL,
-            socket_connect_timeout=timeout,
-            socket_timeout=timeout,
-        )
-        try:
-            return bool(client.ping())
-        finally:
-            client.close()
+        for url in unique_redis_urls():
+            client = redis.Redis.from_url(
+                url,
+                socket_connect_timeout=timeout,
+                socket_timeout=timeout,
+            )
+            try:
+                if not client.ping():
+                    return False
+            finally:
+                client.close()
+        return True
     except Exception:
         logger.error("readiness_redis_failed")
         return False

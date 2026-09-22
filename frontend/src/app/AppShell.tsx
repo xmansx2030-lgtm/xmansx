@@ -53,7 +53,7 @@ const GROUP_LABELS: Record<NavigationGroup, string> = {
 const NAVIGATION: NavigationItem[] = [
   { to: "/dashboard", label: "لوحة الإدارة", roles: MANAGER_VP, icon: LayoutDashboard, group: "overview" },
   { to: "/reports", label: "التقارير", roles: MANAGER_VP, icon: FileSpreadsheet, group: "overview" },
-  { to: "/", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
+  { to: "/workspace", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
   { to: "/students", label: "الطلاب", roles: MANAGER_VP_COUNSELOR, icon: GraduationCap, group: "students" },
   { to: "/warnings", label: "الإنذارات", roles: MANAGER_VP, icon: BellRing, group: "students" },
   { to: "/excuses", label: "الأعذار", roles: MANAGER_VP_COUNSELOR, icon: BookOpenCheck, group: "students" },
@@ -76,8 +76,8 @@ const NAVIGATION: NavigationItem[] = [
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <Link to="/" className="group flex min-w-0 items-center gap-3" aria-label="الرئيسية — منصة المواظبة">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-950/20 transition-transform group-hover:-translate-y-0.5">
+    <Link to="/workspace" className="group flex min-h-11 min-w-11 items-center gap-3" aria-label="الرئيسية — منصة المواظبة">
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-950/20 transition-transform group-hover:-translate-y-0.5">
         <Building2 aria-hidden size={21} strokeWidth={2.3} />
       </span>
       {!compact && (
@@ -105,7 +105,7 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === "/"}
+              end={item.to === "/workspace"}
               onClick={onNavigate}
               className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 ${isActive ? "bg-white/12 text-white shadow-sm ring-1 ring-white/10" : "text-slate-300 hover:bg-white/7 hover:text-white"}`}
             >
@@ -194,7 +194,7 @@ export function AppShell() {
   const additionalItems = primaryPaths ? items.filter((item) => !primaryPaths.has(item.to)) : [];
   const handleLogout = () => { void doLogout().then(() => navigate("/login", { replace: true })); };
   const drawerRef = useDialogA11y<HTMLElement>(mobileMenuOpen, () => setMobileMenuOpen(false));
-  const currentItem = items.find((item) => item.to === location.pathname) ?? items.find((item) => item.to !== "/" && location.pathname.startsWith(`${item.to}/`));
+  const currentItem = items.find((item) => item.to === location.pathname) ?? items.find((item) => item.to !== "/workspace" && location.pathname.startsWith(`${item.to}/`));
   const currentLabel = currentItem?.to === "/students" ? studentPluralLabel(schoolType) : currentItem?.label ?? "مساحة العمل";
   const isNavigating = navigation.state !== "idle";
 
@@ -218,7 +218,7 @@ export function AppShell() {
             <div className="min-w-0 flex-1">
               <SchoolSwitcher />
               <nav aria-label="مسار الصفحة" className="mt-1 hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
-                <Link to="/" className="rounded-md font-medium hover:text-brand-800">الرئيسية</Link>
+                <Link to="/workspace" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md font-medium hover:text-brand-800">الرئيسية</Link>
                 <span aria-hidden>/</span>
                 <span aria-current="page" className="truncate font-bold text-slate-700">{currentLabel}</span>
               </nav>

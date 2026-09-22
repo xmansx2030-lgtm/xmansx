@@ -62,7 +62,7 @@ export function RequirePlatformAdmin() {
   if (me.isPending) return <FullPageSpinner />;
   if (me.isError) return <Navigate to="/login" replace />;
   if (!me.data.is_platform_admin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/workspace" replace />;
   }
   return <Outlet />;
 }
@@ -73,7 +73,7 @@ function roleWorkspace(roles: SchoolRole[]) {
   }
   if (roles.includes("COUNSELOR")) return "/counselor";
   if (roles.includes("GATE_GUARD")) return "/gate";
-  return "/";
+  return "/workspace";
 }
 
 /**

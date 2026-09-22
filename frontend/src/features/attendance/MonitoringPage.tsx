@@ -10,8 +10,8 @@ import { Spinner } from "@/components/Spinner";
 import type { MonitoringSection } from "@/features/attendance/api";
 import { getMonitoring } from "@/features/attendance/api";
 import {
-  MONITORING_POLL_MS,
   monitoringKey,
+  monitoringPollInterval,
   statusPresentation,
 } from "@/features/attendance/monitoringShared";
 import { useMe } from "@/features/auth/useMe";
@@ -61,7 +61,7 @@ export function MonitoringPage() {
     queryKey: monitoringKey(activeSchoolId),
     queryFn: ({ signal }) => getMonitoring(signal),
     enabled: activeSchoolId > 0,
-    refetchInterval: MONITORING_POLL_MS,
+    refetchInterval: monitoringPollInterval,
     // لا نستهلك API/DB عندما لا تكون شاشة المتابعة معروضة للمستخدم.
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: "always",

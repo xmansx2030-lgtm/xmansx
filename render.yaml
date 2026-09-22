@@ -57,6 +57,14 @@ services:
           property: port
       - key: REDIS_URL
         value: redis://127.0.0.1:6379/0
+      - key: CACHE_REDIS_URL
+        value: redis://127.0.0.1:6379/0
+      - key: SECURITY_REDIS_URL
+        value: redis://127.0.0.1:6379/1
+      - key: CELERY_BROKER_URL
+        value: redis://127.0.0.1:6379/2
+      - key: CELERY_RESULT_BACKEND
+        value: redis://127.0.0.1:6379/3
       - key: REDIS_DATA_DIR
         value: /app/storage/redis
       - key: REDIS_MAXMEMORY
@@ -100,6 +108,10 @@ services:
       - key: GUNICORN_THREADS
         value: "2"
       - key: GUNICORN_TIMEOUT
+        value: "60"
+      - key: DATABASE_CONNECT_TIMEOUT_SECONDS
+        value: "5"
+      - key: DATABASE_CONN_MAX_AGE
         value: "60"
       - key: CELERY_WORKER_CONCURRENCY
         value: "1"

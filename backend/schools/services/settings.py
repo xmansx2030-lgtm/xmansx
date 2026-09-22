@@ -107,6 +107,13 @@ def update_school_info(*, school: School, actor, data: dict, request=None) -> Sc
             metadata={"changed": settings_changed},
         )
 
+        # Timezone, schedule thresholds, and school-day settings feed live
+        # attendance/dashboard responses. Publish the new version only after
+        # the transaction commits so no replica can cache rolled-back values.
+        from school_dashboard.cache import invalidate_school
+
+        transaction.on_commit(lambda: invalidate_school(school.id))
+
     return settings_obj
 
 

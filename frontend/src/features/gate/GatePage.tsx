@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { Alert } from "@/components/Alert";
 import { ErrorState } from "@/components/ErrorState";
@@ -30,6 +31,8 @@ import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hook
 import { studentLabel, studentPluralLabel } from "@/utils/roles";
 
 type GateTab = "pending" | "released";
+
+const gatePollInterval = adaptivePollingInterval(POLLING.gate);
 
 function useOnlineStatus() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -79,7 +82,7 @@ export function GatePage() {
     queryKey,
     queryFn: ({ signal }) => getGateStudentLeaves(deferredSearch, signal),
     enabled: schoolId > 0,
-    refetchInterval: 15_000,
+    refetchInterval: gatePollInterval,
     refetchIntervalInBackground: false,
   });
 

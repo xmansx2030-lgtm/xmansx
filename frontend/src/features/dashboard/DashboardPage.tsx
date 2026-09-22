@@ -25,6 +25,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -54,12 +55,11 @@ import { TrendChart } from "@/features/dashboard/TrendChart";
 import type { SchoolType } from "@/types/auth";
 import { roleLabel as schoolRoleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
-/** تحديث متدرج: التشغيل أسرع، والتنبيهات أبطأ، والتحليلات لا تُحمّل كل عدة ثوانٍ. */
-// نافذة قصيرة حتى تنعكس اعتمادات المعلمين على شاشة الإدارة دون إعادة تحميل.
-const LIVE_POLL_MS = 5_000;
-const ATTENTION_POLL_MS = 60_000;
-const OVERVIEW_POLL_MS = 120_000;
-const ANALYTICS_POLL_MS = 300_000;
+/** تحديث متدرج ومتباعد بين التبويبات لمنع موجة طلبات متزامنة عند بداية الحصة. */
+const livePollInterval = adaptivePollingInterval(POLLING.dashboardLive);
+const attentionPollInterval = adaptivePollingInterval(POLLING.dashboardAttention);
+const overviewPollInterval = adaptivePollingInterval(POLLING.dashboardOverview);
+const analyticsPollInterval = adaptivePollingInterval(POLLING.dashboardAnalytics);
 
 const PRESETS: [DashboardPreset, string][] = [
   ["TODAY", "اليوم"],
@@ -125,13 +125,14 @@ export function DashboardPage() {
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "overview", ...filterKey),
     queryFn: ({ signal }) => getOverview(filters, signal),
     enabled: analyticsEnabled,
-    refetchInterval: OVERVIEW_POLL_MS,
+    refetchInterval: overviewPollInterval,
+    refetchIntervalInBackground: false,
   });
   const todayQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "today"),
     queryFn: ({ signal }) => getToday(signal),
     enabled: operationalEnabled,
-    refetchInterval: LIVE_POLL_MS,
+    refetchInterval: livePollInterval,
     // تبقى الشاشة الظاهرة لحظية، لكن لا تستمر PWA في polling بالخلفية.
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: "always",
@@ -140,19 +141,22 @@ export function DashboardPage() {
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "trend", ...filterKey),
     queryFn: ({ signal }) => getTrend(filters, signal),
     enabled: analyticsEnabled,
-    refetchInterval: ANALYTICS_POLL_MS,
+    refetchInterval: analyticsPollInterval,
+    refetchIntervalInBackground: false,
   });
   const sectionsQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "sections", ...filterKey),
     queryFn: ({ signal }) => getSections(filters, signal),
     enabled: analyticsEnabled,
-    refetchInterval: ANALYTICS_POLL_MS,
+    refetchInterval: analyticsPollInterval,
+    refetchIntervalInBackground: false,
   });
   const attentionQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "dashboard", "attention"),
     queryFn: ({ signal }) => getAttention(signal),
     enabled: operationalEnabled,
-    refetchInterval: ATTENTION_POLL_MS,
+    refetchInterval: attentionPollInterval,
+    refetchIntervalInBackground: false,
   });
 
   const academicSetupRequired =
@@ -469,7 +473,7 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
             «مستحق» حالة لحظية لا تتبع الفترة المحددة، ولا يُجمع مع «الصادر». الإصدار قرار
             إداري يدوي — لا إصدار تلقائي.
           </p>
-          <Link to="/warnings" className="mt-2 inline-block text-xs text-blue-700">
+          <Link to="/warnings" className="mt-2 inline-flex min-h-11 items-center rounded-lg text-xs font-bold text-blue-700">
             فتح الإنذارات ←
           </Link>
         </FollowUpCard>
@@ -486,7 +490,7 @@ function OverviewBody({ data, schoolType }: { data: OverviewResponse; schoolType
           <p className="mt-1 text-xs text-slate-500">
             أعداد فقط — وصف الإحالة وملاحظات المرشد لا تُعرض في لوحة الإدارة.
           </p>
-          <Link to="/referrals" className="mt-2 inline-block text-xs text-blue-700">
+          <Link to="/referrals" className="mt-2 inline-flex min-h-11 items-center rounded-lg text-xs font-bold text-blue-700">
             فتح الإحالات ←
           </Link>
         </FollowUpCard>
@@ -888,7 +892,7 @@ function SchoolTodayStatusCard({ data: today, schoolType, showPreparation }: { d
               </p>
             )}
             {(excluded > 0 || daily.unrecorded_students > 0) && (
-              <Link to="/attendance/analytics?tab=daily&status=UNDETERMINED" className="inline-flex font-bold text-blue-800 underline underline-offset-2" data-testid="school-unrecorded-link">
+              <Link to="/attendance/analytics?tab=daily&status=UNDETERMINED" className="inline-flex min-h-11 items-center rounded-lg font-bold text-blue-800 underline underline-offset-2" data-testid="school-unrecorded-link">
                 عرض الطلاب وأسباب عدم التصنيف
               </Link>
             )}

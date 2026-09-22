@@ -1,6 +1,8 @@
 """Regression tests for cache pressure protections."""
 
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 import common.cache as resilient_cache
 import school_dashboard.cache as dashboard_cache
@@ -55,6 +57,48 @@ def test_dashboard_cache_serves_stale_value_while_another_request_refreshes(monk
 
     assert result == {"current": "previous"}
     builder.assert_not_called()
+
+
+def test_live_cache_uses_a_bounded_stale_grace(monkeypatch):
+    fake_cache = _Cache()
+    monkeypatch.setattr(dashboard_cache, "cache", fake_cache)
+
+    dashboard_cache.cached(
+        key="dash:1:attendance-monitoring",
+        ttl=5,
+        stale_grace_seconds=5,
+        builder=lambda: {"current": True},
+    )
+
+    assert (
+        "dash:1:attendance-monitoring:stale",
+        {"current": True},
+        10,
+    ) in fake_cache.set_calls
+
+
+@pytest.mark.django_db
+def test_monitoring_pollers_share_one_school_scoped_cache_entry(role_client):
+    client, _, _ = role_client(["SCHOOL_MANAGER"])
+    payload = {
+        "school_time": "2026-09-22T08:00:00+03:00",
+        "date": "2026-09-22",
+        "period": None,
+        "alert": None,
+        "summary": None,
+        "sections": [],
+    }
+
+    with patch(
+        "attendance.api.views.get_current_section_attendance_statuses",
+        return_value=payload,
+    ) as selector:
+        first = client.get("/api/v1/attendance/monitoring/current/")
+        second = client.get("/api/v1/attendance/monitoring/current/")
+
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json() == payload
+    selector.assert_called_once()
 
 
 def test_performance_cache_outage_warning_is_rate_limited(monkeypatch):

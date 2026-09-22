@@ -1,0 +1,18 @@
+# Production-like backend overlay for an isolated local load-test project.
+# Always supply a unique Compose project name and host ports; never point this
+# stack at development or production data.
+
+services:
+  backend:
+    command: gunicorn config.wsgi:application --config config/gunicorn.conf.py
+    environment:
+      DATABASE_POOL_ENABLED: "true"
+      DATABASE_POOL_MIN_SIZE: "1"
+      DATABASE_POOL_MAX_SIZE: "4"
+      DATABASE_POOL_TIMEOUT_SECONDS: "5"
+      DATABASE_POOL_MAX_IDLE_SECONDS: "300"
+      DATABASE_POOL_MAX_LIFETIME_SECONDS: "1800"
+      DATABASE_CONNECT_TIMEOUT_SECONDS: "5"
+      GUNICORN_WORKERS: "2"
+      GUNICORN_THREADS: "4"
+      GUNICORN_TIMEOUT: "60"
