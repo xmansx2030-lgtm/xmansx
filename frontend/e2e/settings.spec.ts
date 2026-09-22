@@ -9,7 +9,7 @@ const RUN_TAG = `${Date.now()}`.slice(-6);
 const CITY_VALUE = `الرياض ${RUN_TAG}`;
 
 async function loginAsManager(page: Page) {
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill("0550000002");
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();

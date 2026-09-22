@@ -53,7 +53,7 @@ in PostgreSQL session settings for the duration of each request.
 ## Connection budget
 
 The current Blueprint can open at most 16 web-pool connections (2 replicas x 2
-processes x 4) and 16 import-worker pool connections (2 replicas x 4 prefork
+processes x 4) and 12 import-worker pool connections (2 replicas x 3 prefork
 children x 2). The maintenance worker and scheduler are bounded separately by
 the shared `1..2` worker setting. Treat this as a ceiling, not an expected
 steady-state count, and leave room for migrations, administration, health

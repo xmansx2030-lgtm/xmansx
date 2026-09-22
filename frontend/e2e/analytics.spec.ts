@@ -79,7 +79,7 @@ function seedSessions(m: Meta, sequences: number[]): SeedOutput {
 }
 
 async function login(page: Page, mobile: string, school: string) {
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill(mobile);
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();
@@ -271,7 +271,7 @@ test("isolation: teacher role in school B gets no analytics link, page, or API",
 
   await expect(page.getByRole("link", { name: "الغياب والحضور" })).not.toBeVisible();
   await page.goto("/attendance/analytics");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   const statuses = await page.evaluate(async () => {

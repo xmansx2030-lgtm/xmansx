@@ -30,7 +30,7 @@ function meta(): Meta {
 }
 
 async function loginManagerToAndalus(page: Page) {
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill("0550000002");
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();

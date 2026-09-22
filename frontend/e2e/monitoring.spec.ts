@@ -28,7 +28,7 @@ function meta(): Meta {
 }
 
 async function login(page: Page, mobile: string, school: string) {
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill(mobile);
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();

@@ -24,7 +24,7 @@ function meta(): Meta {
 }
 
 async function loginManagerToAndalus(page: Page) {
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill("0550000002");
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();
@@ -135,7 +135,7 @@ test("missing from new Noor file: review → mark transferred → purge transfer
 
 test("vice principal: no purge controls and API purge denied", async ({ page }) => {
   // سعد الوكيل — ثانوية الأندلس
-  await page.goto("/");
+  await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill("0550000003");
   await page.getByLabel("كلمة المرور", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "تسجيل الدخول" }).click();

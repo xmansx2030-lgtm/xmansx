@@ -30,7 +30,7 @@ async function csrfToken(ctx: APIRequestContext): Promise<string> {
 }
 
 test("teacher with two schools: selection, shell, switching, logout", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/login");
 
   // Login
   await page.getByLabel("رقم الجوال").fill("0550000001");
