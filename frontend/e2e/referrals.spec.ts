@@ -371,7 +371,7 @@ test("multi-school user keeps roles separate", async ({ page }) => {
   expect((await api(page, "/referrals/counselors/")).status).toBe(403);
 
   await page.goto("/referrals");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   // التبديل إلى المدرسة الثانية: صلاحية المرشد تظهر وبيانات الأولى لا تتسرب

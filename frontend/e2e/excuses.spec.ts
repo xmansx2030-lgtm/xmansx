@@ -371,6 +371,6 @@ test("isolation: teacher has no excuses link, page, or API access", async ({ pag
   expect(kpis.status).toBe(403);
 
   await page.goto("/excuses");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 });

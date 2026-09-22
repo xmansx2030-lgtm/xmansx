@@ -212,7 +212,7 @@ test("isolation: teacher role in school B gets no dashboard, link, or data", asy
     primaryNavigation.getByRole("link", { name: "متابعة التحضير" }),
   ).not.toBeVisible();
   await page.goto("/attendance/monitoring");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole("heading", { name: /مرحبًا/ })).toBeVisible();
 
   const status = await page.evaluate(async () => {
