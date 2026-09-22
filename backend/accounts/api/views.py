@@ -11,6 +11,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.db import IntegrityError
+from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import status
@@ -75,7 +76,8 @@ class PublicRegistrationPlansView(APIView):
 
     def get(self, request: Request) -> Response:
         plans = (
-            SaaSPlan.objects.filter(is_active=True, is_public=True, trial_days_default__gt=0)
+            SaaSPlan.objects.filter(is_active=True, is_public=True)
+            .filter(Q(price_amount=0) | Q(trial_days_default__gt=0))
             .prefetch_related("entitlements")
             .order_by("price_amount", "id")
         )
@@ -131,8 +133,7 @@ class SchoolSelfRegistrationView(APIView):
                     id=data["plan_id"],
                     is_active=True,
                     is_public=True,
-                    trial_days_default__gt=0,
-                ).first()
+                ).filter(Q(price_amount=0) | Q(trial_days_default__gt=0)).first()
                 if plan is None:
                     raise ApiError(
                         "REGISTRATION_PLAN_UNAVAILABLE",
@@ -147,7 +148,7 @@ class SchoolSelfRegistrationView(APIView):
                     manager_mobile=mobile,
                     manager_password=data["password"],
                     plan_id=plan.id,
-                    subscription_mode="TRIAL",
+                    subscription_mode="ACTIVE" if plan.price_amount == 0 else "TRIAL",
                     source="self_registration",
                     request=request,
                 )

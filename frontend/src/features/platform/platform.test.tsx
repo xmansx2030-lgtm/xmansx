@@ -574,13 +574,16 @@ describe("platform and subscription UI", () => {
     renderApp("/platform");
     await user.click(await screen.findByRole("button", { name: "الباقات" }));
     await user.click(await screen.findByRole("button", { name: "تعديل" }));
+    expect(screen.getByText("داخلية")).toBeInTheDocument();
     const name = screen.getByPlaceholderText("اسم الباقة");
     await user.clear(name);
     await user.type(name, "الأساسية المحدثة");
+    await user.click(screen.getByRole("checkbox", { name: "عرض الباقة في صفحة الهبوط والتسجيل الذاتي" }));
     await user.click(screen.getByRole("button", { name: "حفظ التعديل" }));
 
     await waitFor(() => {
-      expect(calls.some(({ url, init }) => url.includes("/platform/plans/1/") && init?.method === "PATCH")).toBe(true);
+      const request = calls.find(({ url, init }) => url.includes("/platform/plans/1/") && init?.method === "PATCH");
+      expect(JSON.parse(String(request?.init?.body))).toMatchObject({ is_public: true });
     });
   });
 

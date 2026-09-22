@@ -667,6 +667,7 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
     name_ar: "",
     price_amount: "0",
     trial_days_default: 30,
+    is_public: false,
     max_students: 1000,
     max_staff: 100,
     max_devices: 5,
@@ -693,6 +694,7 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
       name_ar: plan.name_ar,
       price_amount: plan.price_amount,
       trial_days_default: plan.trial_days_default,
+      is_public: plan.is_public,
       max_students: Number(plan.entitlements.MAX_STUDENTS ?? 1000),
       max_staff: Number(plan.entitlements.MAX_STAFF ?? 100),
       max_devices: Number(plan.entitlements.MAX_DEVICES ?? 5),
@@ -719,6 +721,7 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
       currency: "SAR",
       billing_period: "ANNUAL",
       trial_days_default: form.trial_days_default,
+      is_public: form.is_public,
       entitlements,
     });
   }
@@ -732,6 +735,10 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
         <label className="text-sm font-medium text-slate-700">اسم الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} /></label>
         <label className="text-sm font-medium text-slate-700">السعر السنوي (ر.س)<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} /></label>
         <label className="text-sm font-medium text-slate-700">أيام التجربة الافتراضية<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} /></label>
+        <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-800 md:col-span-4">
+          <input className="size-4" type="checkbox" checked={form.is_public} onChange={(e) => setForm({ ...form, is_public: e.target.checked })} />
+          عرض الباقة في صفحة الهبوط والتسجيل الذاتي
+        </label>
         {LIMIT_KEYS.map((key) => (
           <label key={key} className="text-sm text-slate-600">
             {ENTITLEMENT_LABELS[key]}
@@ -761,7 +768,10 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
                 <h3 className="font-bold text-slate-900">{plan.name_ar}</h3>
                 <p className="text-sm text-slate-500">{plan.code} · {plan.price_amount} {plan.currency}</p>
               </div>
-              <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>
+              <div className="flex flex-wrap gap-2">
+                <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>
+                <span className={`rounded px-2 py-1 text-xs ${plan.is_public ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"}`}>{plan.is_public ? "عامة" : "داخلية"}</span>
+              </div>
             </div>
             {canManage && <div className="mt-3 grid grid-cols-2 gap-2 sm:flex">
               <Button variant="secondary" onClick={() => load(plan)}>تعديل</Button>

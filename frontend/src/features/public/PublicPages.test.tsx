@@ -17,6 +17,14 @@ const PLAN = {
   entitlements: { MAX_STUDENTS: 500, MAX_STAFF: 50, MAX_DEVICES: 2 },
 };
 
+const FREE_PLAN = {
+  ...PLAN,
+  id: 8,
+  name: "الباقة المجانية",
+  price_amount: "0.00",
+  trial_days: 0,
+};
+
 describe("Public landing and school registration", () => {
   beforeEach(() => {
     queryClient.clear();
@@ -37,6 +45,19 @@ describe("Public landing and school registration", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("tab", { name: /متابعة تربط المعلومة بالإجراء/ }));
     expect(screen.getByRole("tabpanel")).toHaveTextContent("الأعذار والإنذارات والإحالات");
+  });
+
+  it("presents a zero-price plan as permanently free instead of a trial", async () => {
+    mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/registration/plans/": { body: [FREE_PLAN] },
+    });
+
+    renderApp("/register?plan=8");
+
+    expect(await screen.findByText("الباقة المجانية")).toBeInTheDocument();
+    expect(screen.getByText("استخدام مجاني دون مدة تجربة")).toBeInTheDocument();
+    expect(screen.getByText("مجانية")).toBeInTheDocument();
   });
 
   it("creates a school through the two-step flow and enters its workspace", async () => {

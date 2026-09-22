@@ -18,14 +18,17 @@ from subscriptions.models import (
 PASSWORD = "Safe-School-2026!"
 
 
-def make_plan(*, code="starter", public=True, active=True, trial_days=21, staff_limit=20):
+def make_plan(
+    *, code="starter", public=True, active=True, trial_days=21,
+    staff_limit=20, price="990.00",
+):
     plan = SaaSPlan.objects.create(
         code=code,
         name_ar="باقة البداية",
         description="باقة تشغيل المدرسة",
         is_public=public,
         is_active=active,
-        price_amount="990.00",
+        price_amount=price,
         trial_days_default=trial_days,
     )
     PlanEntitlement.objects.create(
@@ -50,8 +53,9 @@ def payload(plan, *, mobile="0551234567"):
 
 
 @pytest.mark.django_db
-def test_public_plans_returns_only_active_public_trial_plans(client):
+def test_public_plans_returns_active_public_trials_and_free_plans(client):
     visible = make_plan()
+    free = make_plan(code="free", trial_days=0, price="0.00")
     make_plan(code="private", public=False)
     make_plan(code="inactive", active=False)
     make_plan(code="no-trial", trial_days=0)
@@ -60,6 +64,16 @@ def test_public_plans_returns_only_active_public_trial_plans(client):
 
     assert response.status_code == 200
     assert response.json() == [
+        {
+            "id": free.id,
+            "name": "باقة البداية",
+            "description": "باقة تشغيل المدرسة",
+            "billing_period": "ANNUAL",
+            "price_amount": "0.00",
+            "currency": "SAR",
+            "trial_days": 0,
+            "entitlements": {"MAX_STAFF": 20},
+        },
         {
             "id": visible.id,
             "name": "باقة البداية",
@@ -71,6 +85,23 @@ def test_public_plans_returns_only_active_public_trial_plans(client):
             "entitlements": {"MAX_STAFF": 20},
         }
     ]
+
+
+@pytest.mark.django_db
+def test_self_registration_activates_free_plan_without_trial_expiry(client):
+    plan = make_plan(code="free", trial_days=0, price="0.00")
+
+    response = client.post(
+        "/api/v1/auth/register-school/",
+        payload(plan),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    subscription = SchoolSubscription.objects.get(school__name="ثانوية الإتقان التجريبية")
+    assert subscription.status == SubscriptionStatus.ACTIVE
+    assert subscription.plan == plan
+    assert subscription.trial_ends_at is None
 
 
 @pytest.mark.django_db
