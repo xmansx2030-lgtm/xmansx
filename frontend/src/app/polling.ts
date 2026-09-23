@@ -17,6 +17,11 @@ function configuredMs(raw: string | undefined, fallback: number, minimum: number
 export const POLLING = {
   monitoring: configuredMs(import.meta.env.VITE_MONITORING_POLL_MS, 10_000, 5_000),
   teacherPeriod: configuredMs(import.meta.env.VITE_TEACHER_PERIOD_POLL_MS, 15_000, 5_000),
+  teacherAttention: configuredMs(
+    import.meta.env.VITE_TEACHER_ATTENTION_POLL_MS,
+    30_000,
+    10_000,
+  ),
   dashboardLive: configuredMs(import.meta.env.VITE_DASHBOARD_LIVE_POLL_MS, 15_000, 5_000),
   dashboardAttention: configuredMs(
     import.meta.env.VITE_DASHBOARD_ATTENTION_POLL_MS,

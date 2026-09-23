@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -30,6 +31,8 @@ import { ReferralDetailCard } from "@/features/referrals/ReferralDetailCard";
 import { ReferralsTable } from "@/features/referrals/ReferralsPage";
 import { useActiveSchoolId } from "@/features/settings/hooks";
 import { roleLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
+
+const teacherAttentionPollInterval = adaptivePollingInterval(POLLING.teacherAttention);
 
 /** مساحة المعلم لإنشاء إحالة تمر بالوكيل المسؤول قبل المرشد. */
 export function MyReferralsPage() {
@@ -85,11 +88,17 @@ export function MyReferralsPage() {
     queryKey: schoolScopedKey(schoolId, "my-referrals", referralPage),
     queryFn: ({ signal }) => getMyReferrals({ page: referralPage }, signal),
     enabled: schoolId > 0,
+    refetchInterval: teacherAttentionPollInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
   const openReferrals = useQuery({
     queryKey: schoolScopedKey(schoolId, "my-referrals", "summary", "OPEN"),
     queryFn: ({ signal }) => getMyReferrals({ status: "OPEN", page: 1 }, signal),
     enabled: schoolId > 0,
+    refetchInterval: teacherAttentionPollInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
 
   const grades = useMemo(() => {

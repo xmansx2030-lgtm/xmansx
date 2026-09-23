@@ -70,14 +70,13 @@ class CsrfView(APIView):
 
 
 class PublicRegistrationPlansView(APIView):
-    """الباقات التي سمح مشغل المنصة بعرضها وبدء تجربة منها فقط."""
+    """كتالوج الباقات العامة النشطة مع توضيح أهلية التسجيل الذاتي."""
 
     permission_classes = [AllowAny]
 
     def get(self, request: Request) -> Response:
         plans = (
             SaaSPlan.objects.filter(is_active=True, is_public=True)
-            .filter(Q(price_amount=0) | Q(trial_days_default__gt=0))
             .prefetch_related("entitlements")
             .order_by("price_amount", "id")
         )
@@ -85,6 +84,7 @@ class PublicRegistrationPlansView(APIView):
             [
                 {
                     "id": plan.id,
+                    "code": plan.code,
                     "name": plan.name_ar,
                     "description": plan.description,
                     "billing_period": plan.billing_period,
@@ -93,6 +93,9 @@ class PublicRegistrationPlansView(APIView):
                     "duration_value": plan.duration_value,
                     "duration_unit": plan.duration_unit,
                     "trial_days": plan.trial_days_default,
+                    "can_self_register": (
+                        plan.price_amount == 0 or plan.trial_days_default > 0
+                    ),
                     "entitlements": {
                         row.key: (
                             row.numeric_value if row.key in NUMERIC_ENTITLEMENTS else row.is_enabled

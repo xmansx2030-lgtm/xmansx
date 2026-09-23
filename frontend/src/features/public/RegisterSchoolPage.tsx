@@ -33,7 +33,12 @@ export function RegisterSchoolPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const requestedPlan = Number(searchParams.get("plan"));
-  const plans = useQuery({ queryKey: ["public-plans"], queryFn: ({ signal }) => getPublicPlans(signal), staleTime: 5 * 60_000 });
+  const plans = useQuery({
+    queryKey: ["public-plans"],
+    queryFn: ({ signal }) => getPublicPlans(signal),
+    select: (catalog) => catalog.filter((plan) => plan.can_self_register),
+    staleTime: 5 * 60_000,
+  });
   const [step, setStep] = useState<1 | 2>(1);
   const [schoolName, setSchoolName] = useState("");
   const [schoolType, setSchoolType] = useState<SchoolType>("BOYS");

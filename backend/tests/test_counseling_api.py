@@ -314,6 +314,37 @@ def test_teacher_sees_only_own_request_without_case_content(env):
     assert requests[0]["response"]["improvement_status"] == "IMPROVED"
 
 
+def test_teacher_inbox_prioritizes_pending_requests(env):
+    case_id = make_case(env)
+    answered = json_post(
+        env["counselor_client"],
+        f"{CASES}{case_id}/teacher-requests/",
+        {
+            "teacher_membership_id": env["teacher_membership"].id,
+            "request_type": "CLASSROOM_BEHAVIOR",
+            "question": "طلب تمت الإجابة عنه.",
+        },
+    ).json()
+    assert json_post(
+        env["teacher_client"],
+        f"{TEACHER_REQUESTS}{answered['id']}/respond/",
+        {"observation": "تمت المتابعة.", "improvement_status": "IMPROVED"},
+    ).status_code == 201
+    pending = json_post(
+        env["counselor_client"],
+        f"{CASES}{case_id}/teacher-requests/",
+        {
+            "teacher_membership_id": env["teacher_membership"].id,
+            "request_type": "PARTICIPATION",
+            "question": "طلب ينتظر رد المعلم.",
+        },
+    ).json()
+
+    inbox = env["teacher_client"].get(TEACHER_REQUESTS).json()
+    assert [row["id"] for row in inbox] == [pending["id"], answered["id"]]
+    assert [row["status"] for row in inbox] == ["PENDING", "ANSWERED"]
+
+
 def test_teacher_cannot_reach_case_endpoints_by_id(env):
     """البند 98: معرف الحالة ليس بابًا لاستكشاف بيانات الطلاب."""
     case_id = make_case(env)

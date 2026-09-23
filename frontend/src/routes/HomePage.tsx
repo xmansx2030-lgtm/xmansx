@@ -31,6 +31,6 @@ export function HomePage() {
   }
 
   return (
-    <>{isTeacher && activeSchoolId && <TeacherHome activeSchoolId={activeSchoolId} />}</>
+    <>{isTeacher && activeSchoolId && <TeacherHome key={activeSchoolId} activeSchoolId={activeSchoolId} />}</>
   );
 }

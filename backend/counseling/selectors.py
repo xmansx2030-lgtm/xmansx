@@ -6,7 +6,7 @@
 - المعلم: **لا حالات إطلاقًا**، طلباته فقط (البنود 70-71).
 """
 
-from django.db.models import Count, Q
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.utils import timezone as dj_timezone
 
 from counseling.models import (
@@ -212,7 +212,18 @@ def teacher_requests_for(*, school, membership):
             "requested_by_membership__staff_profile",
             "response",
         )
-        .order_by("status", "due_date", "-created_at")
+        .annotate(
+            attention_order=Case(
+                When(status=FollowUpRequestStatus.PENDING, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by(
+            "attention_order",
+            F("due_date").asc(nulls_last=True),
+            "-created_at",
+        )
     )
 
 

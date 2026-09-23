@@ -10,7 +10,12 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from accounts.models import User
-from memberships.models import SchoolMembership, SchoolMembershipRole, SchoolRole
+from memberships.models import (
+    MembershipStatus,
+    SchoolMembership,
+    SchoolMembershipRole,
+    SchoolRole,
+)
 from schools.models import School
 
 SEED = [
@@ -100,14 +105,40 @@ class Command(BaseCommand):
                 user = User.objects.create_user(
                     mobile=mobile, password=password, first_name=first, last_name=last
                 )
+            else:
+                # إعادة البذر نقطة ضبط حتمية؛ تغييرات اختبار سابق لا تنتقل للرحلة التالية.
+                user.first_name = first
+                user.last_name = last
+                user.is_active = True
+                user.must_change_password = False
+                user.set_password(password)
+                user.save(
+                    update_fields=[
+                        "first_name",
+                        "last_name",
+                        "is_active",
+                        "must_change_password",
+                        "password",
+                        "updated_at",
+                    ]
+                )
             for slug, roles in assignments:
                 membership, _ = SchoolMembership.objects.get_or_create(
                     user=user, school=schools[slug]
                 )
+                if membership.status != MembershipStatus.ACTIVE:
+                    membership.status = MembershipStatus.ACTIVE
+                    membership.save(update_fields=["status", "updated_at"])
+                SchoolMembershipRole.objects.filter(membership=membership).exclude(
+                    role__in=roles
+                ).delete()
                 for role in roles:
                     SchoolMembershipRole.objects.get_or_create(
                         membership=membership, role=SchoolRole(role)
                     )
+                # التكليف التشغيلي ينشئه الاختبار الذي يحتاجه صراحة؛ بقاؤه يغيّر
+                # تنقل الحساب التجريبي وصلاحياته في التشغيل التالي.
+                membership.capabilities.all().delete()
             self.stdout.write(f"user: {user.display_name} ({user.mobile}) id={user.id}")
 
         platform_admin = User.objects.filter(
