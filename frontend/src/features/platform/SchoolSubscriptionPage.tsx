@@ -167,6 +167,7 @@ export function SchoolSubscriptionPage() {
                     {isCurrent && <span className="shrink-0 rounded-full bg-teal-700 px-2.5 py-1 text-xs font-black text-white">باقتك الحالية</span>}
                   </div>
                   <p className="mt-3 text-xs font-bold text-slate-600">المدة: {duration}</p>
+                  {plan.one_time_per_school && <p className="mt-2 text-xs font-black text-amber-700">تُستخدم مرة واحدة فقط لكل مدرسة</p>}
                   <p className="mt-3 min-h-12 text-sm leading-6 text-slate-600">{plan.description || "باقة تشغيل ومتابعة مدرسية متكاملة."}</p>
                   {highlights.length > 0 && <ul className="mt-4 flex-1 space-y-2 border-t border-slate-200/80 pt-4">{highlights.map((item) => <li key={item} className="flex items-center gap-2 text-sm text-slate-700"><Check aria-hidden size={15} className="text-teal-700" />{item}</li>)}</ul>}
                   {isCurrent ? (

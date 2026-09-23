@@ -78,6 +78,7 @@ def test_public_plans_returns_every_active_public_plan_and_marks_registration_el
             "duration_unit": "MONTHS",
             "trial_days": 0,
             "can_self_register": True,
+            "one_time_per_school": True,
             "entitlements": {"MAX_STAFF": 20},
         },
         {
@@ -92,6 +93,7 @@ def test_public_plans_returns_every_active_public_plan_and_marks_registration_el
             "duration_unit": "MONTHS",
             "trial_days": 21,
             "can_self_register": True,
+            "one_time_per_school": False,
             "entitlements": {"MAX_STAFF": 20},
         },
         {
@@ -106,6 +108,7 @@ def test_public_plans_returns_every_active_public_plan_and_marks_registration_el
             "duration_unit": "MONTHS",
             "trial_days": 0,
             "can_self_register": False,
+            "one_time_per_school": False,
             "entitlements": {"MAX_STAFF": 20},
         },
     ]
@@ -143,6 +146,7 @@ def test_self_registration_activates_free_plan_without_trial_expiry(client):
     assert subscription.trial_ends_at is None
     assert subscription.duration_value == 3
     assert subscription.duration_unit == "MONTHS"
+    assert subscription.was_free_plan is True
     assert subscription.ends_at.month == (subscription.starts_at.month + 3 - 1) % 12 + 1
 
 

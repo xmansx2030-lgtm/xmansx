@@ -41,6 +41,7 @@ const PUBLIC_PLAN = {
   duration_unit: PLAN.duration_unit,
   trial_days: PLAN.trial_days_default,
   can_self_register: true,
+  one_time_per_school: false,
   entitlements: PLAN.entitlements,
 };
 const PUBLIC_PLUS_PLAN = {

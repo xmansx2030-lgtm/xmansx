@@ -37,11 +37,13 @@ def create_plan(
     devices=2,
     storage=10,
     counseling=True,
+    price="100.00",
 ):
     return plan_service.create_plan(
         actor=actor,
         code=code,
         name_ar=f"باقة {code}",
+        price_amount=price,
         entitlements={
             EntitlementKey.MAX_STUDENTS: students,
             EntitlementKey.MAX_STAFF: staff,
@@ -50,6 +52,70 @@ def create_plan(
             EntitlementKey.COUNSELING: counseling,
         },
     )
+
+
+@pytest.mark.django_db
+def test_free_plan_can_only_be_used_once_per_school(make_school, platform_admin):
+    school = make_school()
+    free = create_plan(platform_admin, code="free-once", price="0.00")
+    another_free = create_plan(platform_admin, code="free-again", price="0.00")
+    paid = create_plan(platform_admin, code="paid-after-free")
+
+    free_subscription = subscription_service.activate(
+        school=school, plan_id=free.id, actor=platform_admin
+    )
+    assert free_subscription.was_free_plan is True
+
+    now = timezone.now()
+    free_subscription.status = SubscriptionStatus.EXPIRED
+    free_subscription.starts_at = now - timedelta(days=30)
+    free_subscription.ends_at = now - timedelta(days=1)
+    free_subscription.save(
+        update_fields=["status", "starts_at", "ends_at", "updated_at"]
+    )
+
+    with pytest.raises(Exception) as repeated:
+        subscription_service.activate(
+            school=school, plan_id=another_free.id, actor=platform_admin
+        )
+    assert getattr(repeated.value, "code", "") == "FREE_PLAN_ALREADY_USED"
+
+    paid_subscription = subscription_service.activate(
+        school=school, plan_id=paid.id, actor=platform_admin
+    )
+    assert paid_subscription.was_free_plan is False
+
+
+@pytest.mark.django_db
+def test_free_plan_cannot_be_reselected_or_extended(make_school, platform_admin):
+    school = make_school()
+    paid = create_plan(platform_admin, code="paid-first")
+    free = create_plan(platform_admin, code="free-switch", price="0.00")
+    another_paid = create_plan(platform_admin, code="paid-later")
+
+    subscription = subscription_service.activate(
+        school=school, plan_id=paid.id, actor=platform_admin
+    )
+    subscription_service.change_plan(
+        school=school, plan_id=free.id, actor=platform_admin, reason="first free use"
+    )
+    subscription.refresh_from_db()
+    assert subscription.was_free_plan is True
+
+    with pytest.raises(Exception) as extension:
+        subscription_service.extend(
+            school=school, extra_days=30, actor=platform_admin, reason="repeat free use"
+        )
+    assert getattr(extension.value, "code", "") == "FREE_PLAN_ALREADY_USED"
+
+    subscription_service.change_plan(
+        school=school, plan_id=another_paid.id, actor=platform_admin, reason="paid upgrade"
+    )
+    with pytest.raises(Exception) as repeated:
+        subscription_service.change_plan(
+            school=school, plan_id=free.id, actor=platform_admin, reason="second free use"
+        )
+    assert getattr(repeated.value, "code", "") == "FREE_PLAN_ALREADY_USED"
 
 
 @pytest.mark.django_db

@@ -75,11 +75,13 @@ def make_plan(
     devices=2,
     storage=10,
     counseling=True,
+    price="100.00",
 ):
     return plan_service.create_plan(
         actor=actor,
         code=code,
         name_ar=f"باقة {code}",
+        price_amount=price,
         entitlements={
             EntitlementKey.MAX_STUDENTS: students,
             EntitlementKey.MAX_STAFF: staff,
