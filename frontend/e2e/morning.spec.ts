@@ -82,6 +82,15 @@ test("biometric journey: event → unmatched → map via UI → late, older even
   try {
     await login(page, "0550000002", "ثانوية الأندلس");
 
+    // لا تعتمد نتيجة هذا السيناريو على إعداد تركه اختبار سابق أو جلسة تطوير محلية.
+    await api(page, "/school/settings/", {
+      method: "PATCH",
+      body: {
+        school_day_start_time: "07:00",
+        morning_late_grace_minutes: 5,
+      },
+    });
+
     // اكتفاء ذاتي: استيراد طلاب هذا التشغيل (لا تغيير لو سبق استيرادهم في السلسلة)
     await page.goto("/students/import");
     await page.getByTestId("import-file-input").setInputFiles(resolve(FIXTURES, "noor-6.xlsx"));

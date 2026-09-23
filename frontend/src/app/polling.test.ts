@@ -17,5 +17,7 @@ describe("high-scale polling policy", () => {
     expect(POLLING.monitoring).toBeGreaterThanOrEqual(5_000);
     expect(POLLING.teacherPeriod).toBeGreaterThanOrEqual(5_000);
     expect(POLLING.dashboardLive).toBeGreaterThanOrEqual(5_000);
+    expect(POLLING.counselorDashboard).toBeGreaterThanOrEqual(10_000);
+    expect(POLLING.counselorCases).toBeGreaterThanOrEqual(15_000);
   });
 });

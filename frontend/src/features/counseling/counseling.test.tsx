@@ -172,6 +172,12 @@ describe("counselor dashboard (Phase 14)", () => {
     expect(await screen.findByTestId("kpi-open_cases")).toHaveTextContent("3");
     expect(screen.getByTestId("kpi-waiting_teacher_response")).toHaveTextContent("1");
     expect(screen.getByTestId("kpi-new_referrals")).toHaveTextContent("2");
+    expect(screen.getByTestId("counselor-workspace-header")).toHaveTextContent(
+      "2 إحالة جديدة · 4 إجراءات مستحقة · 1 بانتظار رد معلم",
+    );
+    const attention = screen.getByTestId("counselor-attention-summary");
+    expect(screen.getByTestId("counselor-attention-total")).toHaveTextContent("7 تحتاج انتباهك");
+    expect(within(attention).getByRole("link", { name: /إحالات جديدة/ })).toHaveAttribute("href", "/referrals");
     const row = await screen.findByTestId("case-row-7");
     expect(row).toHaveTextContent("محمد أحمد");
     expect(row).toHaveTextContent("متابعة جارية");
@@ -212,7 +218,9 @@ describe("counselor dashboard (Phase 14)", () => {
   it("shows the counseling link to the counselor", async () => {
     mockApi({ "/auth/me/": { body: roleMe(["COUNSELOR"]) } });
     renderApp("/");
-    expect(await screen.findByRole("link", { name: "الإرشاد" })).toBeInTheDocument();
+    const navigation = await screen.findByRole("navigation", { name: "التنقل الرئيسي" });
+    expect(within(navigation).getByRole("link", { name: "لوحة الإرشاد" })).toHaveAttribute("href", "/counselor");
+    expect(within(navigation).getByText("نظرة عامة")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "طلبات المتابعة" })).not.toBeInTheDocument();
   });
 });

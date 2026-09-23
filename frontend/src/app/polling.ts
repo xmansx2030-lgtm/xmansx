@@ -33,6 +33,16 @@ export const POLLING = {
     300_000,
     60_000,
   ),
+  counselorDashboard: configuredMs(
+    import.meta.env.VITE_COUNSELOR_DASHBOARD_POLL_MS,
+    30_000,
+    10_000,
+  ),
+  counselorCases: configuredMs(
+    import.meta.env.VITE_COUNSELOR_CASES_POLL_MS,
+    60_000,
+    15_000,
+  ),
   attendanceAnalytics: configuredMs(
     import.meta.env.VITE_ATTENDANCE_ANALYTICS_POLL_MS,
     30_000,

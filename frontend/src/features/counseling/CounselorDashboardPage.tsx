@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { MetricCard } from "@/components/MetricCard";
@@ -47,6 +48,9 @@ const PRIORITY_STYLES: Record<string, string> = {
   LOW: "bg-slate-50 text-slate-500 ring-slate-200",
 };
 
+const dashboardPollInterval = adaptivePollingInterval(POLLING.counselorDashboard);
+const casesPollInterval = adaptivePollingInterval(POLLING.counselorCases);
+
 /** لوحة المرشد: مؤشرات + قائمة الحالات بفلاترها وترتيبها (البنود 56-61). */
 export function CounselorDashboardPage() {
   const schoolId = useActiveSchoolId();
@@ -61,11 +65,17 @@ export function CounselorDashboardPage() {
     queryKey: schoolScopedKey(schoolId, "counselor-dashboard"),
     queryFn: ({ signal }) => getCounselorDashboard(signal),
     enabled: schoolId > 0,
+    refetchInterval: dashboardPollInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
   const cases = useQuery({
     queryKey: schoolScopedKey(schoolId, "counselor-cases", status, category, sort, page),
     queryFn: ({ signal }) => getCases({ status, category, sort, page }, signal),
     enabled: schoolId > 0,
+    refetchInterval: casesPollInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
 
   if (me.isPending || kpis.isPending) return <Spinner />;
@@ -73,7 +83,10 @@ export function CounselorDashboardPage() {
 
   const rows = cases.data?.results ?? [];
   const count = cases.data?.count ?? 0;
-  const needsAttention = (kpis.data?.due_activities ?? 0) + (kpis.data?.waiting_teacher_response ?? 0);
+  const newReferrals = kpis.data?.new_referrals ?? 0;
+  const dueActivities = kpis.data?.due_activities ?? 0;
+  const waitingTeacherResponse = kpis.data?.waiting_teacher_response ?? 0;
+  const needsAttention = newReferrals + dueActivities + waitingTeacherResponse;
   const hasActiveFilters = status !== "live" || category !== "" || sort !== "recent";
 
   const resetFilters = () => {
@@ -92,7 +105,7 @@ export function CounselorDashboardPage() {
         description="صندوق عمل موحّد للإحالات والحالات وخطط المتابعة، مرتب حسب ما يحتاج إلى تدخل أولًا."
         tone="counselor"
         badge={me.data?.active_school?.name ?? roleLabel("COUNSELOR", schoolType)}
-        meta={`${kpis.data?.due_activities ?? 0} إجراءات مستحقة · ${kpis.data?.waiting_teacher_response ?? 0} بانتظار رد ${roleLabel("TEACHER", schoolType)}`}
+        meta={`${newReferrals} إحالة جديدة · ${dueActivities} إجراءات مستحقة · ${waitingTeacherResponse} بانتظار رد ${roleLabel("TEACHER", schoolType)}`}
         actions={<Link to="/referrals" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><Inbox aria-hidden size={18} /> صندوق الإحالات</Link>}
         testId="counselor-workspace-header"
       />
@@ -117,14 +130,30 @@ export function CounselorDashboardPage() {
             <div>
               <p className="text-xs font-bold text-teal-800">بداية منظمة</p>
               <h2 className="mt-0.5 font-black text-slate-900">ركّز على الإجراء التالي</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ رتّب الحالات ثم افتح ملف ${studentLabel(schoolType, true)} مباشرة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ ابدأ بالإحالات الجديدة ثم أكمل الإجراءات والردود المستحقة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 lg:self-auto">
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 lg:self-auto" data-testid="counselor-attention-total">
             <TriangleAlert aria-hidden size={15} className={needsAttention > 0 ? "text-amber-600" : "text-teal-700"} />
             {needsAttention > 0 ? `${needsAttention} تحتاج انتباهك` : "صندوق العمل مستقر"}
           </div>
-        </div>
+          </div>
+          {needsAttention > 0 && (
+            <div className="grid gap-2 border-t border-slate-100 bg-white/75 px-4 py-3 text-xs sm:grid-cols-3 sm:px-5" data-testid="counselor-attention-summary">
+              <Link to="/referrals" className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-3 font-bold text-blue-900 transition hover:border-blue-200 hover:bg-blue-100">
+                <span className="inline-flex items-center gap-2"><Inbox aria-hidden size={16} /> إحالات جديدة</span>
+                <strong className="text-base">{newReferrals}</strong>
+              </Link>
+              <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 px-3 font-bold text-red-900">
+                <span className="inline-flex items-center gap-2"><CalendarClock aria-hidden size={16} /> إجراءات مستحقة</span>
+                <strong className="text-base">{dueActivities}</strong>
+              </div>
+              <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 font-bold text-amber-900">
+                <span className="inline-flex items-center gap-2"><MessageSquareReply aria-hidden size={16} /> بانتظار رد {roleLabel("TEACHER", schoolType)}</span>
+                <strong className="text-base">{waitingTeacherResponse}</strong>
+              </div>
+            </div>
+          )}
         <div className="p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
