@@ -57,6 +57,7 @@ describe("Public landing and school registration", () => {
     expect(await screen.findByRole("heading", { name: /كل تفاصيل المواظبة/ })).toBeInTheDocument();
     expect(await screen.findByText("باقة الانطلاقة")).toBeInTheDocument();
     expect(screen.getByText("مدة الباقة: ٣ أشهر")).toBeInTheDocument();
+    expect(screen.queryByText(/تُعرض هنا كل الباقات العامة النشطة/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /أنشئ مدرستك الآن/ }).at(0)).toHaveAttribute("href", "/register");
 
     const user = userEvent.setup();
