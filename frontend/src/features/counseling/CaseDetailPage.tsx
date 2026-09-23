@@ -163,6 +163,8 @@ export function CaseDetailPage() {
 
   const refresh = async (...keys: string[]) => {
     await queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "case", id) });
+    await queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "counselor-dashboard") });
+    await queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "counselor-cases") });
     for (const key of keys) {
       await queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, key, id) });
     }

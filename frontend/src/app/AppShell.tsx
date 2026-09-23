@@ -30,6 +30,8 @@ const MANAGER_VP_COUNSELOR: Role[] = [...MANAGER_VP, "COUNSELOR"];
 const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/dashboard",
   "/reports",
+  "/warnings",
+  "/referrals",
   "/attendance/monitoring",
   "/excuses",
   "/student-leaves",
@@ -38,6 +40,9 @@ const MANAGER_PRIMARY_PATHS = new Set([
   "/dashboard",
   "/reports",
   "/students",
+  "/warnings",
+  "/excuses",
+  "/referrals",
   "/attendance/monitoring",
   "/staff",
   "/settings",
@@ -126,12 +131,14 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
 function AdditionalNavigation({ items, schoolType, onNavigate }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void }) {
   if (items.length === 0) return null;
   const discoverablePaths = ["/warnings", "/excuses", "/referrals", "/attendance/analytics"];
-  const previewItems = discoverablePaths
+  const preferredItems = discoverablePaths
     .map((path) => items.find((item) => item.to === path))
-    .filter((item): item is NavigationItem => item !== undefined)
-    .slice(0, 3);
-  const fallbackItems = previewItems.length > 0 ? previewItems : items.slice(0, 3);
-  const preview = fallbackItems
+    .filter((item): item is NavigationItem => item !== undefined);
+  const previewItems = [
+    ...preferredItems,
+    ...items.filter((item) => !preferredItems.some((preferred) => preferred.to === item.to)),
+  ].slice(0, 3);
+  const preview = previewItems
     .map((item) => item.to === "/students" ? studentPluralLabel(schoolType) : item.label)
     .join("، ");
 
@@ -142,7 +149,7 @@ function AdditionalNavigation({ items, schoolType, onNavigate }: { items: Naviga
           <span className="block text-[10px] font-bold tracking-wide text-slate-500">أدوات إضافية</span>
           <span className="mt-0.5 block text-sm font-black">المتابعة وأدوات المدرسة</span>
           <span className="mt-1 block truncate text-[11px] font-medium text-slate-400" data-testid="additional-navigation-preview">
-            {preview}{items.length > fallbackItems.length ? "، والمزيد" : ""}
+            {preview}{items.length > previewItems.length ? "، والمزيد" : ""}
           </span>
         </span>
         <ChevronDown aria-hidden size={17} className="transition-transform group-open:rotate-180" />
@@ -183,12 +190,20 @@ export function AppShell() {
   const doLogout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const schoolType = me.data?.active_school?.school_type;
-  const items = me.isSuccess ? NAVIGATION.filter((item) =>
+  const isManager = me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER");
+  const isVicePrincipalOnly = me.isSuccess && me.data.roles.includes("VICE_PRINCIPAL") && !isManager;
+  const isCounselorWorkspace = me.isSuccess && me.data.roles.includes("COUNSELOR") && !isManager && !isVicePrincipalOnly;
+  const authorizedItems = me.isSuccess ? NAVIGATION.filter((item) =>
     item.roles.some((role) => me.data.roles.includes(role)) ||
     (item.capabilities ?? []).some((capability) => (me.data.capabilities ?? []).includes(capability)),
   ) : [];
-  const isManager = me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER");
-  const isVicePrincipalOnly = me.isSuccess && me.data.roles.includes("VICE_PRINCIPAL") && !isManager;
+  const items = authorizedItems.map((item) =>
+    isVicePrincipalOnly && item.to === "/dashboard"
+      ? { ...item, label: "لوحة المتابعة" }
+      : isCounselorWorkspace && item.to === "/counselor"
+        ? { ...item, label: "لوحة الإرشاد", group: "overview" as const }
+      : item,
+  );
   const primaryPaths = isManager ? MANAGER_PRIMARY_PATHS : isVicePrincipalOnly ? VICE_PRINCIPAL_PRIMARY_PATHS : null;
   const primaryItems = primaryPaths ? items.filter((item) => primaryPaths.has(item.to)) : items;
   const additionalItems = primaryPaths ? items.filter((item) => !primaryPaths.has(item.to)) : [];

@@ -148,6 +148,8 @@ export function ReferralsPage() {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "referrals") });
     queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "referral-kpis") });
+    queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "counselor-dashboard") });
+    queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "counselor-cases") });
   };
 
   if (me.isSuccess && !canRead) {
