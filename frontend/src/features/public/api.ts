@@ -15,6 +15,7 @@ export interface PublicPlan {
   duration_unit: PlanDurationUnit;
   trial_days: number;
   can_self_register: boolean;
+  one_time_per_school: boolean;
   entitlements: Record<string, number | boolean | null>;
 }
 

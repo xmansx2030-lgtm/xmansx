@@ -96,6 +96,7 @@ class PublicRegistrationPlansView(APIView):
                     "can_self_register": (
                         plan.price_amount == 0 or plan.trial_days_default > 0
                     ),
+                    "one_time_per_school": plan.price_amount == 0,
                     "entitlements": {
                         row.key: (
                             row.numeric_value if row.key in NUMERIC_ENTITLEMENTS else row.is_enabled

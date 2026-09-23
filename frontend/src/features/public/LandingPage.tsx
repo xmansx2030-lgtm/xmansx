@@ -216,6 +216,7 @@ export function LandingPage() {
                       <p className="text-sm font-black text-teal-700">{plan.name}</p>
                       <div className="mt-5 flex items-end gap-2"><strong className="text-4xl font-black">{isFree ? "مجانية" : Number(plan.price_amount).toLocaleString("ar-SA")}</strong>{!isFree && <span className="mb-1 text-sm text-slate-500">{plan.currency}</span>}</div>
                       <p className="mt-3 inline-flex w-fit rounded-full bg-teal-50 px-3 py-1.5 text-sm font-black text-teal-800">مدة الباقة: {duration}</p>
+                      {plan.one_time_per_school && <p className="mt-3 text-sm font-black text-amber-700">متاحة لمرة واحدة فقط لكل مدرسة</p>}
                       <p className="mt-4 min-h-14 text-sm leading-7 text-slate-600">{plan.description || "كل ما تحتاجه مدرستك لبدء المواظبة والمتابعة من مساحة موحدة."}</p>
                       <div className="my-6 h-px bg-slate-100" />
                       <ul className="flex-1 space-y-3">{planHighlights(plan).map((item) => <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700"><span className="grid size-6 place-items-center rounded-full bg-teal-50 text-teal-700"><Check size={14} /></span>{item}</li>)}</ul>

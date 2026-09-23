@@ -86,6 +86,7 @@ test("Phase 16 SaaS lifecycle, limits, isolation, and recovery", async ({
   const lowPlanResponse = await post(platform, "/platform/plans/", {
     code: `phase16-low-${unique}`,
     name_ar: `باقة محدودة ${unique}`,
+    price_amount: "100.00",
     trial_days_default: 7,
     entitlements: {
       MAX_STUDENTS: 1,
@@ -101,6 +102,7 @@ test("Phase 16 SaaS lifecycle, limits, isolation, and recovery", async ({
   const highPlanResponse = await post(platform, "/platform/plans/", {
     code: `phase16-high-${unique}`,
     name_ar: `باقة موسعة ${unique}`,
+    price_amount: "300.00",
     entitlements: {
       MAX_STUDENTS: 500,
       MAX_STAFF: 50,

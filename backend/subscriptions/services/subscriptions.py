@@ -108,12 +108,25 @@ def _resolve_plan(plan_id: int) -> SaaSPlan:
     return plan
 
 
+def _require_free_plan_available(*, school, plan: SaaSPlan) -> None:
+    """الباقة المجانية حق استخدام واحد للمدرسة طوال تاريخها."""
+    if plan.price_amount != 0:
+        return
+    if SchoolSubscription.objects.filter(school=school, was_free_plan=True).exists():
+        raise ApiError(
+            "FREE_PLAN_ALREADY_USED",
+            "الباقة المجانية متاحة لمرة واحدة فقط لكل مدرسة، وقد استخدمتها هذه المدرسة سابقًا.",
+            status_code=409,
+        )
+
+
 @transaction.atomic
 def start_trial(*, school, plan_id: int, actor, trial_days: int | None = None, request=None):
     """يبدأ فترة تجريبية — مدة الباقة الافتراضية ما لم تُحدد صراحة."""
     plan = _resolve_plan(plan_id)
     _lock_school(school)
     _require_no_live_subscription(school)
+    _require_free_plan_available(school=school, plan=plan)
     days = trial_days if trial_days is not None else plan.trial_days_default
     if days <= 0:
         raise ApiError("VALIDATION_ERROR", "مدة التجربة يجب أن تكون أكبر من صفر.")
@@ -131,6 +144,7 @@ def start_trial(*, school, plan_id: int, actor, trial_days: int | None = None, r
             trial_ends_at=ends,
             duration_value=plan.duration_value,
             duration_unit=plan.duration_unit,
+            was_free_plan=plan.price_amount == 0,
             created_by=actor,
             updated_by=actor,
         )
@@ -226,6 +240,7 @@ def activate(
     """تفعيل اشتراك مدفوع — يحل محل التجربة أو يجدد بعد الانتهاء."""
     plan = _resolve_plan(plan_id)
     _lock_school(school)
+    _require_free_plan_available(school=school, plan=plan)
     now = dj_timezone.now()
     current = (
         SchoolSubscription.objects.select_for_update()
@@ -268,6 +283,7 @@ def activate(
         ends_at=ends,
         duration_value=contract_value,
         duration_unit=contract_unit,
+        was_free_plan=plan.price_amount == 0,
         created_by=actor,
         updated_by=actor,
     )
@@ -313,11 +329,13 @@ def change_plan(*, school, plan_id: int, actor, reason: str = "", request=None):
         )
     if subscription.plan_id == plan.id:
         raise ApiError("INVALID_PLAN_CHANGE", "الباقة الحالية هي نفسها.", status_code=409)
+    _require_free_plan_available(school=school, plan=plan)
 
     old_plan = subscription.plan
     subscription.plan = plan
+    subscription.was_free_plan = subscription.was_free_plan or plan.price_amount == 0
     subscription.updated_by = actor
-    subscription.save(update_fields=["plan", "updated_by", "updated_at"])
+    subscription.save(update_fields=["plan", "was_free_plan", "updated_by", "updated_at"])
     _copy_entitlements(subscription)
 
     log_event(
@@ -346,6 +364,12 @@ def extend(*, school, extra_days: int, actor, reason: str = "", request=None):
         )
     if extra_days <= 0:
         raise ApiError("INVALID_SUBSCRIPTION_DATE_RANGE", "مدة التمديد يجب أن تكون موجبة.")
+    if subscription.plan.price_amount == 0:
+        raise ApiError(
+            "FREE_PLAN_ALREADY_USED",
+            "لا يمكن تمديد الباقة المجانية؛ فهي متاحة لمرة واحدة فقط لكل مدرسة.",
+            status_code=409,
+        )
 
     old_end = subscription.ends_at
     extension_base = max(old_end, dj_timezone.now())

@@ -162,6 +162,9 @@ class SchoolSubscription(TimestampedModel):
         choices=PlanDurationUnit.choices,
         default=PlanDurationUnit.YEARS,
     )
+    # لقطة دائمة تثبت أن هذا العقد استخدم باقة مجانية في أي وقت. لا نعتمد
+    # على السعر الحالي للباقة لأنه قابل للتعديل لاحقًا من لوحة المنصة.
+    was_free_plan = models.BooleanField(default=False)
 
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=300, blank=True, default="")
@@ -202,6 +205,7 @@ class SchoolSubscription(TimestampedModel):
         indexes = [
             models.Index(fields=["status", "ends_at"], name="sub_status_ends_idx"),
             models.Index(fields=["school", "status"], name="sub_school_status_idx"),
+            models.Index(fields=["school", "was_free_plan"], name="sub_school_free_idx"),
         ]
 
     def __str__(self) -> str:

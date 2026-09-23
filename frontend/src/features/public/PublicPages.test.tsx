@@ -18,6 +18,7 @@ const PLAN = {
   duration_unit: "MONTHS" as const,
   trial_days: 21,
   can_self_register: true,
+  one_time_per_school: false,
   entitlements: { MAX_STUDENTS: 500, MAX_STAFF: 50, MAX_DEVICES: 2 },
 };
 
@@ -27,6 +28,7 @@ const FREE_PLAN = {
   name: "الباقة المجانية",
   price_amount: "0.00",
   trial_days: 0,
+  one_time_per_school: true,
 };
 
 const CONTACT_PLAN = {
@@ -73,6 +75,7 @@ describe("Public landing and school registration", () => {
     expect(await screen.findByText("الباقة المجانية")).toBeInTheDocument();
     expect(screen.getByText("مدة الباقة: ٣ أشهر")).toBeInTheDocument();
     expect(screen.getByText("استخدام مجاني طوال مدة الباقة")).toBeInTheDocument();
+    expect(screen.getByText("مرة واحدة فقط لكل مدرسة")).toBeInTheDocument();
     expect(screen.getByText("مجانية")).toBeInTheDocument();
   });
 
