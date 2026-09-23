@@ -29,6 +29,17 @@ const SECTION = {
   students_count: 3,
 };
 
+const TEACHER_SECTIONS = [
+  SECTION,
+  ...Array.from({ length: 14 }, (_, index) => ({
+    id: index + 4,
+    name: String(index + 2),
+    grade_id: index < 7 ? 1 : 2,
+    grade_name: index < 7 ? "الأول الثانوي" : "الثاني الثانوي",
+    students_count: 20 + index,
+  })),
+];
+
 const PERIOD = {
   sequence: 2,
   name: "الحصة الثانية",
@@ -129,11 +140,7 @@ async function installTeacherApi(page: Page) {
       return fulfillJson(route, { period: PERIOD, date: "2026-09-10" });
     }
     if (path.endsWith("/attendance/sections/")) {
-      return fulfillJson(route, [
-        SECTION,
-        { id: 4, name: "2", grade_id: 1, grade_name: "الأول الثانوي", students_count: 26 },
-        { id: 5, name: "1", grade_id: 2, grade_name: "الثاني الثانوي", students_count: 24 },
-      ]);
+      return fulfillJson(route, TEACHER_SECTIONS);
     }
     if (path.endsWith("/attendance/sections/3/preview/")) {
       return fulfillJson(route, {
@@ -220,6 +227,12 @@ test("teacher mobile templates remain focused and responsive with realistic data
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "مرحبًا أحمد المعلم" })).toBeVisible();
   await expect(page.getByTestId("sections-list")).toContainText("فصل الموهوبين ١");
+  await expect(page.getByTestId("teacher-attention-summary")).toContainText("2 بندًا للمتابعة");
+  await expect(page.getByTestId("teacher-follow-ups-alert")).toContainText("1");
+  await expect(page.getByTestId("teacher-referrals-alert")).toContainText("1");
+  await expect(page.getByTestId("sections-list").getByRole("button")).toHaveCount(12);
+  await page.getByTestId("show-more-sections").click();
+  await expect(page.getByTestId("sections-list").getByRole("button")).toHaveCount(15);
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "teacher-home-phone.png");
 

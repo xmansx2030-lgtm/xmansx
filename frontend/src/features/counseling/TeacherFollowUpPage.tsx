@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -26,6 +27,7 @@ import { useActiveSchoolId } from "@/features/settings/hooks";
 import { roleLabel } from "@/utils/roles";
 
 const IMPROVEMENTS = Object.keys(IMPROVEMENT_LABELS) as TeacherImprovement[];
+const teacherAttentionPollInterval = adaptivePollingInterval(POLLING.teacherAttention);
 
 /** صندوق المعلم — طلباته هو فقط: الطالب والسؤال وردّه.
  *  لا يعرض الحالة ولا جلساتها ولا ردود الزملاء (البنود 68-71). */
@@ -43,6 +45,9 @@ export function TeacherFollowUpPage() {
     queryKey: schoolScopedKey(schoolId, "my-follow-up-requests"),
     queryFn: ({ signal }) => getMyFollowUpRequests(signal),
     enabled: schoolId > 0,
+    refetchInterval: teacherAttentionPollInterval,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
   });
 
   const submit = async (requestId: number) => {

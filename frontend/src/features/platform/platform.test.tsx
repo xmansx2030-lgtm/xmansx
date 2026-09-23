@@ -29,6 +29,29 @@ const PLAN = {
   trial_days_default: 30,
   entitlements: { MAX_STUDENTS: 100, MAX_STAFF: 20, MAX_DEVICES: 2, MAX_STORAGE_GB: 1 },
 };
+const PUBLIC_PLAN = {
+  id: PLAN.id,
+  code: PLAN.code,
+  name: PLAN.name_ar,
+  description: "تشغيل المدرسة الأساسي",
+  billing_period: PLAN.billing_period,
+  price_amount: PLAN.price_amount,
+  currency: PLAN.currency,
+  duration_value: PLAN.duration_value,
+  duration_unit: PLAN.duration_unit,
+  trial_days: PLAN.trial_days_default,
+  can_self_register: true,
+  entitlements: PLAN.entitlements,
+};
+const PUBLIC_PLUS_PLAN = {
+  ...PUBLIC_PLAN,
+  id: 2,
+  code: "plus",
+  name: "المتقدمة",
+  description: "حدود أعلى للمدارس المتنامية",
+  price_amount: "250.00",
+  entitlements: { MAX_STUDENTS: 500, MAX_STAFF: 50, MAX_DEVICES: 5, MAX_STORAGE_GB: 10 },
+};
 
 describe("platform and subscription UI", () => {
   beforeEach(() => {
@@ -225,6 +248,7 @@ describe("platform and subscription UI", () => {
           usage: USAGE,
         },
       },
+      "/auth/registration/plans/": { body: [PUBLIC_PLAN, PUBLIC_PLUS_PLAN] },
     });
 
     renderApp("/subscription");
@@ -234,6 +258,13 @@ describe("platform and subscription UI", () => {
     expect(screen.getByText("٧ أشهر")).toBeInTheDocument();
     expect(screen.getAllByText("تجاوز الحد")).toHaveLength(2);
     expect(screen.getByText("قريب من الحد")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "اختر الباقة المناسبة لمدرستك" })).toBeInTheDocument();
+    expect(screen.getByText("باقتك الحالية")).toBeInTheDocument();
+    expect(screen.getByText("المتقدمة")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /اطلب اختيار هذه الباقة/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/966537720207?text="),
+    );
   });
 
   it("shows suspended schools as blocked with preserved-data guidance", async () => {
@@ -261,6 +292,7 @@ describe("platform and subscription UI", () => {
           usage: USAGE,
         },
       },
+      "/auth/registration/plans/": { body: [] },
     });
 
     renderApp("/subscription");

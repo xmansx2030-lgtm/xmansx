@@ -8,6 +8,7 @@ import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 
 const PLAN = {
   id: 7,
+  code: "launch",
   name: "باقة الانطلاقة",
   description: "تشغيل متكامل للمدارس",
   billing_period: "ANNUAL",
@@ -16,6 +17,7 @@ const PLAN = {
   duration_value: 3,
   duration_unit: "MONTHS" as const,
   trial_days: 21,
+  can_self_register: true,
   entitlements: { MAX_STUDENTS: 500, MAX_STAFF: 50, MAX_DEVICES: 2 },
 };
 
@@ -25,6 +27,16 @@ const FREE_PLAN = {
   name: "الباقة المجانية",
   price_amount: "0.00",
   trial_days: 0,
+};
+
+const CONTACT_PLAN = {
+  ...PLAN,
+  id: 9,
+  code: "enterprise",
+  name: "باقة المؤسسات",
+  price_amount: "2490.00",
+  trial_days: 0,
+  can_self_register: false,
 };
 
 describe("Public landing and school registration", () => {
@@ -62,6 +74,33 @@ describe("Public landing and school registration", () => {
     expect(screen.getByText("مدة الباقة: ٣ أشهر")).toBeInTheDocument();
     expect(screen.getByText("استخدام مجاني طوال مدة الباقة")).toBeInTheDocument();
     expect(screen.getByText("مجانية")).toBeInTheDocument();
+  });
+
+  it("shows paid plans without trials on the landing page with a contact action", async () => {
+    mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/registration/plans/": { body: [PLAN, CONTACT_PLAN] },
+    });
+
+    renderApp("/");
+
+    expect(await screen.findByText("باقة المؤسسات")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /اطلب هذه الباقة/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/966537720207?text="),
+    );
+  });
+
+  it("keeps paid plans without trials out of the self-registration choices", async () => {
+    mockApi({
+      "/auth/me/": UNAUTHENTICATED,
+      "/auth/registration/plans/": { body: [PLAN, CONTACT_PLAN] },
+    });
+
+    renderApp("/register");
+
+    expect(await screen.findByText("باقة الانطلاقة")).toBeInTheDocument();
+    expect(screen.queryByText("باقة المؤسسات")).not.toBeInTheDocument();
   });
 
   it("creates a school through the two-step flow and enters its workspace", async () => {

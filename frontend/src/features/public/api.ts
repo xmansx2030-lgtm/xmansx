@@ -5,6 +5,7 @@ import type { PlanDurationUnit } from "@/utils/planDuration";
 
 export interface PublicPlan {
   id: number;
+  code: string;
   name: string;
   description: string;
   billing_period: "MONTHLY" | "SEMI_ANNUAL" | "ANNUAL" | "CUSTOM";
@@ -13,6 +14,7 @@ export interface PublicPlan {
   duration_value: number;
   duration_unit: PlanDurationUnit;
   trial_days: number;
+  can_self_register: boolean;
   entitlements: Record<string, number | boolean | null>;
 }
 

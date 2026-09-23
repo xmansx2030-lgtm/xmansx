@@ -16,6 +16,7 @@ describe("high-scale polling policy", () => {
   it("keeps high-frequency defaults above the anti-herd floor", () => {
     expect(POLLING.monitoring).toBeGreaterThanOrEqual(5_000);
     expect(POLLING.teacherPeriod).toBeGreaterThanOrEqual(5_000);
+    expect(POLLING.teacherAttention).toBeGreaterThanOrEqual(10_000);
     expect(POLLING.dashboardLive).toBeGreaterThanOrEqual(5_000);
     expect(POLLING.counselorDashboard).toBeGreaterThanOrEqual(10_000);
     expect(POLLING.counselorCases).toBeGreaterThanOrEqual(15_000);

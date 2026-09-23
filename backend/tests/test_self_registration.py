@@ -55,12 +55,12 @@ def payload(plan, *, mobile="0551234567"):
 
 
 @pytest.mark.django_db
-def test_public_plans_returns_active_public_trials_and_free_plans(client):
+def test_public_plans_returns_every_active_public_plan_and_marks_registration_eligibility(client):
     visible = make_plan()
     free = make_plan(code="free", trial_days=0, price="0.00")
     make_plan(code="private", public=False)
     make_plan(code="inactive", active=False)
-    make_plan(code="no-trial", trial_days=0)
+    no_trial = make_plan(code="no-trial", trial_days=0)
 
     response = client.get("/api/v1/auth/registration/plans/")
 
@@ -68,6 +68,7 @@ def test_public_plans_returns_active_public_trials_and_free_plans(client):
     assert response.json() == [
         {
             "id": free.id,
+            "code": "free",
             "name": "باقة البداية",
             "description": "باقة تشغيل المدرسة",
             "billing_period": "ANNUAL",
@@ -76,10 +77,12 @@ def test_public_plans_returns_active_public_trials_and_free_plans(client):
             "duration_value": 3,
             "duration_unit": "MONTHS",
             "trial_days": 0,
+            "can_self_register": True,
             "entitlements": {"MAX_STAFF": 20},
         },
         {
             "id": visible.id,
+            "code": "starter",
             "name": "باقة البداية",
             "description": "باقة تشغيل المدرسة",
             "billing_period": "ANNUAL",
@@ -88,9 +91,39 @@ def test_public_plans_returns_active_public_trials_and_free_plans(client):
             "duration_value": 3,
             "duration_unit": "MONTHS",
             "trial_days": 21,
+            "can_self_register": True,
             "entitlements": {"MAX_STAFF": 20},
-        }
+        },
+        {
+            "id": no_trial.id,
+            "code": "no-trial",
+            "name": "باقة البداية",
+            "description": "باقة تشغيل المدرسة",
+            "billing_period": "ANNUAL",
+            "price_amount": "990.00",
+            "currency": "SAR",
+            "duration_value": 3,
+            "duration_unit": "MONTHS",
+            "trial_days": 0,
+            "can_self_register": False,
+            "entitlements": {"MAX_STAFF": 20},
+        },
     ]
+
+
+@pytest.mark.django_db
+def test_self_registration_rejects_paid_plan_without_trial(client):
+    plan = make_plan(code="no-trial", trial_days=0)
+
+    response = client.post(
+        "/api/v1/auth/register-school/",
+        payload(plan),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "REGISTRATION_PLAN_UNAVAILABLE"
+    assert School.objects.count() == 0
 
 
 @pytest.mark.django_db
