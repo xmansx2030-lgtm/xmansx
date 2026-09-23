@@ -43,7 +43,7 @@ def create_school(
     plan_id: int | None = None,
     subscription_mode: str = "TRIAL",
     trial_days: int | None = None,
-    months: int = 12,
+    months: int | None = None,
     manager_password: str | None = None,
     source: str = "platform",
     request=None,

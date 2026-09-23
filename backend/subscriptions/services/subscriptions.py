@@ -15,9 +15,11 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from subscriptions.access import effective_status, live_subscription
+from subscriptions.duration import add_duration
 from subscriptions.entitlements import invalidate_school_entitlements
 from subscriptions.models import (
     LIVE_SUBSCRIPTION_STATUSES,
+    PlanDurationUnit,
     PlanEntitlement,
     SaaSPlan,
     SchoolSubscription,
@@ -127,6 +129,8 @@ def start_trial(*, school, plan_id: int, actor, trial_days: int | None = None, r
             ends_at=ends,
             trial_started_at=now,
             trial_ends_at=ends,
+            duration_value=plan.duration_value,
+            duration_unit=plan.duration_unit,
             created_by=actor,
             updated_by=actor,
         )
@@ -209,7 +213,16 @@ def _locked_live(school) -> SchoolSubscription:
 
 
 @transaction.atomic
-def activate(*, school, plan_id: int, months: int = 12, actor, request=None):
+def activate(
+    *,
+    school,
+    plan_id: int,
+    actor,
+    months: int | None = None,
+    duration_value: int | None = None,
+    duration_unit: str | None = None,
+    request=None,
+):
     """تفعيل اشتراك مدفوع — يحل محل التجربة أو يجدد بعد الانتهاء."""
     plan = _resolve_plan(plan_id)
     _lock_school(school)
@@ -220,8 +233,13 @@ def activate(*, school, plan_id: int, months: int = 12, actor, request=None):
         .order_by("-starts_at", "-id")
         .first()
     )
-    if months <= 0:
-        raise ApiError("INVALID_SUBSCRIPTION_DATE_RANGE", "المدة يجب أن تكون أكبر من صفر.")
+    if months is not None:
+        contract_value = months
+        contract_unit = PlanDurationUnit.MONTHS
+    else:
+        contract_value = duration_value if duration_value is not None else plan.duration_value
+        contract_unit = duration_unit or plan.duration_unit
+    ends = add_duration(now, contract_value, contract_unit)
 
     if current is not None and current.status in LIVE_SUBSCRIPTION_STATUSES:
         current_effective = effective_status(current, now=now)
@@ -247,7 +265,9 @@ def activate(*, school, plan_id: int, months: int = 12, actor, request=None):
         plan=plan,
         status=SubscriptionStatus.ACTIVE,
         starts_at=now,
-        ends_at=now + timedelta(days=30 * months),
+        ends_at=ends,
+        duration_value=contract_value,
+        duration_unit=contract_unit,
         created_by=actor,
         updated_by=actor,
     )
@@ -262,13 +282,21 @@ def activate(*, school, plan_id: int, months: int = 12, actor, request=None):
         subscription=subscription,
         event_type=SubscriptionEventType.ACTIVATED,
         actor=actor,
-        metadata={"plan_code": plan.code, "months": months},
+        metadata={
+            "plan_code": plan.code,
+            "duration_value": contract_value,
+            "duration_unit": contract_unit,
+        },
     )
     record_event(
         AuditAction.SUBSCRIPTION_ACTIVATED,
         request=request, actor=actor, school=school,
         target_type="SchoolSubscription", target_id=subscription.id,
-        metadata={"plan_code": plan.code, "months": months},
+        metadata={
+            "plan_code": plan.code,
+            "duration_value": contract_value,
+            "duration_unit": contract_unit,
+        },
     )
     invalidate_school_entitlements(school)
     return subscription

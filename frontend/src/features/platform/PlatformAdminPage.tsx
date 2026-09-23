@@ -56,6 +56,7 @@ import {
 import type { SchoolType } from "@/types/auth";
 import type { PlatformCapability } from "@/types/auth";
 import { PlatformAccountPanel, PlatformTeamPanel } from "@/features/platform/PlatformTeamPanels";
+import { formatPlanDuration, type PlanDurationUnit } from "@/utils/planDuration";
 
 const LIMIT_KEYS = ["MAX_STUDENTS", "MAX_STAFF", "MAX_DEVICES", "MAX_STORAGE_GB"] as const;
 const LIMIT_FORM_KEYS = {
@@ -666,6 +667,8 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
     code: "",
     name_ar: "",
     price_amount: "0",
+    duration_value: 1,
+    duration_unit: "YEARS" as PlanDurationUnit,
     trial_days_default: 30,
     is_public: false,
     max_students: 1000,
@@ -693,6 +696,8 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
       code: plan.code,
       name_ar: plan.name_ar,
       price_amount: plan.price_amount,
+      duration_value: plan.duration_value,
+      duration_unit: plan.duration_unit,
       trial_days_default: plan.trial_days_default,
       is_public: plan.is_public,
       max_students: Number(plan.entitlements.MAX_STUDENTS ?? 1000),
@@ -720,6 +725,8 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
       price_amount: form.price_amount,
       currency: "SAR",
       billing_period: "ANNUAL",
+      duration_value: form.duration_value,
+      duration_unit: form.duration_unit,
       trial_days_default: form.trial_days_default,
       is_public: form.is_public,
       entitlements,
@@ -733,7 +740,9 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
         <div className="md:col-span-4"><h2 className="font-black text-slate-950">{editing ? `تعديل باقة ${editing.name_ar}` : "إنشاء باقة جديدة"}</h2><p className="mt-1 text-xs text-slate-500">حدد السعر والحدود ثم اختر المزايا المتاحة للمدرسة.</p></div>
         <label className="text-sm font-medium text-slate-700">رمز الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="مثال: PRO" value={form.code} disabled={Boolean(editing)} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
         <label className="text-sm font-medium text-slate-700">اسم الباقة<input required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="اسم الباقة" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} /></label>
-        <label className="text-sm font-medium text-slate-700">السعر السنوي (ر.س)<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} /></label>
+        <label className="text-sm font-medium text-slate-700">سعر الباقة (ر.س)<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="السعر" value={form.price_amount} onChange={(e) => setForm({ ...form, price_amount: e.target.value })} /></label>
+        <label className="text-sm font-medium text-slate-700">قيمة مدة الباقة<input required min={1} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" type="number" aria-label="قيمة مدة الباقة" value={form.duration_value} onChange={(e) => setForm({ ...form, duration_value: Number(e.target.value) })} /></label>
+        <label className="text-sm font-medium text-slate-700">وحدة مدة الباقة<select required className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" aria-label="وحدة مدة الباقة" value={form.duration_unit} onChange={(e) => setForm({ ...form, duration_unit: e.target.value as PlanDurationUnit })}><option value="DAYS">أيام</option><option value="MONTHS">أشهر</option><option value="YEARS">سنوات</option></select></label>
         <label className="text-sm font-medium text-slate-700">أيام التجربة الافتراضية<input required min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" type="number" placeholder="أيام التجربة" value={form.trial_days_default} onChange={(e) => setForm({ ...form, trial_days_default: Number(e.target.value) })} /></label>
         <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-800 md:col-span-4">
           <input className="size-4" type="checkbox" checked={form.is_public} onChange={(e) => setForm({ ...form, is_public: e.target.checked })} />
@@ -767,6 +776,7 @@ function PlanForm({ plans, canManage }: { plans: Plan[]; canManage: boolean }) {
               <div>
                 <h3 className="font-bold text-slate-900">{plan.name_ar}</h3>
                 <p className="text-sm text-slate-500">{plan.code} · {plan.price_amount} {plan.currency}</p>
+                <p className="mt-1 text-xs font-bold text-teal-700">مدة الباقة: {formatPlanDuration(plan.duration_value, plan.duration_unit)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className={`rounded px-2 py-1 text-xs ${plan.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{plan.is_active ? "متاحة" : "معطلة"}</span>

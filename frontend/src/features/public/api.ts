@@ -1,6 +1,7 @@
 import { apiRequest } from "@/api/client";
 import { ensureCsrfCookie } from "@/api/auth";
 import type { Me, SchoolType } from "@/types/auth";
+import type { PlanDurationUnit } from "@/utils/planDuration";
 
 export interface PublicPlan {
   id: number;
@@ -9,6 +10,8 @@ export interface PublicPlan {
   billing_period: "MONTHLY" | "SEMI_ANNUAL" | "ANNUAL" | "CUSTOM";
   price_amount: string;
   currency: string;
+  duration_value: number;
+  duration_unit: PlanDurationUnit;
   trial_days: number;
   entitlements: Record<string, number | boolean | null>;
 }

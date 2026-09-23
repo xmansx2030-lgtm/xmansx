@@ -13,6 +13,8 @@ const PLAN = {
   billing_period: "ANNUAL",
   price_amount: "990.00",
   currency: "SAR",
+  duration_value: 3,
+  duration_unit: "MONTHS" as const,
   trial_days: 21,
   entitlements: { MAX_STUDENTS: 500, MAX_STAFF: 50, MAX_DEVICES: 2 },
 };
@@ -40,6 +42,7 @@ describe("Public landing and school registration", () => {
 
     expect(await screen.findByRole("heading", { name: /كل تفاصيل المواظبة/ })).toBeInTheDocument();
     expect(await screen.findByText("باقة الانطلاقة")).toBeInTheDocument();
+    expect(screen.getByText("مدة الباقة: ٣ أشهر")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /أنشئ مدرستك الآن/ }).at(0)).toHaveAttribute("href", "/register");
 
     const user = userEvent.setup();
@@ -56,7 +59,8 @@ describe("Public landing and school registration", () => {
     renderApp("/register?plan=8");
 
     expect(await screen.findByText("الباقة المجانية")).toBeInTheDocument();
-    expect(screen.getByText("استخدام مجاني دون مدة تجربة")).toBeInTheDocument();
+    expect(screen.getByText("مدة الباقة: ٣ أشهر")).toBeInTheDocument();
+    expect(screen.getByText("استخدام مجاني طوال مدة الباقة")).toBeInTheDocument();
     expect(screen.getByText("مجانية")).toBeInTheDocument();
   });
 

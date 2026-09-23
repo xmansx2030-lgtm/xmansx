@@ -96,6 +96,8 @@ def subscription_state(school, *, now=None) -> dict:
             "plan": None,
             "starts_at": None,
             "ends_at": None,
+            "duration_value": None,
+            "duration_unit": None,
             "days_remaining": None,
             "grace_ends_at": None,
             "trial_ends_at": None,
@@ -115,9 +117,13 @@ def subscription_state(school, *, now=None) -> dict:
             "code": subscription.plan.code,
             "name": subscription.plan.name_ar,
             "billing_period": subscription.plan.billing_period,
+            "duration_value": subscription.plan.duration_value,
+            "duration_unit": subscription.plan.duration_unit,
         },
         "starts_at": subscription.starts_at.isoformat(),
         "ends_at": subscription.ends_at.isoformat(),
+        "duration_value": subscription.duration_value,
+        "duration_unit": subscription.duration_unit,
         "days_remaining": remaining,
         "grace_ends_at": (
             subscription.grace_ends_at.isoformat() if subscription.grace_ends_at else None

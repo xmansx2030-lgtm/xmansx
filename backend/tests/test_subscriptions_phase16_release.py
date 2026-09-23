@@ -112,6 +112,8 @@ def test_plan_api_create_edit_disable_and_historical_protection(
         {
             "code": "professional",
             "name_ar": "الاحترافية",
+            "duration_value": 10,
+            "duration_unit": "DAYS",
             "entitlements": {"MAX_STUDENTS": 1000, "COUNSELING": False},
         },
         content_type="application/json",
@@ -120,19 +122,31 @@ def test_plan_api_create_edit_disable_and_historical_protection(
     plan_id = created.json()["id"]
     assert created.json()["entitlements"]["MAX_STUDENTS"] == 1000
     assert created.json()["entitlements"]["COUNSELING"] is False
+    assert created.json()["duration_value"] == 10
+    assert created.json()["duration_unit"] == "DAYS"
 
     edited = client.patch(
         f"/api/v1/platform/plans/{plan_id}/",
-        {"name_ar": "الاحترافية المحدثة", "entitlements": {"MAX_STUDENTS": 1500}},
+        {
+            "name_ar": "الاحترافية المحدثة",
+            "duration_value": 2,
+            "duration_unit": "MONTHS",
+            "entitlements": {"MAX_STUDENTS": 1500},
+        },
         content_type="application/json",
     )
     assert edited.status_code == 200
     assert edited.json()["entitlements"]["MAX_STUDENTS"] == 1500
+    assert edited.json()["duration_value"] == 2
+    assert edited.json()["duration_unit"] == "MONTHS"
 
     plan = SaaSPlan.objects.get(id=plan_id)
-    subscription_service.activate(
+    subscription = subscription_service.activate(
         school=make_school(), plan_id=plan.id, actor=platform_admin
     )
+    assert subscription.duration_value == 2
+    assert subscription.duration_unit == "MONTHS"
+    assert subscription.ends_at > subscription.starts_at
     with pytest.raises(ProtectedError):
         plan.delete()
 

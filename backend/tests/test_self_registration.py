@@ -20,7 +20,7 @@ PASSWORD = "Safe-School-2026!"
 
 def make_plan(
     *, code="starter", public=True, active=True, trial_days=21,
-    staff_limit=20, price="990.00",
+    staff_limit=20, price="990.00", duration_value=3, duration_unit="MONTHS",
 ):
     plan = SaaSPlan.objects.create(
         code=code,
@@ -29,6 +29,8 @@ def make_plan(
         is_public=public,
         is_active=active,
         price_amount=price,
+        duration_value=duration_value,
+        duration_unit=duration_unit,
         trial_days_default=trial_days,
     )
     PlanEntitlement.objects.create(
@@ -71,6 +73,8 @@ def test_public_plans_returns_active_public_trials_and_free_plans(client):
             "billing_period": "ANNUAL",
             "price_amount": "0.00",
             "currency": "SAR",
+            "duration_value": 3,
+            "duration_unit": "MONTHS",
             "trial_days": 0,
             "entitlements": {"MAX_STAFF": 20},
         },
@@ -81,6 +85,8 @@ def test_public_plans_returns_active_public_trials_and_free_plans(client):
             "billing_period": "ANNUAL",
             "price_amount": "990.00",
             "currency": "SAR",
+            "duration_value": 3,
+            "duration_unit": "MONTHS",
             "trial_days": 21,
             "entitlements": {"MAX_STAFF": 20},
         }
@@ -102,6 +108,9 @@ def test_self_registration_activates_free_plan_without_trial_expiry(client):
     assert subscription.status == SubscriptionStatus.ACTIVE
     assert subscription.plan == plan
     assert subscription.trial_ends_at is None
+    assert subscription.duration_value == 3
+    assert subscription.duration_unit == "MONTHS"
+    assert subscription.ends_at.month == (subscription.starts_at.month + 3 - 1) % 12 + 1
 
 
 @pytest.mark.django_db

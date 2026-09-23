@@ -24,6 +24,8 @@ const PLAN = {
   billing_period: "ANNUAL",
   price_amount: "100.00",
   currency: "SAR",
+  duration_value: 1,
+  duration_unit: "YEARS",
   trial_days_default: 30,
   entitlements: { MAX_STUDENTS: 100, MAX_STAFF: 20, MAX_DEVICES: 2, MAX_STORAGE_GB: 1 },
 };
@@ -214,6 +216,8 @@ describe("platform and subscription UI", () => {
             plan: { code: "basic", name: "الأساسية", billing_period: "ANNUAL" },
             starts_at: "2026-01-01T00:00:00Z",
             ends_at: "2026-08-01T00:00:00Z",
+            duration_value: 7,
+            duration_unit: "MONTHS",
             days_remaining: 0,
             grace_ends_at: null,
             trial_ends_at: null,
@@ -227,6 +231,7 @@ describe("platform and subscription UI", () => {
 
     expect(await screen.findByRole("heading", { name: "اشتراك المدرسة" })).toBeInTheDocument();
     expect(screen.getAllByText("قراءة فقط").length).toBeGreaterThan(0);
+    expect(screen.getByText("٧ أشهر")).toBeInTheDocument();
     expect(screen.getAllByText("تجاوز الحد")).toHaveLength(2);
     expect(screen.getByText("قريب من الحد")).toBeInTheDocument();
   });
@@ -578,12 +583,19 @@ describe("platform and subscription UI", () => {
     const name = screen.getByPlaceholderText("اسم الباقة");
     await user.clear(name);
     await user.type(name, "الأساسية المحدثة");
+    await user.clear(screen.getByLabelText("قيمة مدة الباقة"));
+    await user.type(screen.getByLabelText("قيمة مدة الباقة"), "2");
+    await user.selectOptions(screen.getByLabelText("وحدة مدة الباقة"), "MONTHS");
     await user.click(screen.getByRole("checkbox", { name: "عرض الباقة في صفحة الهبوط والتسجيل الذاتي" }));
     await user.click(screen.getByRole("button", { name: "حفظ التعديل" }));
 
     await waitFor(() => {
       const request = calls.find(({ url, init }) => url.includes("/platform/plans/1/") && init?.method === "PATCH");
-      expect(JSON.parse(String(request?.init?.body))).toMatchObject({ is_public: true });
+      expect(JSON.parse(String(request?.init?.body))).toMatchObject({
+        is_public: true,
+        duration_value: 2,
+        duration_unit: "MONTHS",
+      });
     });
   });
 

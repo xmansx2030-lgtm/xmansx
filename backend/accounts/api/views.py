@@ -90,6 +90,8 @@ class PublicRegistrationPlansView(APIView):
                     "billing_period": plan.billing_period,
                     "price_amount": str(plan.price_amount),
                     "currency": plan.currency,
+                    "duration_value": plan.duration_value,
+                    "duration_unit": plan.duration_unit,
                     "trial_days": plan.trial_days_default,
                     "entitlements": {
                         row.key: (

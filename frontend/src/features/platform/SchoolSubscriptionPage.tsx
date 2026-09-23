@@ -7,6 +7,7 @@ import { Spinner } from "@/components/Spinner";
 import { useMe } from "@/features/auth/useMe";
 import { getSchoolSubscription, type SubscriptionState, type Usage } from "@/features/platform/api";
 import type { SchoolType } from "@/types/auth";
+import { formatPlanDuration } from "@/utils/planDuration";
 import { studentPluralLabel } from "@/utils/roles";
 
 const ACCESS_LABELS: Record<SubscriptionState["access_mode"], string> = {
@@ -73,6 +74,9 @@ export function SchoolSubscriptionPage() {
   const statusLabel = openAccessWithoutPlan
     ? "غير مقيد بمدة"
     : subscription.status_label ?? (subscription.status ? STATUS_LABELS[subscription.status] : "لا يوجد اشتراك");
+  const durationLabel = subscription.duration_value && subscription.duration_unit
+    ? formatPlanDuration(subscription.duration_value, subscription.duration_unit)
+    : "غير محددة";
 
   return (
     <div className="ds-page">
@@ -88,8 +92,9 @@ export function SchoolSubscriptionPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-teal-50 text-teal-700"><Database aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">تفاصيل الاشتراك</h2><p className="text-xs text-slate-500">المعلومات الحالية كما هي مسجلة للمدرسة</p></div></div>
-        <div className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-5">
           <Detail label="وضع الوصول" value={ACCESS_LABELS[subscription.access_mode]} icon={ShieldCheck} />
+          <Detail label="مدة الباقة" value={durationLabel} icon={CalendarDays} />
           <Detail label="الأيام المتبقية" value={subscription.days_remaining == null ? "غير محدد" : `${subscription.days_remaining} يومًا`} icon={CalendarDays} />
           <Detail label="تاريخ النهاية" value={formatDate(subscription.ends_at)} icon={CalendarDays} />
           <Detail label="نهاية التجربة" value={formatDate(subscription.trial_ends_at)} icon={CalendarDays} />

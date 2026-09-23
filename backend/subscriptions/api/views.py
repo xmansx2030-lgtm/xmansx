@@ -45,6 +45,7 @@ from subscriptions.access import effective_status, live_subscription, subscripti
 from subscriptions.entitlements import get_school_entitlements
 from subscriptions.models import (
     NUMERIC_ENTITLEMENTS,
+    PlanDurationUnit,
     SaaSPlan,
     SchoolSubscription,
     SubscriptionStatus,
@@ -243,6 +244,8 @@ def _plan_payload(plan: SaaSPlan) -> dict:
         "billing_period": plan.billing_period,
         "price_amount": str(plan.price_amount),
         "currency": plan.currency,
+        "duration_value": plan.duration_value,
+        "duration_unit": plan.duration_unit,
         "trial_days_default": plan.trial_days_default,
         "entitlements": plan_service.plan_entitlements(plan),
     }
@@ -265,6 +268,10 @@ class PlanListView(PlatformAPIView):
             max_digits=10, decimal_places=2, required=False
         )
         currency = serializers.CharField(max_length=3, required=False)
+        duration_value = serializers.IntegerField(min_value=1, required=False)
+        duration_unit = serializers.ChoiceField(
+            choices=PlanDurationUnit.choices, required=False
+        )
         trial_days_default = serializers.IntegerField(min_value=0, required=False)
         is_public = serializers.BooleanField(required=False)
         entitlements = serializers.DictField(required=False)
@@ -303,6 +310,10 @@ class PlanDetailView(PlatformAPIView):
             max_digits=10, decimal_places=2, required=False
         )
         currency = serializers.CharField(max_length=3, required=False)
+        duration_value = serializers.IntegerField(min_value=1, required=False)
+        duration_unit = serializers.ChoiceField(
+            choices=PlanDurationUnit.choices, required=False
+        )
         trial_days_default = serializers.IntegerField(min_value=0, required=False)
         is_public = serializers.BooleanField(required=False)
         is_active = serializers.BooleanField(required=False)

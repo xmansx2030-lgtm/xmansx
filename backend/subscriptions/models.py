@@ -25,6 +25,12 @@ class BillingPeriod(models.TextChoices):
     CUSTOM = "CUSTOM", "مخصص"
 
 
+class PlanDurationUnit(models.TextChoices):
+    DAYS = "DAYS", "أيام"
+    MONTHS = "MONTHS", "أشهر"
+    YEARS = "YEARS", "سنوات"
+
+
 class EntitlementKey(models.TextChoices):
     """مفاتيح الاستحقاق — رقمية (حدود) أو منطقية (ميزات)."""
 
@@ -74,6 +80,13 @@ class SaaSPlan(TimestampedModel):
     price_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     currency = models.CharField(max_length=3, default="SAR")
 
+    duration_value = models.PositiveSmallIntegerField("قيمة مدة الباقة", default=1)
+    duration_unit = models.CharField(
+        "وحدة مدة الباقة",
+        max_length=6,
+        choices=PlanDurationUnit.choices,
+        default=PlanDurationUnit.YEARS,
+    )
     trial_days_default = models.PositiveSmallIntegerField(default=30)
 
     class Meta:
@@ -141,6 +154,14 @@ class SchoolSubscription(TimestampedModel):
     trial_started_at = models.DateTimeField(null=True, blank=True)
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     grace_ends_at = models.DateTimeField(null=True, blank=True)
+
+    # لقطة مدة العقد وقت الإنشاء؛ تعديل مدة الباقة لاحقًا لا يغيّر العقد القائم.
+    duration_value = models.PositiveSmallIntegerField(default=1)
+    duration_unit = models.CharField(
+        max_length=6,
+        choices=PlanDurationUnit.choices,
+        default=PlanDurationUnit.YEARS,
+    )
 
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=300, blank=True, default="")

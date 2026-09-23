@@ -1,6 +1,7 @@
 import { apiRequest } from "@/api/client";
 import type { SchoolType } from "@/types/auth";
 import type { PlatformCapability } from "@/types/auth";
+import type { PlanDurationUnit } from "@/utils/planDuration";
 
 export type PlatformStaffRole = "OPERATIONS_MANAGER" | "SUPPORT" | "BILLING" | "AUDITOR";
 
@@ -69,6 +70,8 @@ export interface Plan {
   billing_period: "MONTHLY" | "SEMI_ANNUAL" | "ANNUAL" | "CUSTOM";
   price_amount: string;
   currency: string;
+  duration_value: number;
+  duration_unit: PlanDurationUnit;
   trial_days_default: number;
   entitlements: Record<string, number | boolean | null>;
 }
@@ -93,9 +96,11 @@ export interface SubscriptionState {
   status: SubscriptionStatus | null;
   status_label?: string;
   access_mode: "FULL" | "READ_ONLY" | "BLOCKED";
-  plan: { code: string; name: string; billing_period: string } | null;
+  plan: { code: string; name: string; billing_period: string; duration_value: number; duration_unit: PlanDurationUnit } | null;
   starts_at: string | null;
   ends_at: string | null;
+  duration_value: number | null;
+  duration_unit: PlanDurationUnit | null;
   days_remaining: number | null;
   grace_ends_at: string | null;
   trial_ends_at: string | null;
@@ -247,6 +252,8 @@ export interface PlanInput {
   billing_period?: Plan["billing_period"];
   price_amount?: string;
   currency?: string;
+  duration_value?: number;
+  duration_unit?: PlanDurationUnit;
   trial_days_default?: number;
   is_public?: boolean;
   is_active?: boolean;
