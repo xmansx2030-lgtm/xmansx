@@ -94,7 +94,9 @@ class InactiveStudentsView(SchoolScopedAPIView):
                 )
             ).order_by("full_name")
 
-        if request.query_params.get("missing_last_import"):
+        missing_last_import = bool(request.query_params.get("missing_last_import"))
+        missing_ids: list[int] = []
+        if missing_last_import:
             from students.models import ImportJobStatus, StudentImportJob
 
             last_job = (
@@ -125,9 +127,21 @@ class InactiveStudentsView(SchoolScopedAPIView):
 
         paginator = DefaultPagination()
         page = paginator.paginate_queryset(queryset, request)
-        return paginator.get_paginated_response(
-            [_serialize_inactive_student(s) for s in page]
-        )
+        results = [_serialize_inactive_student(s) for s in page]
+        if missing_last_import and results:
+            names = {item["full_name"] for item in results}
+            other_masks: dict[str, set[str]] = {}
+            for name, mask in (
+                Student.objects.filter(school=request.school, full_name__in=names)
+                .exclude(id__in=missing_ids)
+                .values_list("full_name", "national_id_masked")
+            ):
+                other_masks.setdefault(name, set()).add(mask)
+            for item in results:
+                item["same_name_other_masks"] = sorted(
+                    other_masks.get(item["full_name"], set())
+                )
+        return paginator.get_paginated_response(results)
 
 
 class StudentStatusView(SchoolScopedAPIView):

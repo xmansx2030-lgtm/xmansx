@@ -21,6 +21,7 @@ const INACTIVE_PAGE = {
   results: [
     {
       id: 1, full_name: "خريج أول", national_id_masked: "******0001",
+      same_name_other_masks: ["******7777"],
       status: "GRADUATED", exit_date: "2026-06-25", exit_reason: "",
       grade: { name: "الثالث الثانوي" }, section: { name: "1" },
     },
@@ -128,7 +129,7 @@ describe("InactiveStudentsPage", () => {
     renderApp("/students/inactive");
     const user = userEvent.setup();
     await user.click(
-      await screen.findByRole("tab", { name: "غير الموجودين في آخر ملف نور" }),
+      await screen.findByRole("tab", { name: "سجلات لم تطابق آخر ملف نور" }),
     );
     expect(
       await screen.findByRole("button", { name: "تعيين كمنتقلين" }),
@@ -137,7 +138,7 @@ describe("InactiveStudentsPage", () => {
     // يظهر مسار الحذف بوضوح، لكنه يبقى محميًا حتى تصنيف الطالب وإغلاق قيده.
     const deleteButton = screen.getByRole("button", { name: "حذف المحددين نهائيًا" });
     expect(deleteButton).toBeDisabled();
-    await user.click(screen.getByRole("checkbox", { name: "تحديد خريج أول" }));
+    await user.click(screen.getByRole("checkbox", { name: "تحديد خريج أول ******0001" }));
     expect(deleteButton).toBeEnabled();
   });
 
@@ -149,12 +150,14 @@ describe("InactiveStudentsPage", () => {
     renderApp("/students/inactive?filter=missing");
     expect(
       await screen.findByRole("heading", {
-        name: "مراجعة الطلاب غير الموجودين في آخر ملف نور",
+        name: "مراجعة سجلات لم تطابق آخر ملف نور",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "غير الموجودين في آخر ملف نور" }),
+      screen.getByRole("tab", { name: "سجلات لم تطابق آخر ملف نور" }),
     ).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("******0001")).toBeInTheDocument();
+    expect(screen.getByText(/الاسم نفسه في سجل آخر/)).toHaveTextContent("******7777");
   });
 });
 

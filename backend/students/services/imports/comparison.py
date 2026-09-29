@@ -4,7 +4,22 @@
 المطابقة: hash الهوية أولًا، ثم student_number — الاسم وحده لا يطابق أبدًا.
 """
 
-from students.models import EnrollmentStatus, Student, StudentEnrollment
+from students.models import EnrollmentStatus, Student, StudentEnrollment, StudentStatus
+from students.services.imports.normalization import normalize_text
+
+
+def _name_key(value: str) -> str:
+    return normalize_text(value).casefold()
+
+
+def _possible_duplicate(enrollment: StudentEnrollment, row: dict) -> bool:
+    if enrollment.grade.code != row["grade_code"]:
+        return False
+    row_guardian = _name_key(row["guardian_name"])
+    existing_guardian = _name_key(enrollment.student.guardian_name)
+    if row_guardian and existing_guardian:
+        return row_guardian == existing_guardian
+    return enrollment.section.code == row["section_code"]
 
 
 def _section_identity(row: dict) -> tuple[str, str, str]:
@@ -36,8 +51,14 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             school=school,
             academic_year=academic_year,
             status=EnrollmentStatus.ACTIVE,
-        ).select_related("grade", "section")
+        ).select_related("grade", "section", "student")
     }
+    active_by_name: dict[str, list[StudentEnrollment]] = {}
+    for enrollment in enrollments.values():
+        if enrollment.student.status == StudentStatus.ACTIVE:
+            active_by_name.setdefault(_name_key(enrollment.student.full_name), []).append(
+                enrollment
+            )
 
     summary = {
         "new": 0, "unchanged": 0, "updated": 0,
@@ -57,7 +78,11 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     }
 
     for row in normalized_rows:
-        row["errors"] = [code for code in row["errors"] if code != "IDENTITY_CONFLICT"]
+        row["errors"] = [
+            code for code in row["errors"]
+            if code not in {"IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE"}
+        ]
+        row.pop("possible_duplicate_masks", None)
         if row.get("auto_resolved_duplicate"):
             row["status"] = "AUTO_RESOLVED_DUPLICATE"
             row["errors"] = []
@@ -88,6 +113,19 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             if not row["national_id_hash"]:
                 if "MISSING_NATIONAL_ID" not in row["errors"]:
                     row["errors"].append("MISSING_NATIONAL_ID")
+                row["status"] = "ERROR"
+                summary["errors"] += 1
+                continue
+            possible_matches = [
+                enrollment.student
+                for enrollment in active_by_name.get(_name_key(row["full_name"]), [])
+                if _possible_duplicate(enrollment, row)
+            ]
+            if possible_matches:
+                row["possible_duplicate_masks"] = sorted({
+                    candidate.national_id_masked for candidate in possible_matches
+                })
+                row["errors"].append("POSSIBLE_DUPLICATE")
                 row["status"] = "ERROR"
                 summary["errors"] += 1
                 continue

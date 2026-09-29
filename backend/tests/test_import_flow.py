@@ -742,6 +742,47 @@ def test_conflicting_document_and_academic_number_cannot_merge_students(import_m
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("guardian", ["", "ولي الطالب"])
+def test_new_document_with_same_name_and_section_requires_duplicate_review(
+    import_manager, guardian
+):
+    client, school, _ = import_manager
+    assert run_import(
+        client, [noor_row("N12345678", "طالب بالاسم نفسه", guardian=guardian)]
+    ).status_code == 200
+
+    job = upload(
+        client, [noor_row("P87654321", "طالب بالاسم نفسه", guardian=guardian)]
+    ).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["new"] == 0
+    assert preview["summary"]["errors"] == 1
+    row = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"][0]
+    assert row["error_codes"] == ["POSSIBLE_DUPLICATE"]
+    assert row["data"]["possible_duplicate_masks"] == ["******5678"]
+    assert client.post(f"{IMPORTS_URL}{job['id']}/commit/").status_code == 409
+    assert Student.objects.filter(school=school).count() == 1
+
+
+@pytest.mark.django_db
+def test_same_name_with_distinct_guardian_is_not_assumed_duplicate(import_manager):
+    client, school, _ = import_manager
+    assert run_import(
+        client, [noor_row("N12345678", "اسم مشترك", guardian="ولي أول")]
+    ).status_code == 200
+    job = upload(
+        client, [noor_row("P87654321", "اسم مشترك", guardian="ولي ثان")]
+    ).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["new"] == 1
+    assert preview["summary"]["errors"] == 0
+    assert commit_and_refresh(client, job["id"]).status_code == 200
+    assert Student.objects.filter(school=school).count() == 2
+
+
+@pytest.mark.django_db
 def test_repeated_academic_number_with_different_documents_is_blocked(import_manager):
     client, school, _ = import_manager
     job = upload(client, [

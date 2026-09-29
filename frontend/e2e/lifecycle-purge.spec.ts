@@ -112,7 +112,7 @@ test("missing from new Noor file: review → mark transferred → purge transfer
 
   // فلتر «غير الموجودين في آخر ملف نور» يظهر الطالب 3 — ولم يحذف
   await page.goto("/students/inactive");
-  await page.getByRole("tab", { name: "غير الموجودين في آخر ملف نور" }).click();
+  await page.getByRole("tab", { name: "سجلات لم تطابق آخر ملف نور" }).click();
   await page.getByLabel("بحث بالاسم").fill(m.lifecycle_missing);
   const missingRow = page.locator("tr", { hasText: m.lifecycle_missing });
   await expect(missingRow).toBeVisible();

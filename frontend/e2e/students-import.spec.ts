@@ -99,7 +99,7 @@ test("update import: section move + newcomer + missing student preserved", async
   await expect(page.getByRole("tab", { name: "جدد (1)" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "بلا تغيير (6)" })).toBeVisible();
   // العدد يشمل طلاب تشغيلات سابقة متراكمة — نتحقق من وجود التنبيه لا من الرقم الحرفي
-  await expect(page.getByText(/موجودون في النظام وغير موجودين في الملف الجديد/)).toBeVisible();
+  await expect(page.getByText(/لم تتطابق أرقامها مع الملف الجديد/)).toBeVisible();
 
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();

@@ -213,6 +213,7 @@ export interface PreviewRow {
     section_name?: string;
     department?: string;
     national_id_masked?: string;
+    possible_duplicate_masks?: string[];
     student_number?: string | null;
     previous_section?: string | null;
     changes?: Record<string, { from?: string; to?: string; changed?: boolean }>;
@@ -423,6 +424,7 @@ export interface InactiveStudent {
   id: number;
   full_name: string;
   national_id_masked: string;
+  same_name_other_masks?: string[];
   status: string;
   exit_date: string | null;
   exit_reason: string;

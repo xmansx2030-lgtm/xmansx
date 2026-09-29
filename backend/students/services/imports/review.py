@@ -15,7 +15,7 @@ from students.services.imports.normalization import normalize_student_number, no
 
 _DERIVED_FIELDS = {
     "status", "matched_student_id", "changes", "needs_enrollment",
-    "previous_section", "auto_resolved_duplicate",
+    "previous_section", "auto_resolved_duplicate", "possible_duplicate_masks",
 }
 
 
@@ -27,7 +27,7 @@ def _normalized_from_staged(row: StudentImportRow) -> dict:
         national_id_hash=row.national_id_hash,
         errors=[
             code for code in row.error_codes
-            if code not in {"DUPLICATE_IN_FILE", "IDENTITY_CONFLICT"}
+            if code not in {"DUPLICATE_IN_FILE", "IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE"}
         ],
     )
     return data

@@ -184,12 +184,20 @@ def test_missing_last_import_filter(role_client):
     client.post(f"/api/v1/student-imports/{job2['id']}/commit/")
     commit_student_import_job(job2["id"])
 
+    Student.objects.create(
+        school=school, full_name="مفقود من الملف",
+        national_id_encrypted="x", national_id_lookup_hash="different-document",
+        national_id_masked="******7777",
+    )
+
     body = client.get(f"{INACTIVE_URL}?missing_last_import=1").json()
     names = [r["full_name"] for r in body["results"]]
     assert "مفقود من الملف" in names
     assert "باقٍ في الملف" not in names
-    # ولم يحذف أحد
-    assert Student.objects.filter(school=school).count() == 2
+    missing = next(r for r in body["results"] if r["full_name"] == "مفقود من الملف")
+    assert missing["same_name_other_masks"] == ["******7777"]
+    # لم يحذف الاستيراد أي سجل، والسجل الآخر ذو الاسم نفسه لا يُخفى بالتخمين.
+    assert Student.objects.filter(school=school).count() == 3
 
 
 @pytest.mark.django_db

@@ -28,7 +28,7 @@ const FILTERS = [
   { key: "TRANSFERRED", label: "المنتقلون" },
   { key: "WITHDRAWN", label: "المنسحبون" },
   { key: "INACTIVE", label: "غير النشطين" },
-  { key: "missing", label: "غير الموجودين في آخر ملف نور" },
+  { key: "missing", label: "سجلات لم تطابق آخر ملف نور" },
 ] as const;
 
 /** الطلاب غير النشطين: تصنيف، تحديد جماعي، حذف نهائي (مدير فقط). */
@@ -142,10 +142,12 @@ export function InactiveStudentsPage() {
       <PageHeader
         icon={Archive}
         eyebrow="السجل الأكاديمي"
-        title={filter === "missing" ? `مراجعة ${studentsLabel} ${schoolType === "GIRLS" ? "غير الموجودات" : "غير الموجودين"} في آخر ملف نور` : `${studentsLabel} ${schoolType === "GIRLS" ? "غير النشطات" : "غير النشطين"}`}
-        description={isManager
-          ? "راجع حالات الخريجين والمنقولين والمنسحبين، واتخذ الإجراءات الجماعية بعد التحقق."
-          : `اطّلع على حالات ${studentsLabel} خارج القيد النشط وسجل انتقالهم أو تخرجهم دون تعديل البيانات.`}
+        title={filter === "missing" ? "مراجعة سجلات لم تطابق آخر ملف نور" : `${studentsLabel} ${schoolType === "GIRLS" ? "غير النشطات" : "غير النشطين"}`}
+        description={filter === "missing"
+          ? "المطابقة تعتمد رقم الطالب؛ قد يوجد الاسم نفسه في الملف برقم مختلف. راجع كل سجل قبل تغيير حالته."
+          : isManager
+            ? "راجع حالات الخريجين والمنقولين والمنسحبين، واتخذ الإجراءات الجماعية بعد التحقق."
+            : `اطّلع على حالات ${studentsLabel} خارج القيد النشط وسجل انتقالهم أو تخرجهم دون تعديل البيانات.`}
         tone="operational"
         badge={isManager ? "إدارة السجل" : "عرض فقط"}
         meta={<span>{students.data ? `${students.data.count} سجلًا` : "جارٍ تحميل السجلات"}</span>}
@@ -202,10 +204,10 @@ export function InactiveStudentsPage() {
 
       {filter === "missing" && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <p className="font-bold">هذه القائمة تحتاج قرارًا إداريًا، ولا تعني الحذف تلقائيًا.</p>
+          <p className="font-bold">هذه أرقام سجلات لم تطابق آخر ملف معتمد، وقد تتكرر أسماؤها فيه.</p>
           <p className="mt-1">
-            حدّد من غادر المدرسة وصنّفه كمنتقل أو متخرج أولًا. بعد إغلاق قيده سيصبح
-            زر الحذف النهائي متاحًا، مع معاينة مستقلة لكل السجلات التي ستُحذف.
+            قارن رقم الطالب المقنّع وسجل الحضور قبل أي تصنيف أو حذف؛ وجود الاسم في الملف
+            لا يثبت تطابق المعرّف، وقد يحتوي السجل القديم على بيانات يجب الحفاظ عليها.
           </p>
         </div>
       )}
@@ -348,6 +350,7 @@ export function InactiveStudentsPage() {
                     </th>
                   )}
                   <th className="p-3 text-start">الاسم</th>
+                  <th className="p-3 text-start">رقم الطالب</th>
                   <th className="p-3 text-start">آخر صف/فصل</th>
                   <th className="p-3 text-start">الحالة</th>
                   <th className="p-3 text-start">تاريخ الخروج</th>
@@ -360,7 +363,7 @@ export function InactiveStudentsPage() {
                       <td className="col-span-2 flex items-center gap-2 p-0 md:table-cell md:p-3">
                         <input
                           type="checkbox"
-                          aria-label={`تحديد ${student.full_name}`}
+                          aria-label={`تحديد ${student.full_name} ${student.national_id_masked}`}
                           checked={selected.has(student.id)}
                           onChange={(e) => {
                             const next = new Set(selected);
@@ -373,7 +376,16 @@ export function InactiveStudentsPage() {
                         <span className="text-xs font-bold text-slate-500 md:hidden">تحديد السجل</span>
                       </td>
                     )}
-                    <td className="col-span-2 p-0 font-medium md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الاسم</span>{student.full_name}</td>
+                    <td className="col-span-2 p-0 font-medium md:table-cell md:p-3">
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الاسم</span>
+                      {student.full_name}
+                      {filter === "missing" && student.same_name_other_masks?.length ? (
+                        <span className="mt-1 block text-xs font-normal text-amber-800">
+                          الاسم نفسه في سجل آخر: <span dir="ltr">{student.same_name_other_masks.join("، ")}</span>
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="p-0 md:table-cell md:p-3" dir="ltr"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden" dir="rtl">رقم الطالب</span>{student.national_id_masked}</td>
                     <td className="p-0 md:table-cell md:p-3">
                       <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">آخر صف/فصل</span>
                       {student.grade ? `${student.grade.name} / ${student.section?.name}${student.section?.department ? ` / ${student.section.department}` : ""}` : "—"}
@@ -387,7 +399,7 @@ export function InactiveStudentsPage() {
                 ))}
                 {rows.length === 0 && (
                   <tr className="block">
-                    <td colSpan={isManager ? 5 : 4} className="block p-6 text-center text-slate-400">
+                    <td colSpan={isManager ? 6 : 5} className="block p-6 text-center text-slate-400">
                       {schoolType === "GIRLS"
                         ? `لا توجد ${studentsLabel} مطابقات.`
                         : "لا يوجد طلاب مطابقون."}

@@ -284,7 +284,7 @@ describe("ImportWizard", () => {
     // 3) المعاينة — الفئات بأعدادها + تنبيه المفقودين
     expect(await screen.findByRole("tab", { name: "جدد (2)" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "انتقال فصل (1)" })).toBeInTheDocument();
-    expect(screen.getByText(/لن يتغيروا تلقائيًا/)).toBeInTheDocument();
+    expect(screen.getByText(/لم تتطابق أرقامها مع الملف الجديد/)).toBeInTheDocument();
     expect(await screen.findByText("أحمد محمد")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "متابعة إلى التأكيد" }));
 
@@ -299,7 +299,7 @@ describe("ImportWizard", () => {
     expect(result).toHaveTextContent("طلاب جدد: 2");
     expect(result).toHaveTextContent("تغييرات فصول: 1");
     expect(
-      screen.getByRole("link", { name: "مراجعة الطلاب غير الموجودين" }),
+      screen.getByRole("link", { name: "مراجعة السجلات غير المطابقة" }),
     ).toHaveAttribute("href", "/students/inactive?filter=missing");
     expect(processed && committed).toBe(true);
   });

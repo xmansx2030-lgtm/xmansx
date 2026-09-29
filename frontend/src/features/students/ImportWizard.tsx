@@ -470,13 +470,13 @@ function PreviewStep({
       <p className="mb-4 text-sm leading-6 text-slate-600" data-testid="import-update-explanation">
         يُطابق النظام رقم الطالب أولًا. الموجود يُحدَّث عند تغيّر الاسم أو بيانات ولي الأمر أو الرقم الأكاديمي،
         ويُحفظ انتقال الصف أو الفصل في سجله. الخانات الاختيارية الفارغة لا تمحو البيانات الحالية،
-        والطلاب غير الموجودين في الملف لا يُحذفون تلقائيًا.
+        والسجلات التي لا تتطابق أرقامها مع الملف لا تُحذف تلقائيًا.
       </p>
 
       {(summary.missing_from_file ?? 0) > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          {summary.missing_from_file} {studentCountLabel(schoolType)} {schoolType === "GIRLS" ? "موجودات" : "موجودون"} في النظام وغير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف الجديد —
-          لن يتغيروا تلقائيًا، وستتمكن من مراجعتهم وتصنيفهم بعد اعتماد الاستيراد.
+          {summary.missing_from_file} سجلًا في النظام لم تتطابق أرقامها مع الملف الجديد. قد تتكرر
+          أسماء أصحابها في الملف بأرقام مختلفة؛ لن تتغير السجلات تلقائيًا، وراجع رقم كل سجل قبل تصنيفه.
         </p>
       )}
 
@@ -579,7 +579,14 @@ function PreviewStep({
                   </td>
                   <td className="p-2">
                     {row.error_message ? (
-                      <span className="text-red-700">❌ {row.error_message}</span>
+                      <span className="text-red-700">
+                        ❌ {row.error_message}
+                        {row.data.possible_duplicate_masks?.length ? (
+                          <span className="block text-xs" dir="ltr">
+                            {row.data.possible_duplicate_masks.join("، ")}
+                          </span>
+                        ) : null}
+                      </span>
                     ) : (
                       (CATEGORY_LABELS[row.status] ?? row.status)
                     )}
@@ -856,8 +863,8 @@ function ConfirmStep({
         )}
         {(summary.missing_from_file ?? 0) > 0 && (
           <li className="text-amber-700">
-            {summary.missing_from_file} {countLabel} غير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف — لن {schoolType === "GIRLS" ? "يتغيرن" : "يتغيروا"} تلقائيًا،
-            وستظهر مراجعتهم بعد الاعتماد.
+            {summary.missing_from_file} سجلًا لم تتطابق أرقامها مع الملف — لن تتغير تلقائيًا؛
+            راجع المعرّفات قبل تصنيفها بعد الاعتماد.
           </li>
         )}
       </ul>
@@ -889,13 +896,13 @@ function ResultStep({ job }: { job: ImportJob }) {
       </ul>
       {missingCount > 0 && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-          <p className="font-bold">يلزم إجراء على {missingCount} {studentCountLabel(schoolType)} غير {schoolType === "GIRLS" ? "موجودات" : "موجودين"} في الملف</p>
+          <p className="font-bold">راجع {missingCount} سجلًا لم تتطابق أرقامها مع الملف</p>
           <p className="mt-1 text-sm">
-            راجعهم ثم صنّف من غادر المدرسة كمنتقل أو متخرج. بعد التصنيف يمكنك حذفه
-            نهائيًا إذا لم تعد بحاجة إلى سجلاته.
+            قد يوجد الاسم نفسه في الملف بمعرّف مختلف. قارن الأرقام المقنّعة وسجل الطالب
+            قبل تغيير حالته؛ لا يعني عدم تطابق الرقم أنه غادر المدرسة.
           </p>
           <Link to="/students/inactive?filter=missing" className="mt-3 inline-block">
-            <Button variant="secondary">مراجعة {studentsLabel} غير {schoolType === "GIRLS" ? "الموجودات" : "الموجودين"}</Button>
+            <Button variant="secondary">مراجعة السجلات غير المطابقة</Button>
           </Link>
         </div>
       )}
