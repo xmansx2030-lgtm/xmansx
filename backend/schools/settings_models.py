@@ -7,6 +7,11 @@ from django.db import models
 
 from common.models import TimestampedModel
 
+DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE = (
+    "ولي الأمر، تم تسجيل غياب الطالب «اسم الطالب» يوم «التاريخ». "
+    "يرجى تقديم العذر للمدرسة إن وجد."
+)
+
 
 class EducationStage(models.TextChoices):
     ELEMENTARY = "ELEMENTARY", "ابتدائي"
@@ -65,6 +70,11 @@ class SchoolSettings(TimestampedModel):
         "عدد التحاضير المعتمدة قبل إرسال الغياب",
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(20)],
+    )
+    absence_sms_message_template = models.CharField(
+        "قالب رسالة الغياب الكامل",
+        max_length=500,
+        default=DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE,
     )
 
     # الحضور الصباحي (م8.5) — بداية الدوام مستقلة عن الحصة الأولى عمدًا

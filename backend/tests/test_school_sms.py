@@ -13,6 +13,7 @@ from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsInteg
 from school_sms.providers import SmsProviderError, SmsProviderResult, send_sms
 from school_sms.security import decrypt_secret
 from school_sms.tasks import send_absence_notice
+from schools.settings_models import DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
 from tests.attendance_helpers import setup_attendance_env
 
 INTEGRATION_URL = "/api/v1/school/sms/integration/"
@@ -116,7 +117,8 @@ def test_preview_and_send_are_school_scoped_deduplicated_and_mocked(role_client,
     assert candidate["absence_status"] == DailyAbsenceStatus.FULL
     assert "message" not in candidate
     assert "«اسم الطالب»" in preview.json()["message_template"]
-    assert "«تاريخ الغياب»" in preview.json()["message_template"]
+    assert preview.json()["message_template"] == DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
+    assert preview.json()["default_message_template"] == DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
     assert student_b.id != candidate["student_id"]
 
     with patch(
@@ -134,12 +136,15 @@ def test_preview_and_send_are_school_scoped_deduplicated_and_mocked(role_client,
         assert provider.call_args.kwargs["mobile"] == student_a.guardian_mobile
         assert provider.call_args.kwargs["message"] == (
             preview.json()["message_template"]
-            .replace("«اسم الطالب»", student_a.full_name)
-            .replace("«تاريخ الغياب»", day.isoformat())
+            .replace("«اسم الطالب»", student_a.full_name.split(maxsplit=1)[0])
+            .replace("«التاريخ»", day.isoformat())
         )
         notice = AbsenceSmsNotice.objects.get(school=school_a, student=student_a)
         assert notice.status == AbsenceSmsStatus.ACCEPTED
         assert notice.provider_reference == "42"
+        after_send = manager_a.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+        assert after_send["ready_total"] == 0
+        assert after_send["selectable_student_ids"] == []
 
         duplicate = manager_a.post(
             SEND_URL,
@@ -158,6 +163,89 @@ def test_preview_and_send_are_school_scoped_deduplicated_and_mocked(role_client,
         assert cross_school.status_code == 409
         assert provider.call_count == 1
         assert not AbsenceSmsNotice.objects.filter(school=school_a, student=student_b).exists()
+
+
+@pytest.mark.django_db
+def test_manager_edits_one_school_template_and_worker_uses_first_name(role_client, make_school):
+    school_a = make_school("مدرسة أ")
+    school_b = make_school("مدرسة ب")
+    manager_a, _, _ = role_client(["SCHOOL_MANAGER"], school_a)
+    manager_b, _, _ = role_client(["SCHOOL_MANAGER"], school_b)
+    vice_a, _, _ = role_client(["VICE_PRINCIPAL"], school_a)
+    student, _, day = _absence(school_a)
+    student.full_name = "أحمد محمد عبدالرحمن"
+    student.save(update_fields=["full_name"])
+    assert _integration(manager_a).status_code == 200
+
+    settings_url = "/api/v1/school/settings/"
+    invalid = manager_a.patch(
+        settings_url, {"absence_sms_message_template": "غياب «اسم الطالب»"},
+        content_type="application/json",
+    )
+    assert invalid.status_code == 400
+    assert manager_a.get(PREVIEW_URL, {"date": day.isoformat()}).json()[
+        "message_template"
+    ] == DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
+
+    custom = "تنبيه: الطالب «اسم الطالب» غائب في «التاريخ»."
+    assert vice_a.patch(
+        settings_url, {"absence_sms_message_template": custom},
+        content_type="application/json",
+    ).status_code == 403
+    updated = manager_a.patch(
+        settings_url, {"absence_sms_message_template": custom},
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["absence_sms_message_template"] == custom
+    assert vice_a.get(PREVIEW_URL, {"date": day.isoformat()}).json()[
+        "message_template"
+    ] == custom
+    assert manager_b.get(PREVIEW_URL, {"date": day.isoformat()}).json()[
+        "message_template"
+    ] == DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
+
+    with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult()) as provider:
+        response = manager_a.post(
+            SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+            content_type="application/json",
+        )
+    assert response.status_code == 202
+    assert provider.call_args.kwargs["message"] == (
+        f"تنبيه: الطالب أحمد غائب في {day.isoformat()}."
+    )
+
+
+@pytest.mark.django_db
+def test_preview_exposes_all_day_ids_across_pages_and_only_sendable_ids(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    env = setup_attendance_env(school, students_count=51)
+    day = env["local_now"].date()
+    summaries = []
+    for student in env["students"]:
+        student.guardian_mobile = "+966500000001"
+        student.save(update_fields=["guardian_mobile"])
+        summaries.append(DailyAttendanceSummary(
+            school=school, student=student, academic_year=env["year"],
+            section=env["section"], attendance_date=day,
+            expected_periods=1, submitted_periods=1, absent_periods=1,
+            present_periods=0, excused_absent_periods=0,
+            unexcused_absent_periods=1, completeness_status=DailyCompleteness.COMPLETE,
+            absence_status=DailyAbsenceStatus.FULL, calculated_at=timezone.now(),
+        ))
+    DailyAttendanceSummary.objects.bulk_create(summaries)
+    env["students"][-1].guardian_mobile = ""
+    env["students"][-1].save(update_fields=["guardian_mobile"])
+
+    first = manager.get(PREVIEW_URL, {"date": day.isoformat(), "page": 1}).json()
+    second = manager.get(PREVIEW_URL, {"date": day.isoformat(), "page": 2}).json()
+    assert first["total"] == second["total"] == 51
+    assert len(first["students"]) == 50
+    assert len(second["students"]) == 1
+    assert first["candidate_student_ids"] == second["candidate_student_ids"]
+    assert set(first["candidate_student_ids"]) == {item.id for item in env["students"]}
+    assert first["ready_total"] == len(first["selectable_student_ids"]) == 50
+    assert env["students"][-1].id not in first["selectable_student_ids"]
 
 
 @pytest.mark.django_db
@@ -310,8 +398,8 @@ def test_school_sets_two_approved_periods_for_sms_without_waiting_for_full_sched
     provider.assert_called_once()
     assert provider.call_args.kwargs["message"] == (
         after["message_template"]
-        .replace("«اسم الطالب»", student.full_name)
-        .replace("«تاريخ الغياب»", day.isoformat())
+        .replace("«اسم الطالب»", student.full_name.split(maxsplit=1)[0])
+        .replace("«التاريخ»", day.isoformat())
     )
 
 

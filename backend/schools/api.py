@@ -39,6 +39,9 @@ class SchoolInfoPatchSerializer(serializers.Serializer):
     absence_sms_min_approved_periods = serializers.IntegerField(
         required=False, min_value=0, max_value=20
     )
+    absence_sms_message_template = serializers.CharField(
+        required=False, max_length=500, trim_whitespace=True
+    )
     school_day_start_time = serializers.TimeField(required=False)
     morning_late_grace_minutes = serializers.IntegerField(
         required=False, min_value=0, max_value=120
@@ -49,6 +52,13 @@ class SchoolInfoPatchSerializer(serializers.Serializer):
             ZoneInfo(value)
         except Exception as exc:
             raise serializers.ValidationError("المنطقة الزمنية غير صحيحة.") from exc
+        return value
+
+    def validate_absence_sms_message_template(self, value: str) -> str:
+        if value.count("«اسم الطالب»") != 1 or value.count("«التاريخ»") != 1:
+            raise serializers.ValidationError(
+                "أدرج «اسم الطالب» و«التاريخ» مرة واحدة في نص الرسالة."
+            )
         return value
 
 
@@ -95,6 +105,7 @@ def serialize_settings(school, settings_obj, request) -> dict:
         "attendance_edit_window_minutes": settings_obj.attendance_edit_window_minutes,
         "unprepared_period_alert_minutes": settings_obj.unprepared_period_alert_minutes,
         "absence_sms_min_approved_periods": settings_obj.absence_sms_min_approved_periods,
+        "absence_sms_message_template": settings_obj.absence_sms_message_template,
         "school_day_start_time": settings_obj.school_day_start_time.strftime("%H:%M")
         if settings_obj.school_day_start_time
         else None,

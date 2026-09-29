@@ -14,6 +14,7 @@ export interface SchoolSettingsPayload {
   attendance_edit_window_minutes: number;
   unprepared_period_alert_minutes: number;
   absence_sms_min_approved_periods: number;
+  absence_sms_message_template: string;
   school_day_start_time: string;
   morning_late_grace_minutes: number;
   staff: { managers: string[]; vice_principals: string[]; counselors: string[] };

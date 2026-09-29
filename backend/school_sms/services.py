@@ -14,6 +14,7 @@ from common.errors import ApiError
 from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsIntegration
 from school_sms.security import encrypt_secret, recipient_hash
 from schools.models import SchoolSettings
+from schools.settings_models import DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
 from students.models import StudentStatus
 from students.services.enrollments import enrollments_on_date
 
@@ -101,27 +102,18 @@ def eligible_absences(*, school, attendance_date: date,
     return rows.filter(submitted_periods__gte=F("expected_periods"))
 
 
-def _compose_absence_message(*, school, student_name: str, attendance_date: str) -> str:
-    noun = "الطالبة" if school.school_type == "GIRLS" else "الطالب"
-    return (
-        f"ولي الأمر الكريم، تم رصد غياب يوم كامل لـ{noun} {student_name} "
-        f"بتاريخ {attendance_date} في {school.name} وفق معيار التحضير المعتمد "
-        "لدى المدرسة. يرجى التواصل مع المدرسة لتقديم العذر إن وجد."
-    )
-
-
 def absence_message_template(*, school) -> str:
-    name_placeholder = "«اسم الطالبة»" if school.school_type == "GIRLS" else "«اسم الطالب»"
-    return _compose_absence_message(
-        school=school, student_name=name_placeholder, attendance_date="«تاريخ الغياب»"
-    )
+    return SchoolSettings.objects.filter(school=school).values_list(
+        "absence_sms_message_template", flat=True
+    ).first() or DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
 
 
 def render_absence_message(*, school, summary) -> str:
-    return _compose_absence_message(
-        school=school,
-        student_name=summary.student.full_name,
-        attendance_date=summary.attendance_date.isoformat(),
+    first_name = summary.student.full_name.split(maxsplit=1)[0]
+    return (
+        absence_message_template(school=school)
+        .replace("«اسم الطالب»", first_name)
+        .replace("«التاريخ»", summary.attendance_date.isoformat())
     )
 
 
@@ -129,13 +121,13 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
     min_approved_periods = minimum_approved_periods(school=school)
     rows = candidate_absences(school=school, attendance_date=attendance_date)
-    total = rows.count()
-    ready_total = (
+    candidate_ids = list(rows.values_list("student_id", flat=True))
+    ready_ids = list(
         eligible_absences(school=school, attendance_date=attendance_date,
                           min_approved_periods=min_approved_periods)
         .exclude(student__guardian_mobile__isnull=True)
         .exclude(student__guardian_mobile="")
-        .count()
+        .values_list("student_id", flat=True)
     )
     page = max(page, 1)
     entries = list(rows[(page - 1) * MAX_SEND_BATCH:page * MAX_SEND_BATCH])
@@ -143,7 +135,6 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     notice_states = {}
     for notice in AbsenceSmsNotice.objects.filter(
         school=school, attendance_date=attendance_date,
-        student_id__in=[row.student_id for row in entries],
     ):
         status = (
             AbsenceSmsStatus.UNKNOWN
@@ -151,6 +142,10 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             else notice.status
         )
         notice_states[notice.student_id] = (status, notice.failure_code)
+    selectable_ids = [
+        student_id for student_id in ready_ids
+        if notice_states.get(student_id, (None, ""))[0] in (None, AbsenceSmsStatus.FAILED)
+    ]
 
     def candidate_payload(row) -> dict:
         required_periods = min_approved_periods or row.expected_periods
@@ -182,10 +177,13 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
         "date": attendance_date.isoformat(),
         "page": page,
         "page_size": MAX_SEND_BATCH,
-        "total": total,
-        "ready_total": ready_total,
+        "total": len(candidate_ids),
+        "ready_total": len(selectable_ids),
+        "candidate_student_ids": candidate_ids,
+        "selectable_student_ids": selectable_ids,
         "min_approved_periods": min_approved_periods,
         "message_template": absence_message_template(school=school),
+        "default_message_template": DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE,
         "integration": {
             "provider": integration.provider if integration else None,
             "sender_name": integration.sender_name if integration else "",
