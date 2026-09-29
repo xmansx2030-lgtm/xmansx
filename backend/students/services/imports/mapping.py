@@ -138,13 +138,10 @@ def validate_mapping(
             continue
         header = _clean(headers[index]).casefold()
         phone_header = any(token in header for token in ("جوال", "هاتف", "phone", "mobile"))
-        student_phone = phone_header and any(
-            token in header for token in ("طالب", "طالبه", "student")
-        ) and not any(token in header for token in ("ولي", "guardian"))
         nonmobile_phone = header in {"هاتف العمل", "هاتف المنزل", "work phone", "home phone"}
         incompatible = (
             phone_header if field in ("national_id", "student_number")
-            else student_phone or nonmobile_phone
+            else nonmobile_phone
         )
         if incompatible:
             raise ApiError(
