@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import F, QuerySet
 from django.utils import timezone
 
-from accounts.mobile import mask_mobile
+from accounts.mobile import NORMALIZED_MOBILE_RE, mask_mobile
 from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
 from audit.models import AuditAction
 from audit.services import record_event
@@ -19,6 +19,14 @@ from students.models import StudentStatus
 from students.services.enrollments import enrollments_on_date
 
 MAX_SEND_BATCH = 50
+
+
+def recipient_issue(mobile: str) -> str | None:
+    if not mobile:
+        return "MISSING_RECIPIENT"
+    if not NORMALIZED_MOBILE_RE.fullmatch(mobile):
+        return "INVALID_RECIPIENT"
+    return None
 
 
 def integration_payload(integration: SchoolSmsIntegration | None) -> dict:
@@ -120,17 +128,18 @@ def render_absence_message(*, school, summary) -> str:
 def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
     min_approved_periods = minimum_approved_periods(school=school)
-    rows = candidate_absences(school=school, attendance_date=attendance_date)
-    candidate_ids = list(rows.values_list("student_id", flat=True))
-    ready_ids = list(
-        eligible_absences(school=school, attendance_date=attendance_date,
-                          min_approved_periods=min_approved_periods)
-        .exclude(student__guardian_mobile__isnull=True)
-        .exclude(student__guardian_mobile="")
-        .values_list("student_id", flat=True)
-    )
+    rows = list(candidate_absences(school=school, attendance_date=attendance_date))
+    candidate_ids = [row.student_id for row in rows]
+    ready_ids = [
+        row.student_id
+        for row in eligible_absences(
+            school=school, attendance_date=attendance_date,
+            min_approved_periods=min_approved_periods,
+        )
+        if recipient_issue(row.student.guardian_mobile) is None
+    ]
     page = max(page, 1)
-    entries = list(rows[(page - 1) * MAX_SEND_BATCH:page * MAX_SEND_BATCH])
+    entries = rows[(page - 1) * MAX_SEND_BATCH:page * MAX_SEND_BATCH]
     stale_before = timezone.now() - timedelta(minutes=5)
     notice_states = {}
     for notice in AbsenceSmsNotice.objects.filter(
@@ -153,8 +162,8 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             reason = "INSUFFICIENT_APPROVALS"
         elif row.unexcused_absent_periods == 0:
             reason = "EXCUSED_ABSENCE"
-        elif not row.student.guardian_mobile:
-            reason = "MISSING_RECIPIENT"
+        elif recipient_issue(row.student.guardian_mobile):
+            reason = recipient_issue(row.student.guardian_mobile)
         else:
             reason = None
         return {
@@ -181,6 +190,17 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
         "ready_total": len(selectable_ids),
         "candidate_student_ids": candidate_ids,
         "selectable_student_ids": selectable_ids,
+        "contact_issues": [
+            {
+                "student_id": row.student_id,
+                "full_name": row.student.full_name,
+                "grade_name": row.section.grade.name,
+                "section_name": row.section.name,
+                "reason": recipient_issue(row.student.guardian_mobile),
+            }
+            for row in rows
+            if recipient_issue(row.student.guardian_mobile)
+        ],
         "min_approved_periods": min_approved_periods,
         "message_template": absence_message_template(school=school),
         "default_message_template": DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE,
@@ -216,6 +236,8 @@ def queue_absence_sms(*, school, actor, attendance_date: date,
             )
         if any(not row.student.guardian_mobile for row in summaries.values()):
             raise ApiError("SMS_RECIPIENT_MISSING", "يوجد طالب بلا جوال ولي أمر؛ صحح رقمه أولًا.")
+        if any(recipient_issue(row.student.guardian_mobile) for row in summaries.values()):
+            raise ApiError("SMS_RECIPIENT_INVALID", "يوجد رقم جوال ولي أمر غير صحيح؛ صححه أولًا.")
         queued = []
         skipped = []
         for student_id in student_ids:

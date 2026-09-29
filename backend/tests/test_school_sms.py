@@ -246,6 +246,40 @@ def test_preview_exposes_all_day_ids_across_pages_and_only_sendable_ids(role_cli
     assert set(first["candidate_student_ids"]) == {item.id for item in env["students"]}
     assert first["ready_total"] == len(first["selectable_student_ids"]) == 50
     assert env["students"][-1].id not in first["selectable_student_ids"]
+    expected_issue = [{
+        "student_id": env["students"][-1].id,
+        "full_name": env["students"][-1].full_name,
+        "grade_name": env["grade"].name,
+        "section_name": env["section"].name,
+        "reason": "MISSING_RECIPIENT",
+    }]
+    assert first["contact_issues"] == second["contact_issues"] == expected_issue
+
+
+@pytest.mark.django_db
+def test_invalid_guardian_number_is_listed_and_cannot_be_sent(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    student, _, day = _absence(school)
+    assert _integration(manager).status_code == 200
+    student.guardian_mobile = "0555000001"  # Legacy noncanonical value.
+    student.save(update_fields=["guardian_mobile"])
+
+    preview = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert preview["ready_total"] == 0
+    assert preview["selectable_student_ids"] == []
+    assert preview["contact_issues"][0]["student_id"] == student.id
+    assert preview["contact_issues"][0]["reason"] == "INVALID_RECIPIENT"
+    assert preview["students"][0]["eligibility_reason"] == "INVALID_RECIPIENT"
+
+    with patch("school_sms.tasks.send_sms") as provider:
+        response = manager.post(
+            SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+            content_type="application/json",
+        )
+    assert response.status_code == 400
+    assert response.json()["code"] == "SMS_RECIPIENT_INVALID"
+    provider.assert_not_called()
+    assert not AbsenceSmsNotice.objects.filter(student=student).exists()
 
 
 @pytest.mark.django_db
