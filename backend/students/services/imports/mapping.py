@@ -4,7 +4,7 @@ from common.errors import ApiError
 
 # الحقول المستهدفة — القيم الإنجليزية ثابتة، العربية للعرض
 TARGET_FIELDS = {
-    "national_id": "رقم الهوية",
+    "national_id": "رقم الطالب (هوية/إقامة/جواز)",
     "full_name": "اسم الطالب",
     "grade": "الصف",
     "section": "الفصل",
@@ -20,6 +20,7 @@ _ALIASES: dict[str, list[str]] = {
         "رقم الهوية", "السجل المدني", "هوية الطالب", "رقم الهويه",
         "رقم السجل المدني", "الهوية", "رقم الاقامة", "رقم الإقامة",
         "رقم رخصة الاقامة", "رقم رخصة الإقامة",
+        "رقم جواز السفر", "رقم الجواز", "جواز السفر", "رقم الطالب",
     ],
     "full_name": ["اسم الطالب", "الاسم", "اسم الطالب الرباعي", "الطالب"],
     "grade": ["الصف", "المرحلة والصف", "الصف الدراسي"],
@@ -31,7 +32,7 @@ _ALIASES: dict[str, list[str]] = {
 }
 
 REQUIRED_FIELDS = ("full_name", "grade", "section")
-# سياسة الهوية: national_id مفضل؛ student_number بديل موثوق بتحذير — الاسم وحده مرفوض
+# عمود رقم الطالب يصبح المعرّف الأساسي إذا لم يوجد عمود هوية مستقل.
 IDENTITY_FIELDS = ("national_id", "student_number")
 
 
@@ -116,7 +117,7 @@ def validate_mapping(mapping: dict[str, int | None], headers_count: int) -> None
     if all(mapping.get(field) is None for field in IDENTITY_FIELDS):
         raise ApiError(
             "IMPORT_MISSING_REQUIRED_COLUMN",
-            "يجب تحديد عمود «رقم الهوية» (أو «رقم الطالب» كبديل) للمطابقة الموثوقة.",
+            "يجب تحديد عمود رقم الطالب (هوية أو إقامة أو جواز) للمطابقة الموثوقة.",
             status_code=400,
         )
     used = [i for i in mapping.values() if i is not None]

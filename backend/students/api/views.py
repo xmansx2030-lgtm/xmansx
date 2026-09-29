@@ -20,7 +20,7 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from common.pagination import DefaultPagination
-from common.security.identifiers import normalize_national_id
+from common.security.identifiers import normalize_student_identifier
 from memberships.api_base import SETTINGS_WRITE_ROLES, SchoolScopedAPIView
 from students.api.profile_serializers import (
     AttendanceChangeSerializer,
@@ -89,7 +89,7 @@ class StudentCreateSerializer(serializers.Serializer):
 
     def validate_national_id(self, value):
         try:
-            return normalize_national_id(value)
+            return normalize_student_identifier(value)
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages[0]) from exc
 
@@ -132,7 +132,7 @@ class StudentPatchSerializer(serializers.Serializer):
 
     def validate_national_id(self, value):
         try:
-            return normalize_national_id(value)
+            return normalize_student_identifier(value)
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages[0]) from exc
 

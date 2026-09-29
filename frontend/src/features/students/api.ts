@@ -213,7 +213,9 @@ export interface PreviewRow {
     section_name?: string;
     department?: string;
     national_id_masked?: string;
-    changes?: Record<string, { from?: string; to?: string }>;
+    student_number?: string | null;
+    previous_section?: string | null;
+    changes?: Record<string, { from?: string; to?: string; changed?: boolean }>;
   };
   error_codes: string[];
   error_message: string;
@@ -405,12 +407,12 @@ export const cancelImportJob = (jobId: number) =>
   apiRequest<ImportJob>(`/student-imports/${jobId}/cancel/`, { method: "POST" });
 
 export const MAPPING_LABELS: Record<MappingField, string> = {
-  national_id: "رقم الهوية",
+  national_id: "رقم الطالب (هوية/إقامة/جواز)",
   full_name: "اسم الطالب",
   grade: "الصف",
   section: "الفصل",
   department: "القسم",
-  student_number: "رقم الطالب",
+  student_number: "الرقم الأكاديمي (إن وجد)",
   guardian_name: "اسم ولي الأمر",
   guardian_mobile: "جوال ولي الأمر",
 };

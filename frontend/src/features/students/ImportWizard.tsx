@@ -302,7 +302,7 @@ function MappingStep({
       <h3 className="mb-1 font-bold">مطابقة الأعمدة</h3>
       <p className="mb-4 text-sm text-slate-500">
         تحقق من ربط أعمدة الملف بحقول النظام — الحقول: اسم {student} والصف والفصل مطلوبة،
-        ورقم الهوية مطلوب للمطابقة الموثوقة.
+        ورقم الطالب (هوية أو إقامة أو جواز) مطلوب للمطابقة الموثوقة.
       </p>
 
       {job.import_format === "NOOR_OFFICIAL_MULTI_SHEET" ? (
@@ -467,6 +467,11 @@ function PreviewStep({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="mb-3 font-bold">المعاينة والتحقق</h3>
+      <p className="mb-4 text-sm leading-6 text-slate-600" data-testid="import-update-explanation">
+        يُطابق النظام رقم الطالب أولًا. الموجود يُحدَّث عند تغيّر الاسم أو بيانات ولي الأمر أو الرقم الأكاديمي،
+        ويُحفظ انتقال الصف أو الفصل في سجله. الخانات الاختيارية الفارغة لا تمحو البيانات الحالية،
+        والطلاب غير الموجودين في الملف لا يُحذفون تلقائيًا.
+      </p>
 
       {(summary.missing_from_file ?? 0) > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
@@ -503,7 +508,7 @@ function PreviewStep({
 
       {(summary.auto_resolved_duplicates ?? 0) > 0 && (
         <p className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-          عالجت المنصة تلقائيًا {summary.auto_resolved_duplicates} من الصفوف المتطابقة تمامًا، وستُنشئ سجل طالب واحدًا فقط لكل هوية.
+          عالجت المنصة تلقائيًا {summary.auto_resolved_duplicates} من الصفوف المتطابقة تمامًا، وستُنشئ سجلًا واحدًا فقط لكل رقم طالب.
         </p>
       )}
 
@@ -536,7 +541,7 @@ function PreviewStep({
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="p-2 text-start">الصف بالملف</th>
                 <th className="p-2 text-start">الاسم</th>
-                <th className="p-2 text-start">الهوية</th>
+                <th className="p-2 text-start">رقم الطالب</th>
                 <th className="p-2 text-start">الصف/الفصل</th>
                 <th className="p-2 text-start">الحالة</th>
                 <th className="p-2 text-start">المعالجة</th>
@@ -553,12 +558,24 @@ function PreviewStep({
                         كان: {row.data.changes.full_name.from}
                       </span>
                     )}
+                    {row.data.changes && Object.keys(row.data.changes).some((key) => key !== "full_name") && (
+                      <span className="block text-xs text-amber-700">
+                        تحديث: {[
+                          row.data.changes.student_number && "الرقم الأكاديمي",
+                          row.data.changes.guardian_name && "اسم ولي الأمر",
+                          row.data.changes.guardian_mobile && "جوال ولي الأمر",
+                        ].filter(Boolean).join("، ")}
+                      </span>
+                    )}
                   </td>
                   <td className="p-2" dir="ltr">
                     {row.data.national_id_masked || "—"}
                   </td>
                   <td className="p-2">
                     {row.data.grade_name} / {row.data.section_name}{row.data.department ? ` / ${row.data.department}` : ""}
+                    {row.data.previous_section && (
+                      <span className="block text-xs text-amber-700">من: {row.data.previous_section}</span>
+                    )}
                   </td>
                   <td className="p-2">
                     {row.error_message ? (
@@ -660,11 +677,13 @@ function ImportRowCorrectionModal({
   onClose: () => void;
   onSubmit: (correction: ImportRowCorrection) => void;
 }) {
-  const identityCodes = ["INVALID_NATIONAL_ID", "MISSING_NATIONAL_ID", "MISSING_IDENTITY", "DUPLICATE_IN_FILE"];
-  const needsIdentity = row.status === "DUPLICATE_IN_FILE" || row.error_codes.some((code) => identityCodes.includes(code));
+  const identityCodes = ["INVALID_NATIONAL_ID", "MISSING_NATIONAL_ID", "MISSING_IDENTITY"];
+  const identityRequired = row.error_codes.some((code) => identityCodes.includes(code));
+  const needsIdentity = identityRequired || row.status === "DUPLICATE_IN_FILE" || row.error_codes.includes("IDENTITY_CONFLICT");
   const needsName = row.error_codes.includes("MISSING_NAME");
   const needsSection = row.error_codes.some((code) => code === "MISSING_GRADE" || code === "MISSING_SECTION");
   const [nationalId, setNationalId] = useState("");
+  const [studentNumber, setStudentNumber] = useState(row.data.student_number ?? "");
   const [fullName, setFullName] = useState(row.data.full_name ?? "");
   const [sectionId, setSectionId] = useState("");
   const gradeSections = sections.filter((section) =>
@@ -675,9 +694,10 @@ function ImportRowCorrectionModal({
     !row.data.grade_name || candidate.grade_name === row.data.grade_name,
   );
   const canSubmit =
-    (!needsIdentity || nationalId.trim().length > 0) &&
+    (!identityRequired || nationalId.trim().length > 0) &&
     (!needsName || fullName.trim().length >= 2) &&
-    (!needsSection || sectionId !== "");
+    (!needsSection || sectionId !== "") &&
+    (!needsIdentity || identityRequired || nationalId.trim().length > 0 || studentNumber.trim() !== (row.data.student_number ?? ""));
   const errorMessage = error instanceof Error
     ? error.message
     : error
@@ -693,18 +713,31 @@ function ImportRowCorrectionModal({
       <div className="space-y-4">
         {needsIdentity && (
           <label className="block text-sm font-bold text-slate-700">
-            رقم الهوية الصحيح *
+            رقم الطالب الصحيح {identityRequired ? "*" : "(إن احتجت تغييره)"}
             <input
-              aria-label="رقم الهوية الصحيح"
+              aria-label="رقم الطالب الصحيح"
               value={nationalId}
               onChange={(event) => setNationalId(event.target.value)}
-              inputMode="numeric"
               dir="ltr"
               autoComplete="off"
-              placeholder="10 أرقام"
+              placeholder="هوية أو إقامة أو جواز سفر"
               className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 font-mono tracking-wider focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
             />
-            <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">لا تخمّن المنصة الهوية من الاسم؛ تُقبل المسافات والشرطات وتزال تلقائيًا.</span>
+            <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">لا تخمّن المنصة الرقم من الاسم؛ يُطابق الرقم نفسه بعد إزالة فواصل العرض.</span>
+          </label>
+        )}
+        {(row.status === "DUPLICATE_IN_FILE" || row.error_codes.includes("IDENTITY_CONFLICT")) && (
+          <label className="block text-sm font-bold text-slate-700">
+            الرقم الأكاديمي (إن وجد)
+            <input
+              aria-label="تصحيح الرقم الأكاديمي"
+              value={studentNumber}
+              onChange={(event) => setStudentNumber(event.target.value)}
+              dir="ltr"
+              autoComplete="off"
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3"
+            />
+            <span className="mt-1.5 block text-xs font-normal text-slate-500">يمكن تصحيحه أو إزالته إذا تكرر مع طالب آخر.</span>
           </label>
         )}
         {needsName && (
@@ -759,7 +792,8 @@ function ImportRowCorrectionModal({
             loadingLabel="جارٍ إعادة الفحص..."
             onClick={() => {
               const correction: ImportRowCorrection = {};
-              if (needsIdentity) correction.national_id = nationalId;
+              if (nationalId.trim()) correction.national_id = nationalId;
+              if (studentNumber.trim() !== (row.data.student_number ?? "")) correction.student_number = studentNumber;
               if (needsName) correction.full_name = fullName;
               if (needsSection && sectionId.startsWith("existing:")) {
                 correction.section_id = Number(sectionId.slice("existing:".length));

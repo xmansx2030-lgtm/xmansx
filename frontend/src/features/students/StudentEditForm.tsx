@@ -76,10 +76,10 @@ export function StudentEditForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label={`اسم ${studentName} الكامل *`} value={fullName} onChange={(event) => setFullName(event.target.value)} autoFocus />
         <div>
-          <TextField label="تصحيح رقم الهوية أو الإقامة" value={nationalId} onChange={(event) => setNationalId(event.target.value)} inputMode="numeric" dir="ltr" placeholder="اتركه فارغًا للاحتفاظ بالرقم الحالي" />
-          <p className="mt-1 text-xs text-slate-500">الرقم الحالي: <bdi>{student.national_id_masked}</bdi>. يجب أن يكون 10 أرقام ويبدأ بـ 1 للهوية أو 2 للإقامة.</p>
+          <TextField label="تصحيح رقم الطالب (هوية أو إقامة أو جواز)" value={nationalId} onChange={(event) => setNationalId(event.target.value)} dir="ltr" placeholder="اتركه فارغًا للاحتفاظ بالرقم الحالي" />
+          <p className="mt-1 text-xs text-slate-500">الرقم الحالي: <bdi>{student.national_id_masked}</bdi>. يُقبل رقم الهوية أو الإقامة أو الجواز، ويُطابق دون فواصل العرض.</p>
         </div>
-        <TextField label={`رقم ${studentName}`} value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} dir="ltr" />
+        <TextField label="الرقم الأكاديمي (اختياري)" value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} dir="ltr" />
         <TextField label="اسم ولي الأمر" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} />
         <div>
           <TextField label="تصحيح جوال ولي الأمر" value={guardianMobile} onChange={(event) => setGuardianMobile(event.target.value)} type="tel" inputMode="tel" dir="ltr" placeholder="اتركه فارغًا للاحتفاظ بالرقم الحالي" />
@@ -101,7 +101,7 @@ export function StudentEditForm({
       </div>
 
       {(validationError || apiMessage) && <p role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{validationError ?? apiMessage}</p>}
-      <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">تصحيح الهوية يحدّث القيمة المشفرة والمقنّعة ومفتاح البحث معًا. تغيير الفصل يحفظ القيد السابق في السجل ولا يعيد كتابة حضور الأيام الماضية.</p>
+      <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">تصحيح رقم الطالب يحدّث القيمة المحمية ومفتاح البحث معًا. تغيير الفصل يحفظ القيد السابق في السجل ولا يعيد كتابة حضور الأيام الماضية.</p>
 
       <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
         <Button variant="secondary" onClick={onCancel}>إلغاء</Button>

@@ -685,3 +685,72 @@ def test_mapping_ui_flow_with_custom_headers(import_manager):
     manual = {"national_id": 0, "full_name": 1, "grade": 2, "section": 3}
     assert process(client, job["id"], mapping=manual).status_code == 202
     assert client.get(f"{IMPORTS_URL}{job['id']}/").json()["summary"]["new"] == 1
+
+
+@pytest.mark.django_db
+def test_passport_student_reimport_updates_existing_without_duplicate(import_manager):
+    client, school, _ = import_manager
+    first = run_import(client, [noor_row("n-123 45678", "طالب قديم", number="A-100")])
+    assert first.status_code == 200
+    original = Student.objects.get(school=school)
+
+    job = upload(client, [noor_row("N12345678", "طالب محدث", number="A-101")]).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["new"] == 0
+    assert preview["summary"]["updated"] == 1
+    row = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"][0]
+    assert row["data"]["changes"]["student_number"] == {"changed": True}
+
+    assert commit_and_refresh(client, job["id"]).status_code == 200
+    original.refresh_from_db()
+    assert Student.objects.filter(school=school).count() == 1
+    assert original.full_name == "طالب محدث"
+    assert original.student_number == "A-101"
+
+    again = upload(client, [noor_row("N12345678", "طالب محدث", number="A-101")]).json()
+    assert process(client, again["id"]).status_code == 202
+    assert client.get(f"{IMPORTS_URL}{again['id']}/").json()["summary"]["unchanged"] == 1
+
+
+@pytest.mark.django_db
+def test_only_student_number_column_is_used_as_document_identifier(import_manager):
+    client, school, _ = import_manager
+    headers = ["رقم الطالب", "اسم الطالب", "الصف", "الفصل"]
+    job = upload(client, [["N76543210", "طالب جواز", "الأول الثانوي", "1"]], headers=headers).json()
+    assert job["suggested_mapping"]["national_id"] == 0
+    assert job["suggested_mapping"]["student_number"] is None
+    assert process(client, job["id"]).status_code == 202
+    assert client.get(f"{IMPORTS_URL}{job['id']}/").json()["summary"]["new"] == 1
+    assert commit_and_refresh(client, job["id"]).status_code == 200
+    assert Student.objects.filter(school=school).count() == 1
+
+
+@pytest.mark.django_db
+def test_conflicting_document_and_academic_number_cannot_merge_students(import_manager):
+    client, school, _ = import_manager
+    original = run_import(client, [noor_row("1012345678", "طالب أصلي", number="A-100")])
+    assert original.status_code == 200
+    job = upload(client, [noor_row("N12345678", "طالب آخر", number="A-100")]).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["errors"] == 1
+    row = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"][0]
+    assert "IDENTITY_CONFLICT" in row["error_codes"]
+    assert client.post(f"{IMPORTS_URL}{job['id']}/commit/").status_code == 409
+    assert Student.objects.filter(school=school).count() == 1
+
+
+@pytest.mark.django_db
+def test_repeated_academic_number_with_different_documents_is_blocked(import_manager):
+    client, school, _ = import_manager
+    job = upload(client, [
+        noor_row("1012345678", "طالب أول", number="A-100"),
+        noor_row("N12345678", "طالب ثان", number="A-100"),
+    ]).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["duplicates"] == 2
+    assert preview["summary"]["new"] == 0
+    assert client.post(f"{IMPORTS_URL}{job['id']}/commit/").status_code == 409
+    assert Student.objects.filter(school=school).count() == 0

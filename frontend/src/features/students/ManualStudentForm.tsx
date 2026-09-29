@@ -51,7 +51,7 @@ export function ManualStudentForm({
     event.preventDefault();
     setValidationError(null);
     if (fullName.trim().length < 2 || !nationalId.trim() || !sectionId) {
-      setValidationError(`أكمل اسم ${student} ورقم الهوية والصف والفصل.`);
+      setValidationError(`أكمل اسم ${student} ورقم الطالب والصف والفصل.`);
       return;
     }
     mutation.mutate();
@@ -63,8 +63,8 @@ export function ManualStudentForm({
     <form onSubmit={submit} noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label={`اسم ${student} الكامل *`} value={fullName} onChange={(e) => setFullName(e.target.value)} autoFocus />
-        <TextField label="رقم الهوية أو الإقامة *" value={nationalId} onChange={(e) => setNationalId(e.target.value)} inputMode="numeric" dir="ltr" placeholder="1XXXXXXXXX" />
-        <TextField label={`رقم ${student}`} value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} dir="ltr" />
+        <TextField label="رقم الطالب (هوية أو إقامة أو جواز) *" value={nationalId} onChange={(e) => setNationalId(e.target.value)} dir="ltr" placeholder="أدخل رقم الوثيقة" />
+        <TextField label="الرقم الأكاديمي (اختياري)" value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} dir="ltr" />
         <TextField label="اسم ولي الأمر" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
         <TextField label="جوال ولي الأمر" value={guardianMobile} onChange={(e) => setGuardianMobile(e.target.value)} type="tel" inputMode="tel" dir="ltr" placeholder="05XXXXXXXX" />
         <div className="flex flex-col gap-1">

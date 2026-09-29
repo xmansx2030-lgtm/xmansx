@@ -117,7 +117,7 @@ describe("StudentsPage", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "إدخال يدوي" }));
     await user.type(screen.getByLabelText("اسم الطالب الكامل *"), "سالم اليدوي");
-    await user.type(screen.getByLabelText("رقم الهوية أو الإقامة *"), "1098765432");
+    await user.type(screen.getByLabelText("رقم الطالب (هوية أو إقامة أو جواز) *"), "1098765432");
     await user.selectOptions(screen.getByLabelText("الصف *"), "1");
     await user.selectOptions(screen.getByLabelText("الفصل *"), "1");
     await user.click(screen.getByRole("button", { name: "إضافة الطالب" }));
@@ -143,7 +143,7 @@ describe("StudentsPage", () => {
     const name = screen.getByLabelText("اسم الطالب الكامل *");
     await user.clear(name);
     await user.type(name, "أحمد المصحح");
-    await user.type(screen.getByLabelText("تصحيح رقم الهوية أو الإقامة"), "٢٠٩٨٧٦٥٤٣٢");
+    await user.type(screen.getByLabelText("تصحيح رقم الطالب (هوية أو إقامة أو جواز)"), "٢٠٩٨٧٦٥٤٣٢");
     await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
 
     expect(await screen.findByText("تم تحديث بيانات الطالب أحمد المصحح بنجاح.")).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("StudentsPage", () => {
         body: {
           code: "VALIDATION_ERROR",
           message: "البيانات المدخلة غير صحيحة.",
-          details: { national_id: ["رقم الهوية/الإقامة غير صحيح. يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2."] },
+          details: { national_id: ["رقم الطالب غير صالح. أدخل رقم هوية أو إقامة أو جواز سفر من 6 إلى 20 حرفًا أو رقمًا."] },
         },
       },
       "/students/": { body: STUDENTS_PAGE },
@@ -172,9 +172,9 @@ describe("StudentsPage", () => {
     renderApp("/students");
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole("button", { name: "تعديل البيانات" }))[0]!);
-    await user.type(screen.getByLabelText("تصحيح رقم الهوية أو الإقامة"), "123");
+    await user.type(screen.getByLabelText("تصحيح رقم الطالب (هوية أو إقامة أو جواز)"), "123");
     await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("10 أرقام ويبدأ بـ 1 أو 2");
+    expect(await screen.findByRole("alert")).toHaveTextContent("من 6 إلى 20 حرفًا أو رقمًا");
   });
 
   it("يعيد المعلم من رابط الطلاب إلى مساحة عمله ولا يعرض رابط الدليل", async () => {
@@ -276,7 +276,7 @@ describe("ImportWizard", () => {
       "تم التعرف على تقرير نور الرسمي بنجاح",
     );
     expect(screen.getByRole("status")).toHaveTextContent("جُمعت 40 ورقة، واكتُشف 837 طالبًا");
-    const nidSelect = screen.getByLabelText("عمود رقم الهوية") as HTMLSelectElement;
+    const nidSelect = screen.getByLabelText("عمود رقم الطالب (هوية/إقامة/جواز)") as HTMLSelectElement;
     expect(nidSelect.value).toBe("0");
     await user.click(screen.getByRole("button", { name: "بدء التحليل" }));
 
@@ -301,6 +301,49 @@ describe("ImportWizard", () => {
       screen.getByRole("link", { name: "مراجعة الطلاب غير الموجودين" }),
     ).toHaveAttribute("href", "/students/inactive?filter=missing");
     expect(processed && committed).toBe(true);
+  });
+
+  it("explains existing student updates before approval", async () => {
+    const updatedJob = {
+      ...READY_JOB,
+      total_rows: 1,
+      summary: {
+        ...READY_JOB.summary,
+        new: 0, updated: 1, section_changed: 0,
+        missing_from_file: 0, will_create_grades: [], will_create_sections: [],
+      },
+    };
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/student-imports/5/process/": { body: updatedJob },
+      "/student-imports/5/preview/": {
+        body: {
+          count: 1, next: null, previous: null,
+          results: [{
+            row_number: 22, status: "EXISTING_UPDATED",
+            data: {
+              full_name: "طالب محدث", grade_name: "الأول الثانوي",
+              section_name: "1", national_id_masked: "******5678",
+              changes: { guardian_name: { from: "ولي سابق", to: "ولي جديد" }, student_number: { changed: true } },
+            },
+            error_codes: [], error_message: "",
+          }],
+        },
+      },
+      "/student-imports/5/": { body: updatedJob },
+      "/student-imports/": { status: 201, body: UPLOADED_JOB },
+    });
+    renderApp("/students/import");
+    const user = userEvent.setup();
+    await user.upload(await screen.findByTestId("import-file-input"), new File(["xlsx"], "noor.xlsx"));
+    await user.click(screen.getByRole("button", { name: "رفع الملف" }));
+    await user.click(await screen.findByRole("button", { name: "بدء التحليل" }));
+
+    expect(await screen.findByText("طالب محدث")).toBeInTheDocument();
+    expect(screen.getByTestId("import-update-explanation")).toHaveTextContent("الخانات الاختيارية الفارغة لا تمحو البيانات الحالية");
+    expect(screen.getByText("تحديث: الرقم الأكاديمي، اسم ولي الأمر")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "متابعة إلى التأكيد" }));
+    expect(await screen.findByTestId("confirm-summary")).toHaveTextContent("سيتم تحديث بيانات 1 طالبًا");
   });
 
   it("shows preview row errors with row number and Arabic message", async () => {
@@ -361,7 +404,7 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("button", { name: "عالج الحالات أولًا" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "معالجة الصف 23" }));
-    await user.type(screen.getByLabelText("رقم الهوية الصحيح"), "1012-345-678");
+    await user.type(screen.getByLabelText("رقم الطالب الصحيح"), "1012-345-678");
     await user.click(screen.getByRole("button", { name: "حفظ وإعادة الفحص" }));
 
     expect(await screen.findByText(/اكتملت المراجعة/)).toBeInTheDocument();

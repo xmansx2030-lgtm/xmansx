@@ -133,6 +133,27 @@ def test_manager_creates_student_manually(role_client):
 
 
 @pytest.mark.django_db
+def test_passport_identifier_is_unique_and_searchable(role_client):
+    client, school, _ = role_client(["SCHOOL_MANAGER"])
+    enrollment = _enroll(school, _make_student(school, "1012345678", "طالب تمهيدي"))
+    payload = {
+        "full_name": "طالب جواز",
+        "national_id": "n-123 45678",
+        "section_id": enrollment.section_id,
+    }
+    created = client.post(STUDENTS_URL, payload, content_type="application/json")
+    assert created.status_code == 201
+    assert created.json()["national_id_masked"] == "******5678"
+    assert client.get(f"{STUDENTS_URL}?national_id=N12345678").json()["count"] == 1
+    duplicate = client.post(
+        STUDENTS_URL, {**payload, "national_id": "N12345678"},
+        content_type="application/json",
+    )
+    assert duplicate.status_code == 409
+    assert Student.objects.filter(school=school).count() == 2
+
+
+@pytest.mark.django_db
 def test_manual_student_rejects_duplicate_and_non_manager(role_client, make_school):
     school = make_school()
     manager, _, _ = role_client(["SCHOOL_MANAGER"], school=school)

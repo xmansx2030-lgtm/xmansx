@@ -241,9 +241,9 @@ export function StudentAttendanceProfilePage() {
         badge={STATUS_LABELS[student.status] ?? student.status}
         meta={(
           <>
-            <span>رقم {studentLabelText}: {student.student_number ?? "غير متوفر"}</span>
+            <span>الرقم الأكاديمي: {student.student_number ?? "غير متوفر"}</span>
             <span className="text-white/30">•</span>
-            <span>الهوية: <bdi>{student.national_id_masked}</bdi></span>
+            <span>رقم الطالب: <bdi>{student.national_id_masked}</bdi></span>
           </>
         )}
         actions={(

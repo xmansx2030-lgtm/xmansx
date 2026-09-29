@@ -105,12 +105,17 @@ def _commit_locked(
 
     staged = list(job.rows.all())
     stored_statuses = {row.row_number: row.status for row in staged}
+    stored_data = {row.row_number: row.data for row in staged}
 
     # إعادة المقارنة ضد قاعدة البيانات الحالية (stale preview protection)
     result = categorize_rows(job.school, job.academic_year, _rows_to_normalized(staged))
     fresh_by_number = {r["row_number"]: r for r in result["rows"]}
     stale = any(
-        fresh_by_number[num]["status"] != status for num, status in stored_statuses.items()
+        fresh_by_number[num]["status"] != status or any(
+            fresh_by_number[num].get(field) != stored_data[num].get(field)
+            for field in ("matched_student_id", "changes", "previous_section")
+        )
+        for num, status in stored_statuses.items()
     )
     if stale:
         for row in staged:
@@ -273,6 +278,8 @@ def _commit_locked(
                 student.guardian_name = row["guardian_name"]
             if "guardian_mobile" in changes:
                 student.guardian_mobile = row["guardian_mobile"]
+            if "student_number" in changes:
+                student.student_number = row["student_number"]
             student.save()
             updated_students += 1
             record_event(

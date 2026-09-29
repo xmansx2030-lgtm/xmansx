@@ -194,7 +194,7 @@ export function StudentsPage() {
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor="search-nid" className="text-sm font-medium text-slate-700">
-            بحث برقم الهوية (مطابقة تامة)
+            بحث برقم الطالب (مطابقة تامة)
           </label>
           <input
             id="search-nid"
@@ -205,7 +205,7 @@ export function StudentsPage() {
               setPage(1);
             }}
             className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="1XXXXXXXXX"
+            placeholder="هوية أو إقامة أو جواز"
           />
         </div>
         <div className="flex min-w-0 flex-col gap-1">
@@ -284,7 +284,7 @@ export function StudentsPage() {
                     </th>
                   )}
                   <th className="p-3 text-start">الاسم</th>
-                  <th className="p-3 text-start">رقم الهوية</th>
+                  <th className="p-3 text-start">رقم الطالب</th>
                   <th className="p-3 text-start">الصف</th>
                   <th className="p-3 text-start">الفصل</th>
                   <th className="p-3 text-start">الحالة</th>
@@ -318,7 +318,7 @@ export function StudentsPage() {
                       </Link>
                     </td>
                     <td className="p-0 md:table-cell md:p-3" dir="ltr">
-                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden" dir="rtl">رقم الهوية</span>
+                      <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden" dir="rtl">رقم الطالب</span>
                       {student.national_id_masked}
                     </td>
                     <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف</span>{student.grade?.name ?? "—"}</td>
@@ -409,7 +409,7 @@ export function StudentsPage() {
       )}
 
       {editingStudent && (
-        <Modal title={`تعديل بيانات ${editingStudent.full_name}`} description="صحح البيانات أو رقم الهوية/الإقامة مع حفظ سجل التغيير." onClose={() => setEditingStudent(null)}>
+        <Modal title={`تعديل بيانات ${editingStudent.full_name}`} description="صحح البيانات أو رقم الطالب مع حفظ سجل التغيير." onClose={() => setEditingStudent(null)}>
           <StudentEditForm
             student={editingStudent}
             sections={sections.data ?? []}

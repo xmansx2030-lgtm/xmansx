@@ -1,4 +1,4 @@
-"""أمان رقم الهوية/الإقامة — المصدر المركزي الوحيد (ADR-009).
+"""أمان معرّفات الطلاب، بما فيها الهوية والإقامة والجواز — المصدر المركزي (ADR-009).
 
 - التخزين: تشفير متماثل Fernet (MultiFernet لدعم تدوير المفاتيح).
 - البحث الدقيق: HMAC-SHA256 deterministic بمفتاح منفصل — لا فك تشفير جماعي أبدًا.
@@ -14,6 +14,7 @@
 import hashlib
 import hmac
 import re
+import unicodedata
 from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
@@ -28,6 +29,26 @@ _STRIP_CHARS = re.compile(r"[\s\-.,/​‌‍‎‏﻿]")
 NATIONAL_ID_RE = re.compile(r"^[12]\d{9}$")
 
 INVALID_NATIONAL_ID_MESSAGE = "رقم الهوية/الإقامة غير صحيح. يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2."
+INVALID_STUDENT_IDENTIFIER_MESSAGE = (
+    "رقم الطالب غير صالح. أدخل رقم هوية أو إقامة أو جواز سفر "
+    "من 6 إلى 20 حرفًا أو رقمًا."
+)
+STUDENT_IDENTIFIER_RE = re.compile(r"^[A-Z0-9]{6,20}$")
+
+
+def normalize_student_identifier(raw: str) -> str:
+    """مفتاح الطالب الموحد: هوية، إقامة، أو جواز، دون تخمين نوع الوثيقة.
+
+    يحافظ على الأصفار البادئة ويزيل فواصل العرض فقط؛ لذلك تبقى المطابقة
+    الحتمية والتشفير وHMAC نفسها للوثائق القديمة والجديدة.
+    """
+    if not isinstance(raw, str):
+        raise ValidationError(INVALID_STUDENT_IDENTIFIER_MESSAGE, code="invalid_student_identifier")
+    value = _STRIP_CHARS.sub("", unicodedata.normalize("NFKC", raw).strip())
+    value = value.translate(_ARABIC_DIGITS).upper()
+    if not STUDENT_IDENTIFIER_RE.fullmatch(value):
+        raise ValidationError(INVALID_STUDENT_IDENTIFIER_MESSAGE, code="invalid_student_identifier")
+    return value
 
 
 def normalize_national_id(raw: str) -> str:

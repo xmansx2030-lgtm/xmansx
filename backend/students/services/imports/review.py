@@ -7,7 +7,7 @@ from common.security.identifiers import (
     encrypt_national_id,
     mask_national_id,
     national_id_lookup_hash,
-    normalize_national_id,
+    normalize_student_identifier,
 )
 from students.models import Section, StudentImportJob, StudentImportRow
 from students.services.imports import comparison, validation
@@ -25,7 +25,10 @@ def _normalized_from_staged(row: StudentImportRow) -> dict:
         row_number=row.row_number,
         national_id_encrypted=row.national_id_encrypted,
         national_id_hash=row.national_id_hash,
-        errors=[code for code in row.error_codes if code != "DUPLICATE_IN_FILE"],
+        errors=[
+            code for code in row.error_codes
+            if code not in {"DUPLICATE_IN_FILE", "IDENTITY_CONFLICT"}
+        ],
     )
     return data
 
@@ -87,11 +90,11 @@ def correct_row(
 
     if "national_id" in corrections:
         try:
-            national_id = normalize_national_id(
+            national_id = normalize_student_identifier(
                 validation.normalize_import_national_id(corrections["national_id"])
             )
         except ValidationError as exc:
-            raise ApiError("INVALID_NATIONAL_ID", "رقم الهوية غير صالح.") from exc
+            raise ApiError("INVALID_NATIONAL_ID", "رقم الطالب غير صالح.") from exc
         row.national_id_encrypted = encrypt_national_id(national_id)
         row.national_id_hash = national_id_lookup_hash(national_id)
         data["national_id_masked"] = mask_national_id(national_id)

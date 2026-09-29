@@ -9,6 +9,7 @@ from common.security.identifiers import (
     mask_national_id,
     national_id_lookup_hash,
     normalize_national_id,
+    normalize_student_identifier,
 )
 
 
@@ -34,6 +35,26 @@ def test_normalize_accepts_valid_formats(raw, expected):
 def test_normalize_rejects_invalid(raw):
     with pytest.raises(ValidationError):
         normalize_national_id(raw)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1012345678", "1012345678"),
+        ("2098765432", "2098765432"),
+        ("٠١٢٣٤٥٦٧٨٩", "0123456789"),
+        ("n-123 45678", "N12345678"),
+        ("12345678901", "12345678901"),
+    ],
+)
+def test_student_identifier_accepts_identity_residency_and_passport(raw, expected):
+    assert normalize_student_identifier(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["", "123", "AB?12345", "ع1234567", None])
+def test_student_identifier_rejects_unreliable_values(raw):
+    with pytest.raises(ValidationError):
+        normalize_student_identifier(raw)
 
 
 def test_encrypted_value_differs_from_plaintext():

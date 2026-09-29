@@ -8,7 +8,7 @@ from common.security.identifiers import (
     encrypt_national_id,
     mask_national_id,
     national_id_lookup_hash,
-    normalize_national_id,
+    normalize_student_identifier,
 )
 from students.services.imports.normalization import (
     normalize_digits,
@@ -20,15 +20,19 @@ from students.services.imports.normalization import (
 )
 
 ERROR_MESSAGES = {
-    "MISSING_NATIONAL_ID": "رقم الهوية مفقود.",
-    "INVALID_NATIONAL_ID": "رقم الهوية غير صالح.",
+    "MISSING_NATIONAL_ID": "رقم الطالب مفقود.",
+    "INVALID_NATIONAL_ID": "رقم الطالب غير صالح؛ تحقق من رقم الهوية أو الإقامة أو الجواز.",
     "MISSING_NAME": "اسم الطالب مفقود.",
     "MISSING_GRADE": "الصف مفقود.",
     "MISSING_SECTION": "الفصل مفقود.",
     "INVALID_DEPARTMENT": "اسم القسم يتجاوز 100 حرف.",
-    "DUPLICATE_IN_FILE": "رقم الهوية مكرر في الملف.",
+    "DUPLICATE_IN_FILE": "رقم الطالب أو الرقم الأكاديمي مكرر في الملف ببيانات متعارضة.",
+    "IDENTITY_CONFLICT": (
+        "المعرّف والرقم الأكاديمي يشيران إلى طالبين مختلفين؛ "
+        "صحّح الصف قبل الاعتماد."
+    ),
     "AUTO_RESOLVED_DUPLICATE": "صف مطابق تمامًا عولج تلقائيًا دون تكرار الطالب.",
-    "MISSING_IDENTITY": "لا يوجد رقم هوية ولا رقم طالب — لا يمكن المطابقة.",
+    "MISSING_IDENTITY": "رقم الطالب مفقود — لا يمكن المطابقة.",
 }
 
 
@@ -80,7 +84,7 @@ def build_normalized_row(row_number: int, values: tuple, mapping: dict) -> dict:
 
     if raw_nid is not None and normalize_digits(raw_nid) != "":
         try:
-            normalized = normalize_national_id(normalize_import_national_id(raw_nid))
+            normalized = normalize_student_identifier(normalize_import_national_id(raw_nid))
             national_id_encrypted = encrypt_national_id(normalized)
             national_id_hash = national_id_lookup_hash(normalized)
             national_id_masked = mask_national_id(normalized)
@@ -119,17 +123,39 @@ def mark_duplicates_in_file(rows: list[dict]) -> None:
     تلقائيًا. اختلاف أي حقل يعني أن الهوية استُخدمت لبيانات متعارضة؛ عندها لا
     نخمن الصف الصحيح وتبقى المجموعة كلها بحاجة إلى تصحيح يدوي.
     """
-    seen: dict[str, list[dict]] = {}
-    for row in rows:
+    parents = list(range(len(rows)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    seen: dict[tuple[str, str], int] = {}
+    for index, row in enumerate(rows):
         row.pop("auto_resolved_duplicate", None)
         row["errors"] = [code for code in row["errors"] if code != "DUPLICATE_IN_FILE"]
-        if row["national_id_hash"]:
-            seen.setdefault(row["national_id_hash"], []).append(row)
-    for group in seen.values():
+        for kind, value in (
+            ("identity", row["national_id_hash"]),
+            ("number", row["student_number"]),
+        ):
+            if not value:
+                continue
+            key = (kind, value)
+            if key in seen:
+                parents[find(index)] = find(seen[key])
+            else:
+                seen[key] = index
+
+    groups: dict[int, list[dict]] = {}
+    for index, row in enumerate(rows):
+        groups.setdefault(find(index), []).append(row)
+    for group in groups.values():
         if len(group) <= 1:
             continue
         comparison_fields = (
-            "full_name", "grade_code", "section_code", "department", "student_number",
+            "national_id_hash", "full_name", "grade_code", "section_code",
+            "department", "student_number",
             "guardian_name", "guardian_mobile",
         )
         signatures = {

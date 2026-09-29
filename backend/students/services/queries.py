@@ -3,7 +3,7 @@
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 
-from common.security.identifiers import national_id_lookup_hash, normalize_national_id
+from common.security.identifiers import national_id_lookup_hash, normalize_student_identifier
 from students.models import EnrollmentStatus, Student, StudentEnrollment
 
 
@@ -19,7 +19,7 @@ def students_queryset(*, school, academic_year=None, search: str = "",
     if national_id:
         # بحث دقيق عبر HMAC — لا contains على قيمة مشفرة
         try:
-            normalized = normalize_national_id(national_id)
+            normalized = normalize_student_identifier(national_id)
         except ValidationError:
             return queryset.none()
         queryset = queryset.filter(

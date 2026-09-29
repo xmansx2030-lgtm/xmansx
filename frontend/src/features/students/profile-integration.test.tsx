@@ -81,8 +81,8 @@ describe("unified student profile (phase 12 + 13)", () => {
     await screen.findByRole("heading", { name: "محمد أحمد" });
     const header = screen.getByTestId("student-profile-header");
     expect(header).toHaveTextContent("محمد أحمد");
-    expect(header).toHaveTextContent("رقم الطالب: 1001");
-    expect(header).toHaveTextContent("الهوية: ******5678");
+    expect(header).toHaveTextContent("الرقم الأكاديمي: 1001");
+    expect(header).toHaveTextContent("رقم الطالب: ******5678");
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
     for (const tab of PROFILE_TABS) {
       expect(labels).toContain(tab);

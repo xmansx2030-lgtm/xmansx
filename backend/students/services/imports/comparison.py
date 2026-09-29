@@ -57,6 +57,7 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     }
 
     for row in normalized_rows:
+        row["errors"] = [code for code in row["errors"] if code != "IDENTITY_CONFLICT"]
         if row.get("auto_resolved_duplicate"):
             row["status"] = "AUTO_RESOLVED_DUPLICATE"
             row["errors"] = []
@@ -71,11 +72,17 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             summary["errors"] += 1
             continue
 
-        student = None
-        if row["national_id_hash"]:
-            student = students_by_hash.get(row["national_id_hash"])
-        if student is None and row["student_number"]:
-            student = students_by_number.get(row["student_number"])
+        by_identity = students_by_hash.get(row["national_id_hash"])
+        by_number = students_by_number.get(row["student_number"])
+        if (by_identity and by_number and by_identity.id != by_number.id) or (
+            by_number and row["national_id_hash"]
+            and by_number.national_id_lookup_hash != row["national_id_hash"]
+        ):
+            row["errors"].append("IDENTITY_CONFLICT")
+            row["status"] = "ERROR"
+            summary["errors"] += 1
+            continue
+        student = by_identity or by_number
 
         if student is None:
             if not row["national_id_hash"]:
@@ -100,6 +107,8 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             changes["guardian_name"] = {"from": student.guardian_name, "to": row["guardian_name"]}
         if row["guardian_mobile"] and student.guardian_mobile != row["guardian_mobile"]:
             changes["guardian_mobile"] = {"changed": True}  # لا أرقام في الـ metadata
+        if row["student_number"] and student.student_number != row["student_number"]:
+            changes["student_number"] = {"changed": True}
         row["changes"] = changes
 
         enrollment = enrollments.get(student.id)

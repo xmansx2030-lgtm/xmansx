@@ -34,7 +34,7 @@ def create_student(
     national_id = data["national_id"]
     lookup_hash = national_id_lookup_hash(national_id)
     if Student.objects.filter(school=school, national_id_lookup_hash=lookup_hash).exists():
-        raise ApiError("STUDENT_ALREADY_EXISTS", "يوجد طالب مسجل برقم الهوية هذا.", 409)
+        raise ApiError("STUDENT_ALREADY_EXISTS", "يوجد طالب مسجل برقم الطالب هذا.", 409)
 
     student_number = data.get("student_number") or None
     if student_number and Student.objects.filter(
@@ -65,7 +65,7 @@ def create_student(
     except IntegrityError as exc:
         raise ApiError(
             "STUDENT_ALREADY_EXISTS",
-            "تعذر إنشاء الطالب؛ رقم الهوية أو رقم الطالب مستخدم مسبقًا.",
+            "تعذر إنشاء الطالب؛ رقم الوثيقة أو الرقم الأكاديمي مستخدم مسبقًا.",
             409,
         ) from exc
 
@@ -107,7 +107,7 @@ def update_student(
             ).exclude(id=student.id).exists():
                 raise ApiError(
                     "STUDENT_ALREADY_EXISTS",
-                    "يوجد طالب مسجل برقم الهوية/الإقامة هذا.",
+                    "يوجد طالب مسجل برقم الطالب هذا.",
                     409,
                 )
             student.national_id_encrypted = encrypt_national_id(national_id)
@@ -140,7 +140,7 @@ def update_student(
     except IntegrityError as exc:
         raise ApiError(
             "STUDENT_ALREADY_EXISTS",
-            "تعذر تحديث الطالب؛ رقم الهوية/الإقامة أو رقم الطالب مستخدم مسبقًا.",
+            "تعذر تحديث الطالب؛ رقم الوثيقة أو الرقم الأكاديمي مستخدم مسبقًا.",
             409,
         ) from exc
 
