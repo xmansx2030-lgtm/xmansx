@@ -7,8 +7,6 @@ import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
-import { patchSettings } from "@/features/settings/api";
-import { useSettingsQuery } from "@/features/settings/hooks";
 import {
   getSmsIntegration, PROVIDER_LABELS, saveSmsIntegration,
   type SmsIntegration, type SmsProvider,
@@ -16,7 +14,6 @@ import {
 
 export function SmsIntegrationTab() {
   const me = useMe();
-  const settings = useSettingsQuery();
   const schoolId = me.data?.active_school?.id ?? 0;
   const query = useQuery({
     queryKey: schoolScopedKey(schoolId, "sms", "integration"),
@@ -28,49 +25,11 @@ export function SmsIntegrationTab() {
   if (query.isError) return <ErrorState error={query.error} />;
   return (
     <div className="space-y-5">
-      {settings.isPending && <Spinner label="جارٍ تحميل معيار إرسال الغياب..." />}
-      {settings.isError && <ErrorState error={settings.error} />}
-      {settings.data && <SmsAbsencePolicyForm key={schoolId} schoolId={schoolId} initial={settings.data.absence_sms_min_approved_periods} />}
+      <Alert title="إرسال الغياب حسب التحاضير المعتمدة" tone="info">
+        يمكن مراجعة إرسال الرسالة لمن سُجل غيابه في جميع التحاضير المعتمدة لفصله حتى الآن، دون انتظار عدد محدد من الحصص أو اكتمال تحضير الفصول الأخرى. يُستبعد الغياب المعذور والطلاب بلا رقم ولي أمر صالح.
+      </Alert>
       <SmsIntegrationForm key={schoolId} initial={query.data} schoolId={schoolId} />
     </div>
-  );
-}
-
-function SmsAbsencePolicyForm({ schoolId, initial }: { schoolId: number; initial: number }) {
-  const queryClient = useQueryClient();
-  const [minimum, setMinimum] = useState(initial);
-  const [saved, setSaved] = useState(initial);
-  const mutation = useMutation({
-    mutationFn: () => patchSettings({ absence_sms_min_approved_periods: minimum }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(schoolScopedKey(schoolId, "settings"), data);
-      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "sms", "preview") });
-      setSaved(minimum);
-    },
-  });
-
-  return (
-    <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <h3 className="text-lg font-bold text-slate-900">معيار إرسال غياب اليوم</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-600">تحدد كل مدرسة عدد حصص التحضير المعتمدة قبل إتاحة رسائل الغياب. يظهر الطلاب في قائمة المراجعة فور اعتماد أي حصة، ثم يتاح الإرسال بعد بلوغ هذا العدد إذا بقي غياب غير معذور.</p>
-      <label className="mt-4 block max-w-md text-sm font-bold text-slate-700">
-        عدد التحاضير المعتمدة المطلوب
-        <select value={minimum === 0 ? "all" : "fixed"} onChange={(event) => setMinimum(event.target.value === "all" ? 0 : 2)} className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5">
-          <option value="all">جميع حصص التحضير في جدول اليوم</option>
-          <option value="fixed">عدد تحدده المدرسة</option>
-        </select>
-      </label>
-      {minimum > 0 && <label className="mt-4 block text-sm font-bold text-slate-700">
-        عدد الحصص
-        <input type="number" min={1} max={20} step={1} required value={minimum} onChange={(event) => setMinimum(Number(event.target.value))} className="mt-2 block w-28 rounded-xl border border-slate-300 px-3 py-2.5" />
-      </label>}
-      <p className="mt-3 text-xs leading-6 text-slate-500">مثال: عند اختيار حصتين، يمكن مراجعة الإرسال بعد اعتماد حصتين من فصل الطالب، حتى لو كان الجدول يتضمن حصصًا أخرى. نص الرسالة يذكر الغياب المسجل في التحاضير المعتمدة.</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button type="submit" loading={mutation.isPending} disabled={minimum === saved || !Number.isInteger(minimum) || minimum < 0 || minimum > 20}>حفظ معيار المدرسة</Button>
-        {minimum === saved && <span className="text-xs text-slate-500">المعيار المحفوظ لهذه المدرسة</span>}
-      </div>
-      {mutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{mutation.error.message}</p>}
-    </form>
   );
 }
 

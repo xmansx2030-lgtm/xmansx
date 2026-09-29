@@ -19,8 +19,7 @@ export interface AbsenceSmsCandidate {
   absence_status: "FULL";
   submitted_periods: number;
   expected_periods: number;
-  required_periods: number;
-  eligibility_reason: "INSUFFICIENT_APPROVALS" | "EXCUSED_ABSENCE" | "MISSING_RECIPIENT" | "INVALID_RECIPIENT" | null;
+  eligibility_reason: "NO_APPROVED_ATTENDANCE" | "EXCUSED_ABSENCE" | "MISSING_RECIPIENT" | "INVALID_RECIPIENT" | null;
   recipient_masked: string;
   send_status: AbsenceSmsStatus | null;
   send_error: string;
@@ -43,7 +42,6 @@ export interface AbsenceSmsPreview {
   candidate_student_ids: number[];
   selectable_student_ids: number[];
   contact_issues: AbsenceSmsContactIssue[];
-  min_approved_periods: number;
   message_template: string;
   default_message_template: string;
   integration: Pick<SmsIntegration, "provider" | "sender_name" | "is_active">;
