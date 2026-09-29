@@ -80,7 +80,7 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     for row in normalized_rows:
         row["errors"] = [
             code for code in row["errors"]
-            if code not in {"IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE"}
+            if code not in {"IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE", "MERGED_IDENTIFIER"}
         ]
         row.pop("possible_duplicate_masks", None)
         if row.get("auto_resolved_duplicate"):
@@ -108,6 +108,12 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             summary["errors"] += 1
             continue
         student = by_identity or by_number
+
+        if student is not None and student.merged_into_id:
+            row["errors"].append("MERGED_IDENTIFIER")
+            row["status"] = "ERROR"
+            summary["errors"] += 1
+            continue
 
         if student is None:
             if not row["national_id_hash"]:

@@ -798,6 +798,33 @@ def test_conflicting_document_and_academic_number_cannot_merge_students(import_m
 
 
 @pytest.mark.django_db
+def test_import_rejects_identifier_of_an_archived_merged_alias(import_manager):
+    client, school, _ = import_manager
+    assert (
+        run_import(
+            client,
+            [
+                noor_row("N12345678", "طالب معتمد"),
+                noor_row("P87654321", "سجل قديم"),
+            ],
+        ).status_code
+        == 200
+    )
+    target = Student.objects.get(school=school, full_name="طالب معتمد")
+    alias = Student.objects.get(school=school, full_name="سجل قديم")
+    alias.merged_into = target
+    alias.status = "ARCHIVED"
+    alias.save(update_fields=["merged_into", "status", "updated_at"])
+
+    job = upload(client, [noor_row("P87654321", "سجل قديم")]).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/").json()
+    assert preview["summary"]["errors"] == 1
+    row = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"][0]
+    assert row["error_codes"] == ["MERGED_IDENTIFIER"]
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("guardian", ["", "ولي الطالب"])
 def test_new_document_with_same_name_and_section_requires_duplicate_review(
     import_manager, guardian

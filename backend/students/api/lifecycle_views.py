@@ -114,9 +114,11 @@ class InactiveStudentsView(SchoolScopedAPIView):
                 m["student_id"] for m in summary.get("missing_names", [])
             ]
             # المفقودون قد يكونون نشطين بعد (لم يصنفوا) — يعرضون للمراجعة
-            queryset = base_queryset().filter(id__in=missing_ids)
+            queryset = base_queryset().filter(id__in=missing_ids, merged_into__isnull=True)
         else:
-            queryset = base_queryset().exclude(status=StudentStatus.ACTIVE)
+            queryset = base_queryset().exclude(status=StudentStatus.ACTIVE).filter(
+                merged_into__isnull=True
+            )
             status_filter = request.query_params.get("status", "").strip()
             if status_filter:
                 queryset = queryset.filter(status=status_filter)
@@ -134,6 +136,7 @@ class InactiveStudentsView(SchoolScopedAPIView):
             for name, mask in (
                 Student.objects.filter(school=request.school, full_name__in=names)
                 .exclude(id__in=missing_ids)
+                .filter(merged_into__isnull=True)
                 .values_list("full_name", "national_id_masked")
             ):
                 other_masks.setdefault(name, set()).add(mask)

@@ -85,6 +85,10 @@ class Student(TimestampedModel):
     full_name = models.CharField("اسم الطالب", max_length=200)
     guardian_name = models.CharField(max_length=150, blank=True, default="")
     guardian_mobile = models.CharField(max_length=16, blank=True, default="")  # مطبع إن وجد
+    merged_into = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="merged_duplicates",
+    )
     status = models.CharField(
         max_length=20, choices=StudentStatus.choices, default=StudentStatus.ACTIVE
     )
