@@ -1,11 +1,13 @@
 from django.urls import path
 
-from students.api import lifecycle_views, views
+from students.api import lifecycle_views, merge_views, views
 
 urlpatterns = [
     path("students/search/", views.StudentSearchView.as_view()),
     path("students/", views.StudentListView.as_view()),
     path("students/inactive/", lifecycle_views.InactiveStudentsView.as_view()),
+    path("students/merge/preview/", merge_views.MergePreviewView.as_view()),
+    path("students/merge/", merge_views.MergeApplyView.as_view()),
     path("students/bulk-status/", lifecycle_views.BulkStatusView.as_view()),
     path("students/<int:student_id>/status/", lifecycle_views.StudentStatusView.as_view()),
     path("students/<int:student_id>/purge/", lifecycle_views.StudentPurgeView.as_view()),
