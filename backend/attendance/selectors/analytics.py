@@ -1,8 +1,8 @@
 """تحليلات الغياب (م8): حصة محددة، عدة حصص (ALL/ANY)، وملخص اليوم.
 
 قواعد صلبة:
-- غياب الجلسة ≠ حضور ولا غياب: الفصل غير المكتمل للحصص المحددة يستبعد طلابه من
-  النتيجة كليًا ويعلن ضمن incomplete_sections بسببه — لا استنتاج جماعي أبدًا.
+- غياب الجلسة ≠ حضور ولا غياب: الفصل غير المكتمل للحصص المحددة يعلن ضمن
+  incomplete_sections، ولا تستنتج له علامات من غياب الجلسة.
 - الهوية التاريخية للحصة: period_sequence (snapshot وقت الفتح) + AttendanceDayContext
   — لا BellPeriod حي.
 - ‏Data minimization: لا رقم هوية ولا جوال ولي أمر في أي استجابة تحليلات.
@@ -25,7 +25,7 @@ from attendance.selectors.monitoring import expected_sections_queryset
 from attendance.services.day_context import get_or_create_attendance_day_context
 from attendance.services.sessions import _active_year
 from common.errors import ApiError
-from students.models import Student
+from students.models import Section, Student
 from students.services.enrollments import enrollments_on_date
 
 MATCH_ALL = "ALL_ABSENT"
@@ -100,29 +100,44 @@ def get_multi_period_report(
         if p["sequence"] in sequences
     ]
 
+    # A section can change after preparation (for example when an import moves
+    # students into newly created sections). Keep the sections that actually
+    # owned today's sessions in the report, even if they are inactive now.
+    day_sessions = list(
+        AttendanceSession.objects.filter(
+            school=school, attendance_date=attendance_date
+        ).only("id", "section_id", "period_sequence", "status")
+    )
+    historical_section_ids = {s.section_id for s in day_sessions}
     sections_qs = expected_sections_queryset(school=school, year=year)
     if grade_id:
         sections_qs = sections_qs.filter(grade_id=grade_id)
     if section_id:
         sections_qs = sections_qs.filter(id=section_id)
     sections = list(sections_qs)
+    historical_sections = Section.objects.filter(
+        school=school, id__in=historical_section_ids
+    ).select_related("grade")
+    if grade_id:
+        historical_sections = historical_sections.filter(grade_id=grade_id)
+    if section_id:
+        historical_sections = historical_sections.filter(id=section_id)
+    current_ids = {s.id for s in sections}
+    sections.extend(s for s in historical_sections if s.id not in current_ids)
+    sections.sort(key=lambda s: (s.grade.sequence, s.code, s.id))
     section_ids = [s.id for s in sections]
 
-    sessions = list(
-        AttendanceSession.objects.filter(
-            school=school,
-            attendance_date=attendance_date,
-            period_sequence__in=sequences,
-            section_id__in=section_ids,
-        ).only("id", "section_id", "period_sequence", "status")
-    )
+    selected_section_ids = set(section_ids)
+    selected_sequences = set(sequences)
+    sessions = [
+        s for s in day_sessions
+        if s.section_id in selected_section_ids and s.period_sequence in selected_sequences
+    ]
     submitted_by_section: dict[int, set[int]] = {}
     in_progress_by_section: dict[int, set[int]] = {}
-    submitted_session_ids = []
     for s in sessions:
         if s.status == AttendanceSessionStatus.SUBMITTED:
             submitted_by_section.setdefault(s.section_id, set()).add(s.period_sequence)
-            submitted_session_ids.append(s.id)
         else:
             in_progress_by_section.setdefault(s.section_id, set()).add(s.period_sequence)
 
@@ -153,7 +168,7 @@ def get_multi_period_report(
             }
         )
 
-    # جلسات الفصول المكتملة فقط — طلاب الفصل الناقص لا يدخلون النتيجة إطلاقًا
+    # علامات الجلسات المكتملة فقط؛ قد يظهر طالب من فصل تاريخي آخر بعد نقله.
     complete_session_ids = [
         s.id
         for s in sessions
