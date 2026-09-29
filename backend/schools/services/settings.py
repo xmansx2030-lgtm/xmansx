@@ -21,6 +21,7 @@ SETTINGS_EDITABLE_FIELDS = {
     "attendance_edit_window_minutes",
     "unprepared_period_alert_minutes",
     "absence_sms_min_approved_periods",
+    "absence_sms_message_template",
     "school_day_start_time",
     "morning_late_grace_minutes",
 }

@@ -32,8 +32,11 @@ export interface AbsenceSmsPreview {
   page_size: number;
   total: number;
   ready_total: number;
+  candidate_student_ids: number[];
+  selectable_student_ids: number[];
   min_approved_periods: number;
   message_template: string;
+  default_message_template: string;
   integration: Pick<SmsIntegration, "provider" | "sender_name" | "is_active">;
   students: AbsenceSmsCandidate[];
 }
