@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import type { KeyboardEvent } from "react";
 
 import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
@@ -51,6 +52,30 @@ const DEVICE_STATUS_LABELS: Record<string, string> = {
 };
 
 const deviceStatusPollInterval = adaptivePollingInterval(POLLING.deviceStatus);
+
+type IdentityTab = "UNMATCHED" | "MATCHED" | "CONFLICT";
+
+function handleIdentityTabKeyDown(
+  event: KeyboardEvent<HTMLButtonElement>,
+  current: IdentityTab,
+  onChange: (tab: IdentityTab) => void,
+) {
+  const tabs: IdentityTab[] = ["UNMATCHED", "MATCHED", "CONFLICT"];
+  const currentIndex = tabs.indexOf(current);
+  let nextIndex: number | null = null;
+  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = tabs.length - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  const nextTab = tabs[nextIndex]!;
+  event.currentTarget.parentElement
+    ?.querySelector<HTMLButtonElement>(`#identity-tab-${nextTab.toLowerCase()}`)
+    ?.focus();
+  onChange(nextTab);
+}
 
 interface DeviceFormState {
   name: string;
@@ -127,7 +152,7 @@ export function DevicesSettingsPage() {
   const [deviceForm, setDeviceForm] = useState<DeviceFormState>({ ...NEW_DEVICE_FORM });
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
   const [editDeviceForm, setEditDeviceForm] = useState<DeviceFormState | null>(null);
-  const [identityTab, setIdentityTab] = useState<"UNMATCHED" | "MATCHED" | "CONFLICT">(
+  const [identityTab, setIdentityTab] = useState<IdentityTab>(
     "UNMATCHED",
   );
   const [actionError, setActionError] = useState<unknown>(null);
@@ -419,7 +444,7 @@ export function DevicesSettingsPage() {
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UsersRound aria-hidden size={20} /></span><div><h2 className="font-black text-slate-950">مطابقة مستخدمي الأجهزة</h2><p className="text-xs text-slate-500">اربط معرف الجهاز بسجل {studentLabel(schoolType, true)} الصحيح</p></div></div>
-        <div className="mb-3 flex gap-1" role="tablist">
+        <div className="mb-3 flex gap-1" role="tablist" aria-label="حالات مطابقة مستخدمي الأجهزة">
           {(
             [
               ["UNMATCHED", "غير مطابق"],
@@ -431,7 +456,11 @@ export function DevicesSettingsPage() {
               key={key}
               type="button"
               role="tab"
+              id={`identity-tab-${key.toLowerCase()}`}
+              aria-controls="identity-tabpanel"
               aria-selected={identityTab === key}
+              tabIndex={identityTab === key ? 0 : -1}
+              onKeyDown={(event) => handleIdentityTabKeyDown(event, key, setIdentityTab)}
               onClick={() => setIdentityTab(key)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                 identityTab === key
@@ -443,6 +472,7 @@ export function DevicesSettingsPage() {
             </button>
           ))}
         </div>
+        <div id="identity-tabpanel" role="tabpanel" aria-labelledby={`identity-tab-${identityTab.toLowerCase()}`} tabIndex={0}>
         {identitiesQuery.isPending && <Spinner />}
         {identitiesQuery.isError && <ErrorState error={identitiesQuery.error} />}
         {identitiesQuery.isSuccess && (
@@ -461,6 +491,7 @@ export function DevicesSettingsPage() {
             ))}
           </ul>
         )}
+        </div>
       </section>
     </div>
   );

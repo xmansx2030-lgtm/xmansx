@@ -85,13 +85,13 @@ const NAVIGATION: NavigationItem[] = [
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link to="/workspace" className="group flex min-h-11 min-w-11 items-center gap-3" aria-label="الرئيسية — منصة المواظبة">
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-950/20 transition-transform group-hover:-translate-y-0.5">
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-teal-400 to-teal-700 text-white shadow-md shadow-teal-950/20 transition-transform group-hover:-translate-y-0.5">
         <Building2 aria-hidden size={21} strokeWidth={2.3} />
       </span>
       {!compact && (
         <span className="min-w-0 leading-tight">
-          <strong className="block truncate text-base font-black text-white">منصة المواظبة</strong>
-          <span className="mt-1 block text-[11px] font-medium text-slate-400">إدارة مدرسية أكثر وضوحًا</span>
+          <strong className="block truncate text-base font-bold text-white">منصة المواظبة</strong>
+          <span className="mt-1 block text-[11px] font-medium text-teal-100/55">إدارة مدرسية أكثر وضوحًا</span>
         </span>
       )}
     </Link>
@@ -104,8 +104,8 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
   );
 
   return groups.map((group) => (
-    <div key={group} className="mb-5 last:mb-0">
-      <p className="mb-2 px-3 text-[11px] font-bold tracking-wide text-slate-500">{group === "students" ? `${studentPluralLabel(schoolType)} والمتابعة` : GROUP_LABELS[group]}</p>
+    <div key={group} className="mb-6 last:mb-0">
+      <p className="mb-2 px-3 text-[10px] font-bold tracking-wide text-teal-100/45">{group === "students" ? `${studentPluralLabel(schoolType)} والمتابعة` : GROUP_LABELS[group]}</p>
       <div className="space-y-1">
         {items.filter((item) => item.group === group).map((item) => {
           const Icon = item.icon;
@@ -115,11 +115,11 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
               to={item.to}
               end={item.to === "/workspace"}
               onClick={onNavigate}
-              className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 ${isActive ? "bg-white/12 text-white shadow-sm ring-1 ring-white/10" : "text-slate-300 hover:bg-white/7 hover:text-white"}`}
+              className={({ isActive }) => `group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-[color,background-color,box-shadow] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 ${isActive ? "bg-teal-300/12 font-bold text-white shadow-sm ring-1 ring-teal-100/10 before:absolute before:inset-y-2 before:start-0 before:w-0.5 before:rounded-e-full before:bg-teal-300" : "text-slate-300/80 hover:bg-white/[0.06] hover:text-white"}`}
             >
               {({ isActive }) => (
                 <>
-                  <Icon aria-hidden size={18} className={isActive ? "text-teal-300" : "text-slate-500 transition-colors group-hover:text-teal-300"} />
+                  <Icon aria-hidden size={18} className={isActive ? "text-teal-200" : "text-teal-100/45 transition-colors group-hover:text-teal-200"} />
                   <span>{item.to === "/students" ? studentPluralLabel(schoolType) : item.to === "/devices/roster-sync" ? `مزامنة أجهزة ${studentPluralLabel(schoolType)}` : item.label}</span>
                 </>
               )}
@@ -146,11 +146,11 @@ function AdditionalNavigation({ items, schoolType, onNavigate }: { items: Naviga
     .join("، ");
 
   return (
-    <details className="group rounded-xl border border-white/10 bg-white/5" data-testid="additional-navigation">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 py-3 text-slate-300 transition hover:bg-white/7 hover:text-white">
+    <details className="group rounded-xl border border-white/10 bg-white/[0.035]" data-testid="additional-navigation">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-3 py-3 text-slate-300 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300">
         <span className="min-w-0">
-          <span className="block text-[10px] font-bold tracking-wide text-slate-500">أدوات إضافية</span>
-          <span className="mt-0.5 block text-sm font-black">المتابعة وأدوات المدرسة</span>
+          <span className="block text-[10px] font-bold tracking-wide text-teal-100/45">أدوات إضافية</span>
+          <span className="mt-0.5 block text-sm font-bold">المتابعة وأدوات المدرسة</span>
           <span className="mt-1 block truncate text-[11px] font-medium text-slate-400" data-testid="additional-navigation-preview">
             {preview}{items.length > previewItems.length ? "، والمزيد" : ""}
           </span>
@@ -168,7 +168,7 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
   const me = useMe();
   if (!me.isSuccess) return null;
   return (
-    <div className={`flex items-center gap-3 ${mobile ? "border-t border-slate-200 p-4" : "border-t border-white/10 p-4"}`}>
+    <div className={`flex items-center gap-3 ${mobile ? "border-t border-slate-200 p-4" : "border-t border-white/10 bg-[#0b211f] p-4"}`}>
       <span className={`grid size-10 shrink-0 place-items-center rounded-full text-sm font-black ${mobile ? "bg-teal-50 text-teal-800" : "bg-white/10 text-teal-200"}`}>
         {me.data.name.trim().charAt(0)}
       </span>
@@ -217,10 +217,10 @@ export function AppShell() {
   const isNavigating = navigation.state !== "idle";
 
   return (
-    <div className="min-h-dvh bg-slate-50 lg:flex">
+    <div className="min-h-dvh bg-[#f4f8f6] lg:flex">
       <a className="skip-link" href="#main-content">الانتقال إلى المحتوى</a>
-      <aside className="hidden h-dvh w-70 shrink-0 flex-col overflow-hidden bg-slate-950 lg:sticky lg:top-0 lg:flex">
-        <div className="border-b border-white/10 p-5"><Brand /></div>
+      <aside className="hidden h-dvh w-70 shrink-0 flex-col overflow-hidden bg-[#102b28] lg:sticky lg:top-0 lg:flex">
+        <div className="border-b border-white/[0.08] p-5"><Brand /></div>
         <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto px-3 py-5">
           <NavigationLinks items={primaryItems} schoolType={schoolType} />
           <AdditionalNavigation items={additionalItems} schoolType={schoolType} />
@@ -229,37 +229,37 @@ export function AppShell() {
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="app-shell-header sticky top-0 z-40 border-b border-slate-200/80 bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl lg:px-8">
-          {isNavigating && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-brand-100" role="progressbar" aria-label="جارٍ تحميل الصفحة"><span className="block h-full w-2/5 animate-pulse bg-brand-600" /></div>}
-          <div className="mx-auto flex max-w-7xl items-center gap-3">
-            <div className="rounded-xl bg-slate-950 p-1.5 lg:hidden"><Brand compact /></div>
+        <header className="app-shell-header sticky top-0 z-40 border-b border-[#dce8e4]/90 bg-[#fbfdfc]/95 px-3 py-2.5 shadow-[0_5px_20px_-18px_rgba(16,43,40,.42)] backdrop-blur-xl sm:px-4 sm:py-3 lg:px-8">
+          {isNavigating && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-teal-100" role="progressbar" aria-label="جارٍ تحميل الصفحة" aria-valuetext="جارٍ تحميل الصفحة"><span className="block h-full w-2/5 animate-pulse bg-teal-700" /></div>}
+          <div className="mx-auto flex max-w-7xl items-center gap-2.5 sm:gap-3">
+            <div className="shrink-0 rounded-xl bg-[#102b28] p-1.5 lg:hidden"><Brand compact /></div>
             <div className="min-w-0 flex-1">
               <SchoolSwitcher />
-              <nav aria-label="مسار الصفحة" className="mt-1 hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
-                <Link to="/workspace" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md font-medium hover:text-brand-800">الرئيسية</Link>
+              <nav aria-label="مسار الصفحة" className="mt-0.5 hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
+                <Link to="/workspace" className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-md font-medium hover:text-brand-800">الرئيسية</Link>
                 <span aria-hidden>/</span>
                 <span aria-current="page" className="truncate font-bold text-slate-700">{currentLabel}</span>
               </nav>
             </div>
-            <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
+            <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#dce8e4] bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
               {mobileMenuOpen ? <X aria-hidden size={20} /> : <Menu aria-hidden size={20} />}
             </button>
           </div>
         </header>
 
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-30 bg-slate-950/40 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
-            <nav ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="التنقل الرئيسي" tabIndex={-1} className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden bg-slate-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="fixed inset-0 z-30 bg-[#0b211f]/50 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
+            <nav ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="التنقل الرئيسي" tabIndex={-1} className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden border-s border-white/10 bg-[#102b28] shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex-1 overflow-y-auto px-4 py-5">
                 <NavigationLinks items={primaryItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
                 <AdditionalNavigation items={additionalItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
               </div>
-              <div className="bg-white"><UserPanel onLogout={handleLogout} mobile /></div>
+              <div className="bg-[#fbfdfc]"><UserPanel onLogout={handleLogout} mobile /></div>
             </nav>
           </div>
         )}
 
-        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-4 py-6 sm:px-6 sm:py-8 xl:px-8"><Outlet /></main>
+        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8"><Outlet /></main>
       </div>
     </div>
   );

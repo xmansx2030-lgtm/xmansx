@@ -228,8 +228,9 @@ export function CounselorDashboardPage() {
         <EmptyState title="لا توجد حالات مطابقة" description="جرّب تغيير الفلاتر، أو راجع صندوق الإحالات الجديدة لبدء حالة متابعة." testId="no-cases" />
       ) : (
         <>
-        <div className="hidden overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm lg:block">
-          <table className="w-full text-sm">
+        <div className="hidden overflow-x-auto overscroll-x-contain rounded-3xl border border-slate-200 bg-white shadow-sm lg:block" role="region" aria-label="جدول حالات الإرشاد" tabIndex={0}>
+          <table className="w-full min-w-[960px] text-sm">
+            <caption className="sr-only">حالات الإرشاد: الطالب والصف وسبب الإحالة والمرشد والحالة وآخر نشاط والإجراء القادم</caption>
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="p-3 text-start">{studentLabel(schoolType, true)}</th>

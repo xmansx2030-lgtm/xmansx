@@ -10,6 +10,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
 
 import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Button } from "@/components/Button";
@@ -52,6 +53,28 @@ function useOnlineStatus() {
 }
 
 type Tab = "today" | "late" | "history";
+
+function handleMorningTabKeyDown(
+  event: KeyboardEvent<HTMLButtonElement>,
+  current: Tab,
+  onChange: (tab: Tab) => void,
+) {
+  const tabs: Tab[] = ["today", "late", "history"];
+  const currentIndex = tabs.indexOf(current);
+  let nextIndex: number | null = null;
+  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = tabs.length - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  const nextTab = tabs[nextIndex]!;
+  event.currentTarget.parentElement
+    ?.querySelector<HTMLButtonElement>(`#morning-tab-${nextTab}`)
+    ?.focus();
+  onChange(nextTab);
+}
 
 const morningPollInterval = adaptivePollingInterval(POLLING.morning);
 
@@ -136,7 +159,7 @@ export function MorningPage() {
       )}
 
       <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white px-2 pt-2 shadow-sm">
-        <div className="flex min-w-max gap-1 border-b border-slate-100" role="tablist">
+        <div className="flex min-w-max gap-1 border-b border-slate-100" role="tablist" aria-label="عروض التأخر الصباحي">
           {(
             [
               ["today", "اليوم"],
@@ -148,7 +171,11 @@ export function MorningPage() {
               key={key}
               type="button"
               role="tab"
+              id={`morning-tab-${key}`}
+              aria-controls={`morning-tabpanel-${key}`}
               aria-selected={tab === key}
+              tabIndex={tab === key ? 0 : -1}
+              onKeyDown={(event) => handleMorningTabKeyDown(event, key, setTab)}
               onClick={() => setTab(key)}
               className={`min-h-11 rounded-t-xl px-5 py-2 text-sm font-bold transition ${
                 tab === key
@@ -163,7 +190,7 @@ export function MorningPage() {
       </section>
 
       {tab === "today" && (
-        <>
+        <div id="morning-tabpanel-today" role="tabpanel" aria-labelledby="morning-tab-today" tabIndex={0} className="space-y-4">
           {summaryQuery.isPending && <Spinner />}
           {summaryQuery.isError && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -198,11 +225,11 @@ export function MorningPage() {
             <p>عدم وجود بصمة لا يعني غياب {studentLabel(schoolType, true)}؛ الغياب الرسمي يبقى من تحضير الحصص «حاضر/غائب» فقط.</p>
           </div>
           {!isDelegatedOperator && <ManualArrivalCard date={date} onDone={refresh} online={online} />}
-        </>
+        </div>
       )}
 
-      {tab === "late" && <LateTab date={date} schoolId={schoolId} onChanged={refresh} />}
-      {tab === "history" && <HistoryTab schoolId={schoolId} />}
+      {tab === "late" && <div id="morning-tabpanel-late" role="tabpanel" aria-labelledby="morning-tab-late" tabIndex={0}><LateTab date={date} schoolId={schoolId} onChanged={refresh} /></div>}
+      {tab === "history" && <div id="morning-tabpanel-history" role="tabpanel" aria-labelledby="morning-tab-history" tabIndex={0}><HistoryTab schoolId={schoolId} /></div>}
     </div>
   );
 }

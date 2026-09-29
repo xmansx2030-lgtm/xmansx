@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -188,6 +188,29 @@ const PLATFORM_TABS = [
 ] satisfies { id: PlatformTab; label: string; description: string; icon: typeof BarChart3; capability: PlatformCapability | null }[];
 
 const numberFormat = new Intl.NumberFormat("ar-SA");
+
+function handlePlatformTabKeyDown(
+  event: KeyboardEvent<HTMLButtonElement>,
+  tabs: readonly { id: PlatformTab }[],
+  onChange: (id: PlatformTab) => void,
+) {
+  const currentIndex = tabs.findIndex((item) => item.id === event.currentTarget.dataset.tabId);
+  if (currentIndex < 0 || tabs.length === 0) return;
+
+  let nextIndex: number | null = null;
+  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = tabs.length - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  const nextTab = tabs[nextIndex]!;
+  event.currentTarget.parentElement
+    ?.querySelector<HTMLButtonElement>(`[data-tab-id="${nextTab.id}"]`)
+    ?.focus();
+  onChange(nextTab.id);
+}
 
 function DashboardMetric({
   label,
@@ -1092,13 +1115,13 @@ export function PlatformAdminPage() {
             </div>
           </div>
 
-          <nav aria-label="أقسام إدارة المنصة" className="flex-1 space-y-2 p-4">
-            <p className="mb-3 px-3 text-[11px] font-bold tracking-wide text-slate-500">مساحة العمل</p>
+          <div className="px-4 pt-4 text-[11px] font-bold tracking-wide text-slate-500">مساحة العمل</div>
+          <nav role="tablist" aria-label="أقسام إدارة المنصة" className="flex-1 space-y-2 p-4">
             {visibleTabs.map((item) => {
               const Icon = item.icon;
               const selected = currentTab === item.id;
               return (
-                <button key={item.id} type="button" aria-current={selected ? "page" : undefined} onClick={() => setTab(item.id)} className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start transition ${selected ? "bg-white/10 text-white ring-1 ring-white/10" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
+                <button key={item.id} type="button" role="tab" aria-selected={selected} aria-controls="platform-tabpanel" tabIndex={selected ? 0 : -1} data-tab-id={item.id} onKeyDown={(event) => handlePlatformTabKeyDown(event, visibleTabs, setTab)} onClick={() => setTab(item.id)} className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start transition ${selected ? "bg-white/10 text-white ring-1 ring-white/10" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
                   <span className={`grid size-10 shrink-0 place-items-center rounded-xl transition ${selected ? "bg-teal-400 text-slate-950" : "bg-white/5 text-slate-400 group-hover:text-teal-300"}`}><Icon aria-hidden size={19} /></span>
                   <span><span className="block text-sm font-bold">{item.label}</span><span className={`mt-0.5 block text-[11px] ${selected ? "text-slate-300" : "text-slate-500"}`}>{item.description}</span></span>
                 </button>
@@ -1129,17 +1152,18 @@ export function PlatformAdminPage() {
                     <RefreshCw aria-hidden size={17} className={overview.isFetching ? "animate-spin" : ""} /><span className="ms-2 hidden text-sm font-bold sm:inline">تحديث</span>
                   </button>
                 )}
-                <button type="button" onClick={handleLogout} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /><span>تسجيل الخروج</span></button>
+                <button type="button" onClick={handleLogout} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 xl:hidden" aria-label="تسجيل الخروج"><LogOut aria-hidden size={17} /><span className="hidden sm:inline">تسجيل الخروج</span></button>
               </div>
             </div>
-            <nav aria-label="أقسام إدارة المنصة" className="mt-3 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
+            <nav role="tablist" aria-label="أقسام إدارة المنصة" className="mt-3 flex gap-1 overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 bg-white p-1 shadow-sm xl:hidden">
               {visibleTabs.map((item) => {
                 const Icon = item.icon;
-                return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition sm:text-sm ${currentTab === item.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon aria-hidden size={16} />{item.label}</button>;
+                return <button key={item.id} type="button" role="tab" aria-selected={currentTab === item.id} aria-controls="platform-tabpanel" tabIndex={currentTab === item.id ? 0 : -1} data-tab-id={item.id} onKeyDown={(event) => handlePlatformTabKeyDown(event, visibleTabs, setTab)} onClick={() => setTab(item.id)} className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition sm:text-sm ${currentTab === item.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon aria-hidden size={16} />{item.label}</button>;
               })}
             </nav>
           </header>
 
+          <section id="platform-tabpanel" role="tabpanel" aria-label={activeTab.label} tabIndex={0}>
           {currentTab === "dashboard" && (
             overview.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل لوحة المنصة..." /></div> : overview.isError || !overview.data ? (
               <section className="rounded-2xl border border-red-200 bg-white p-6 text-center"><AlertTriangle aria-hidden className="mx-auto text-red-500" /><h2 className="mt-3 font-black text-slate-900">تعذر تحميل مؤشرات المنصة</h2><p className="mt-1 text-sm text-slate-500">تحقق من الاتصال ثم أعد المحاولة.</p><Button className="mt-4" onClick={() => void overview.refetch()}>إعادة المحاولة</Button></section>
@@ -1149,6 +1173,7 @@ export function PlatformAdminPage() {
           {currentTab === "plans" && (plans.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل الباقات..." /></div> : <PlanForm plans={activePlans} canManage={hasCapability("PLANS_MANAGE")} />)}
           {currentTab === "team" && <PlatformTeamPanel canManage={hasCapability("TEAM_MANAGE")} currentUserId={me.data?.id} />}
           {currentTab === "account" && <PlatformAccountPanel />}
+          </section>
         </div>
       </div>
     </main>

@@ -123,10 +123,12 @@ describe("Public landing and school registration", () => {
     });
     renderApp("/register?plan=7");
     const user = userEvent.setup();
+    expect(await screen.findByRole("progressbar", { name: "تقدم التسجيل" })).toHaveAttribute("aria-valuenow", "1");
 
     await user.type(await screen.findByLabelText("اسم المدرسة"), "ثانوية الإتقان التجريبية");
     await user.click(screen.getByRole("radio", { name: "بنات" }));
     await user.click(screen.getByRole("button", { name: /متابعة إلى حساب المدير/ }));
+    expect(screen.getByRole("progressbar", { name: "تقدم التسجيل" })).toHaveAttribute("aria-valuetext", "الخطوة 2 من 2");
 
     await user.type(screen.getByLabelText("اسم مدير المدرسة"), "ريم القحطاني");
     await user.type(screen.getByLabelText("رقم الجوال"), "0551234567");

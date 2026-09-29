@@ -84,6 +84,36 @@ describe("platform and subscription UI", () => {
     expect(screen.getByText("900")).toBeInTheDocument();
   });
 
+  it("exposes selected platform tabs and supports arrow-key navigation", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "/auth/me/": { body: buildMe({ is_platform_admin: true, name: "مشرف المنصة" }) },
+      "/platform/overview/": {
+        body: {
+          schools_total: 0,
+          subscriptions: {},
+          usage_totals: {},
+          expiring_soon: [],
+        },
+      },
+      "/platform/plans/": { body: [] },
+    });
+
+    renderApp("/platform");
+
+    const tablists = await screen.findAllByRole("tablist", { name: "أقسام إدارة المنصة" });
+    const tabs = within(tablists[0]!);
+    const dashboardTab = tabs.getByRole("tab", { name: /لوحة المؤشرات/ });
+    expect(dashboardTab).toHaveAttribute("aria-selected", "true");
+    expect(dashboardTab).toHaveAttribute("tabindex", "0");
+
+    dashboardTab.focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(tabs.getByRole("tab", { name: /المدارس/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "المدارس" })).toBeInTheDocument();
+  });
+
   it.each(["/", "/select-school"])(
     "redirects platform admins from school route %s to the platform console",
     async (path) => {

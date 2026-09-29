@@ -120,10 +120,10 @@ export function RegisterSchoolPage() {
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
 
   return (
-    <main className="registration-shell min-h-dvh bg-[#061916] px-4 py-5 text-slate-900 sm:px-6 sm:py-8 lg:px-8">
+    <main className="registration-shell min-h-dvh overflow-x-hidden bg-[#061916] px-4 py-5 text-slate-900 sm:px-6 sm:py-8 lg:px-8">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-        <Link to="/" className="flex min-h-11 items-center gap-3 text-white" aria-label="العودة إلى الصفحة الرئيسية"><span className="grid size-10 place-items-center rounded-xl bg-teal-400 text-slate-950"><Building2 size={20} /></span><span><strong className="block text-sm font-black">منصة المواظبة</strong><span className="text-[10px] text-slate-400">تسجيل مدرسة جديدة</span></span></Link>
-        <Link to="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white">لديك حساب؟ <span className="text-teal-300">سجّل الدخول</span></Link>
+        <Link to="/" className="flex min-h-11 min-w-0 items-center gap-3 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-300" aria-label="العودة إلى الصفحة الرئيسية"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-400 text-slate-950"><Building2 aria-hidden size={20} /></span><span><strong className="block text-sm font-black">منصة المواظبة</strong><span className="text-[10px] text-slate-400">تسجيل مدرسة جديدة</span></span></Link>
+        <Link to="/login" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-bold text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 sm:text-sm">لديك حساب؟ <span className="text-teal-300">سجّل الدخول</span></Link>
       </div>
 
       <div className="mx-auto mt-8 grid max-w-7xl gap-8 lg:mt-12 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
@@ -136,10 +136,10 @@ export function RegisterSchoolPage() {
           </div>
         </aside>
 
-        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-[0_35px_90px_rgba(0,0,0,0.3)]">
+        <section aria-labelledby="registration-heading" className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#fbfdfc] shadow-[0_35px_90px_rgba(0,0,0,0.3)] sm:rounded-[2rem]">
           <div className="border-b border-slate-100 px-5 py-6 sm:px-9">
-            <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black text-teal-700">الخطوة {step} من 2</p><h1 className="mt-1 text-2xl font-black">{step === 1 ? "بيانات المدرسة والباقة" : "حساب مدير المدرسة"}</h1></div><span className="grid size-11 place-items-center rounded-2xl bg-teal-50 text-teal-800">{step === 1 ? <Building2 size={21} /> : <LockKeyhole size={21} />}</span></div>
-            <div className="mt-5 grid grid-cols-2 gap-2" aria-label="تقدم التسجيل"><span className="h-1.5 rounded-full bg-teal-600" /><span className={`h-1.5 rounded-full ${step === 2 ? "bg-teal-600" : "bg-slate-200"}`} /></div>
+              <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black text-teal-800">الخطوة {step} من 2</p><h1 id="registration-heading" className="mt-1 text-xl font-black leading-snug text-slate-950 sm:text-2xl">{step === 1 ? "بيانات المدرسة والباقة" : "حساب مدير المدرسة"}</h1></div><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-teal-50 text-teal-800 ring-1 ring-teal-100">{step === 1 ? <Building2 aria-hidden size={21} /> : <LockKeyhole aria-hidden size={21} />}</span></div>
+            <div className="mt-5 grid grid-cols-2 gap-2" role="progressbar" aria-label="تقدم التسجيل" aria-valuetext={`الخطوة ${step} من 2`} aria-valuemin={1} aria-valuemax={2} aria-valuenow={step}><span className="h-1.5 rounded-full bg-teal-700" /><span className={`h-1.5 rounded-full ${step === 2 ? "bg-teal-700" : "bg-slate-200"}`} /></div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-5 sm:p-9" noValidate>

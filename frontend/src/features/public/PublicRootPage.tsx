@@ -9,8 +9,11 @@ export function PublicRootPage() {
 
   if (me.isPending) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-[#061916] text-white">
-        <p className="animate-pulse text-sm font-bold text-teal-100">منصة المواظبة</p>
+      <div role="status" aria-label="جارٍ التحقق من الحساب" className="grid min-h-dvh place-items-center bg-[#061916] px-6 text-white">
+        <div className="flex items-center gap-3 rounded-2xl border border-teal-300/15 bg-white/[0.04] px-5 py-4">
+          <span aria-hidden="true" className="size-2 animate-pulse rounded-full bg-teal-300" />
+          <p className="text-sm font-bold text-teal-100">منصة المواظبة</p>
+        </div>
       </div>
     );
   }

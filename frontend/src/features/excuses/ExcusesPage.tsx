@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { MetricCard } from "@/components/MetricCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
+import { TableShell } from "@/components/TableShell";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
   type ExcuseFilters,
@@ -160,7 +161,13 @@ export function ExcusesPage() {
         <Spinner />
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white">
-          <table className="block w-full text-sm md:table">
+          <TableShell
+            title="سجل الأعذار"
+            description="على الشاشات الصغيرة تظهر السجلات كبطاقات؛ في الشاشات الأوسع يمكن تمرير الجدول أفقيًا."
+            className="rounded-none border-0 shadow-none"
+          >
+          <table className="block w-full text-sm md:table md:min-w-[760px]">
+            <caption className="sr-only">سجل الأعذار: الطالب والفترة والنوع والحالة والتغطية والمسجل والتفاصيل</caption>
             <thead className="hidden md:table-header-group">
               <tr className="border-b text-slate-500">
                 <th className="p-3 text-start">{studentLabel(schoolType, true)}</th>
@@ -211,6 +218,7 @@ export function ExcusesPage() {
               ))}
             </tbody>
           </table>
+          </TableShell>
           {(list.data?.results.length ?? 0) === 0 && <div className="p-4"><EmptyState title="لا توجد أعذار مطابقة" description={`غيّر معايير البحث أو أضف عذرًا جديدًا ${schoolType === "GIRLS" ? "للطالبة" : "للطالب"} عند توفر المستند المؤيد.`} testId="no-excuses" compact /></div>}
           <div className="flex flex-col gap-3 border-t border-slate-100 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="text-slate-500">

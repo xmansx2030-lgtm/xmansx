@@ -278,8 +278,9 @@ export function StudentsPage() {
 
       {students.data && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="md:overflow-x-auto">
+          <div className="md:overflow-x-auto md:overscroll-x-contain" role="region" aria-label={`جدول ${studentsLabel}`} tabIndex={0}>
             <table className="block w-full text-sm md:table md:min-w-150">
+              <caption className="sr-only">سجل {studentsLabel}: الاسم ورقم الطالب والصف والفصل والحالة والإجراءات</caption>
               <thead className="hidden md:table-header-group">
                 <tr className="border-b border-slate-200 text-slate-500">
                   {canImport && (

@@ -71,15 +71,15 @@ export function LoginPage() {
     loginMutation.error instanceof ApiError ? loginMutation.error : null;
 
   return (
-    <main className="auth-shell flex h-dvh items-center justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="grid w-full max-w-4xl min-w-0 items-center gap-8 lg:grid-cols-[1fr_1fr]">
-        <section className="hidden px-4 text-white lg:block">
+    <main className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8 sm:py-10">
+      <div className="grid w-full max-w-5xl min-w-0 items-center gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
+        <section aria-labelledby="login-story-title" className="hidden px-4 text-white lg:block">
           <span className="mb-8 grid size-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
             <Building2 aria-hidden size={29} className="text-teal-200" />
           </span>
           <p className="mb-3 text-sm font-bold text-teal-200">منصة مدرسية متكاملة</p>
           <p className="text-xl font-black">منصة المواظبة</p>
-          <h2 className="mt-4 max-w-md text-3xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
+          <h2 id="login-story-title" className="mt-4 max-w-md text-3xl font-black leading-[1.35]">المواظبة والمتابعة، بصورة أوضح كل يوم.</h2>
           <p className="mt-4 max-w-md text-sm leading-7 text-slate-300">مساحة عمل موحدة تساعد الإدارة والهيئة التعليمية والإرشادية على متابعة الطالب أو الطالبة واتخاذ الإجراء المناسب بثقة.</p>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
             <span className="flex items-center gap-2"><CheckCircle2 size={17} className="text-teal-300" /> متابعة لحظية</span>
@@ -87,13 +87,13 @@ export function LoginPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="auth-card w-full min-w-0 max-w-md justify-self-center rounded-3xl p-6 sm:p-9" noValidate>
+        <form onSubmit={handleSubmit} className="auth-card w-full min-w-0 max-w-md justify-self-center rounded-3xl p-5 shadow-[0_24px_70px_rgba(3,27,24,0.18)] sm:p-9" noValidate>
           <div className="mb-7">
-            <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 lg:hidden"><Building2 aria-hidden size={24} /></span>
-            <p className="mb-1 text-sm font-bold text-blue-700">مرحبًا بك</p>
+            <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 ring-1 ring-teal-100 lg:hidden"><Building2 aria-hidden size={24} /></span>
+            <p className="mb-1 text-sm font-bold text-teal-800">مرحبًا بك</p>
             <h1 className="text-2xl font-black text-slate-900">منصة المواظبة</h1>
             <h2 className="mt-2 text-lg font-extrabold text-slate-700">تسجيل الدخول</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">أدخل بيانات حسابك للوصول إلى لوحة مدرستك.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">أدخل بيانات حسابك للوصول إلى لوحة مدرستك.</p>
           </div>
 
           <TextField

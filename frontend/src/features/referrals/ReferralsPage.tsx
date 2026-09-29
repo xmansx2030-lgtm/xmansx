@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { MetricCard } from "@/components/MetricCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
+import { TableShell } from "@/components/TableShell";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
   type ReferralFilters,
@@ -59,8 +60,13 @@ export function ReferralsTable({
   studentTitle?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="block w-full text-sm md:table">
+    <TableShell
+      title="سجل الإحالات"
+      description="على الشاشات الصغيرة تظهر السجلات كبطاقات؛ في الشاشات الأوسع يمكن تمرير الجدول أفقيًا."
+      className="rounded-2xl"
+    >
+      <table className="block w-full text-sm md:table md:min-w-[900px]">
+        <caption className="sr-only">سجل الإحالات: الطالب والصف والفريق المسؤول والحالة والتفاصيل</caption>
         <thead className="hidden md:table-header-group">
           <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500">
             <th className="p-3 text-start">{studentTitle}</th>
@@ -114,7 +120,7 @@ export function ReferralsTable({
       {rows.length === 0 && (
         <div className="p-4"><EmptyState title="لا توجد إحالات" description={emptyText} testId="no-referrals" compact /></div>
       )}
-    </div>
+    </TableShell>
   );
 }
 

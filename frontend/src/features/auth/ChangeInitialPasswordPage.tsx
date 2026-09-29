@@ -84,14 +84,14 @@ export function ChangeInitialPasswordPage() {
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
 
   return (
-    <main className="auth-shell flex h-dvh items-center justify-center overflow-y-auto p-4">
+    <main className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:py-10">
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="auth-card w-full min-w-0 max-w-md rounded-3xl p-6 sm:p-9"
+        className="auth-card w-full min-w-0 max-w-md rounded-3xl p-5 shadow-[0_24px_70px_rgba(3,27,24,0.18)] sm:p-9"
       >
-        <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><KeyRound aria-hidden size={23} /></span>
-        <p className="mb-1 text-sm font-bold text-blue-700">خطوة أمان مطلوبة</p>
+        <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 ring-1 ring-teal-100"><KeyRound aria-hidden size={23} /></span>
+        <p className="mb-1 text-sm font-bold text-teal-800">خطوة أمان مطلوبة</p>
         <h1 className="text-2xl font-black text-slate-900">تغيير كلمة المرور</h1>
         <p className="mb-6 mt-2 text-sm leading-6 text-slate-500">
           يجب تغيير كلمة المرور المؤقتة قبل متابعة استخدام المنصة.
@@ -113,8 +113,8 @@ export function ChangeInitialPasswordPage() {
           autoComplete="new-password"
           className="mb-3"
         />
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-          <p className="font-bold text-slate-700">يجب أن تكون كلمة المرور الجديدة:</p>
+        <div className="mb-4 rounded-2xl border border-teal-100 bg-teal-50/60 px-4 py-3 text-xs leading-6 text-slate-700">
+          <p className="font-bold text-teal-900">يجب أن تكون كلمة المرور الجديدة:</p>
           <ul className="mt-1 list-disc space-y-0.5 pe-4">
             <li>ثمانية أحرف على الأقل.</li>
             <li>ليست أرقامًا فقط.</li>
@@ -163,7 +163,7 @@ export function ChangeInitialPasswordPage() {
             href={WHATSAPP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-bold text-blue-700 underline decoration-blue-200 underline-offset-4 hover:text-blue-900"
+            className="font-bold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
           >
             تواصل مع الدعم عبر واتساب
           </a>

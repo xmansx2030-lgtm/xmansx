@@ -166,8 +166,8 @@ export function LandingPage() {
             <a href="#capabilities" className="min-h-11 content-center hover:text-white">المنصة</a><a href="#journey" className="min-h-11 content-center hover:text-white">كيف تبدأ</a><a href="#plans" className="min-h-11 content-center hover:text-white">الباقات</a>
           </div>
           <div className="ms-auto hidden items-center gap-2 sm:flex">
-            <Link to="/login" className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-bold text-white hover:bg-white/8">تسجيل الدخول</Link>
-            <Link to="/register" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-400 px-5 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-teal-300">ابدأ مدرستك <ArrowLeft size={16} /></Link>
+            <Link to="/login" className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-bold text-white hover:bg-white/8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300">تسجيل الدخول</Link>
+            <Link to="/register" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-400 px-5 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-teal-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">ابدأ مدرستك <ArrowLeft aria-hidden size={16} /></Link>
           </div>
           <button type="button" className="ms-auto grid size-11 place-items-center rounded-xl border border-white/10 bg-white/5 sm:hidden" aria-label={mobileNavOpen ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={mobileNavOpen} aria-controls="mobile-navigation" onClick={() => setMobileNavOpen((value) => !value)}>{mobileNavOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </nav>

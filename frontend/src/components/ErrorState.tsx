@@ -14,11 +14,11 @@ export function ErrorState({ error }: ErrorStateProps) {
     <Alert tone="danger" title="تعذر إكمال الطلب">
       <p>{message}</p>
       {requestId && (
-        <details className="mt-2 text-xs text-slate-500">
-          <summary className="w-fit cursor-pointer select-none font-medium hover:text-slate-700">
+        <details className="mt-3 rounded-xl border border-rose-200/70 bg-white/65 p-3 text-xs text-slate-600">
+          <summary className="w-fit cursor-pointer select-none rounded-lg px-2 font-bold text-rose-900 hover:bg-rose-100/70">
             معلومات الدعم
           </summary>
-          <p className="mt-1" dir="ltr">
+          <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2" dir="ltr">
             رمز التتبع: <code className="select-all">{requestId}</code>
           </p>
         </details>

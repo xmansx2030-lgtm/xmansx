@@ -37,8 +37,10 @@ export function SelectSchoolPage() {
 
   if (me.isPending) {
     return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <Spinner />
+      <div className="auth-shell flex min-h-dvh items-center justify-center px-4">
+        <div role="status" aria-label="جارٍ تحميل الحساب" className="rounded-2xl border border-white/10 bg-white/5 p-5 text-teal-100">
+          <Spinner />
+        </div>
       </div>
     );
   }
@@ -52,29 +54,29 @@ export function SelectSchoolPage() {
   const apiError = switchMutation.error instanceof ApiError ? switchMutation.error : null;
 
   return (
-    <main className="auth-shell flex h-dvh items-center justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="auth-card w-full min-w-0 max-w-xl rounded-3xl p-6 sm:p-9">
-        <span className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><Building2 aria-hidden size={24} /></span>
-        <p className="mb-1 text-center text-sm font-bold text-blue-700">مساحة العمل</p>
+    <main className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8 sm:py-10">
+      <div className="auth-card w-full min-w-0 max-w-xl rounded-3xl p-5 shadow-[0_24px_70px_rgba(3,27,24,0.18)] sm:p-9">
+        <span className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 ring-1 ring-teal-100"><Building2 aria-hidden size={24} /></span>
+        <p className="mb-1 text-center text-sm font-bold text-teal-800">مساحة العمل</p>
         <h1 className="text-center text-2xl font-black text-slate-900">اختر المدرسة</h1>
-        <p className="mb-7 mt-2 text-center text-sm text-slate-500">
+        <p className="mb-7 mt-2 text-center text-sm leading-6 text-slate-600">
           مرحباً {me.data.name}، اختر المدرسة التي تريد الدخول إليها
         </p>
 
         {apiError && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {apiError.message}
           </p>
         )}
 
         {me.data.invitations.length > 0 && (
           <section className="mb-6" data-testid="invitations-section">
-            <h2 className="mb-2 font-bold text-slate-700">دعوات مدارس</h2>
+            <h2 className="mb-3 font-black text-slate-800">دعوات مدارس</h2>
             <ul className="space-y-3">
               {me.data.invitations.map((invitation) => (
                 <li
                   key={invitation.id}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                  className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5"
                 >
                   <p className="font-bold text-slate-800">{invitation.school.name}</p>
                   <p className="mb-3 text-sm text-slate-600">
@@ -86,8 +88,9 @@ export function SelectSchoolPage() {
                       {invitationMutation.error.message}
                     </p>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 min-[380px]:flex-row">
                     <Button
+                      className="w-full min-[380px]:w-auto"
                       disabled={invitationMutation.isPending}
                       onClick={() =>
                         invitationMutation.mutate({ id: invitation.id, action: "accept" })
@@ -96,6 +99,7 @@ export function SelectSchoolPage() {
                       قبول
                     </Button>
                     <Button
+                      className="w-full min-[380px]:w-auto"
                       variant="secondary"
                       disabled={invitationMutation.isPending}
                       onClick={() =>
@@ -114,12 +118,13 @@ export function SelectSchoolPage() {
         <ul className="space-y-3">
           {me.data.memberships.map((membership) => (
             <li key={membership.id}>
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md">
-                <div>
+              <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between sm:p-5">
+                <div className="min-w-0">
                   <p className="font-bold text-slate-800">{membership.school.name}</p>
                   <p className="text-sm text-slate-500">{roleLabels(membership.roles, membership.school.school_type)}</p>
                 </div>
                 <Button
+                  className="w-full min-[420px]:w-auto"
                   onClick={() => {
                     setPendingId(membership.school.id);
                     switchMutation.mutate(membership.school.id);
@@ -138,7 +143,7 @@ export function SelectSchoolPage() {
         <div className="mt-6 text-center">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
             onClick={() => {
               void doLogout().then(() => navigate("/login", { replace: true }));
             }}

@@ -3,12 +3,12 @@ import type { LucideIcon } from "lucide-react";
 type MetricTone = "neutral" | "teal" | "blue" | "amber" | "red" | "violet";
 
 const tones: Record<MetricTone, string> = {
-  neutral: "bg-slate-100 text-slate-700",
-  teal: "bg-teal-50 text-teal-700",
-  blue: "bg-blue-50 text-blue-700",
-  amber: "bg-amber-50 text-amber-700",
-  red: "bg-red-50 text-red-700",
-  violet: "bg-violet-50 text-violet-700",
+  neutral: "bg-slate-100 text-slate-700 ring-slate-200",
+  teal: "bg-teal-50 text-teal-800 ring-teal-100",
+  blue: "bg-cyan-50 text-cyan-800 ring-cyan-100",
+  amber: "bg-amber-50 text-amber-800 ring-amber-100",
+  red: "bg-rose-50 text-rose-800 ring-rose-100",
+  violet: "bg-indigo-50 text-indigo-800 ring-indigo-100",
 };
 
 interface MetricCardProps {
@@ -23,12 +23,13 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, hint, icon: Icon, tone = "neutral", testId, valueFirst = false }: MetricCardProps) {
   return (
-    <article className="ds-surface group p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" data-testid={testId}>
+    <article className="ds-surface group relative min-w-0 overflow-hidden p-4 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md" data-testid={testId}>
+      <span aria-hidden className="absolute inset-y-4 start-0 w-0.5 rounded-e-full bg-teal-500/70 opacity-70" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {valueFirst ? <><p className="text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">{value}</p><p className="mt-1 text-xs font-bold leading-5 text-slate-500">{label}</p></> : <><p className="text-xs font-bold leading-5 text-slate-500">{label}</p><p className="mt-1 text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">{value}</p></>}
         </div>
-        {Icon && <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${tones[tone]}`}><Icon aria-hidden size={19} /></span>}
+        {Icon && <span className={`grid size-10 shrink-0 place-items-center rounded-xl ring-1 ring-inset ${tones[tone]}`}><Icon aria-hidden size={19} strokeWidth={1.9} /></span>}
       </div>
       {hint && <p className="mt-2 text-xs leading-5 text-slate-500">{hint}</p>}
     </article>
