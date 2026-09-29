@@ -22,6 +22,7 @@ import {
   startSession,
   submitSession,
 } from "@/features/attendance/api";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
@@ -158,7 +159,7 @@ export function AttendanceSessionPage() {
   }
   if (!session && previewQuery.data) {
     const preview = previewQuery.data;
-    const sectionTitle = `${preview.section.grade_name} / ${preview.section.name}`;
+    const sectionTitle = sectionLabel(preview.section.grade_name, preview.section.name, preview.section.department);
     return (
       <div className="space-y-4">
         <PageHeader
@@ -285,7 +286,7 @@ export function AttendanceSessionPage() {
       <PageHeader
         icon={ClipboardCheck}
         eyebrow="جلسة التحضير"
-        title={<span data-testid="session-section-name">{session.section.name} — {session.section.grade_name}</span>}
+        title={<span data-testid="session-section-name">{sectionLabel(session.section.grade_name, session.section.name, session.section.department)}</span>}
         description={`التحضير بخيارين فقط: ${schoolType === "GIRLS" ? "حاضرة أو غائبة" : "حاضر أو غائب"}. جميع ${studentsLabel} ${schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} افتراضيًا حتى تحدد الغياب.`}
         tone="teacher"
         badge={session.status === "SUBMITTED" && !editing ? "تم الاعتماد" : editing ? "تعديل معتمد" : "قيد التحضير"}

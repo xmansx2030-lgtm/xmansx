@@ -20,6 +20,7 @@ export interface AttendanceSection {
   name: string;
   grade_id?: number;
   grade_name: string;
+  department?: string;
   students_count: number;
 }
 
@@ -68,6 +69,7 @@ export interface QrInfo {
   section_id: number;
   section_name: string;
   grade_name: string;
+  department?: string;
   token: string;
   url_path: string;
 }
@@ -126,6 +128,7 @@ export interface MonitoringSection {
   section_name: string;
   grade_id: number;
   grade_name: string;
+  department?: string;
   students_count: number;
   attendance_status: MonitoringAttendanceStatus;
   timeliness_status: TimelinessStatus;
@@ -173,6 +176,7 @@ export interface AnalyticsStudent {
   full_name: string;
   grade_name: string;
   section_name: string;
+  department?: string;
   period_statuses: { sequence: number; status: "ABSENT" | "PRESENT" }[];
 }
 
@@ -180,6 +184,7 @@ export interface IncompleteSection {
   section_id: number;
   section_name: string;
   grade_name: string;
+  department?: string;
   missing_sequences: number[];
   reason: string;
 }
@@ -246,6 +251,7 @@ export interface DailyAnalyticsResponse {
     full_name: string;
     grade_name: string;
     section_name: string;
+    department?: string;
     absent_periods: number;
     submitted_periods: number;
     expected_periods: number;

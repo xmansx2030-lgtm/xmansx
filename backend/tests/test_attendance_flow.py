@@ -63,6 +63,8 @@ def teacher_env(role_client):
 
 @pytest.mark.django_db
 def test_preview_is_read_only_until_explicit_start(teacher_env):
+    teacher_env["section"].department = "المسار العام"
+    teacher_env["section"].save(update_fields=["department"])
     preview_url = (
         f"/api/v1/attendance/sections/{teacher_env['section'].id}/preview/"
     )
@@ -71,6 +73,10 @@ def test_preview_is_read_only_until_explicit_start(teacher_env):
 
     assert preview.status_code == 200
     assert preview.json()["section"]["name"] == teacher_env["section"].name
+    assert preview.json()["section"]["department"] == "المسار العام"
+    sections = teacher_env["client"].get("/api/v1/attendance/sections/").json()
+    selected = next(row for row in sections if row["id"] == teacher_env["section"].id)
+    assert selected["department"] == "المسار العام"
     assert preview.json()["session"] is None
     assert AttendanceSession.objects.filter(school=teacher_env["school"]).count() == 0
     assert not AuditLog.objects.filter(action=AuditAction.ATTENDANCE_STARTED).exists()

@@ -186,6 +186,7 @@ export interface SectionRow {
   section_id: number;
   section_name: string;
   grade_name: string;
+  department?: string;
   students: number;
   student_days: number;
   full_absence_days: number;

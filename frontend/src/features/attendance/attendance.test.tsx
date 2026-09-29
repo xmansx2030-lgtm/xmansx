@@ -27,7 +27,7 @@ function managerMe() {
 }
 
 const SECTIONS = [
-  { id: 3, name: "1", grade_name: "الأول الثانوي", students_count: 3 },
+  { id: 3, name: "1", grade_name: "الأول الثانوي", department: "السنة المشتركة", students_count: 3 },
   { id: 4, name: "2", grade_name: "الأول الثانوي", students_count: 25 },
 ];
 
@@ -42,7 +42,7 @@ function sessionBody(overrides: Record<string, unknown> = {}) {
     id: 5,
     status: "IN_PROGRESS",
     attendance_date: "2026-08-19",
-    section: { id: 3, name: "1", grade_name: "الأول الثانوي", students_count: 3 },
+    section: { id: 3, name: "1", grade_name: "الأول الثانوي", department: "السنة المشتركة", students_count: 3 },
     period: {
       sequence: 2,
       name: "الثانية",
@@ -93,13 +93,18 @@ describe("attendance", () => {
           date: "2026-08-19",
         },
       },
-      "/attendance/sections/": { body: SECTIONS },
+      "/attendance/sections/": { body: [
+        ...SECTIONS,
+        { id: 5, name: "1", grade_name: "الأول الثانوي", department: "مسار إدارة الأعمال", students_count: 20 },
+      ] },
     });
 
     renderApp("/");
     expect(await screen.findByTestId("current-period-name")).toHaveTextContent("الثانية");
     const list = await screen.findByTestId("sections-list");
     expect(within(list).getByTestId("section-3")).toHaveTextContent("3 طالبًا");
+    expect(within(list).getByTestId("section-3")).toHaveTextContent("الأول الثانوي / فصل 1 / السنة المشتركة");
+    expect(within(list).getByTestId("section-5")).toHaveTextContent("الأول الثانوي / فصل 1 / مسار إدارة الأعمال");
     expect(within(list).getByTestId("section-4")).toHaveTextContent("الأول الثانوي");
   });
 
@@ -318,10 +323,10 @@ describe("attendance", () => {
 
     renderApp("/qr/tok-abc123");
     const user = userEvent.setup();
-    expect(await screen.findByTestId("preview-section-name")).toHaveTextContent("الأول الثانوي / 1");
+    expect(await screen.findByTestId("preview-section-name")).toHaveTextContent("الأول الثانوي / فصل 1 / السنة المشتركة");
     expect(calls.some((call) => call.url.includes("/sessions/start/"))).toBe(false);
     await user.click(screen.getByTestId("start-attendance"));
-    expect(await screen.findByTestId("session-section-name")).toHaveTextContent("1");
+    expect(await screen.findByTestId("session-section-name")).toHaveTextContent("الأول الثانوي / فصل 1 / السنة المشتركة");
     expect(await screen.findByTestId("roster-student-11")).toBeInTheDocument();
     const startCall = calls.find((call) => call.url.includes("/sessions/start/"));
     expect(parseBody(startCall?.init)).toMatchObject({ section_id: 3, source: "QR" });
@@ -406,6 +411,7 @@ describe("attendance", () => {
             section_id: 3,
             section_name: "1",
             grade_name: "الأول الثانوي",
+            department: "السنة المشتركة",
             token: rotated ? "new-token" : "old-token",
             url_path: rotated ? "/qr/new-token" : "/qr/old-token",
           },
@@ -429,6 +435,7 @@ describe("attendance", () => {
     expect(printSheet).toHaveTextContent("ثانوية الأندلس");
     expect(printSheet).toHaveTextContent("الفصل 1");
     expect(printSheet).toHaveTextContent("الأول الثانوي");
+    expect(printSheet).toHaveTextContent("القسم: السنة المشتركة");
 
     await user.click(screen.getByTestId("print-qr"));
     expect(window.print).toHaveBeenCalledOnce();

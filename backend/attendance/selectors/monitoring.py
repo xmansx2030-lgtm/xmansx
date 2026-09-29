@@ -171,6 +171,7 @@ def get_current_section_attendance_statuses(*, school, now: datetime | None = No
                 "section_name": section.name,
                 "grade_id": section.grade_id,
                 "grade_name": section.grade.name,
+                "department": section.department,
                 "students_count": section.active_students,
                 "attendance_status": status,
                 "timeliness_status": timeliness,

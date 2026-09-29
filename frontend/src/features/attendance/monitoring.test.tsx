@@ -58,6 +58,7 @@ const SECTIONS: MonitoringSection[] = [
     section_name: "2",
     grade_id: 200,
     grade_name: "الثاني الثانوي",
+    department: "مسار إدارة الأعمال",
     attendance_status: "IN_PROGRESS",
     timeliness_status: "OVERDUE",
     started_at: "08:45",
@@ -128,6 +129,7 @@ describe("attendance monitoring", () => {
     expect(submitted).toHaveTextContent("أحمد محمد");
     const inProgress = screen.getByTestId("monitoring-section-2");
     expect(inProgress).toHaveTextContent("بدأ ولم يعتمد — متأخر 6 دقيقة");
+    expect(inProgress).toHaveTextContent("الثاني الثانوي / فصل 2 / مسار إدارة الأعمال");
     const notStarted = screen.getByTestId("monitoring-section-3");
     expect(notStarted).toHaveTextContent("🔴 لم يتم التحضير — متأخر 6 دقيقة");
     expect(notStarted).toHaveTextContent("—"); // لا معلم لفصل لم يبدأ

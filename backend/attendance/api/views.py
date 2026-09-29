@@ -140,6 +140,7 @@ class AttendanceSectionsView(SchoolScopedAPIView):
                     "name": s.name,
                     "grade_id": s.grade_id,
                     "grade_name": s.grade.name,
+                    "department": s.department,
                     "students_count": s.students_count,
                 }
                 for s in sections
@@ -211,6 +212,7 @@ class AttendanceSectionPreviewView(SchoolScopedAPIView):
                     "name": section.name,
                     "grade_id": section.grade_id,
                     "grade_name": section.grade.name,
+                    "department": section.department,
                     "students_count": students_count,
                 },
                 "period": {
@@ -375,6 +377,7 @@ class QrResolveView(SchoolScopedAPIView):
                 "id": section.id,
                 "name": section.name,
                 "grade_name": section.grade.name,
+                "department": section.department,
                 "students_count": section.enrollments.filter(
                     status=EnrollmentStatus.ACTIVE
                 ).count(),
@@ -595,6 +598,7 @@ def _qr_payload(section: Section, token: str) -> dict:
         "section_id": section.id,
         "section_name": section.name,
         "grade_name": section.grade.name,
+        "department": section.department,
         "token": token,
         "url_path": f"/qr/{token}",
     }

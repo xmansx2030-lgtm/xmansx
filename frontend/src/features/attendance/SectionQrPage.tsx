@@ -25,6 +25,7 @@ import {
   type AttendanceSection,
 } from "@/features/attendance/api";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { STAGE_LABELS } from "@/features/settings/api";
 import { useSettingsQuery } from "@/features/settings/hooks";
 import type { SchoolType } from "@/types/auth";
@@ -76,7 +77,7 @@ export function SectionQrPage() {
     const needle = search.trim().toLocaleLowerCase("ar");
     return (sectionsQuery.data ?? []).filter((section) => {
       const matchesGrade = gradeFilter === "" || section.grade_name === gradeFilter;
-      const searchable = `${section.grade_name} ${section.name}`.toLocaleLowerCase("ar");
+      const searchable = sectionLabel(section.grade_name, section.name, section.department).toLocaleLowerCase("ar");
       return matchesGrade && (needle === "" || searchable.includes(needle));
     });
   }, [gradeFilter, search, sectionsQuery.data]);
@@ -241,6 +242,7 @@ export function SectionQrPage() {
                   <ReviewItem label="المدرسة" value={schoolName} />
                   <ReviewItem label="الصف" value={qrQuery.data.grade_name} />
                   <ReviewItem label="الفصل" value={qrQuery.data.section_name} />
+                  {qrQuery.data.department && <ReviewItem label="القسم" value={qrQuery.data.department} />}
                 </div>
 
                 <Button onClick={() => window.print()} className="mt-5 w-full py-3" data-testid="print-qr">
@@ -289,7 +291,7 @@ function SectionChoice({ section, schoolType, selected, onSelect }: { section: A
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-black text-slate-900">{sectionDisplayName(section.name)}</span>
-        <span className="mt-1 block truncate text-xs text-slate-500">{section.grade_name}</span>
+        <span className="mt-1 block break-words text-xs text-slate-500">{section.grade_name}{section.department ? ` / ${section.department}` : ""}</span>
         <span className="mt-1 flex items-center gap-1 text-[11px] font-bold text-slate-400"><UsersRound aria-hidden size={12} /> {section.students_count} {studentCountLabel(schoolType)}</span>
       </span>
       {selected && <CheckCircle2 aria-label="محدد" size={19} className="shrink-0 text-teal-700" />}
@@ -335,6 +337,7 @@ function QrPrintSheet({
       <div className="relative py-7 text-center">
         <p className="text-sm font-black text-teal-700">{section.grade_name}</p>
         <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl" data-testid="qr-section-title">{sectionDisplayName(section.name)}</h1>
+        {section.department && <p className="mt-2 text-sm font-bold text-teal-800">القسم: {section.department}</p>}
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">امسح الرمز من داخل المنصة لفتح قائمة {studentPluralLabel(schoolType)} هذا الفصل والبدء في التحضير مباشرة.</p>
 
         <div className="mx-auto mt-6 w-fit rounded-[2rem] border-2 border-slate-900 bg-white p-3 shadow-sm ring-8 ring-slate-100">
@@ -342,7 +345,7 @@ function QrPrintSheet({
             ref={canvasRef}
             data-testid="qr-canvas"
             role="img"
-            aria-label={`رمز QR للفصل ${section.name} في ${section.grade_name}`}
+            aria-label={`رمز QR لـ${sectionLabel(section.grade_name, section.name, section.department)}`}
             className="size-[min(72vw,20rem)] rounded-2xl bg-white"
           />
         </div>

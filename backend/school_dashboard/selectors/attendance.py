@@ -246,7 +246,7 @@ def section_breakdown(*, school, date_range, scope=None) -> dict:
     """مقارنة وصفية بين الفصول — «أعلى غياب» لا «الأسوأ» (بند 33)."""
     rows = summaries_queryset(school=school, date_range=date_range, scope=scope)
     grouped = (
-        rows.values("section_id", "section__name", "section__grade__name")
+        rows.values("section_id", "section__name", "section__grade__name", "section__department")
         .annotate(
             student_days=Count("id"),
             students=Count("student_id", distinct=True),
@@ -268,6 +268,7 @@ def section_breakdown(*, school, date_range, scope=None) -> dict:
                 "section_id": row["section_id"],
                 "section_name": row["section__name"],
                 "grade_name": row["section__grade__name"],
+                "department": row["section__department"],
                 "students": row["students"],
                 "student_days": row["student_days"],
                 "full_absence_days": row["full_absence"],
