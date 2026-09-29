@@ -79,7 +79,7 @@ test("full Noor import journey: upload → map → preview → commit → studen
 
   // البحث الدقيق بالهوية الكاملة يعمل (HMAC)
   await page.getByLabel("بحث بالاسم").fill("");
-  await page.getByLabel(/بحث برقم الهوية/).fill(m.first_nid_full);
+  await page.getByLabel(/بحث برقم الطالب/).fill(m.first_nid_full);
   await expect(page.locator("tr", { hasText: m.first_student })).toBeVisible();
 
   // إعادة التحميل — البيانات ثابتة
