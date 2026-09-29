@@ -147,6 +147,7 @@ def get_multi_period_report(
                 "section_id": section.id,
                 "section_name": section.name,
                 "grade_name": section.grade.name,
+                "department": section.department,
                 "missing_sequences": missing,
                 "reason": "، ".join(reasons),
             }
@@ -181,7 +182,7 @@ def get_multi_period_report(
         .only(
             "student_id", "status",
             "session__period_sequence", "session__section__id",
-            "session__section__name", "session__section__code",
+            "session__section__name", "session__section__code", "session__section__department",
             "session__section__grade__name", "session__section__grade__sequence",
         )
     )
@@ -210,6 +211,7 @@ def get_multi_period_report(
                 "full_name": names.get(student_id, ""),
                 "grade_name": section.grade.name,
                 "section_name": section.name,
+                "department": section.department,
                 "_sort": (section.grade.sequence, section.code, names.get(student_id, "")),
                 "period_statuses": [
                     {"sequence": seq, "status": statuses.get(seq, "PRESENT")}
@@ -341,6 +343,7 @@ def get_daily_report(
                 "full_name": enrollment.student.full_name,
                 "grade_name": enrollment.section.grade.name,
                 "section_name": enrollment.section.name,
+                "department": enrollment.section.department,
                 "absent_periods": row.absent_periods if row else 0,
                 "excused_absent_periods": row.excused_absent_periods if row else 0,
                 "unexcused_absent_periods": row.unexcused_absent_periods if row else 0,
@@ -364,6 +367,7 @@ def get_daily_report(
                 "full_name": r.student.full_name,
                 "grade_name": r.section.grade.name,
                 "section_name": r.section.name,
+                "department": r.section.department,
                 "absent_periods": r.absent_periods,
                 "excused_absent_periods": r.excused_absent_periods,
                 "unexcused_absent_periods": r.unexcused_absent_periods,

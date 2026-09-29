@@ -31,6 +31,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections } from "@/features/attendance/api";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import type {
   AttentionItem,
@@ -368,7 +369,7 @@ export function DashboardPage() {
               <label className="text-xs font-bold text-slate-600">الفصل
                 <select value={sectionId} onChange={(event) => setSectionId(event.target.value === "" ? "" : Number(event.target.value))} className="mt-1 h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium" data-testid="dashboard-section">
                   <option value="">كل الفصول</option>
-                  {sectionOptions.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}</option>)}
+                  {sectionOptions.map((section) => <option key={section.id} value={section.id}>{sectionLabel(section.grade_name, section.name, section.department)}</option>)}
                 </select>
               </label>
             </div>
@@ -1177,7 +1178,7 @@ function SectionsTable({ data, schoolType }: { data: SectionsResponse; schoolTyp
             >
               <td className="col-span-2 p-0 font-bold text-slate-800 md:table-cell md:p-2 md:font-normal">
                 <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفصل</span>
-                {row.grade_name} / {row.section_name}
+                {sectionLabel(row.grade_name, row.section_name, row.department)}
               </td>
               <td className="p-0 text-slate-600 md:table-cell md:p-2"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">{schoolType === "GIRLS" ? "طالبات" : "طلاب"}</span>{row.students}</td>
               <td className="p-0 font-medium text-slate-800 md:table-cell md:p-2">

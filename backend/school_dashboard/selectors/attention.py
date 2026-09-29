@@ -48,6 +48,7 @@ def overdue_sections(*, school) -> list[dict]:
         if row["attendance_status"] == AttendanceSessionStatus.SUBMITTED:
             continue
         not_started = row["attendance_status"] == NOT_STARTED
+        department_label = f" / {row['department']}" if row.get("department") else ""
         items.append(
             _item(
                 kind="ATTENDANCE_OVERDUE",
@@ -55,7 +56,8 @@ def overdue_sections(*, school) -> list[dict]:
                 entity_id=row["section_id"],
                 reason_code="SECTION_NOT_SUBMITTED" if not_started else "SECTION_LATE",
                 text=(
-                    f"{row['grade_name']} / {row['section_name']} — "
+                    f"{row['grade_name']} / فصل {row['section_name']}"
+                    f"{department_label} — "
                     f"متأخر {row['minutes_overdue']} دقيقة"
                 ),
                 priority=PRIORITY_HIGH if not_started else PRIORITY_NORMAL,

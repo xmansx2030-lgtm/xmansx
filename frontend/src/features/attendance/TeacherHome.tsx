@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections, getCurrentPeriod } from "@/features/attendance/api";
 import { QrScanner } from "@/features/attendance/QrScanner";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getMyFollowUpRequests } from "@/features/counseling/api";
 import { getMyReferrals } from "@/features/referrals/api";
@@ -79,12 +80,12 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
     const query = sectionSearch.trim().toLocaleLowerCase("ar");
     return [...(sectionsQuery.data ?? [])]
       .sort((a, b) =>
-        `${a.grade_name} ${a.name}`.localeCompare(`${b.grade_name} ${b.name}`, "ar", {
+        sectionLabel(a.grade_name, a.name, a.department).localeCompare(sectionLabel(b.grade_name, b.name, b.department), "ar", {
           numeric: true,
         }),
       )
       .filter((section) =>
-        `${section.grade_name} ${section.name}`.toLocaleLowerCase("ar").includes(query),
+        sectionLabel(section.grade_name, section.name, section.department).toLocaleLowerCase("ar").includes(query),
       );
   }, [sectionSearch, sectionsQuery.data]);
   const visibleSections = filteredSections.slice(0, visibleSectionCount);
@@ -241,7 +242,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
                   setSectionSearch(event.target.value);
                   setVisibleSectionCount(INITIAL_VISIBLE_SECTIONS);
                 }}
-                placeholder="ابحث باسم الصف أو الفصل"
+                placeholder="ابحث بالصف أو الفصل أو القسم"
                 className="w-full pe-10 ps-3"
                 data-testid="section-search"
               />
@@ -278,7 +279,7 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
                   })}
                   data-testid={`section-${section.id}`}
                 >
-                  <span className="min-w-0"><span className="block break-words font-black text-slate-900">{section.name}</span><span className="mt-1 block break-words text-xs text-slate-500">{section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}</span></span>
+                  <span className="min-w-0"><span className="block break-words font-black text-slate-900">{sectionLabel(section.grade_name, section.name, section.department)}</span><span className="mt-1 block break-words text-xs text-slate-500">{section.students_count} {studentCountLabel(schoolType)}</span></span>
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-teal-600 group-hover:text-white"><ArrowLeft aria-hidden size={17} /></span>
                 </button>
               </li>

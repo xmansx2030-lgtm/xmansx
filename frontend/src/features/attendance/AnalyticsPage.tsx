@@ -19,6 +19,7 @@ import {
   postMultiPeriodAnalytics,
   repairDailyAttendanceSummary,
 } from "@/features/attendance/api";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import type { SchoolType } from "@/types/auth";
 import { studentCountLabel, studentPluralLabel } from "@/utils/roles";
@@ -341,7 +342,7 @@ function ReportResults({
           <ul className="list-inside list-disc">
             {data.incomplete_sections.map((s) => (
               <li key={s.section_id}>
-                {s.section_name} — {s.grade_name}: {s.reason}
+                {sectionLabel(s.grade_name, s.section_name, s.department)}: {s.reason}
               </li>
             ))}
           </ul>
@@ -364,7 +365,7 @@ function ReportResults({
                 <div>
                   <p className="font-medium text-slate-800">{student.full_name}</p>
                   <p className="text-xs text-slate-500">
-                    {student.grade_name} / {student.section_name}
+                    {sectionLabel(student.grade_name, student.section_name, student.department)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1 text-xs">
@@ -557,7 +558,7 @@ function DailyTab({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-medium text-slate-800">{student.full_name}</p>
-                    <p className="text-xs text-slate-500">{student.grade_name} / {student.section_name}</p>
+                    <p className="text-xs text-slate-500">{sectionLabel(student.grade_name, student.section_name, student.department)}</p>
                   </div>
                   <div className="text-sm text-slate-600">
                     <p>

@@ -87,6 +87,7 @@ class AttendanceSectionSerializer(serializers.Serializer):
     name = serializers.CharField()
     grade_id = serializers.IntegerField(required=False)
     grade_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     students_count = serializers.IntegerField()
 
 
@@ -125,6 +126,7 @@ class QrInfoSerializer(serializers.Serializer):
     section_id = serializers.IntegerField()
     section_name = serializers.CharField()
     grade_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     token = serializers.CharField()
     url_path = serializers.CharField()
 
@@ -156,6 +158,7 @@ class AnalyticsStudentSerializer(serializers.Serializer):
     full_name = serializers.CharField()
     grade_name = serializers.CharField()
     section_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     period_statuses = PeriodStatusSerializer(many=True)
     # مؤشر بصمة الدخول (م8.5) — للمراجعة، لا يغير نتيجة الغياب
     morning_arrival = serializers.CharField(allow_null=True, required=False)
@@ -165,6 +168,7 @@ class IncompleteSectionSerializer(serializers.Serializer):
     section_id = serializers.IntegerField()
     section_name = serializers.CharField()
     grade_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     missing_sequences = serializers.ListField(child=serializers.IntegerField())
     reason = serializers.CharField()
 
@@ -210,6 +214,7 @@ class DailyStudentSerializer(serializers.Serializer):
     full_name = serializers.CharField()
     grade_name = serializers.CharField()
     section_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     absent_periods = serializers.IntegerField()
     submitted_periods = serializers.IntegerField()
     expected_periods = serializers.IntegerField()
@@ -262,6 +267,7 @@ class MonitoringSectionSerializer(serializers.Serializer):
     section_name = serializers.CharField()
     grade_id = serializers.IntegerField()
     grade_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
     students_count = serializers.IntegerField()
     attendance_status = serializers.ChoiceField(
         choices=["SUBMITTED", "IN_PROGRESS", "NOT_STARTED"]
@@ -301,6 +307,7 @@ def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edi
             "id": session.section.id,
             "name": session.section.name,
             "grade_name": session.section.grade.name,
+            "department": session.section.department,
             "students_count": len(roster),
         },
         "period": {

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import type { MonitoringSection } from "@/features/attendance/api";
 import { getMonitoring } from "@/features/attendance/api";
+import { sectionLabel } from "@/features/attendance/sectionLabel";
 import {
   monitoringKey,
   monitoringPollInterval,
@@ -80,7 +81,7 @@ export function MonitoringPage() {
         (s) =>
           matchesFilter(s, statusFilter) &&
           (gradeFilter === "" || s.grade_id === gradeFilter) &&
-          (search === "" || s.section_name.includes(search.trim())),
+          (search === "" || sectionLabel(s.grade_name, s.section_name, s.department).includes(search.trim())),
       ),
     [data?.sections, statusFilter, gradeFilter, search],
   );
@@ -178,8 +179,8 @@ export function MonitoringPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث باسم الفصل"
-              aria-label="بحث باسم الفصل"
+              placeholder="بحث بالصف أو الفصل أو القسم"
+              aria-label="بحث بالصف أو الفصل أو القسم"
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
             />
             {hasFilters && (
@@ -215,9 +216,9 @@ export function MonitoringPage() {
                       data-testid={`monitoring-section-${section.section_id}`}
                     >
                       <div className="min-w-28">
-                        <p className="font-medium text-slate-800">{section.section_name}</p>
+                        <p className="font-medium text-slate-800">{sectionLabel(section.grade_name, section.section_name, section.department)}</p>
                         <p className="text-xs text-slate-500">
-                          {section.grade_name} · {section.students_count} {studentCountLabel(schoolType)}
+                          {section.students_count} {studentCountLabel(schoolType)}
                         </p>
                       </div>
                       <span
