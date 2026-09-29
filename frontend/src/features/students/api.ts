@@ -15,6 +15,45 @@ export interface StudentRow {
   section: { id: number; name: string; department?: string } | null;
 }
 
+export interface StudentMergePreview {
+  can_merge: boolean;
+  target_id: number;
+  students: Array<{
+    id: number;
+    full_name: string;
+    national_id_masked: string;
+    student_number: string | null;
+    guardian_name: string;
+    grade: string | null;
+    section: string | null;
+  }>;
+  summary: {
+    archived_records: number;
+    attendance_days: number;
+    duplicate_daily_summaries: number;
+    attendance_marks: number;
+    duplicate_attendance_marks: number;
+    historical_enrollments: number;
+  };
+  history_adjustments: Array<{
+    source_id: number;
+    grade: string;
+    section: string;
+    from_date: string;
+    through_date: string;
+    current_from_date: string;
+  }>;
+  blockers: string[];
+  warnings: string[];
+  confirmation_token: string | null;
+}
+
+export interface StudentMergeResult {
+  target_id: number;
+  archived_source_ids: number[];
+  summary: StudentMergePreview["summary"];
+}
+
 export interface AttendanceProfile {
   student: StudentRow;
   period: { from: string; to: string };
@@ -260,6 +299,18 @@ export const createStudent = (input: ManualStudentInput) =>
 
 export const updateStudent = (id: number, input: StudentUpdateInput) =>
   apiRequest<StudentRow>(`/students/${id}/`, { method: "PATCH", body: input });
+
+export const previewStudentMerge = (targetId: number, sourceIds: number[]) =>
+  apiRequest<StudentMergePreview>("/students/merge/preview/", {
+    method: "POST",
+    body: { target_id: targetId, source_ids: sourceIds },
+  });
+
+export const applyStudentMerge = (confirmationToken: string) =>
+  apiRequest<StudentMergeResult>("/students/merge/", {
+    method: "POST",
+    body: { confirmation_token: confirmationToken, confirmed_same_person: true },
+  });
 
 function profileQuery(params: { fromDate: string; toDate: string }): string {
   return `?from_date=${encodeURIComponent(params.fromDate)}&to_date=${encodeURIComponent(params.toDate)}`;
