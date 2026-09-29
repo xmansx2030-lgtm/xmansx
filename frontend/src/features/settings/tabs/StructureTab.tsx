@@ -32,7 +32,7 @@ export function StructureTab({ canWrite }: { canWrite: boolean }) {
   const schoolId = useActiveSchoolId();
   const queryClient = useQueryClient();
   const [grade, setGrade] = useState({ name: "", code: "", sequence: 1 });
-  const [section, setSection] = useState({ grade_id: "", name: "", code: "" });
+  const [section, setSection] = useState({ grade_id: "", name: "", code: "", department: "" });
   const [editor, setEditor] = useState<Editor>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [feedback, setFeedback] = useState("");
@@ -61,9 +61,9 @@ export function StructureTab({ canWrite }: { canWrite: boolean }) {
     },
   });
   const sectionMutation = useMutation({
-    mutationFn: () => createSection({ ...section, grade_id: Number(section.grade_id), name: section.name.trim(), code: section.code.trim() }),
+    mutationFn: () => createSection({ ...section, grade_id: Number(section.grade_id), name: section.name.trim(), code: section.code.trim(), department: section.department.trim() }),
     onSuccess: async (created) => {
-      setSection((value) => ({ ...value, name: "", code: "" }));
+      setSection((value) => ({ ...value, name: "", code: "", department: "" }));
       setFeedback(`تمت إضافة الفصل «${created.name}» بنجاح.`);
       await refresh();
     },
@@ -136,9 +136,14 @@ export function StructureTab({ canWrite }: { canWrite: boolean }) {
           {gradeMutation.isError && <div className="mt-3"><ErrorState error={gradeMutation.error} /></div>}
         </form>
         <form className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={(event) => { event.preventDefault(); setFeedback(""); sectionMutation.mutate(); }}>
-          <FormHeading icon={<Layers3 aria-hidden size={19} />} title="إضافة فصل جديد" description="اربط الفصل بأحد الصفوف النشطة." tone="teal" />
+          <FormHeading icon={<Layers3 aria-hidden size={19} />} title="إضافة فصل جديد" description="اربط الفصل بأحد الصفوف النشطة وحدد القسم إن وجد." tone="teal" />
           <label className="block text-sm font-bold text-slate-700">الصف التابع له<select aria-label="الصف التابع له الفصل" required value={section.grade_id} onChange={(event) => setSection({ ...section, grade_id: event.target.value })} className={inputClass}><option value="">اختر الصف</option>{grades.data.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <div className="mt-3 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">اسم الفصل<input aria-label="اسم الفصل" required placeholder="1 أو أ" value={section.name} onChange={(event) => setSection({ ...section, name: event.target.value })} className={inputClass} /></label><label className="text-sm font-bold text-slate-700">الرمز<input aria-label="رمز الفصل" required placeholder="A" value={section.code} onChange={(event) => setSection({ ...section, code: event.target.value })} className={inputClass} /></label></div>
+          <label className="mt-3 block text-sm font-bold text-slate-700">
+            القسم (اختياري)
+            <input aria-label="القسم" maxLength={100} placeholder="مثال: المسار العام" value={section.department} onChange={(event) => setSection({ ...section, department: event.target.value })} className={inputClass} />
+            <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">اتركه فارغًا إذا لم يكن للصف قسم أو مسار. يمكن استخدام رقم الفصل نفسه في أقسام مختلفة.</span>
+          </label>
           <Button type="submit" className="mt-4 w-full" disabled={sectionMutation.isPending || activeGrades === 0}><Plus aria-hidden size={17} />{sectionMutation.isPending ? "جارٍ الحفظ..." : "حفظ الفصل"}</Button>
           {sectionMutation.isError && <div className="mt-3"><ErrorState error={sectionMutation.error} /></div>}
         </form>
@@ -155,7 +160,7 @@ export function StructureTab({ canWrite }: { canWrite: boolean }) {
                 {canWrite && <div className="flex flex-wrap gap-2"><SmallAction label={`تعديل الصف ${item.name}`} icon={<Pencil aria-hidden size={15} />} onClick={() => startEdit({ kind: "grade", item })}>تعديل</SmallAction><SmallAction label={`${item.is_active ? "إيقاف" : "تفعيل"} الصف ${item.name}`} icon={item.is_active ? <Power aria-hidden size={15} /> : <CheckCircle2 aria-hidden size={15} />} tone={item.is_active ? "amber" : "green"} onClick={() => startConfirmation({ kind: "grade-status", item })}>{item.is_active ? "إيقاف" : "تفعيل"}</SmallAction><SmallAction label={`حذف الصف ${item.name}`} icon={<Trash2 aria-hidden size={15} />} tone="red" disabled={gradeSections.length > 0} title={gradeSections.length > 0 ? "احذف الفصول التابعة أولًا" : undefined} onClick={() => startConfirmation({ kind: "grade-delete", item })}>حذف</SmallAction></div>}
               </header>
               <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
-                {gradeSections.map((row) => <div key={row.id} className={`flex items-center justify-between gap-3 rounded-2xl border p-3.5 ${row.is_active && item.is_active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50"}`} data-testid={`section-card-${row.id}`}><div className="min-w-0"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${row.is_active && item.is_active ? "bg-emerald-500" : "bg-slate-400"}`} /><p className="truncate text-sm font-black text-slate-900">فصل {row.name}</p></div><p className="mt-1 text-xs text-slate-500">الرمز: <b dir="ltr">{row.code}</b> · {row.is_active && item.is_active ? "نشط" : "متوقف"}</p></div>{canWrite && <div className="flex shrink-0 gap-1"><IconAction label={`تعديل الفصل ${row.name}`} icon={<Pencil aria-hidden size={15} />} onClick={() => startEdit({ kind: "section", item: row })} /><IconAction label={`${row.is_active ? "إيقاف" : "تفعيل"} الفصل ${row.name}`} icon={row.is_active ? <Power aria-hidden size={15} /> : <CheckCircle2 aria-hidden size={15} />} disabled={!row.is_active && !item.is_active} onClick={() => startConfirmation({ kind: "section-status", item: row })} /><IconAction label={`حذف الفصل ${row.name}`} icon={<Trash2 aria-hidden size={15} />} tone="red" onClick={() => startConfirmation({ kind: "section-delete", item: row })} /></div>}</div>)}
+                {gradeSections.map((row) => <div key={row.id} className={`flex items-center justify-between gap-3 rounded-2xl border p-3.5 ${row.is_active && item.is_active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50"}`} data-testid={`section-card-${row.id}`}><div className="min-w-0"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${row.is_active && item.is_active ? "bg-emerald-500" : "bg-slate-400"}`} /><p className="truncate text-sm font-black text-slate-900">فصل {row.name}{row.department ? ` / ${row.department}` : ""}</p></div><p className="mt-1 text-xs text-slate-500">الرمز: <b dir="ltr">{row.code}</b> · {row.is_active && item.is_active ? "نشط" : "متوقف"}</p></div>{canWrite && <div className="flex shrink-0 gap-1"><IconAction label={`تعديل الفصل ${row.name}`} icon={<Pencil aria-hidden size={15} />} onClick={() => startEdit({ kind: "section", item: row })} /><IconAction label={`${row.is_active ? "إيقاف" : "تفعيل"} الفصل ${row.name}`} icon={row.is_active ? <Power aria-hidden size={15} /> : <CheckCircle2 aria-hidden size={15} />} disabled={!row.is_active && !item.is_active} onClick={() => startConfirmation({ kind: "section-status", item: row })} /><IconAction label={`حذف الفصل ${row.name}`} icon={<Trash2 aria-hidden size={15} />} tone="red" onClick={() => startConfirmation({ kind: "section-delete", item: row })} /></div>}</div>)}
                 {gradeSections.length === 0 && <p className="col-span-full rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-slate-500">لا توجد فصول تابعة لهذا الصف.</p>}
               </div>
             </article>;
@@ -182,8 +187,36 @@ function GradeEditor({ item, pending, error, onClose, onSave }: { item: GradeIte
   return <Modal title={`تعديل الصف ${item.name}`} description="حدّث الاسم أو الرمز أو موضع الصف في القوائم." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ ...value, name: value.name.trim(), code: value.code.trim() }); }}><label className="block text-sm font-bold text-slate-700">اسم الصف<input aria-label="تعديل اسم الصف" required value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} className={inputClass} /></label><div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">الرمز<input aria-label="تعديل رمز الصف" required value={value.code} onChange={(event) => setValue({ ...value, code: event.target.value })} className={inputClass} /></label><label className="text-sm font-bold text-slate-700">الترتيب<input aria-label="تعديل ترتيب الصف" required type="number" min="0" value={value.sequence} onChange={(event) => setValue({ ...value, sequence: Number(event.target.value) })} className={inputClass} /></label></div>{error && <div className="mt-4"><ErrorState error={error} /></div>}<div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4"><Button variant="secondary" onClick={onClose} disabled={pending}>إلغاء</Button><Button type="submit" disabled={pending}><Pencil aria-hidden size={16} />{pending ? "جارٍ الحفظ..." : "حفظ التعديلات"}</Button></div></form></Modal>;
 }
 function SectionEditor({ item, grades, pending, error, onClose, onSave }: { item: SectionItem; grades: GradeItem[]; pending: boolean; error: Error | null; onClose: () => void; onSave: (body: Parameters<typeof updateSection>[1]) => void }) {
-  const [value, setValue] = useState({ grade_id: item.grade.id, name: item.name, code: item.code });
-  return <Modal title={`تعديل الفصل ${item.name}`} description="يمكنك تصحيح بيانات الفصل أو نقله إلى صف آخر." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ ...value, name: value.name.trim(), code: value.code.trim() }); }}><label className="block text-sm font-bold text-slate-700">الصف التابع له<select aria-label="تعديل الصف التابع له الفصل" value={value.grade_id} onChange={(event) => setValue({ ...value, grade_id: Number(event.target.value) })} className={inputClass}>{grades.map((grade) => <option key={grade.id} value={grade.id} disabled={!grade.is_active && grade.id !== item.grade.id}>{grade.name}{grade.is_active ? "" : " — متوقف"}</option>)}</select></label><div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">اسم الفصل<input aria-label="تعديل اسم الفصل" required value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} className={inputClass} /></label><label className="text-sm font-bold text-slate-700">الرمز<input aria-label="تعديل رمز الفصل" required value={value.code} onChange={(event) => setValue({ ...value, code: event.target.value })} className={inputClass} /></label></div>{error && <div className="mt-4"><ErrorState error={error} /></div>}<div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4"><Button variant="secondary" onClick={onClose} disabled={pending}>إلغاء</Button><Button type="submit" disabled={pending}><Pencil aria-hidden size={16} />{pending ? "جارٍ الحفظ..." : "حفظ التعديلات"}</Button></div></form></Modal>;
+  const [value, setValue] = useState({ grade_id: item.grade.id, name: item.name, code: item.code, department: item.department ?? "" });
+  return (
+    <Modal title={`تعديل الفصل ${item.name}`} description="يمكنك تصحيح بيانات الفصل أو نقله إلى صف آخر." onClose={onClose}>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        onSave({ ...value, name: value.name.trim(), code: value.code.trim(), department: value.department.trim() });
+      }}>
+        <label className="block text-sm font-bold text-slate-700">
+          الصف التابع له
+          <select aria-label="تعديل الصف التابع له الفصل" value={value.grade_id} onChange={(event) => setValue({ ...value, grade_id: Number(event.target.value) })} className={inputClass}>
+            {grades.map((grade) => <option key={grade.id} value={grade.id} disabled={!grade.is_active && grade.id !== item.grade.id}>{grade.name}{grade.is_active ? "" : " — متوقف"}</option>)}
+          </select>
+        </label>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="text-sm font-bold text-slate-700">اسم الفصل<input aria-label="تعديل اسم الفصل" required value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} className={inputClass} /></label>
+          <label className="text-sm font-bold text-slate-700">الرمز<input aria-label="تعديل رمز الفصل" required value={value.code} onChange={(event) => setValue({ ...value, code: event.target.value })} className={inputClass} /></label>
+        </div>
+        <label className="mt-4 block text-sm font-bold text-slate-700">
+          القسم (اختياري)
+          <input aria-label="تعديل القسم" maxLength={100} placeholder="مثال: المسار العام" value={value.department} onChange={(event) => setValue({ ...value, department: event.target.value })} className={inputClass} />
+          <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">يمكن تركه فارغًا إذا لم يكن للفصل قسم أو مسار.</span>
+        </label>
+        {error && <div className="mt-4"><ErrorState error={error} /></div>}
+        <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <Button variant="secondary" onClick={onClose} disabled={pending}>إلغاء</Button>
+          <Button type="submit" disabled={pending}><Pencil aria-hidden size={16} />{pending ? "جارٍ الحفظ..." : "حفظ التعديلات"}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 function ConfirmationModal({ confirmation, pending, error, sectionCount, onClose, onConfirm }: { confirmation: NonNullable<Confirmation>; pending: boolean; error: Error | null; sectionCount: number; onClose: () => void; onConfirm: () => void }) {
   const isDelete = confirmation.kind.endsWith("delete"); const isGrade = confirmation.kind.startsWith("grade"); const active = confirmation.item.is_active; const label = isGrade ? "الصف" : "الفصل";

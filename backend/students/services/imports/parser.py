@@ -23,6 +23,7 @@ from students.services.imports import mapping as mapping_service
 
 NOOR_OFFICIAL_FORMAT = "NOOR_OFFICIAL_MULTI_SHEET"
 SYNTHETIC_GRADE_HEADER = "الصف الدراسي"
+SYNTHETIC_DEPARTMENT_HEADER = "القسم الدراسي"
 
 
 def validate_upload(uploaded_file) -> None:
@@ -37,11 +38,12 @@ class SheetLayout:
     headers: list[str]
     grade: str
     section: str
+    department: str
     detected_rows: int
 
 
 def _clean_label(value) -> str:
-    text = str(value or "").strip()
+    text = str(value or "").strip().strip(":：").strip()
     text = (
         text.replace("أ", "ا")
         .replace("إ", "ا")
@@ -121,6 +123,7 @@ def _detect_sheet_layout(sheet, sheet_index: int) -> SheetLayout | None:
     suggested = mapping_service.suggest_mapping(headers)
     grade = _metadata_value(sheet, "الصف", before_row=header_row)
     section = _metadata_value(sheet, "الفصل", before_row=header_row)
+    department = _metadata_value(sheet, "القسم", before_row=header_row)
 
     # بصمة تقرير نور الرسمي: الاسم + الهوية/الإقامة + الفصل، والصف في رأس الصفحة.
     if not (
@@ -147,6 +150,7 @@ def _detect_sheet_layout(sheet, sheet_index: int) -> SheetLayout | None:
         headers=headers,
         grade=grade,
         section=section,
+        department=department,
         detected_rows=detected_rows,
     )
 
@@ -170,6 +174,8 @@ def analyze_import(file_obj) -> dict:
             suggested = mapping_service.suggest_mapping(headers)
             if suggested.get("grade") is None:
                 headers.append(SYNTHETIC_GRADE_HEADER)
+            if suggested.get("department") is None:
+                headers.append(SYNTHETIC_DEPARTMENT_HEADER)
             return {
                 "header_row": first.header_row,
                 "headers": headers,
@@ -220,6 +226,8 @@ def _read_official_noor_rows(file_obj) -> list[tuple[int, tuple]]:
             sheet = workbook.worksheets[layout.sheet_index]
             suggested = mapping_service.suggest_mapping(layout.headers)
             section_index = suggested.get("section")
+            grade_index = suggested.get("grade")
+            department_index = suggested.get("department")
             base_width = len(layout.headers)
 
             for source_values in sheet.iter_rows(
@@ -240,7 +248,14 @@ def _read_official_noor_rows(file_obj) -> list[tuple[int, tuple]]:
                     and layout.section
                 ):
                     values[section_index] = layout.section
-                values.append(layout.grade)
+                if grade_index is not None and not str(values[grade_index] or "").strip():
+                    values[grade_index] = layout.grade
+                if department_index is not None and not str(values[department_index] or "").strip():
+                    values[department_index] = layout.department
+                if grade_index is None:
+                    values.append(layout.grade)
+                if department_index is None:
+                    values.append(layout.department)
                 rows.append((display_row, tuple(values)))
                 display_row += 1
 

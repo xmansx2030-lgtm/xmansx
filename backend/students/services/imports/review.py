@@ -132,27 +132,31 @@ def correct_row(
             grade_sequence=section.grade.sequence,
             section_code=section.code,
             section_name=section.name,
+            department=section.department,
         )
         errors.difference_update({"MISSING_GRADE", "MISSING_SECTION"})
         changed_fields.append("section")
 
     if "section_code" in corrections:
-        candidate = next(
-            (
-                item for item in job.summary.get("section_candidates", [])
-                if item["grade_code"] == data.get("grade_code")
-                and item["section_code"] == corrections["section_code"]
-            ),
-            None,
-        )
-        if candidate is None:
+        candidates = [
+            item for item in job.summary.get("section_candidates", [])
+            if item["grade_code"] == data.get("grade_code")
+            and item["section_code"] == corrections["section_code"]
+            and (
+                "department" not in corrections
+                or item.get("department", "") == corrections["department"]
+            )
+        ]
+        if len(candidates) != 1:
             raise ApiError(
                 "VALIDATION_ERROR",
                 "الفصل المحدد غير موجود ضمن الصفوف الموثوقة في ملف نور.",
             )
+        candidate = candidates[0]
         data.update(
             section_code=candidate["section_code"],
             section_name=candidate["section_name"],
+            department=candidate.get("department", ""),
         )
         errors.discard("MISSING_SECTION")
         changed_fields.append("section")

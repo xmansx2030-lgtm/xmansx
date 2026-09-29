@@ -27,9 +27,14 @@ def _duplicate_grade_code(*, school, grade_id: int, code: str) -> bool:
     return Grade.objects.filter(school=school, code__iexact=code).exclude(id=grade_id).exists()
 
 
-def _duplicate_section_code(*, school, section_id: int, grade: Grade, code: str) -> bool:
+def _duplicate_section_code(
+    *, school, section_id: int, grade: Grade, code: str, department: str
+) -> bool:
     return (
-        Section.objects.filter(school=school, grade=grade, code__iexact=code)
+        Section.objects.filter(
+            school=school, grade=grade,
+            code__iexact=code, department__iexact=department,
+        )
         .exclude(id=section_id)
         .exists()
     )
@@ -105,6 +110,7 @@ def update_section(*, section: Section, data: dict, actor, request=None) -> Sect
         section_id=section.id,
         grade=grade,
         code=requested_code,
+        department=data.get("department", section.department),
     ):
         raise ApiError(
             "SECTION_CODE_ALREADY_EXISTS",
@@ -120,7 +126,7 @@ def update_section(*, section: Section, data: dict, actor, request=None) -> Sect
             409,
         )
     changed_fields: list[str] = []
-    for field in ("name", "code", "is_active"):
+    for field in ("name", "code", "department", "is_active"):
         if field in data and getattr(section, field) != data[field]:
             setattr(section, field, data[field])
             changed_fields.append(field)

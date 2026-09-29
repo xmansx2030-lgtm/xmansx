@@ -7,6 +7,15 @@
 from students.models import EnrollmentStatus, Student, StudentEnrollment
 
 
+def _section_identity(row: dict) -> tuple[str, str, str]:
+    return row["grade_code"], row["section_code"], row.get("department", "")
+
+
+def _section_candidate(row: dict) -> tuple[str, str, str, str]:
+    grade_code, section_code, department = _section_identity(row)
+    return grade_code, section_code, department, row["section_name"]
+
+
 def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     """يصنف كل صف ويحسب الملخص وقائمة «موجود في النظام وغير موجود في الملف»."""
     hashes = [r["national_id_hash"] for r in normalized_rows if r["national_id_hash"]]
@@ -36,12 +45,12 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
         "errors": 0, "duplicates": 0, "auto_resolved_duplicates": 0,
     }
     grades_to_create: set[tuple[str, str, int]] = set()
-    sections_to_create: set[tuple[str, str, str]] = set()  # (grade_code, section_code, name)
+    sections_to_create: set[tuple[str, str, str, str]] = set()  # grade, section, department, name
     matched_student_ids: set[int] = set()
     section_candidates = {
         (
             row["grade_code"], row["grade_name"],
-            row["section_code"], row["section_name"],
+            row["section_code"], row["section_name"], row.get("department", ""),
         )
         for row in normalized_rows
         if row.get("grade_code") and row.get("section_code")
@@ -79,7 +88,7 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             row["matched_student_id"] = None
             summary["new"] += 1
             grades_to_create.add((row["grade_code"], row["grade_name"], row["grade_sequence"]))
-            sections_to_create.add((row["grade_code"], row["section_code"], row["section_name"]))
+            sections_to_create.add(_section_candidate(row))
             continue
 
         matched_student_ids.add(student.id)
@@ -101,18 +110,20 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             row["previous_section"] = None
             summary["section_changed"] += 1
             grades_to_create.add((row["grade_code"], row["grade_name"], row["grade_sequence"]))
-            sections_to_create.add((row["grade_code"], row["section_code"], row["section_name"]))
+            sections_to_create.add(_section_candidate(row))
         elif enrollment.grade.code != row["grade_code"]:
             row["status"] = "GRADE_CHANGED"
             row["previous_section"] = str(enrollment.section)
             summary["grade_changed"] += 1
             grades_to_create.add((row["grade_code"], row["grade_name"], row["grade_sequence"]))
-            sections_to_create.add((row["grade_code"], row["section_code"], row["section_name"]))
-        elif enrollment.section.code != row["section_code"]:
+            sections_to_create.add(_section_candidate(row))
+        elif enrollment.section.code != row["section_code"] or (
+            row.get("department") and enrollment.section.department != row["department"]
+        ):
             row["status"] = "SECTION_CHANGED"
             row["previous_section"] = str(enrollment.section)
             summary["section_changed"] += 1
-            sections_to_create.add((row["grade_code"], row["section_code"], row["section_name"]))
+            sections_to_create.add(_section_candidate(row))
         elif changes:
             row["status"] = "EXISTING_UPDATED"
             summary["updated"] += 1
@@ -139,30 +150,36 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
     existing_sections = set(
         Section.objects.filter(
             school=school, grade__code__in=[s[0] for s in sections_to_create]
-        ).values_list("grade__code", "code")
+        ).values_list("grade__code", "code", "department")
     )
     will_create_grades = sorted(
         {(code, name) for code, name, _ in grades_to_create if code not in existing_grade_codes}
     )
     will_create_sections = sorted(
         {
-            (grade_code, name)
-            for grade_code, section_code, name in sections_to_create
-            if (grade_code, section_code) not in existing_sections
+            (grade_code, department, name)
+            for grade_code, section_code, department, name in sections_to_create
+            if (grade_code, section_code, department) not in existing_sections
         }
     )
 
     summary["missing_from_file"] = len(missing)
     summary["will_create_grades"] = [name for _, name in will_create_grades]
-    summary["will_create_sections"] = [f"{g} / {n}" for g, n in will_create_sections]
+    summary["will_create_sections"] = [
+        f"{g} / {d} / {n}" if d else f"{g} / {n}"
+        for g, d, n in will_create_sections
+    ]
     summary["section_candidates"] = [
         {
             "grade_code": grade_code,
             "grade_name": grade_name,
             "section_code": section_code,
             "section_name": section_name,
+            "department": department,
         }
-        for grade_code, grade_name, section_code, section_name in sorted(section_candidates)
+        for grade_code, grade_name, section_code, section_name, department in sorted(
+            section_candidates
+        )
     ]
     # قائمة الأسماء تُقتطع للعرض، لكن **المعرفات كاملة**: فلتر «غير الموجودين في آخر
     # ملف نور» يبنى عليها، فاقتطاعها كان يُخفي طلابًا فعليين في المدارس الكبيرة.

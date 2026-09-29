@@ -78,7 +78,7 @@ export function ManualStudentForm({
           <label htmlFor="manual-student-section" className="text-sm font-bold text-slate-700">الفصل *</label>
           <select id="manual-student-section" value={sectionId} disabled={!gradeId} onChange={(e) => setSectionId(e.target.value ? Number(e.target.value) : "")} className="border px-3 py-2 text-sm">
             <option value="">اختر الفصل</option>
-            {visibleSections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+            {visibleSections.map((section) => <option key={section.id} value={section.id}>{section.name}{section.department ? ` / ${section.department}` : ""}</option>)}
           </select>
         </div>
       </div>

@@ -338,8 +338,49 @@ def test_manager_creates_grade_and_section_from_settings(role_client):
     )
     assert section_response.status_code == 201
     assert section_response.json()["grade"]["name"] == "الثالث المتوسط"
+    assert section_response.json()["department"] == ""
     assert Grade.objects.filter(school=school, code="MID-3").exists()
     assert Section.objects.filter(school=school, code="A").exists()
+
+
+@pytest.mark.django_db
+def test_section_department_is_optional_and_distinguishes_same_number(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    grade = Grade.objects.create(school=school, name="الثالث الثانوي", code="SEC_3")
+    endpoint = "/api/v1/sections/"
+    base = {"grade_id": grade.id, "name": "5", "code": "5"}
+
+    without_department = manager.post(endpoint, base, content_type="application/json")
+    assert without_department.status_code == 201
+    assert without_department.json()["department"] == ""
+
+    general = manager.post(
+        endpoint, {**base, "department": "المسار العام"},
+        content_type="application/json",
+    )
+    assert general.status_code == 201
+    assert general.json()["department"] == "المسار العام"
+    assert Section.objects.filter(school=school, grade=grade, code="5").count() == 2
+
+    duplicate = manager.post(
+        endpoint, {**base, "department": "المسار العام"},
+        content_type="application/json",
+    )
+    assert duplicate.status_code == 409
+
+    updated = manager.patch(
+        f"{endpoint}{general.json()['id']}/",
+        {"department": "مسار الصحة والحياة"},
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["department"] == "مسار الصحة والحياة"
+
+    collision = manager.patch(
+        f"{endpoint}{general.json()['id']}/",
+        {"department": ""}, content_type="application/json",
+    )
+    assert collision.status_code == 409
 
 
 @pytest.mark.django_db

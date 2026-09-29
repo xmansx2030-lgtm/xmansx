@@ -204,6 +204,47 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(calls.some((item) => item.url.includes("/sections/10/") && item.init?.method === "DELETE")).toBe(true));
   });
 
+  it("يجعل القسم اختياريًا عند إضافة الفصل وتعديله", async () => {
+    const grade = { id: 1, name: "الثالث الثانوي", code: "SEC_3", sequence: 12, is_active: true };
+    const section = {
+      id: 10, name: "5", code: "5", department: "", is_active: true,
+      grade: { id: grade.id, name: grade.name, is_active: true },
+    };
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/sections/10/": (init) => ({
+        body: { ...section, ...JSON.parse(String(init?.body ?? "{}")) },
+      }),
+      "/grades/": { body: [grade] },
+      "/sections/": (init) => ({
+        body: init?.method === "POST" ? section : [section],
+      }),
+    });
+    renderApp("/settings?section=structure");
+    const user = userEvent.setup();
+
+    const department = await screen.findByLabelText("القسم");
+    expect(department).not.toBeRequired();
+    await user.selectOptions(screen.getByLabelText("الصف التابع له الفصل"), String(grade.id));
+    await user.type(screen.getByLabelText("اسم الفصل"), "6");
+    await user.type(screen.getByLabelText("رمز الفصل"), "6");
+    await user.click(screen.getByRole("button", { name: "حفظ الفصل" }));
+    await waitFor(() => {
+      const created = calls.find((call) => call.url.endsWith("/sections/") && call.init?.method === "POST");
+      expect(JSON.parse(String(created?.init?.body))).toMatchObject({ department: "" });
+    });
+
+    await user.click(await screen.findByRole("button", { name: "تعديل الفصل 5" }));
+    const editDepartment = screen.getByLabelText("تعديل القسم");
+    expect(editDepartment).not.toBeRequired();
+    await user.type(editDepartment, "المسار العام");
+    await user.click(screen.getByRole("button", { name: "حفظ التعديلات" }));
+    await waitFor(() => {
+      const edited = calls.find((call) => call.url.includes("/sections/10/") && call.init?.method === "PATCH");
+      expect(JSON.parse(String(edited?.init?.body))).toMatchObject({ department: "المسار العام" });
+    });
+  });
+
   it("تحديث توقيت الحصص يبطل قراءات الحصة والمراقبة واللوحة فورًا", async () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const schedule = {

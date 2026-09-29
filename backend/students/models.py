@@ -41,6 +41,7 @@ class Section(TimestampedModel):
     grade = models.ForeignKey(Grade, on_delete=models.CASCADE, related_name="sections")
     name = models.CharField("اسم الفصل", max_length=50)  # للعرض: 1 أو أ
     code = models.CharField("الرمز", max_length=50)  # normalized key
+    department = models.CharField("القسم", max_length=100, blank=True, default="")
     is_active = models.BooleanField(default=True)
     # QR الفصل (المرحلة 6): token عتيم غير قابل للتخمين — لا يمنح صلاحية،
     # يحدد الفصل فقط. null حتى يولده المدير؛ التدوير يستبدله فيبطل القديم.
@@ -52,12 +53,14 @@ class Section(TimestampedModel):
         ordering = ["grade__sequence", "code"]
         constraints = [
             models.UniqueConstraint(
-                fields=["school", "grade", "code"], name="uniq_section_code_per_grade"
+                fields=["school", "grade", "code", "department"], name="uniq_section_code_per_grade"
             ),
         ]
         indexes = [models.Index(fields=["school", "grade"], name="section_school_grade_idx")]
 
     def __str__(self) -> str:
+        if self.department:
+            return f"{self.grade.name} / {self.name} / {self.department}"
         return f"{self.grade.name} / {self.name}"
 
 

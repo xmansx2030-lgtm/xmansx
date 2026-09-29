@@ -73,7 +73,7 @@ export function CounselorSectionPicker({
                       onChange={() => toggle(section.id)}
                       className="size-4 accent-blue-600"
                     />
-                    {section.grade.name} / {section.name}
+                    {section.grade.name} / {section.name}{section.department ? ` / ${section.department}` : ""}
                   </label>
                 ))}
               </div>

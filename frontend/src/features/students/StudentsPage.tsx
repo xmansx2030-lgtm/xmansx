@@ -246,7 +246,7 @@ export function StudentsPage() {
             <option value="">الكل</option>
             {visibleSections.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.grade.name} / {s.name}
+                {s.grade.name} / {s.name}{s.department ? ` / ${s.department}` : ""}
               </option>
             ))}
           </select>
@@ -322,7 +322,7 @@ export function StudentsPage() {
                       {student.national_id_masked}
                     </td>
                     <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الصف</span>{student.grade?.name ?? "—"}</td>
-                    <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفصل</span>{student.section?.name ?? "—"}</td>
+                    <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الفصل</span>{student.section?.name ?? "—"}{student.section?.department ? ` / ${student.section.department}` : ""}</td>
                     <td className="p-0 md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>{STATUS_LABELS[student.status] ?? student.status}</td>
                     {canImport && (
                       <td className="col-span-2 p-0 md:table-cell md:p-3">

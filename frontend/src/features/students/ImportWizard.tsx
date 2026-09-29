@@ -313,7 +313,7 @@ function MappingStep({
           <p className="font-bold">تم التعرف على تقرير نور الرسمي بنجاح</p>
           <p className="mt-1 leading-6">
             جُمعت {job.source_sheet_count ?? 1} ورقة، واكتُشف {job.detected_rows ?? 0} {studentCountLabel(schoolType)}.
-            سيُستخرج الصف والفصل من رأس كل صفحة تلقائيًا، وتظهر السجلات التي تحتاج
+            سيُستخرج الصف والفصل والقسم إن وجد من رأس كل صفحة تلقائيًا، وتظهر السجلات التي تحتاج
             مراجعة في خطوة المعاينة.
           </p>
         </div>
@@ -558,7 +558,7 @@ function PreviewStep({
                     {row.data.national_id_masked || "—"}
                   </td>
                   <td className="p-2">
-                    {row.data.grade_name} / {row.data.section_name}
+                    {row.data.grade_name} / {row.data.section_name}{row.data.department ? ` / ${row.data.department}` : ""}
                   </td>
                   <td className="p-2">
                     {row.error_message ? (
@@ -730,15 +730,16 @@ function ImportRowCorrectionModal({
             >
               <option value="">{sectionsLoading ? "جارٍ تحميل الفصول..." : "اختر الفصل"}</option>
               {visibleSections.filter((section) => section.is_active && section.grade.is_active).map((section) => (
-                <option key={`existing-${section.id}`} value={`existing:${section.id}`}>{section.grade.name} / {section.name} — موجود</option>
+                <option key={`existing-${section.id}`} value={`existing:${section.id}`}>{section.grade.name} / {section.name}{section.department ? ` / ${section.department}` : ""} — موجود</option>
               ))}
               {fileSections
-                .filter((candidate) => !visibleSections.some((section) =>
-                  section.grade.name === candidate.grade_name && section.code === candidate.section_code,
+                .map((candidate, index) => ({ candidate, index }))
+                .filter(({ candidate }) => !visibleSections.some((section) =>
+                  section.grade.name === candidate.grade_name && section.code === candidate.section_code && section.department === candidate.department,
                 ))
-                .map((candidate) => (
-                  <option key={`file-${candidate.grade_code}-${candidate.section_code}`} value={`file:${candidate.section_code}`}>
-                    {candidate.grade_name} / {candidate.section_name} — من الملف
+                .map(({ candidate, index }) => (
+                  <option key={`file-${candidate.grade_code}-${candidate.section_code}-${candidate.department}`} value={`file:${index}`}>
+                    {candidate.grade_name} / {candidate.section_name}{candidate.department ? ` / ${candidate.department}` : ""} — من الملف
                   </option>
                 ))}
             </select>
@@ -764,7 +765,11 @@ function ImportRowCorrectionModal({
                 correction.section_id = Number(sectionId.slice("existing:".length));
               }
               if (needsSection && sectionId.startsWith("file:")) {
-                correction.section_code = sectionId.slice("file:".length);
+                const candidate = fileSections[Number(sectionId.slice("file:".length))];
+                if (candidate) {
+                  correction.section_code = candidate.section_code;
+                  correction.department = candidate.department;
+                }
               }
               onSubmit(correction);
             }}

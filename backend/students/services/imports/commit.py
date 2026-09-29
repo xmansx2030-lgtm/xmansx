@@ -176,10 +176,12 @@ def _commit_locked(
 
     # 1) الصفوف والفصول المطلوبة (get_or_create — تنشأ عند الاعتماد فقط)
     grades: dict[str, Grade] = {}
-    sections: dict[tuple[str, str], Section] = {}
+    sections: dict[tuple[str, str, str], Section] = {}
     created_grades: list[str] = []
     created_sections: list[str] = []
     for row in apply_rows:
+        if row["status"] == ImportRowStatus.EXISTING_UPDATED:
+            continue
         gcode = row["grade_code"]
         if gcode not in grades:
             grade, created = Grade.objects.get_or_create(
@@ -202,12 +204,13 @@ def _commit_locked(
                     school=job.school, target_type="Grade", target_id=grade.id,
                     metadata={"name": grade.name},
                 )
-        skey = (gcode, row["section_code"])
+        skey = (gcode, row["section_code"], row.get("department", ""))
         if skey not in sections:
             section, created = Section.objects.get_or_create(
                 school=job.school,
                 grade=grades[gcode],
                 code=row["section_code"],
+                department=row.get("department", ""),
                 defaults={"name": row["section_name"]},
             )
             sections[skey] = section
@@ -241,10 +244,9 @@ def _commit_locked(
     }
 
     for row in apply_rows:
-        section = sections[(row["grade_code"], row["section_code"])]
-        grade = grades[row["grade_code"]]
-
         if row["status"] == ImportRowStatus.NEW:
+            section = sections[(row["grade_code"], row["section_code"], row.get("department", ""))]
+            grade = grades[row["grade_code"]]
             student = Student.objects.create(
                 school=job.school,
                 national_id_encrypted=row["national_id_encrypted"],
@@ -280,6 +282,8 @@ def _commit_locked(
             )
 
         if row["status"] in (ImportRowStatus.SECTION_CHANGED, ImportRowStatus.GRADE_CHANGED):
+            section = sections[(row["grade_code"], row["section_code"], row.get("department", ""))]
+            grade = grades[row["grade_code"]]
             old = existing_enrollments.get(student.id)
             if old is not None:
                 old.status = EnrollmentStatus.TRANSFERRED

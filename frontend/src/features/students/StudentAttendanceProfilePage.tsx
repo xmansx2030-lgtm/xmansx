@@ -236,7 +236,7 @@ export function StudentAttendanceProfilePage() {
         icon={GraduationCap}
         eyebrow={`ملف ${studentLabelText} الموحد`}
         title={student.full_name}
-        description={`${student.grade?.name ?? "لا يوجد صف حالي"} / ${student.section?.name ?? "لا يوجد فصل حالي"}`}
+        description={`${student.grade?.name ?? "لا يوجد صف حالي"} / ${student.section?.name ?? "لا يوجد فصل حالي"}${student.section?.department ? ` / ${student.section.department}` : ""}`}
         tone="executive"
         badge={STATUS_LABELS[student.status] ?? student.status}
         meta={(

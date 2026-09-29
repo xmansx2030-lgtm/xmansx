@@ -64,7 +64,11 @@ def _serialize_student(student) -> dict:
             {"id": enrollment.grade.id, "name": enrollment.grade.name} if enrollment else None
         ),
         "section": (
-            {"id": enrollment.section.id, "name": enrollment.section.name} if enrollment else None
+            {
+                "id": enrollment.section.id,
+                "name": enrollment.section.name,
+                "department": enrollment.section.department,
+            } if enrollment else None
         ),
     }
 
@@ -273,6 +277,7 @@ def _section_payload(section: Section) -> dict:
         "id": section.id,
         "name": section.name,
         "code": section.code,
+        "department": section.department,
         "is_active": section.is_active,
         "grade": {
             "id": section.grade.id,
@@ -370,11 +375,16 @@ class SectionListView(SchoolScopedAPIView):
         serializer.fields["grade_id"] = serializers.IntegerField(min_value=1)
         serializer.fields["name"] = serializers.CharField(max_length=50, trim_whitespace=True)
         serializer.fields["code"] = serializers.CharField(max_length=50, trim_whitespace=True)
+        serializer.fields["department"] = serializers.CharField(
+            max_length=100, required=False, allow_blank=True,
+            trim_whitespace=True, default="",
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         grade = get_object_or_404(Grade, school=request.school, id=data["grade_id"], is_active=True)
         if Section.objects.filter(
-            school=request.school, grade=grade, code__iexact=data["code"]
+            school=request.school, grade=grade,
+            code__iexact=data["code"], department__iexact=data["department"],
         ).exists():
             raise ApiError(
                 "SECTION_CODE_ALREADY_EXISTS", "رمز الفصل مستخدم مسبقًا داخل الصف.", status_code=409
@@ -385,6 +395,7 @@ class SectionListView(SchoolScopedAPIView):
                 grade=grade,
                 name=data["name"],
                 code=data["code"],
+                department=data["department"],
             )
         except IntegrityError as exc:
             raise ApiError(
@@ -421,6 +432,9 @@ class SectionDetailView(SchoolScopedAPIView):
         )
         serializer.fields["code"] = serializers.CharField(
             max_length=50, trim_whitespace=True, required=False
+        )
+        serializer.fields["department"] = serializers.CharField(
+            max_length=100, required=False, allow_blank=True, trim_whitespace=True
         )
         serializer.fields["is_active"] = serializers.BooleanField(required=False)
         serializer.is_valid(raise_exception=True)
@@ -466,6 +480,9 @@ class ImportRowCorrectionSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=200, required=False, trim_whitespace=True)
     section_id = serializers.IntegerField(min_value=1, required=False)
     section_code = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
+    department = serializers.CharField(
+        max_length=100, required=False, allow_blank=True, trim_whitespace=True
+    )
 
     def validate(self, attrs):
         if not attrs:

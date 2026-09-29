@@ -12,7 +12,7 @@ export interface StudentRow {
   status: string;
   guardian_name: string;
   grade: { id: number; name: string } | null;
-  section: { id: number; name: string } | null;
+  section: { id: number; name: string; department?: string } | null;
 }
 
 export interface AttendanceProfile {
@@ -115,6 +115,7 @@ export interface SectionItem {
   id: number;
   name: string;
   code: string;
+  department: string;
   is_active: boolean;
   grade: { id: number; name: string; is_active: boolean };
 }
@@ -142,6 +143,7 @@ export type MappingField =
   | "full_name"
   | "grade"
   | "section"
+  | "department"
   | "student_number"
   | "guardian_name"
   | "guardian_mobile";
@@ -182,6 +184,7 @@ export interface ImportJob {
       grade_name: string;
       section_code: string;
       section_name: string;
+      department: string;
     }>;
     missing_from_file?: number;
     missing_names?: { student_id: number; name: string }[];
@@ -208,6 +211,7 @@ export interface PreviewRow {
     full_name?: string;
     grade_name?: string;
     section_name?: string;
+    department?: string;
     national_id_masked?: string;
     changes?: Record<string, { from?: string; to?: string }>;
   };
@@ -221,6 +225,7 @@ export interface ImportRowCorrection {
   full_name?: string;
   section_id?: number;
   section_code?: string;
+  department?: string;
 }
 
 // ---- الطلاب ----
@@ -327,7 +332,7 @@ export const getSections = (signal?: AbortSignal, includeInactive = false) =>
 export const createGrade = (body: { name: string; code: string; sequence: number }) =>
   apiRequest<GradeItem>("/grades/", { method: "POST", body });
 
-export const createSection = (body: { grade_id: number; name: string; code: string }) =>
+export const createSection = (body: { grade_id: number; name: string; code: string; department?: string }) =>
   apiRequest<SectionItem>("/sections/", { method: "POST", body });
 
 export const updateGrade = (
@@ -340,7 +345,7 @@ export const deleteGrade = (id: number) =>
 
 export const updateSection = (
   id: number,
-  body: Partial<Pick<SectionItem, "name" | "code" | "is_active">> & { grade_id?: number },
+  body: Partial<Pick<SectionItem, "name" | "code" | "department" | "is_active">> & { grade_id?: number },
 ) => apiRequest<SectionItem>(`/sections/${id}/`, { method: "PATCH", body });
 
 export const deleteSection = (id: number) =>
@@ -404,6 +409,7 @@ export const MAPPING_LABELS: Record<MappingField, string> = {
   full_name: "اسم الطالب",
   grade: "الصف",
   section: "الفصل",
+  department: "القسم",
   student_number: "رقم الطالب",
   guardian_name: "اسم ولي الأمر",
   guardian_mobile: "جوال ولي الأمر",
@@ -419,7 +425,7 @@ export interface InactiveStudent {
   exit_date: string | null;
   exit_reason: string;
   grade: { name: string } | null;
-  section: { name: string } | null;
+  section: { name: string; department?: string } | null;
 }
 
 export interface PurgePreview {

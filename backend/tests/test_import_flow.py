@@ -110,6 +110,7 @@ def test_noor_report_discovers_header_row_and_imports_data(import_manager):
         "full_name": 5,
         "grade": 1,
         "section": 3,
+        "department": None,
         "student_number": 9,
         "guardian_name": 11,
         "guardian_mobile": 13,
@@ -167,6 +168,7 @@ def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import
     assert job["suggested_mapping"]["section"] == 18
     assert job["suggested_mapping"]["guardian_name"] == 16
     assert job["suggested_mapping"]["grade"] == 30
+    assert job["suggested_mapping"]["department"] == 31
     assert job["suggested_mapping"]["guardian_mobile"] is None
 
     assert process(client, job["id"]).status_code == 202
@@ -185,6 +187,7 @@ def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import
         "الأول الثانوي",
         "الثاني الثانوي",
     }
+    assert {row["data"]["department"] for row in preview} == {"السنة المشتركة", "المسار العام"}
 
     committed = commit_and_refresh(client, job["id"])
     assert committed.status_code == 200
@@ -196,6 +199,98 @@ def test_official_noor_report_combines_all_sheets_and_extracts_page_grade(import
     assert StudentEnrollment.objects.filter(
         school=school, academic_year=year, status=EnrollmentStatus.ACTIVE
     ).count() == 4
+    assert (
+        StudentEnrollment.objects.get(student__full_name="طالب رابع").section.department
+        == "المسار العام"
+    )
+
+
+@pytest.mark.django_db
+def test_official_noor_keeps_same_numbered_sections_separate_by_department(import_manager):
+    client, school, year = import_manager
+    pages = [
+        {"grade": "الثالث الثانوي", "section": "٥", "department": "المسار العام",
+         "rows": [noor_row("1012345678", "طالب المسار العام", section="٥")]},
+        {"grade": "الثالث الثانوي", "section": "٥", "department": "مسار الصحة والحياة",
+         "rows": [noor_row("1012345679", "طالب مسار الصحة", section="٥")]},
+    ]
+    job = client.post(IMPORTS_URL, {"file": build_official_noor_upload(pages)}).json()
+    assert process(client, job["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{job['id']}/preview/").json()["results"]
+    assert {row["data"]["department"] for row in preview} == {"المسار العام", "مسار الصحة والحياة"}
+    assert commit_and_refresh(client, job["id"]).status_code == 200
+    enrollments = StudentEnrollment.objects.filter(
+        school=school, academic_year=year
+    ).select_related("section")
+    assert {entry.section.department for entry in enrollments} == {
+        "المسار العام", "مسار الصحة والحياة"
+    }
+    assert len({entry.section_id for entry in enrollments}) == 2
+
+    changed = client.post(IMPORTS_URL, {
+        "file": build_official_noor_upload([{
+            "grade": "الثالث الثانوي", "section": "٥", "department": "مسار الصحة والحياة",
+            "rows": [noor_row("1012345678", "طالب المسار العام", section="٥")],
+        }]),
+    }).json()
+    assert process(client, changed["id"]).status_code == 202
+    assert client.get(f"{IMPORTS_URL}{changed['id']}/").json()["summary"]["section_changed"] == 1
+    assert commit_and_refresh(client, changed["id"]).status_code == 200
+    active = StudentEnrollment.objects.get(
+        student__full_name="طالب المسار العام", status=EnrollmentStatus.ACTIVE
+    )
+    assert active.section.department == "مسار الصحة والحياة"
+    assert StudentEnrollment.objects.filter(
+        student=active.student, status=EnrollmentStatus.TRANSFERRED
+    ).count() == 1
+
+
+@pytest.mark.django_db
+def test_tabular_import_maps_optional_department_and_allows_missing_value(import_manager):
+    client, school, year = import_manager
+    rows = [
+        ["1012345678", "طالب بمسار", "الثالث الثانوي", "5", "المسار العام"],
+        ["1012345679", "طالب بلا مسار", "الثالث الثانوي", "6", ""],
+    ]
+    job = upload(
+        client, rows, headers=["رقم الهوية", "اسم الطالب", "الصف", "الفصل", "القسم"]
+    ).json()
+    assert job["suggested_mapping"]["department"] == 4
+    assert process(client, job["id"]).status_code == 202
+    assert commit_and_refresh(client, job["id"]).status_code == 200
+    assert (
+        StudentEnrollment.objects.get(student__full_name="طالب بمسار").section.department
+        == "المسار العام"
+    )
+    assert (
+        StudentEnrollment.objects.get(student__full_name="طالب بلا مسار").section.department
+        == ""
+    )
+
+
+@pytest.mark.django_db
+def test_reimport_without_department_preserves_existing_section(import_manager):
+    client, school, year = import_manager
+    with_department = [["1012345678", "طالب بمسار", "الثالث الثانوي", "5", "المسار العام"]]
+    first = upload(
+        client, with_department,
+        headers=["رقم الهوية", "اسم الطالب", "الصف", "الفصل", "القسم"],
+    ).json()
+    assert process(client, first["id"]).status_code == 202
+    assert commit_and_refresh(client, first["id"]).status_code == 200
+
+    without_department = [["1012345678", "طالب بمسار", "الثالث الثانوي", "5"]]
+    second = upload(
+        client, without_department,
+        headers=["رقم الهوية", "اسم الطالب", "الصف", "الفصل"],
+    ).json()
+    assert process(client, second["id"]).status_code == 202
+    preview = client.get(f"{IMPORTS_URL}{second['id']}/").json()
+    assert preview["summary"]["unchanged"] == 1
+    assert preview["summary"]["section_changed"] == 0
+    assert commit_and_refresh(client, second["id"]).status_code == 200
+    active = StudentEnrollment.objects.get(school=school, academic_year=year)
+    assert active.section.department == "المسار العام"
 
 
 @pytest.mark.django_db

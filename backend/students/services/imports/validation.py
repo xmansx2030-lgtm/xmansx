@@ -25,6 +25,7 @@ ERROR_MESSAGES = {
     "MISSING_NAME": "اسم الطالب مفقود.",
     "MISSING_GRADE": "الصف مفقود.",
     "MISSING_SECTION": "الفصل مفقود.",
+    "INVALID_DEPARTMENT": "اسم القسم يتجاوز 100 حرف.",
     "DUPLICATE_IN_FILE": "رقم الهوية مكرر في الملف.",
     "AUTO_RESOLVED_DUPLICATE": "صف مطابق تمامًا عولج تلقائيًا دون تكرار الطالب.",
     "MISSING_IDENTITY": "لا يوجد رقم هوية ولا رقم طالب — لا يمكن المطابقة.",
@@ -67,6 +68,9 @@ def build_normalized_row(row_number: int, values: tuple, mapping: dict) -> dict:
         section_code, section_name = "", ""
     else:
         section_code, section_name = normalize_section_label(section_raw)
+    department = normalize_text(cell("department"))
+    if len(department) > 100:
+        errors.append("INVALID_DEPARTMENT")
 
     national_id_encrypted = ""
     national_id_hash = ""
@@ -97,6 +101,7 @@ def build_normalized_row(row_number: int, values: tuple, mapping: dict) -> dict:
         "grade_sequence": grade_seq,
         "section_code": section_code,
         "section_name": section_name,
+        "department": department,
         "student_number": student_number,
         "guardian_name": normalize_text(cell("guardian_name")),
         "guardian_mobile": normalize_guardian_mobile(cell("guardian_mobile")),
@@ -124,7 +129,7 @@ def mark_duplicates_in_file(rows: list[dict]) -> None:
         if len(group) <= 1:
             continue
         comparison_fields = (
-            "full_name", "grade_code", "section_code", "student_number",
+            "full_name", "grade_code", "section_code", "department", "student_number",
             "guardian_name", "guardian_mobile",
         )
         signatures = {

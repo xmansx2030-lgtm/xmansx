@@ -95,7 +95,7 @@ export function StudentEditForm({
           <label htmlFor={`student-edit-section-${student.id}`} className="text-sm font-bold text-slate-700">الفصل *</label>
           <select id={`student-edit-section-${student.id}`} value={sectionId} disabled={!gradeId} onChange={(event) => setSectionId(event.target.value ? Number(event.target.value) : "")} className="border px-3 py-2 text-sm">
             <option value="">اختر الفصل</option>
-            {visibleSections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+            {visibleSections.map((section) => <option key={section.id} value={section.id}>{section.name}{section.department ? ` / ${section.department}` : ""}</option>)}
           </select>
         </div>
       </div>

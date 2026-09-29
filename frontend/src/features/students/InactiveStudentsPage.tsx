@@ -376,7 +376,7 @@ export function InactiveStudentsPage() {
                     <td className="col-span-2 p-0 font-medium md:table-cell md:p-3"><span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الاسم</span>{student.full_name}</td>
                     <td className="p-0 md:table-cell md:p-3">
                       <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">آخر صف/فصل</span>
-                      {student.grade ? `${student.grade.name} / ${student.section?.name}` : "—"}
+                      {student.grade ? `${student.grade.name} / ${student.section?.name}${student.section?.department ? ` / ${student.section.department}` : ""}` : "—"}
                     </td>
                     <td className="p-0 md:table-cell md:p-3">
                       <span className="mb-1 block text-xs font-bold text-slate-500 md:hidden">الحالة</span>

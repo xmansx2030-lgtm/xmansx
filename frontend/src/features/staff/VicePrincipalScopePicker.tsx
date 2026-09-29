@@ -81,7 +81,7 @@ export function VicePrincipalScopePicker({
                       onChange={() => toggleSection(section.id)}
                       className="size-4 accent-violet-600"
                     />
-                    {group.name} / {section.name}
+                    {group.name} / {section.name}{section.department ? ` / ${section.department}` : ""}
                   </label>
                 ))}
               </div>

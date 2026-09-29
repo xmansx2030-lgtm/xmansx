@@ -64,7 +64,10 @@ def _serialize_inactive_student(student) -> dict:
         "exit_date": student.exit_date.isoformat() if student.exit_date else None,
         "exit_reason": student.exit_reason,
         "grade": {"name": enrollment.grade.name} if enrollment else None,
-        "section": {"name": enrollment.section.name} if enrollment else None,
+        "section": {
+            "name": enrollment.section.name,
+            "department": enrollment.section.department,
+        } if enrollment else None,
     }
 
 
