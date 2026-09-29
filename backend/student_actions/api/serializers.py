@@ -28,6 +28,7 @@ class ActionSerializer(serializers.Serializer):
     status_label = serializers.CharField()
     warning_id = serializers.IntegerField(allow_null=True)
     warning_label = serializers.CharField(allow_null=True)
+    warning_status = serializers.CharField(allow_null=True)
     performed_at = serializers.CharField()
     performed_by_name = serializers.CharField(allow_null=True)
     notes = serializers.CharField()

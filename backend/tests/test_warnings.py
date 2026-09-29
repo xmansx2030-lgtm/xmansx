@@ -3,13 +3,17 @@
 يبني فوق مصانع م10 (نفس البيئة) ولا يعيد بناء منطق الغياب/الأعذار.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
+from io import StringIO
 
 import pytest
+from django.core.management import call_command
 
 from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
 from common.errors import ApiError
 from devices.models import ArrivalSource, ArrivalStatus, SchoolArrival
+from devices.services.morning import apply_arrival_event, apply_arrival_events_bulk, correct_arrival
+from documents.models import DocumentStatus, DocumentType, GeneratedDocument
 from student_warnings.models import (
     StudentWarning,
     WarningLevel,
@@ -405,22 +409,143 @@ def test_rule_change_after_issue_keeps_snapshot(env):
 
 
 @pytest.mark.django_db
-def test_excuse_after_warning_keeps_warning_and_shows_drift(env):
-    """السيناريو الحاسم (52-55، 119): عذر لاحق يخفض الحالي ولا يمحو الإنذار."""
+def test_excuse_after_warning_voids_unsupported_level_and_document(env):
+    """العذر المعتمد يلغي المستوى الذي هبط مقياسه دون حد الإصدار ومستنده."""
     student = env["students"][0]
     set_rules(env, ABSENCE, 3, 5, 10)
     absence_days(env, student, 5)
     warning = issue(env, student, ABSENCE, WarningLevel.LEVEL_2)
     assert warning.metric_value_at_issue == 5
+    document = GeneratedDocument.objects.create(
+        school=env["school"], student=student, warning=warning,
+        document_type=DocumentType.WARNING_LEVEL_2,
+        template_key="warning_level_2", template_version="1",
+        generated_by_membership=env["vice"], status=DocumentStatus.READY,
+        file="generated/test-warning.pdf",
+    )
 
     for offset in (0, 1):  # عذر معتمد ليومين مختلفين
         day = DAY + timedelta(days=offset)
         approve(env, excuse_for(env, student, [{"attendance_date": day}]))
 
     warning.refresh_from_db()
-    assert warning.status == WarningStatus.ISSUED
+    document.refresh_from_db()
+    assert warning.status == WarningStatus.VOIDED
+    assert warning.voided_by_membership_id == env["vice"].id
+    assert warning.voided_at is not None
+    assert "4" in warning.void_reason and "5" in warning.void_reason
+    assert document.status == DocumentStatus.VOIDED
+    assert document.voided_at is not None
     assert warning.metric_value_at_issue == 5  # Snapshot لم يمس
     assert get_warning_current_metric(warning=warning) == 3  # الحالي انخفض
+    assert StudentWarning.objects.filter(student=student, status=WarningStatus.ISSUED).count() == 0
+
+
+@pytest.mark.django_db
+def test_absence_correction_voids_only_levels_below_original_threshold(env):
+    from attendance.services.sessions import correct_student_attendance
+
+    student = env["students"][0]
+    absence_days(env, student, 5)
+    first = issue(env, student, ABSENCE, WarningLevel.LEVEL_1)
+    second = issue(env, student, ABSENCE, WarningLevel.LEVEL_2)
+    session = sessions_for_day(env, DAY)[0]
+    correct_student_attendance(
+        session_id=session.id, student_id=student.id, school=env["school"],
+        membership=env["vice"], status="PRESENT", reason="تصحيح سجل الحضور",
+    )
+
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert get_warning_current_metric(warning=second) == 4
+    assert first.status == WarningStatus.ISSUED
+    assert second.status == WarningStatus.VOIDED
+    assert first.metric_value_at_issue == 5
+    assert second.threshold_at_issue == 5
+
+
+@pytest.mark.django_db
+def test_absence_correction_keeps_warning_at_threshold_then_voids_below_it(env):
+    from attendance.services.sessions import correct_student_attendance
+
+    student = env["students"][0]
+    absence_days(env, student, 4)
+    warning = issue(env, student, ABSENCE, WarningLevel.LEVEL_1)
+    for day in (DAY, DAY2):
+        correct_student_attendance(
+            session_id=sessions_for_day(env, day)[0].id,
+            student_id=student.id, school=env["school"], membership=env["vice"],
+            status="PRESENT", reason="تصحيح سجل الحضور",
+        )
+        warning.refresh_from_db()
+        assert warning.status == (WarningStatus.ISSUED if day == DAY else WarningStatus.VOIDED)
+    assert get_warning_current_metric(warning=warning) == 2
+
+
+@pytest.mark.django_db
+def test_morning_correction_voids_warning_but_keeps_issue_snapshot(env):
+    student = env["students"][0]
+    morning_late(env, student, 3)
+    warning = issue(env, student, MORNING, WarningLevel.LEVEL_1)
+    arrival = SchoolArrival.objects.get(student=student, attendance_date=DAY)
+    correct_arrival(
+        arrival=arrival, membership=env["vice"], new_time=time(7, 5),
+        reason="تصحيح وقت الوصول",
+    )
+
+    warning.refresh_from_db()
+    arrival.refresh_from_db()
+    assert arrival.status == ArrivalStatus.ON_TIME
+    assert get_warning_current_metric(warning=warning) == 2
+    assert warning.status == WarningStatus.VOIDED
+    assert warning.metric_value_at_issue == 3
+    assert warning.morning_late_occurrences_at_issue == 3
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("bulk", [False, True])
+def test_earlier_biometric_arrival_voids_morning_warning(env, bulk):
+    student = env["students"][0]
+    morning_late(env, student, 3)
+    warning = issue(env, student, MORNING, WarningLevel.LEVEL_1)
+    earlier = datetime(2026, 8, 16, 4, 5, tzinfo=UTC)
+    if bulk:
+        apply_arrival_events_bulk(school=env["school"], items=[(student.id, earlier, None)])
+    else:
+        apply_arrival_event(school=env["school"], student=student, occurred_at=earlier)
+
+    warning.refresh_from_db()
+    arrival = SchoolArrival.objects.get(student=student, attendance_date=DAY)
+    assert arrival.status == ArrivalStatus.ON_TIME
+    assert warning.status == WarningStatus.VOIDED
+    assert warning.voided_by_membership is None
+
+
+@pytest.mark.django_db
+def test_backfill_previews_then_voids_previously_stale_warning(env):
+    student = env["students"][0]
+    absence_days(env, student, 3)
+    warning = issue(env, student, ABSENCE, WarningLevel.LEVEL_1)
+    # يحاكي تصحيحًا قديمًا سبق إضافة المواءمة الآلية.
+    DailyAttendanceSummary.objects.filter(
+        school=env["school"], student=student, attendance_date=DAY,
+    ).update(absence_status=DailyAbsenceStatus.PARTIAL)
+
+    output = StringIO()
+    call_command("reconcile_student_warnings", school_slug=env["school"].slug, stdout=output)
+    warning.refresh_from_db()
+    assert warning.status == WarningStatus.ISSUED
+    assert "unsupported warnings: 1; voided: 0" in output.getvalue()
+
+    output = StringIO()
+    call_command(
+        "reconcile_student_warnings", school_slug=env["school"].slug,
+        apply=True, stdout=output,
+    )
+    warning.refresh_from_db()
+    assert warning.status == WarningStatus.VOIDED
+    assert warning.voided_by_membership is None
+    assert "unsupported warnings: 1; voided: 1" in output.getvalue()
 
 
 @pytest.mark.django_db

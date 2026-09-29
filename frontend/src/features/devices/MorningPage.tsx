@@ -76,13 +76,30 @@ export function MorningPage() {
     refetchIntervalInBackground: false,
   });
 
-  const refresh = () => Promise.all([
+  const refresh = (studentId?: number) => Promise.all([
     queryClient.invalidateQueries({
       queryKey: schoolScopedKey(schoolId, "morning"),
     }),
     queryClient.invalidateQueries({
       queryKey: schoolScopedKey(schoolId, "dashboard"),
     }),
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "reports", "lateness"),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "warnings"),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: schoolScopedKey(schoolId, "documents"),
+    }),
+    ...(studentId ? [
+      queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "student-profile-summary", studentId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: schoolScopedKey(schoolId, "student-morning-attendance", studentId),
+      }),
+    ] : []),
   ]);
 
   return (
@@ -194,7 +211,7 @@ function PolicyValue({ label, value }: { label: string; value: string }) {
   return <div className="grid min-w-24 place-items-center border-l border-amber-100 p-3 text-center last:border-l-0"><strong className="text-base tabular-nums text-slate-900" dir="auto">{value}</strong><span className="mt-1 text-[10px] font-bold text-slate-500">{label}</span></div>;
 }
 
-function ManualArrivalCard({ date, onDone, online }: { date: string; onDone: () => void; online: boolean }) {
+function ManualArrivalCard({ date, onDone, online }: { date: string; onDone: (studentId: number) => void; online: boolean }) {
   const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [student, setStudent] = useState<{ id: number; name: string } | null>(null);
   const [time, setTime] = useState(currentTime);
@@ -241,7 +258,7 @@ function ManualArrivalCard({ date, onDone, online }: { date: string; onDone: () 
                 );
                 setStudent(null);
                 setTime(currentTime());
-                onDone();
+                onDone(student!.id);
               })
               .catch(setError);
           }}
@@ -267,7 +284,7 @@ function LateTab({
 }: {
   date: string;
   schoolId: number;
-  onChanged: () => void;
+  onChanged: (studentId: number) => void;
 }) {
   const schoolType = useMe().data?.active_school?.school_type ?? "BOYS";
   const [search, setSearch] = useState("");
@@ -360,7 +377,7 @@ function LateTab({
                             .then(() => {
                               setCorrecting(null);
                               setCorrectReason("");
-                              onChanged();
+                              onChanged(row.student_id);
                             })
                             .catch(setError);
                         }}

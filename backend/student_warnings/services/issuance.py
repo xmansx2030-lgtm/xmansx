@@ -4,7 +4,7 @@
 - إعادة حساب الاستحقاق خادميًا لحظة الإصدار (لا ثقة بما عرضته الواجهة — البند 45).
 - ‏transaction + قيد فريد جزئي: النقر المزدوج أو طلبان متزامنان = إنذار واحد.
 - ‏Snapshot كامل لحظة الإصدار: م12 تبني المستند منه وحده بلا إعادة حساب.
-- الأعذار/التصحيحات اللاحقة لا تمس الإنذار الصادر — القيمة الحالية تعرض منفصلة.
+- التصحيحات التي تهبط دون عتبة الإصدار تلغي الإنذار وتبقي لقطة إصداره التاريخية.
 """
 
 from django.db import IntegrityError, transaction
@@ -255,22 +255,8 @@ def void_student_warning(*, school, membership, warning, reason: str, request=No
             raise ApiError(
                 "WARNING_ALREADY_VOIDED", "تم إلغاء هذا الإنذار مسبقاً.", status_code=409
             )
-        locked.status = WarningStatus.VOIDED
-        locked.voided_by_membership = membership
-        locked.voided_at = dj_timezone.now()
-        locked.void_reason = reason[:300]
-        locked.save(
-            update_fields=[
-                "status", "voided_by_membership", "voided_at", "void_reason", "updated_at",
-            ]
+        from student_warnings.services.reconciliation import void_locked_warning
+
+        return void_locked_warning(
+            warning=locked, reason=reason, membership=membership, request=request,
         )
-    record_event(
-        AuditAction.STUDENT_WARNING_VOIDED,
-        request=request,
-        actor=membership.user,
-        school=school,
-        target_type="StudentWarning",
-        target_id=locked.id,
-        metadata={"student_id": locked.student_id, "level": locked.level},
-    )
-    return locked

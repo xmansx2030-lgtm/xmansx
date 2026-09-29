@@ -12,21 +12,30 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from student_actions.models import StudentAction, StudentActionStatus, StudentActionType
-from student_warnings.models import StudentWarning
+from student_warnings.models import StudentWarning, WarningStatus
 
 MAX_NOTES = 500
 
 
-def _resolve_warning(*, school, student, warning_id) -> StudentWarning | None:
+def _resolve_warning(*, school, student, warning_id, for_update=False) -> StudentWarning | None:
     if warning_id in (None, ""):
         return None
-    warning = StudentWarning.objects.filter(id=warning_id, school=school).first()
+    warnings = StudentWarning.objects.filter(id=warning_id, school=school)
+    if for_update:
+        warnings = warnings.select_for_update()
+    warning = warnings.first()
     # إنذار مدرسة أخرى أو طالب آخر: نفس الرمز — لا نكشف وجوده للمستأجر الآخر
     if warning is None or warning.student_id != student.id:
         raise ApiError(
             "INVALID_ACTION_WARNING_LINK",
             "الإنذار المرتبط غير موجود أو لا يخص هذا الطالب.",
             status_code=400,
+        )
+    if warning.status != WarningStatus.ISSUED:
+        raise ApiError(
+            "INVALID_ACTION_WARNING_LINK",
+            "لا يمكن ربط إجراء جديد بإنذار ملغى.",
+            status_code=409,
         )
     return warning
 
@@ -47,7 +56,6 @@ def create_student_action(
     if student.school_id != school.id:
         raise ApiError("NOT_FOUND", "المورد المطلوب غير موجود.", status_code=404)
 
-    warning = _resolve_warning(school=school, student=student, warning_id=warning_id)
     now = dj_timezone.now()
     when = performed_at or now
     if when > now:
@@ -55,29 +63,33 @@ def create_student_action(
             "VALIDATION_ERROR", "لا يمكن تسجيل إجراء بتاريخ مستقبلي.", status_code=400
         )
 
-    action = StudentAction.objects.create(
-        school=school,
-        student=student,
-        warning=warning,
-        action_type=action_type,
-        status=StudentActionStatus.COMPLETED,
-        performed_by_membership=membership,
-        performed_at=when,
-        notes=(notes or "")[:MAX_NOTES],
-    )
-    record_event(
-        AuditAction.STUDENT_ACTION_CREATED,
-        request=request,
-        actor=membership.user,
-        school=school,
-        target_type="StudentAction",
-        target_id=action.id,
-        metadata={  # معرفات وأنواع فقط — لا نص الملاحظة ولا اسم الطالب
-            "student_id": student.id,
-            "action_type": action_type,
-            "warning_id": warning.id if warning else None,
-        },
-    )
+    with transaction.atomic():
+        warning = _resolve_warning(
+            school=school, student=student, warning_id=warning_id, for_update=True,
+        )
+        action = StudentAction.objects.create(
+            school=school,
+            student=student,
+            warning=warning,
+            action_type=action_type,
+            status=StudentActionStatus.COMPLETED,
+            performed_by_membership=membership,
+            performed_at=when,
+            notes=(notes or "")[:MAX_NOTES],
+        )
+        record_event(
+            AuditAction.STUDENT_ACTION_CREATED,
+            request=request,
+            actor=membership.user,
+            school=school,
+            target_type="StudentAction",
+            target_id=action.id,
+            metadata={  # معرفات وأنواع فقط — لا نص الملاحظة ولا اسم الطالب
+                "student_id": student.id,
+                "action_type": action_type,
+                "warning_id": warning.id if warning else None,
+            },
+        )
     return action
 
 

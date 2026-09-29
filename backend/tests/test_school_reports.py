@@ -172,6 +172,39 @@ def test_lateness_report_uses_morning_arrivals_only(report_env):
 
 
 @pytest.mark.django_db
+def test_corrected_arrival_disappears_from_lateness_report_for_same_period(report_env):
+    vice = report_env["vice"]
+    student = report_env["student"]
+    arrival = SchoolArrival.objects.get(school=report_env["school"], student=student)
+    report_url = f"/api/v1/reports/lateness/?from_date={TODAY}&to_date={TODAY}"
+    profile_url = (
+        f"/api/v1/students/{student.id}/attendance-profile/"
+        f"?from_date={TODAY}&to_date={TODAY}"
+    )
+
+    assert vice.get(report_url).json()["summary"]["morning_occurrences"] == 1
+    corrected = vice.post(
+        f"/api/v1/morning/arrivals/{arrival.id}/correct/",
+        {"arrival_time": "07:05", "reason": "تصحيح وقت الوصول"},
+        content_type="application/json",
+    )
+    assert corrected.status_code == 200
+    assert corrected.json()["status"] == ArrivalStatus.ON_TIME
+
+    report = vice.get(report_url)
+    profile = vice.get(profile_url)
+    assert report.status_code == 200
+    assert report.json()["summary"] == {
+        "students": 0,
+        "morning_occurrences": 0,
+        "morning_minutes": 0,
+    }
+    assert report.json()["results"] == []
+    assert profile.status_code == 200
+    assert profile.json()["morning_attendance"]["morning_late_occurrences"] == 0
+
+
+@pytest.mark.django_db
 def test_lateness_report_exports_real_xlsx(report_env):
     response = report_env["vice"].get("/api/v1/reports/lateness/export.xlsx?preset=TODAY")
     assert response.status_code == 200

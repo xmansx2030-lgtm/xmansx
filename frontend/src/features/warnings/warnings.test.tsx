@@ -311,7 +311,7 @@ describe("student warnings tab (Phase 11)", () => {
         body: {
           ...WARNING_ROW,
           academic_year: "2026/2027",
-          current_metric_value: 3,
+          current_metric_value: 6,
           metric_drifted: true,
           snapshot: { unexcused_full_absence_days: 5 },
         },
@@ -333,8 +333,8 @@ describe("student warnings tab (Phase 11)", () => {
     await user.click(within(row).getByTestId("details-21"));
     const detail = await screen.findByTestId("detail-21");
     expect(detail).toHaveTextContent("عند الإصدار: 5");
-    expect(detail).toHaveTextContent("حاليًا: 3");
-    expect(screen.getByTestId("drift-21")).toHaveTextContent("الإنذار يبقى كما صدر");
+    expect(detail).toHaveTextContent("حاليًا: 6");
+    expect(screen.getByTestId("drift-21")).toHaveTextContent("تغيّر المقياس بعد إصدار الإنذار");
   });
 
   it("manager can void with a reason; vice principal cannot", async () => {

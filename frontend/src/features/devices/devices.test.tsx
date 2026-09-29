@@ -126,9 +126,16 @@ describe("morning attendance UI (Phase 8.5)", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["school", 10, "dashboard"],
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["school", 10, "reports", "lateness"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["school", 10, "student-profile-summary", 5],
+    });
   });
 
   it("lists late students by date and corrects an arrival with reason", async () => {
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { calls } = mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
       "/morning/summary/": { body: SUMMARY },
@@ -160,6 +167,12 @@ describe("morning attendance UI (Phase 8.5)", () => {
       expect(parseBody(post?.init)).toEqual({
         arrival_time: "07:05",
         reason: "البصمة سجلت متأخرة",
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["school", 10, "reports", "lateness"],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["school", 10, "student-morning-attendance", 5],
       });
     });
   });

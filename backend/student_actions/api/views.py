@@ -63,6 +63,7 @@ def action_row(action: StudentAction) -> dict:
         "status_label": STATUS_LABELS.get(action.status, action.status),
         "warning_id": action.warning_id,
         "warning_label": _warning_label(action.warning),
+        "warning_status": action.warning.status if action.warning else None,
         "performed_at": action.performed_at.isoformat(),
         "performed_by_name": _membership_name(action.performed_by_membership),
         "notes": action.notes,

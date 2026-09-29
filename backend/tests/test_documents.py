@@ -328,16 +328,16 @@ def test_warning_pdf_contains_issue_time_values_in_arabic(env):
 
 @requires_pdf
 def test_reprint_keeps_original_after_metrics_change(env):
-    """السيناريو 155: يصدر عند 5 ثم يصبح الحالي 8 — الملف المخزن لا يتغير."""
+    """يبقى الملف الأصلي بعد ارتفاع الغياب الحقيقي وتغير اسم الطالب."""
     student = env["students"][0]
-    warning = make_warning(env, student, value=5, threshold=5)
+    full_day_absent(env, student, day=DAY)
+    warning = make_warning(env, student, value=1, threshold=1)
     document = generate(env, student, DocumentType.WARNING_LEVEL_2, warning_id=warning.id)
     original = open_for_download(document).read()
     original_checksum = document.checksum
 
     # الغياب الحالي يرتفع ويتغير القيد والاسم
-    for day in (DAY, DAY2):
-        full_day_absent(env, student, day=day)
+    full_day_absent(env, student, day=DAY2)
     student.full_name = "اسم جديد تمامًا"
     student.save(update_fields=["full_name"])
 
@@ -345,7 +345,7 @@ def test_reprint_keeps_original_after_metrics_change(env):
     reprinted = open_for_download(document).read()
     assert reprinted == original
     assert document.checksum == original_checksum
-    assert document.snapshot_data["warning"]["metric_value_at_issue"] == 5
+    assert document.snapshot_data["warning"]["metric_value_at_issue"] == 1
     assert document.snapshot_data["student"]["name"] != "اسم جديد تمامًا"
 
 

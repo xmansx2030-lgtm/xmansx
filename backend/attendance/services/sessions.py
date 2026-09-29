@@ -229,7 +229,8 @@ def submit_session(
     from attendance.services.daily_summary import recalculate_daily_attendance_for_section
 
     recalculate_daily_attendance_for_section(
-        school=school, section=session.section, attendance_date=session.attendance_date
+        school=school, section=session.section, attendance_date=session.attendance_date,
+        warning_membership=membership, warning_request=request,
     )
 
     validated_count = session.marks.count()
@@ -402,7 +403,8 @@ def edit_session(
         )
 
         recalculate_daily_attendance_for_section(
-            school=school, section=session.section, attendance_date=session.attendance_date
+            school=school, section=session.section, attendance_date=session.attendance_date,
+            warning_membership=membership, warning_request=request,
         )
         from school_dashboard.cache import invalidate_school
 
@@ -484,6 +486,7 @@ def correct_student_attendance(
     )
     recalculate_daily_attendance_for_section(
         school=school, section=session.section, attendance_date=session.attendance_date,
+        warning_membership=membership, warning_request=request,
     )
     invalidate_school(school.id)
     return {"student_id": student_id, "session_id": session.id, "status": status}

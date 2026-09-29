@@ -189,6 +189,7 @@ def test_detail_shows_drift_and_void_is_manager_only(role_client, env):  # noqa:
     assert detail["metric_value_at_issue"] == 5  # Snapshot
     assert detail["current_metric_value"] == 4  # بعد اعتماد عذر يوم
     assert detail["metric_drifted"] is True
+    assert detail["status"] == WarningStatus.VOIDED
     assert detail["snapshot"]["unexcused_full_absence_days"] == 5
     # المرشد يقرأ سجل الإنذارات في ملف الطالب
     assert counselor.get(f"{WARNINGS_URL}{warning.id}/").status_code == 200
@@ -198,12 +199,19 @@ def test_detail_shows_drift_and_void_is_manager_only(role_client, env):  # noqa:
     body = {"reason": "صدر بالخطأ"}
     assert vice.post(void_url, body, content_type="application/json").status_code == 403
     assert counselor.post(void_url, body, content_type="application/json").status_code == 403
-    response = manager.post(void_url, body, content_type="application/json")
+    assert manager.post(
+        void_url, body, content_type="application/json"
+    ).json()["code"] == "WARNING_ALREADY_VOIDED"
+
+    # صلاحية المدير للإلغاء اليدوي تبقى متاحة لإنذار آخر ما زال مستحقًا.
+    first = issue(env, student, ABSENCE, WarningLevel.LEVEL_1)
+    first_void_url = f"{WARNINGS_URL}{first.id}/void/"
+    response = manager.post(first_void_url, body, content_type="application/json")
     assert response.status_code == 200
     assert response.json()["status"] == WarningStatus.VOIDED
     # الإلغاء مرتين مرفوض
     assert manager.post(
-        void_url, body, content_type="application/json"
+        first_void_url, body, content_type="application/json"
     ).json()["code"] == "WARNING_ALREADY_VOIDED"
 
 

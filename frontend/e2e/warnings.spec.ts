@@ -3,7 +3,7 @@
  * السيناريوهات الإلزامية (البنود 126-132، 152-154):
  * 1) 3 أيام غياب كامل بدون عذر → المستوى الأول مستحق → الوكيل يصدر → يظهر في الملف.
  * 2) 5 أيام → المستوى الثاني مستحق مع بقاء الأول صادرًا → إصدار الثاني.
- * 3) اعتماد عذر ليومين → القيمة الحالية تنخفض والإنذار يبقى (عند الإصدار 5 / حاليًا 3).
+ * 3) اعتماد عذر ليومين → القيمة الحالية تنخفض ويلغى المستوى الثاني مع حفظ لقطة الإصدار.
  * 4) 3 تأخرات صباحية → إنذار تأخر.
  * 5) تغيير القواعد يعيد التقييم ولا يمس الإنذارات الصادرة.
  * 6) العزل: مدير A لا يصل لإنذارات B.
@@ -132,7 +132,7 @@ function studentRow(page: Page, name: string) {
   return page.locator('[data-testid^="row-"]', { hasText: name });
 }
 
-test("absence warnings: level 1 then level 2, excuse lowers current metric only", async ({
+test("absence warnings: level 1 then level 2, excuse voids unsupported level", async ({
   page,
 }) => {
   const m = meta();
@@ -216,7 +216,7 @@ test("absence warnings: level 1 then level 2, excuse lowers current metric only"
   await row2.getByRole("button", { name: /إصدار الإنذار الثاني/ }).click();
   await expect(page.getByTestId("issue-result")).toContainText("الإنذار الثاني");
 
-  // (3) عذر ليومين → القيمة الحالية 3 والإنذار يبقى عند 5
+  // (3) عذر ليومين → القيمة الحالية 3 ويلغى إنذار المستوى الثاني (حده 5)
   const excuse = await api<{ id: number }>(page, "/excuses/", {
     method: "POST",
     body: {
@@ -241,11 +241,12 @@ test("absence warnings: level 1 then level 2, excuse lowers current metric only"
   await page.getByRole("button", { name: "الإنذارات" }).click();
   const level2 = page.locator('[data-testid^="warning-"]', { hasText: "الإنذار الثاني" });
   await expect(level2).toBeVisible();
+  await expect(level2).toContainText("ملغى");
   await level2.getByRole("button", { name: "التفاصيل" }).click();
   const detail = page.locator('[data-testid^="detail-"]').first();
   await expect(detail).toContainText("عند الإصدار: 5");
   await expect(detail).toContainText("حاليًا: 3");
-  await expect(detail).toContainText("الإنذار يبقى كما صدر");
+  await expect(detail).toContainText("إلغاء تلقائي");
 });
 
 test("morning late warning is derived from morning arrivals", async ({ page }) => {
@@ -304,10 +305,11 @@ test("rule change re-evaluates eligibility without touching issued warnings", as
   await expect(row).toContainText("وصل: الإنذار الأول"); // أعيد التقييم بالحدود الجديدة
   await expect(row.getByRole("button", { name: /إصدار/ })).toHaveCount(0);
 
-  // الإنذارات الصادرة لم تتغير: الثاني ما زال «صدر عند 5» والحد 5
+  // يبقى سجل الإنذار الثاني الملغى بلقطة إصداره التاريخية.
   await page.goto(`/students/${faisalId}/attendance`);
   await page.getByRole("button", { name: "الإنذارات" }).click();
   const level2 = page.locator('[data-testid^="warning-"]', { hasText: "الإنذار الثاني" });
+  await expect(level2).toContainText("ملغى");
   await expect(level2).toContainText("صدر عند 5 أيام");
   await expect(level2).toContainText("الحد 5");
 

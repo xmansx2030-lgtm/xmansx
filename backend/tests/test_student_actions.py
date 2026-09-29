@@ -94,6 +94,19 @@ def test_action_links_to_warning_of_same_student(env):
     assert action.warning_id == warning.id
 
 
+def test_action_cannot_link_voided_warning(env):
+    student = env["students"][0]
+    warning = make_warning(env, student)
+    warning.status = WarningStatus.VOIDED
+    warning.save(update_fields=["status"])
+    with pytest.raises(ApiError) as exc:
+        create_student_action(
+            school=env["school"], membership=env["vice"], student=student,
+            action_type=StudentActionType.WARNING_DELIVERED, warning_id=warning.id,
+        )
+    assert exc.value.code == "INVALID_ACTION_WARNING_LINK"
+
+
 def test_action_cannot_link_warning_of_another_student(env):
     warning = make_warning(env, env["students"][0])
     with pytest.raises(ApiError) as exc:

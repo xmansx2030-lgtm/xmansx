@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Download,
@@ -130,6 +130,7 @@ function fileDate(context?: ReportResponse<unknown, unknown>["context"]) {
 }
 
 export function ReportsPage() {
+  const queryClient = useQueryClient();
   const me = useMe();
   const schoolId = me.data?.active_school?.id ?? 0;
   const schoolName = me.data?.active_school?.name ?? "المدرسة الحالية";
@@ -178,6 +179,10 @@ export function ReportsPage() {
   };
   const clearCurrentReport = () => setClearedReports((current) => ({ ...current, [tab]: true }));
   const restoreCurrentReport = () => setClearedReports((current) => ({ ...current, [tab]: false }));
+  const refreshCurrentReport = () => {
+    setDraft((current) => ({ ...current, page: 1 }));
+    void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "reports", tab) });
+  };
 
   return (
     <div className="ds-page" data-testid="reports-page">
@@ -216,6 +221,7 @@ export function ReportsPage() {
         grades={grades}
         sections={sections}
         onReset={reset}
+        onRefresh={refreshCurrentReport}
         schoolType={schoolType}
       />
 
@@ -259,7 +265,7 @@ export function ReportsPage() {
   );
 }
 
-function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelectedStudent, grades, sections, onReset, schoolType }: {
+function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelectedStudent, grades, sections, onReset, onRefresh, schoolType }: {
   schoolId: number;
   draft: CommonReportFilters;
   setDraft: React.Dispatch<React.SetStateAction<CommonReportFilters>>;
@@ -268,6 +274,7 @@ function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelected
   grades: [number, string][];
   sections: Awaited<ReturnType<typeof getAttendanceSections>>;
   onReset: () => void;
+  onRefresh: () => void;
   schoolType: "BOYS" | "GIRLS";
 }) {
   const [search, setSearch] = useState("");
@@ -284,10 +291,10 @@ function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelected
         <label className="text-xs font-bold text-slate-600">الفترة<select value={draft.preset} onChange={(event) => setDraft((current) => ({ ...current, preset: event.target.value as ReportPreset }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm">{PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         {draft.preset === "CUSTOM" && <><label className="text-xs font-bold text-slate-600">من<input type="date" value={draft.fromDate} onChange={(event) => setDraft((current) => ({ ...current, fromDate: event.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" /></label><label className="text-xs font-bold text-slate-600">إلى<input type="date" value={draft.toDate} onChange={(event) => setDraft((current) => ({ ...current, toDate: event.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" /></label></>}
         <label className="text-xs font-bold text-slate-600">الصف<select value={draft.grade ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, grade: event.target.value ? Number(event.target.value) : "", section: "", student: null })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الصفوف</option>{grades.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <label className="text-xs font-bold text-slate-600">الفصل<select value={draft.section ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, section: event.target.value ? Number(event.target.value) : "", student: null })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الفصول</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}</option>)}</select></label>
+        <label className="text-xs font-bold text-slate-600">الفصل<select value={draft.section ?? ""} onChange={(event) => { setSelectedStudent(null); setDraft((current) => ({ ...current, section: event.target.value ? Number(event.target.value) : "", student: null })); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="">كل الفصول</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.grade_name} / {section.name}{section.department ? ` / ${section.department}` : ""}</option>)}</select></label>
         <div className="relative text-xs font-bold text-slate-600 lg:col-span-2">{studentLabel(schoolType, true)}<div className="relative mt-1"><Search aria-hidden size={16} className="pointer-events-none absolute end-3 top-3.5 text-slate-400" /><input aria-label={`البحث عن ${studentLabel(schoolType, true)}`} value={selectedStudent ? selectedStudent.full_name : search} onChange={(event) => { setSelectedStudent(null); setSearch(event.target.value); }} placeholder={`اكتب حرفين من اسم ${studentLabel(schoolType, true)}`} className="h-11 w-full rounded-xl border border-slate-300 px-3 pe-10 text-sm" /></div>{candidates.isSuccess && candidates.data.results.length > 0 && !selectedStudent && <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">{candidates.data.results.map((student) => <li key={student.id}><button type="button" onClick={() => { setSelectedStudent(student); setSearch(""); }} className="w-full rounded-lg p-2 text-start text-sm hover:bg-slate-100"><b className="block text-slate-900">{student.full_name}</b><span className="text-xs font-normal text-slate-500">{student.grade?.name ?? "—"} / {student.section?.name ?? "—"}</span></button></li>)}</ul>}</div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => setDraft((current) => ({ ...current, page: 1 }))}><Filter aria-hidden size={16} /> تحديث النتائج</Button><Button variant="secondary" onClick={onReset}><RotateCcw aria-hidden size={16} /> إعادة ضبط</Button>{selectedStudent && <button type="button" onClick={() => setSelectedStudent(null)} className="rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-800">{selectedStudent.full_name} ×</button>}</div>
+      <div className="mt-4 flex flex-wrap gap-2"><Button onClick={onRefresh}><Filter aria-hidden size={16} /> تحديث النتائج</Button><Button variant="secondary" onClick={onReset}><RotateCcw aria-hidden size={16} /> إعادة ضبط</Button>{selectedStudent && <button type="button" onClick={() => setSelectedStudent(null)} className="rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-800">{selectedStudent.full_name} ×</button>}</div>
     </section>
   );
 }
@@ -352,7 +359,7 @@ function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isC
       columns={latenessColumns}
       controls={<><NumberFilter label="الحد الأدنى للمرات" value={minOccurrences} onChange={setMinOccurrences} /><NumberFilter label="الحد الأدنى للدقائق" value={minMinutes} onChange={setMinMinutes} /></>}
       summary={report.data && <div className="max-w-sm"><MetricCard label={studentCountLabel(schoolType)} value={report.data.summary.students} /></div>}
-      table={report.data && <LatenessTable rows={report.data.results} />}
+      table={report.data && <LatenessTable rows={report.data.results} range={report.data.context.range} />}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}
       onExportExcel={async () => {
@@ -544,7 +551,21 @@ function Select({ label, value, onChange, options }: { label: string; value: str
 function NumberFilter({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <TextField label={label} type="number" min={0} value={value} onChange={(event) => onChange(Math.max(Number(event.target.value), 0))} className="min-w-40" />; }
 function TableShell({ children, empty }: { children: React.ReactNode; empty: boolean }) { return <DataTableShell>{empty ? <EmptyState title="لا توجد نتائج" description="غيّر الفلاتر أو الفترة ثم أعد المحاولة." compact /> : <table className="w-full min-w-[760px] text-sm">{children}</table>}</DataTableShell>; }
 function AbsenceTable({ rows }: { rows: AbsenceRow[] }) { return <TableShell empty={rows.length === 0}><thead><tr className="border-b bg-slate-50 text-slate-500"><Th>الطالب</Th><Th>جوال ولي الأمر</Th><Th>الصف/الفصل</Th><Th>كامل</Th><Th>جزئي</Th><Th>حصص غياب</Th><Th>بعذر</Th><Th>دون عذر</Th><Th /></tr></thead><tbody>{rows.map((row) => <tr key={`${row.student_id}-${row.section_name}`} className="border-b last:border-0"><Td strong>{row.full_name}</Td><Td><span dir="ltr">{row.guardian_mobile || "—"}</span></Td><Td>{row.grade_name} / {row.section_name}</Td><Td>{row.full_absence_days}</Td><Td>{row.partial_absence_days}</Td><Td>{row.absent_periods}</Td><Td>{row.excused_absent_periods}</Td><Td>{row.unexcused_absent_periods}</Td><Td><Link to={`/students/${row.student_id}/attendance`} className="font-bold text-blue-700">التفاصيل</Link></Td></tr>)}</tbody></TableShell>; }
-function LatenessTable({ rows }: { rows: LatenessRow[] }) { return <TableShell empty={rows.length === 0}><thead><tr className="border-b bg-slate-50 text-slate-500"><Th>الطالب</Th><Th>الصف/الفصل</Th><Th>مرات التأخر الصباحي</Th><Th>الدقائق المحتسبة</Th><Th /></tr></thead><tbody>{rows.map((row) => <tr key={row.student_id} className="border-b last:border-0"><Td strong>{row.full_name}</Td><Td>{row.grade_name ?? "—"} / {row.section_name ?? "—"}</Td><Td>{row.morning_occurrences}</Td><Td>{row.morning_minutes}</Td><Td><Link to={`/students/${row.student_id}/attendance`} className="font-bold text-blue-700">التفاصيل</Link></Td></tr>)}</tbody></TableShell>; }
+function LatenessTable({ rows, range }: {
+  rows: LatenessRow[];
+  range: ReportResponse<unknown, unknown>["context"]["range"];
+}) {
+  return <TableShell empty={rows.length === 0}>
+    <thead><tr className="border-b bg-slate-50 text-slate-500"><Th>الطالب</Th><Th>الصف/الفصل</Th><Th>مرات التأخر الصباحي</Th><Th>الدقائق المحتسبة</Th><Th /></tr></thead>
+    <tbody>{rows.map((row) => <tr key={row.student_id} className="border-b last:border-0">
+      <Td strong>{row.full_name}</Td>
+      <Td>{row.grade_name ?? "—"} / {row.section_name ?? "—"}</Td>
+      <Td>{row.morning_occurrences}</Td>
+      <Td>{row.morning_minutes}</Td>
+      <Td><Link to={`/students/${row.student_id}/attendance?from_date=${range.from_date}&to_date=${range.to_date}&tab=morning`} className="font-bold text-blue-700">التفاصيل</Link></Td>
+    </tr>)}</tbody>
+  </TableShell>;
+}
 function ReferralsTable({ rows }: { rows: ReferralRow[] }) { return <TableShell empty={rows.length === 0}><thead><tr className="border-b bg-slate-50 text-slate-500"><Th>الطالب</Th><Th>الفئة/السبب</Th><Th>المُحيل</Th><Th>الوكيل المسؤول</Th><Th>المرشد</Th><Th>الأولوية</Th><Th>الحالة</Th><Th>التاريخ</Th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b last:border-0"><Td strong>{row.student.full_name}</Td><Td>{row.category_label}<span className="block text-xs text-slate-500">{row.reason_label}</span></Td><Td>{row.created_by_name ?? "—"}</Td><Td>{row.assigned_vice_principal_name ?? "غير معيّن"}</Td><Td>{row.assigned_counselor_name ?? "لم تُحوّل"}</Td><Td><Badge tone={row.priority === "HIGH" ? "danger" : "neutral"}>{row.priority_label}</Badge></Td><Td><Badge tone={row.status === "CLOSED" ? "success" : row.status === "CANCELLED" ? "danger" : "brand"} dot>{row.status_label}</Badge></Td><Td>{new Date(row.created_at).toLocaleDateString("ar-SA")}</Td></tr>)}</tbody></TableShell>; }
 function Th({ children }: { children?: React.ReactNode }) { return <th className="p-3 text-start font-bold">{children}</th>; }
 function Td({ children, strong = false }: { children: React.ReactNode; strong?: boolean }) { return <td className={`p-3 ${strong ? "font-black text-slate-900" : "text-slate-700"}`}>{children}</td>; }

@@ -116,6 +116,35 @@ describe("student attendance profile (Phase 9)", () => {
     expect(table).toHaveTextContent("متأخر");
   });
 
+  it("يعرض سجل الصباح على فترة التقرير عند فتح رابط التفاصيل", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/attendance-profile/": {
+        body: { ...PROFILE, period: { from: "2026-08-01", to: "2026-08-30" } },
+      },
+      "/morning-attendance/": {
+        body: [{
+          date: "2026-08-19",
+          arrival_time: "2026-08-19T07:18:00+03:00",
+          status: "LATE",
+          raw_late_minutes: 18,
+          counted_late_minutes: 13,
+          source: "BIOMETRIC",
+        }],
+      },
+    });
+
+    renderApp("/students/5/attendance?from_date=2026-08-01&to_date=2026-08-30&tab=morning");
+    expect(await screen.findByRole("heading", { name: "محمد أحمد" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "الحضور الصباحي" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("من")).toHaveValue("2026-08-01");
+    expect(screen.getByLabelText("إلى")).toHaveValue("2026-08-30");
+    expect(within(await screen.findByRole("table")).getByText("13 دقيقة")).toBeInTheDocument();
+    expect(calls.some((call) =>
+      call.url.includes("/morning-attendance/?from_date=2026-08-01&to_date=2026-08-30"),
+    )).toBe(true);
+  });
+
   // ---- المرحلة 10: التصنيف الإداري داخل ملف الطالب ----
 
   it("shows excused/unexcused cards without replacing the totals", async () => {

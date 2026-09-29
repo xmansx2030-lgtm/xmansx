@@ -50,6 +50,13 @@ export function ExcuseDetailCard({
     onChanged();
   };
 
+  const refreshAttendanceAndWarnings = () => {
+    for (const key of ["warnings", "documents", "student-profile-summary", "dashboard", "reports"]) {
+      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, key) });
+    }
+    refreshAll();
+  };
+
   const previewMutation = useMutation({
     mutationFn: () => previewExcuse(excuseId),
     onSuccess: (data) => {
@@ -64,7 +71,7 @@ export function ExcuseDetailCard({
     mutationFn: () => approveExcuse(excuseId, preview!.preview_hash),
     onSuccess: () => {
       setPreview(null);
-      refreshAll();
+      refreshAttendanceAndWarnings();
     },
     onError: (error: { message?: string }) =>
       setActionError(error.message ?? "تعذر اعتماد العذر."),
@@ -79,7 +86,7 @@ export function ExcuseDetailCard({
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelExcuse(excuseId, reason),
-    onSuccess: refreshAll,
+    onSuccess: refreshAttendanceAndWarnings,
     onError: (error: { message?: string }) =>
       setActionError(error.message ?? "تعذر إلغاء العذر."),
   });
