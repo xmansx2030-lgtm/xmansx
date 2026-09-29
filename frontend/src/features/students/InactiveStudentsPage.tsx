@@ -132,6 +132,8 @@ export function InactiveStudentsPage() {
     selected.size > 0 &&
     selectedRows.length === selected.size &&
     selectedRows.every((row) => row.status !== "ACTIVE");
+  const selectedHavePossibleMatches =
+    filter === "missing" && selectedRows.some((row) => row.same_name_other_masks?.length);
   const expectedConfirm = preview ? `حذف ${preview.summary.students} ${studentCountLabel(schoolType)}` : "";
   const jobData = purgeJob.data;
   const jobDone =
@@ -267,7 +269,7 @@ export function InactiveStudentsPage() {
             <>
               <Button
                 variant="secondary"
-                disabled={selected.size === 0 || statusMutation.isPending}
+                disabled={selected.size === 0 || selectedHavePossibleMatches || statusMutation.isPending}
                 onClick={() =>
                   statusMutation.mutate({ ids: [...selected], status: "TRANSFERRED" })
                 }
@@ -276,7 +278,7 @@ export function InactiveStudentsPage() {
               </Button>
               <Button
                 variant="secondary"
-                disabled={selected.size === 0 || statusMutation.isPending}
+                disabled={selected.size === 0 || selectedHavePossibleMatches || statusMutation.isPending}
                 onClick={() =>
                   statusMutation.mutate({ ids: [...selected], status: "GRADUATED" })
                 }
@@ -285,7 +287,7 @@ export function InactiveStudentsPage() {
               </Button>
               <Button
                 variant="danger"
-                disabled={!selectedArePurgeable || previewMutation.isPending}
+                disabled={!selectedArePurgeable || selectedHavePossibleMatches || previewMutation.isPending}
                 onClick={() => previewMutation.mutate([...selected])}
                 title={
                   selected.size > 0 && !selectedArePurgeable
@@ -298,6 +300,11 @@ export function InactiveStudentsPage() {
               {selected.size > 0 && !selectedArePurgeable && (
                 <span className="text-xs text-amber-800">
                   الحذف النهائي يتاح بعد تصنيف {student} وإغلاق قيده النشط.
+                </span>
+              )}
+              {selectedHavePossibleMatches && (
+                <span className="text-xs text-amber-800">
+                  يوجد اسم مطابق برقم آخر ضمن التحديد؛ راجع السجلات المرتبطة قبل تغيير الحالة أو الحذف.
                 </span>
               )}
             </>

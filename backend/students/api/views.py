@@ -607,7 +607,9 @@ class ImportProcessView(SchoolScopedAPIView):
 
         mapping = request.data.get("mapping") or job.summary.get("suggested_mapping") or {}
         mapping = {k: v for k, v in mapping.items() if v is not None}
-        mapping_service.validate_mapping(mapping, headers_count=len(job.headers))
+        mapping_service.validate_mapping(
+            mapping, headers_count=len(job.headers), headers=job.headers
+        )
 
         job.column_mapping = mapping
         job.status = ImportJobStatus.PROCESSING

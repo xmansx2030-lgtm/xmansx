@@ -139,6 +139,10 @@ describe("InactiveStudentsPage", () => {
     const deleteButton = screen.getByRole("button", { name: "حذف المحددين نهائيًا" });
     expect(deleteButton).toBeDisabled();
     await user.click(screen.getByRole("checkbox", { name: "تحديد خريج أول ******0001" }));
+    expect(deleteButton).toBeDisabled();
+    expect(screen.getByText(/يوجد اسم مطابق برقم آخر ضمن التحديد/)).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "تحديد خريج أول ******0001" }));
+    await user.click(screen.getByRole("checkbox", { name: "تحديد خريج ثانٍ ******0002" }));
     expect(deleteButton).toBeEnabled();
   });
 

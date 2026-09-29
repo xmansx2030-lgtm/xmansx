@@ -105,7 +105,9 @@ def select_header_row(candidates: list[tuple[int, list[str]]]) -> tuple[int, lis
     return -negative_row, headers
 
 
-def validate_mapping(mapping: dict[str, int | None], headers_count: int) -> None:
+def validate_mapping(
+    mapping: dict[str, int | None], headers_count: int, headers: list[str] | None = None
+) -> None:
     """يتحقق من اكتمال الحد الأدنى قبل المعالجة."""
     for field in REQUIRED_FIELDS:
         if mapping.get(field) is None:
@@ -128,3 +130,26 @@ def validate_mapping(mapping: dict[str, int | None], headers_count: int) -> None
     for index in used:
         if index < 0 or index >= headers_count:
             raise ApiError("VALIDATION_ERROR", "تحديد الأعمدة غير صحيح.", status_code=400)
+    if headers is None:
+        return
+    for field in ("national_id", "student_number", "guardian_mobile"):
+        index = mapping.get(field)
+        if index is None:
+            continue
+        header = _clean(headers[index]).casefold()
+        phone_header = any(token in header for token in ("جوال", "هاتف", "phone", "mobile"))
+        student_phone = phone_header and any(
+            token in header for token in ("طالب", "طالبه", "student")
+        ) and not any(token in header for token in ("ولي", "guardian"))
+        nonmobile_phone = header in {"هاتف العمل", "هاتف المنزل", "work phone", "home phone"}
+        incompatible = (
+            phone_header if field in ("national_id", "student_number")
+            else student_phone or nonmobile_phone
+        )
+        if incompatible:
+            raise ApiError(
+                "IMPORT_INCOMPATIBLE_COLUMN",
+                f"عمود «{headers[index]}» لا يناسب حقل «{TARGET_FIELDS[field]}». "
+                "اترك الحقل الاختياري غير مرتبط أو اختر عموده الصحيح.",
+                status_code=400,
+            )

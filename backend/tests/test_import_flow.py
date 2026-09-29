@@ -94,6 +94,41 @@ def test_upload_suggests_mapping_from_noor_headers(import_manager):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("field", "phone_header"),
+    [
+        ("national_id", "رقم جوال الطالب"),
+        ("student_number", "رقم جوال الطالب"),
+        ("guardian_mobile", "رقم جوال الطالب"),
+        ("guardian_mobile", "هاتف العمل"),
+        ("guardian_mobile", "هاتف المنزل"),
+    ],
+)
+def test_import_rejects_phone_column_as_identifier_or_guardian_mobile(
+    import_manager, field, phone_header
+):
+    client, _, _ = import_manager
+    headers = ["رقم الهوية", "اسم الطالب", "الصف", "الفصل", phone_header]
+    job = upload(
+        client,
+        [["1012345678", "أحمد محمد", "الثالث الثانوي", "1", "0501234567"]],
+        headers=headers,
+    ).json()
+    mapping = {
+        "national_id": 0,
+        "full_name": 1,
+        "grade": 2,
+        "section": 3,
+        field: 4,
+    }
+    response = process(client, job["id"], mapping)
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "IMPORT_INCOMPATIBLE_COLUMN"
+    assert StudentImportJob.objects.get(id=job["id"]).status == ImportJobStatus.UPLOADED
+
+
+@pytest.mark.django_db
 def test_noor_report_discovers_header_row_and_imports_data(import_manager):
     client, school, year = import_manager
     rows = [
