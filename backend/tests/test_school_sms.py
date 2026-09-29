@@ -113,6 +113,10 @@ def test_preview_and_send_are_school_scoped_deduplicated_and_mocked(role_client,
     assert candidate["student_id"] == student_a.id
     assert candidate["recipient_masked"] != student_a.guardian_mobile
     assert candidate["send_error"] == ""
+    assert candidate["absence_status"] == DailyAbsenceStatus.FULL
+    assert "message" not in candidate
+    assert "«اسم الطالب»" in preview.json()["message_template"]
+    assert "«تاريخ الغياب»" in preview.json()["message_template"]
     assert student_b.id != candidate["student_id"]
 
     with patch(
@@ -128,6 +132,11 @@ def test_preview_and_send_are_school_scoped_deduplicated_and_mocked(role_client,
         assert provider.call_count == 1
         assert provider.call_args.kwargs["secret"] == "school-only-key"
         assert provider.call_args.kwargs["mobile"] == student_a.guardian_mobile
+        assert provider.call_args.kwargs["message"] == (
+            preview.json()["message_template"]
+            .replace("«اسم الطالب»", student_a.full_name)
+            .replace("«تاريخ الغياب»", day.isoformat())
+        )
         notice = AbsenceSmsNotice.objects.get(school=school_a, student=student_a)
         assert notice.status == AbsenceSmsStatus.ACCEPTED
         assert notice.provider_reference == "42"
@@ -238,6 +247,28 @@ def test_excused_absence_is_visible_but_cannot_be_sent(role_client):
 
 
 @pytest.mark.django_db
+def test_partial_absence_is_neither_listed_nor_sent(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    student, summary, day = _absence(school, status=DailyAbsenceStatus.PARTIAL)
+    summary.expected_periods = 2
+    summary.submitted_periods = 2
+    summary.present_periods = 1
+    summary.save(update_fields=["expected_periods", "submitted_periods", "present_periods"])
+    assert _integration(manager).status_code == 200
+    preview = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert preview["total"] == preview["ready_total"] == 0
+    assert preview["students"] == []
+    assert "«اسم الطالب»" in preview["message_template"]
+    with patch("school_sms.tasks.send_sms") as provider:
+        response = manager.post(
+            SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+            content_type="application/json",
+        )
+    assert response.status_code == 409
+    provider.assert_not_called()
+
+
+@pytest.mark.django_db
 def test_school_sets_two_approved_periods_for_sms_without_waiting_for_full_schedule(role_client):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     student, summary, day = _absence(school)
@@ -271,13 +302,17 @@ def test_school_sets_two_approved_periods_for_sms_without_waiting_for_full_sched
     after = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
     assert after["total"] == after["ready_total"] == 1
     assert after["students"][0]["eligibility_reason"] is None
-    assert "2 من حصص التحضير المعتمدة" in after["students"][0]["message"]
-    assert "غيابًا كاملًا" not in after["students"][0]["message"]
+    assert "message" not in after["students"][0]
     with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult()) as provider:
         sent = manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
                             content_type="application/json")
     assert sent.status_code == 202
     provider.assert_called_once()
+    assert provider.call_args.kwargs["message"] == (
+        after["message_template"]
+        .replace("«اسم الطالب»", student.full_name)
+        .replace("«تاريخ الغياب»", day.isoformat())
+    )
 
 
 @pytest.mark.django_db
