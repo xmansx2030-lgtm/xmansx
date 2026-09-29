@@ -10,6 +10,9 @@ class AuditAction(models.TextChoices):
     # المرحلة 3 — الإعدادات والتقويم والجداول
     SCHOOL_SETTINGS_UPDATED = "SCHOOL_SETTINGS_UPDATED", "تحديث إعدادات المدرسة"
     SCHOOL_NAME_UPDATED = "SCHOOL_NAME_UPDATED", "تحديث اسم المدرسة"
+    SMS_INTEGRATION_UPDATED = "SMS_INTEGRATION_UPDATED", "تحديث ربط الرسائل"
+    SMS_ABSENCE_QUEUED = "SMS_ABSENCE_QUEUED", "جدولة رسالة غياب"
+    SMS_ABSENCE_RESULT = "SMS_ABSENCE_RESULT", "نتيجة إرسال رسالة غياب"
     ACADEMIC_YEAR_CREATED = "ACADEMIC_YEAR_CREATED", "إنشاء عام دراسي"
     ACADEMIC_YEAR_ACTIVATED = "ACADEMIC_YEAR_ACTIVATED", "تفعيل عام دراسي"
     ACADEMIC_YEAR_CLOSED = "ACADEMIC_YEAR_CLOSED", "إغلاق عام دراسي"
