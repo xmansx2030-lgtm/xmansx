@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "referrals",
     "counseling",
     "school_dashboard",
+    "school_sms",
     "subscriptions",
     "platform_team",
     "audit",

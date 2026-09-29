@@ -6,6 +6,7 @@ import {
   Clock3,
   LayoutGrid,
   School,
+  Send,
   Settings2,
   ShieldCheck,
   type LucideIcon,
@@ -19,6 +20,7 @@ import { AttendanceSettingsTab } from "@/features/settings/tabs/AttendanceSettin
 import { BellSchedulesTab } from "@/features/settings/tabs/BellSchedulesTab";
 import { CalendarTab } from "@/features/settings/tabs/CalendarTab";
 import { SchoolInfoTab } from "@/features/settings/tabs/SchoolInfoTab";
+import { SmsIntegrationTab } from "@/features/settings/tabs/SmsIntegrationTab";
 import { StructureTab } from "@/features/settings/tabs/StructureTab";
 import { WarningRulesTab } from "@/features/settings/tabs/WarningRulesTab";
 import { WeekDaysTab } from "@/features/settings/tabs/WeekDaysTab";
@@ -31,6 +33,7 @@ const TABS = [
   { key: "bell-schedules", label: "أوقات الحصص", shortDescription: "الجداول والحصص اليومية", icon: Clock3 },
   { key: "attendance", label: "سياسات الحضور", shortDescription: "التأخر الصباحي والتحضير", icon: CheckCircle2 },
   { key: "warnings", label: "الإنذارات", shortDescription: "حدود إنذارات الغياب والتأخر", icon: BellRing },
+  { key: "sms", label: "الرسائل النصية", shortDescription: "ربط دريمز أو مسجات لهذه المدرسة", icon: Send },
 ] as const satisfies ReadonlyArray<{
   key: string;
   label: string;
@@ -138,6 +141,7 @@ export function SettingsPage() {
           {tab === "bell-schedules" && <BellSchedulesTab canWrite={canManage} />}
           {tab === "attendance" && <AttendanceSettingsTab canWrite={canManage} />}
           {tab === "warnings" && <WarningRulesTab />}
+          {tab === "sms" && <SmsIntegrationTab />}
         </section>
       </div>
     </div>

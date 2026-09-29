@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/session/", include("memberships.urls")),
     path("api/v1/school/", include("schools.urls")),
+    path("api/v1/school/", include("school_sms.urls")),
     path("api/v1/school/", include("academics.urls")),
     path("api/v1/", include("students.urls")),
     path("api/v1/", include("staff.urls")),

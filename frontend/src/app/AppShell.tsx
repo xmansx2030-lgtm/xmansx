@@ -33,6 +33,7 @@ const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/warnings",
   "/referrals",
   "/attendance/monitoring",
+  "/attendance/absence-messages",
   "/excuses",
   "/student-leaves",
 ]);
@@ -44,6 +45,7 @@ const MANAGER_PRIMARY_PATHS = new Set([
   "/excuses",
   "/referrals",
   "/attendance/monitoring",
+  "/attendance/absence-messages",
   "/staff",
   "/settings",
 ]);
@@ -68,6 +70,7 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/referrals/mine", label: "التحويلات", roles: ["TEACHER"], icon: Send, group: "students" },
   { to: "/attendance/monitoring", label: "متابعة التحضير", roles: MANAGER_VP, icon: BookOpenCheck, group: "operations" },
   { to: "/attendance/analytics", label: "الغياب والحضور", roles: MANAGER_VP, icon: BarChart3, group: "operations" },
+  { to: "/attendance/absence-messages", label: "رسائل الغياب", roles: MANAGER_VP, icon: MessageSquareMore, group: "operations" },
   { to: "/morning", label: "التأخر الصباحي", roles: MANAGER_VP, capabilities: ["MORNING_ATTENDANCE"], icon: Sunrise, group: "operations" },
   { to: "/student-leaves", label: "الاستئذانات", roles: MANAGER_VP, icon: DoorOpen, group: "operations" },
   { to: "/gate", label: "بوابة المدرسة", roles: [...MANAGER_VP, "GATE_GUARD"], icon: DoorOpen, group: "operations" },

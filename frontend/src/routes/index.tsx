@@ -85,6 +85,10 @@ export const routes = [
                         lazy: async () => ({ Component: (await import("@/features/attendance/AnalyticsPage")).AnalyticsPage }),
                       },
                       {
+                        path: "attendance/absence-messages",
+                        lazy: async () => ({ Component: (await import("@/features/sms/AbsenceMessagesPage")).AbsenceMessagesPage }),
+                      },
+                      {
                         path: "student-leaves",
                         lazy: async () => ({ Component: (await import("@/features/leaves/StudentLeavesPage")).StudentLeavesPage }),
                       },
