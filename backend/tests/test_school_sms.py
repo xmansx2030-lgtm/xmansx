@@ -188,8 +188,8 @@ def test_changed_absence_is_not_sent_and_uncertain_result_is_not_retried(role_cl
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     student, summary, day = _absence(school)
     assert _integration(manager).status_code == 200
-    summary.completeness_status = DailyCompleteness.INCOMPLETE
-    summary.save(update_fields=["completeness_status"])
+    summary.submitted_periods = 0
+    summary.save(update_fields=["submitted_periods"])
     with patch("school_sms.tasks.send_sms") as provider:
         response = manager.post(
             SEND_URL,
@@ -198,8 +198,8 @@ def test_changed_absence_is_not_sent_and_uncertain_result_is_not_retried(role_cl
         )
     assert response.status_code == 409
     provider.assert_not_called()
-    summary.completeness_status = DailyCompleteness.COMPLETE
-    summary.save(update_fields=["completeness_status"])
+    summary.submitted_periods = 1
+    summary.save(update_fields=["submitted_periods"])
 
     with patch(
         "school_sms.tasks.send_sms",
@@ -225,10 +225,59 @@ def test_changed_absence_is_not_sent_and_uncertain_result_is_not_retried(role_cl
 
 
 @pytest.mark.django_db
-def test_excused_absence_is_not_offered(role_client):
+def test_excused_absence_is_visible_but_cannot_be_sent(role_client):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
-    _, _, day = _absence(school, unexcused=0)
-    assert manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()["total"] == 0
+    student, _, day = _absence(school, unexcused=0)
+    preview = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert preview["total"] == 1
+    assert preview["ready_total"] == 0
+    assert preview["students"][0]["eligibility_reason"] == "EXCUSED_ABSENCE"
+    assert _integration(manager).status_code == 200
+    assert manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+                        content_type="application/json").status_code == 409
+
+
+@pytest.mark.django_db
+def test_school_sets_two_approved_periods_for_sms_without_waiting_for_full_schedule(role_client):
+    manager, school, _ = role_client(["SCHOOL_MANAGER"])
+    student, summary, day = _absence(school)
+    summary.expected_periods = 7
+    summary.completeness_status = DailyCompleteness.INCOMPLETE
+    summary.save(update_fields=["expected_periods", "completeness_status"])
+    assert _integration(manager).status_code == 200
+
+    before = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert before["total"] == 1
+    assert before["ready_total"] == 0
+    assert before["students"][0]["eligibility_reason"] == "INSUFFICIENT_APPROVALS"
+    assert before["students"][0]["required_periods"] == 7
+
+    settings = manager.patch(
+        "/api/v1/school/settings/", {"absence_sms_min_approved_periods": 2},
+        content_type="application/json",
+    )
+    assert settings.status_code == 200
+    assert settings.json()["absence_sms_min_approved_periods"] == 2
+    with patch("school_sms.tasks.send_sms") as provider:
+        assert manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+                            content_type="application/json").status_code == 409
+    provider.assert_not_called()
+
+    summary.submitted_periods = 2
+    summary.absent_periods = 2
+    summary.unexcused_absent_periods = 2
+    summary.save(update_fields=["submitted_periods", "absent_periods",
+                                "unexcused_absent_periods"])
+    after = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert after["total"] == after["ready_total"] == 1
+    assert after["students"][0]["eligibility_reason"] is None
+    assert "2 من حصص التحضير المعتمدة" in after["students"][0]["message"]
+    assert "غيابًا كاملًا" not in after["students"][0]["message"]
+    with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult()) as provider:
+        sent = manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+                            content_type="application/json")
+    assert sent.status_code == 202
+    provider.assert_called_once()
 
 
 @pytest.mark.django_db

@@ -3,16 +3,17 @@
 from datetime import date, timedelta
 
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from django.utils import timezone
 
 from accounts.mobile import mask_mobile
-from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary, DailyCompleteness
+from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsIntegration
 from school_sms.security import encrypt_secret, recipient_hash
+from schools.models import SchoolSettings
 from students.models import StudentStatus
 from students.services.enrollments import enrollments_on_date
 
@@ -64,7 +65,7 @@ def save_integration(*, school, actor, data: dict, request=None) -> dict:
     return integration_payload(existing)
 
 
-def eligible_absences(*, school, attendance_date: date) -> QuerySet:
+def candidate_absences(*, school, attendance_date: date) -> QuerySet:
     enrolled_ids = enrollments_on_date(school=school, on_date=attendance_date).values(
         "student_id"
     )
@@ -74,18 +75,41 @@ def eligible_absences(*, school, attendance_date: date) -> QuerySet:
             attendance_date=attendance_date,
             student_id__in=enrolled_ids,
             student__status=StudentStatus.ACTIVE,
-            completeness_status=DailyCompleteness.COMPLETE,
             absence_status__in=(DailyAbsenceStatus.FULL, DailyAbsenceStatus.PARTIAL),
-            unexcused_absent_periods__gt=0,
         )
         .select_related("student", "section__grade")
         .order_by("section__grade__sequence", "section__code", "student__full_name", "student_id")
     )
 
 
+def minimum_approved_periods(*, school) -> int:
+    return SchoolSettings.objects.filter(school=school).values_list(
+        "absence_sms_min_approved_periods", flat=True
+    ).first() or 0
+
+
+def eligible_absences(*, school, attendance_date: date,
+                      min_approved_periods: int | None = None) -> QuerySet:
+    if min_approved_periods is None:
+        min_approved_periods = minimum_approved_periods(school=school)
+    rows = candidate_absences(school=school, attendance_date=attendance_date).filter(
+        unexcused_absent_periods__gt=0,
+        expected_periods__gt=0,
+    )
+    if min_approved_periods:
+        return rows.filter(submitted_periods__gte=min_approved_periods)
+    return rows.filter(submitted_periods__gte=F("expected_periods"))
+
+
 def render_absence_message(*, school, summary) -> str:
     noun = "الطالبة" if school.school_type == "GIRLS" else "الطالب"
-    status = "غيابًا كاملًا" if summary.absence_status == DailyAbsenceStatus.FULL else "غيابًا جزئيًا"
+    if summary.absence_status == DailyAbsenceStatus.FULL:
+        status = (
+            "غيابًا كاملًا" if summary.submitted_periods >= summary.expected_periods
+            else f"غيابًا في {summary.submitted_periods} من حصص التحضير المعتمدة"
+        )
+    else:
+        status = "غيابًا جزئيًا"
     return (
         f"ولي الأمر الكريم، تم رصد {status} لـ{noun} "
         f"{summary.student.full_name} بتاريخ {summary.attendance_date.isoformat()} "
@@ -96,8 +120,16 @@ def render_absence_message(*, school, summary) -> str:
 
 def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
-    rows = eligible_absences(school=school, attendance_date=attendance_date)
+    min_approved_periods = minimum_approved_periods(school=school)
+    rows = candidate_absences(school=school, attendance_date=attendance_date)
     total = rows.count()
+    ready_total = (
+        eligible_absences(school=school, attendance_date=attendance_date,
+                          min_approved_periods=min_approved_periods)
+        .exclude(student__guardian_mobile__isnull=True)
+        .exclude(student__guardian_mobile="")
+        .count()
+    )
     page = max(page, 1)
     entries = list(rows[(page - 1) * MAX_SEND_BATCH:page * MAX_SEND_BATCH])
     stale_before = timezone.now() - timedelta(minutes=5)
@@ -112,31 +144,47 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             else notice.status
         )
         notice_states[notice.student_id] = (status, notice.failure_code)
+
+    def candidate_payload(row) -> dict:
+        required_periods = min_approved_periods or row.expected_periods
+        if required_periods == 0 or row.submitted_periods < required_periods:
+            reason = "INSUFFICIENT_APPROVALS"
+        elif row.unexcused_absent_periods == 0:
+            reason = "EXCUSED_ABSENCE"
+        elif not row.student.guardian_mobile:
+            reason = "MISSING_RECIPIENT"
+        else:
+            reason = None
+        return {
+            "student_id": row.student_id,
+            "full_name": row.student.full_name,
+            "grade_name": row.section.grade.name,
+            "section_name": row.section.name,
+            "absence_status": row.absence_status,
+            "submitted_periods": row.submitted_periods,
+            "expected_periods": row.expected_periods,
+            "required_periods": required_periods,
+            "eligibility_reason": reason,
+            "recipient_masked": mask_mobile(row.student.guardian_mobile)
+            if row.student.guardian_mobile else "",
+            "send_status": notice_states.get(row.student_id, (None, ""))[0],
+            "send_error": notice_states.get(row.student_id, (None, ""))[1],
+            "message": render_absence_message(school=school, summary=row) if reason is None else "",
+        }
+
     return {
         "date": attendance_date.isoformat(),
         "page": page,
         "page_size": MAX_SEND_BATCH,
         "total": total,
+        "ready_total": ready_total,
+        "min_approved_periods": min_approved_periods,
         "integration": {
             "provider": integration.provider if integration else None,
             "sender_name": integration.sender_name if integration else "",
             "is_active": bool(integration and integration.is_active),
         },
-        "students": [
-            {
-                "student_id": row.student_id,
-                "full_name": row.student.full_name,
-                "grade_name": row.section.grade.name,
-                "section_name": row.section.name,
-                "absence_status": row.absence_status,
-                "recipient_masked": mask_mobile(row.student.guardian_mobile)
-                if row.student.guardian_mobile else "",
-                "send_status": notice_states.get(row.student_id, (None, ""))[0],
-                "send_error": notice_states.get(row.student_id, (None, ""))[1],
-                "message": render_absence_message(school=school, summary=row),
-            }
-            for row in entries
-        ],
+        "students": [candidate_payload(row) for row in entries],
     }
 
 
