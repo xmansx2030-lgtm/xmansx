@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Filter, Pencil, Plus, Upload, UsersRound } from "lucide-react";
+import { Archive, Filter, GitMerge, Pencil, Plus, Upload, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -21,6 +21,7 @@ import {
 } from "@/features/students/api";
 import { ManualStudentForm } from "@/features/students/ManualStudentForm";
 import { StudentEditForm } from "@/features/students/StudentEditForm";
+import { StudentMergeDialog } from "@/features/students/StudentMergeDialog";
 import { roleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -53,6 +54,7 @@ export function StudentsPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
+  const [mergeRows, setMergeRows] = useState<StudentRow[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const graduateMutation = useMutation({
@@ -106,6 +108,7 @@ export function StudentsPage() {
   const visibleSections = (sections.data ?? []).filter(
     (s) => !gradeFilter || s.grade.id === gradeFilter,
   );
+  const selectedRows = (students.data?.results ?? []).filter((row) => selected.has(row.id));
 
   const clearFilters = () => {
     setSearch("");
@@ -143,7 +146,7 @@ export function StudentsPage() {
 
       {canImport && (
         <div className="mb-4 flex flex-col items-stretch gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
-          <span className="text-sm text-slate-600">تخريج دفعة — {schoolType === "GIRLS" ? "المحددات" : "المحددون"}: {selected.size}</span>
+          <span className="text-sm text-slate-600">إجراءات السجلات — {schoolType === "GIRLS" ? "المحددات" : "المحددون"}: {selected.size}</span>
           <Button
             variant="secondary"
             className="md:hidden"
@@ -165,6 +168,22 @@ export function StudentsPage() {
           >
             تعيين {schoolType === "GIRLS" ? "المحددات كخريجات" : "المحددين كخريجين"}
           </Button>
+          <Button
+            variant="secondary"
+            disabled={selected.size < 2 || selected.size > 10 || selectedRows.length !== selected.size}
+            onClick={() => {
+              setBulkError(null);
+              setMergeRows(selectedRows);
+            }}
+          >
+            <GitMerge aria-hidden size={17} /> دمج السجلات المحددة
+          </Button>
+          {selected.size > 1 && selectedRows.length !== selected.size && (
+            <span className="text-xs text-slate-600">للمراجعة والدمج، حدد السجلات من الصفحة نفسها.</span>
+          )}
+          {selected.size > 10 && (
+            <span className="text-xs text-slate-600">يمكن دمج عشرة سجلات كحد أقصى في العملية الواحدة.</span>
+          )}
           {bulkError && (
             <span role="alert" className="text-sm text-red-700">
               {bulkError}
@@ -421,6 +440,19 @@ export function StudentsPage() {
             }}
           />
         </Modal>
+      )}
+      {mergeRows && (
+        <StudentMergeDialog
+          rows={mergeRows}
+          studentLabel={student}
+          onClose={() => setMergeRows(null)}
+          onMerged={(targetId, count) => {
+            setMergeRows(null);
+            setSelected(new Set());
+            setNotice(`تم دمج ${count} من السجلات في سجل الطالب المعتمد رقم ${targetId} مع حفظ التاريخ المرتبط بها.`);
+            void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId) });
+          }}
+        />
       )}
     </div>
   );

@@ -66,6 +66,58 @@ describe("StudentsPage", () => {
     expect(await screen.findByText("أحمد محمد")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "استيراد" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إدخال يدوي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "دمج السجلات المحددة" })).not.toBeInTheDocument();
+  });
+
+  it("lets the manager choose the retained record and confirm the reviewed merge", async () => {
+    const records = STUDENTS_PAGE.results.map((row) => ({ ...row, full_name: "علي صلاح" }));
+    let previewSelection: unknown;
+    let confirmation: unknown;
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["SCHOOL_MANAGER"]) },
+      "/students/merge/preview/": (init) => {
+        previewSelection = JSON.parse(String(init?.body));
+        return { body: {
+          can_merge: true, target_id: 2,
+          students: records.map((row) => ({
+            id: row.id, full_name: row.full_name, national_id_masked: row.national_id_masked,
+            student_number: null, guardian_name: "ولي الأمر", grade: row.grade.name,
+            section: row.section.name,
+          })),
+          summary: {
+            archived_records: 1, attendance_days: 7, duplicate_daily_summaries: 4,
+            attendance_marks: 1, duplicate_attendance_marks: 1, historical_enrollments: 1,
+          },
+          history_adjustments: [], blockers: [], warnings: [], confirmation_token: "signed-preview",
+        } };
+      },
+      "/students/merge/": (init) => {
+        confirmation = JSON.parse(String(init?.body));
+        return { body: { target_id: 2, archived_source_ids: [1], summary: {} } };
+      },
+      "/students/": { body: { ...STUDENTS_PAGE, results: records } },
+      "/grades/": { body: [] },
+      "/sections/": { body: [] },
+    });
+    renderApp("/students");
+    const user = userEvent.setup();
+    const select = await screen.findAllByRole("checkbox", { name: "تحديد علي صلاح" });
+    await user.click(select[0]!);
+    await user.click(select[1]!);
+    await user.click(screen.getByRole("button", { name: "دمج السجلات المحددة" }));
+    expect(screen.getByRole("dialog", { name: "دمج سجلات الطالب" })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /4321/ }));
+    await user.click(screen.getByRole("button", { name: "معاينة أثر الدمج" }));
+    expect(await screen.findByText("أيام حضور محفوظة")).toBeInTheDocument();
+    expect(previewSelection).toEqual({ target_id: 2, source_ids: [1] });
+    const confirmButton = screen.getByRole("button", { name: "تأكيد الدمج وحفظ التاريخ" });
+    expect(confirmButton).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /راجعت الأرقام والحضور/ }));
+    await user.click(confirmButton);
+    await waitFor(() => expect(confirmation).toEqual({
+      confirmation_token: "signed-preview", confirmed_same_person: true,
+    }));
+    expect(await screen.findByRole("status")).toHaveTextContent("تم دمج 1 من السجلات");
   });
 
   it("يرشد المدير إلى إضافة البيانات عندما لا يوجد طلاب أصلًا", async () => {
