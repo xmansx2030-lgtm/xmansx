@@ -232,7 +232,7 @@ def test_student_correction_rejects_invalid_duplicate_and_non_manager(role_clien
         content_type="application/json",
     )
     assert invalid.status_code == 400
-    assert "10 أرقام" in str(invalid.json())
+    assert "من 6 إلى 20 حرفًا أو رقمًا" in str(invalid.json())
 
     duplicate = manager.patch(
         f"{STUDENTS_URL}{first.id}/",
