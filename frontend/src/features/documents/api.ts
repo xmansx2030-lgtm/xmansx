@@ -72,6 +72,7 @@ export interface ActionRow {
   status_label: string;
   warning_id: number | null;
   warning_label: string | null;
+  warning_status?: "ISSUED" | "VOIDED" | null;
   performed_at: string;
   performed_by_name: string | null;
   notes: string;

@@ -43,7 +43,9 @@ def _classify(*, expected: int, submitted: int, absent: int) -> tuple[str, str]:
     return completeness, DailyAbsenceStatus.PARTIAL
 
 
-def recalculate_daily_attendance_for_section(*, school, section, attendance_date: date_cls) -> int:
+def recalculate_daily_attendance_for_section(
+    *, school, section, attendance_date: date_cls, warning_membership=None, warning_request=None,
+) -> int:
     """يعيد حساب صفوف ملخص اليوم لطلاب فصل — idempotent (تشغيله 10 مرات = نفس الناتج)."""
     context = get_or_create_attendance_day_context(
         school=school, attendance_date=attendance_date
@@ -186,6 +188,14 @@ def recalculate_daily_attendance_for_section(*, school, section, attendance_date
                 row.updated_at = now
             if raced:
                 DailyAttendanceSummary.objects.bulk_update(raced, updated_fields)
+        from student_warnings.models import WarningRuleType
+        from student_warnings.services.reconciliation import reconcile_issued_warnings
+
+        reconcile_issued_warnings(
+            school=school, student_ids=students,
+            warning_type=WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE,
+            membership=warning_membership, request=warning_request,
+        )
     return len(students)
 
 

@@ -30,7 +30,7 @@ describe("school reports", () => {
     mockApi({
       "/auth/me/": { body: me },
       "/attendance/sections/": {
-        body: [{ id: 20, name: "أ", grade_id: 2, grade_name: "الأول", students_count: 30 }],
+        body: [{ id: 20, name: "أ", grade_id: 2, grade_name: "الأول", department: "المسار العام", students_count: 30 }],
       },
       "/reports/absence/": {
         body: {
@@ -81,6 +81,7 @@ describe("school reports", () => {
     expect(screen.getByRole("button", { name: /تصدير المعروض CSV/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /طباعة واضحة/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /مسح النتائج المعروضة/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "الأول / أ / المسار العام" })).toBeInTheDocument();
     expect(screen.queryByText("أيام غياب كامل")).not.toBeInTheDocument();
     expect(screen.queryByText("أيام غياب جزئي")).not.toBeInTheDocument();
     expect(screen.queryByText("حصص دون عذر")).not.toBeInTheDocument();
@@ -129,6 +130,7 @@ describe("school reports", () => {
 
     await screen.findByRole("heading", { name: "مركز التقارير" });
     await screen.findByRole("option", { name: "الأول" });
+    expect(screen.getByRole("option", { name: "الأول / أ" })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("الصف"), "2");
 
     await waitFor(() => {
@@ -138,5 +140,42 @@ describe("school reports", () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it("يفتح تفاصيل التأخر على نفس فترة التقرير الفعلية", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: me },
+      "/attendance/sections/": { body: [] },
+      "/reports/lateness/": {
+        body: {
+          context: range,
+          summary: { students: 1, morning_occurrences: 1, morning_minutes: 447 },
+          results: [{
+            student_id: 7,
+            full_name: "محمد أحمد",
+            grade_name: "الأول",
+            section_name: "أ",
+            morning_occurrences: 1,
+            morning_minutes: 447,
+          }],
+          count: 1,
+          page: 1,
+          page_size: 25,
+        },
+      },
+    });
+    renderApp("/reports");
+    await userEvent.click(await screen.findByRole("tab", { name: "التأخر" }));
+
+    expect(await screen.findByText("447")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "التفاصيل" })).toHaveAttribute(
+      "href",
+      "/students/7/attendance?from_date=2026-08-01&to_date=2026-08-30&tab=morning",
+    );
+
+    const reportRequests = () => calls.filter((call) => call.url.includes("/reports/lateness/")).length;
+    const beforeRefresh = reportRequests();
+    await userEvent.click(screen.getByRole("button", { name: "تحديث النتائج" }));
+    await waitFor(() => expect(reportRequests()).toBeGreaterThan(beforeRefresh));
   });
 });

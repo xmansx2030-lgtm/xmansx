@@ -186,6 +186,13 @@ def generate_document(
 
     try:
         with transaction.atomic():
+            if warning is not None:
+                locked_warning = StudentWarning.objects.select_for_update().get(id=warning.id)
+                if locked_warning.status != WarningStatus.ISSUED:
+                    raise ApiError(
+                        "VALIDATION_ERROR", "لا يمكن إصدار مستند لإنذار ملغى.",
+                        status_code=409,
+                    )
             document = GeneratedDocument.objects.create(
                 school=school,
                 student=student,
@@ -247,6 +254,14 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
 
     try:
         with transaction.atomic():
+            if document.warning_id:
+                warning = StudentWarning.objects.select_for_update().get(id=document.warning_id)
+                if warning.status != WarningStatus.ISSUED:
+                    document.refresh_from_db()
+                    return document
+            document = GeneratedDocument.objects.select_for_update().get(id=document.id)
+            if document.status == DocumentStatus.VOIDED:
+                return document
             lock_school_capacity(document.school)
             require_storage_capacity(document.school, adding_bytes=len(pdf_bytes))
             document.file.save(f"{document.id}.pdf", ContentFile(pdf_bytes), save=False)
@@ -288,9 +303,18 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
 
 
 def _mark_failed(*, document, membership, error_code: str, detail: str, request=None):
-    document.status = DocumentStatus.FAILED
-    document.error_code = error_code
-    document.save(update_fields=["status", "error_code", "updated_at"])
+    with transaction.atomic():
+        if document.warning_id:
+            warning = StudentWarning.objects.select_for_update().get(id=document.warning_id)
+            if warning.status != WarningStatus.ISSUED:
+                document.refresh_from_db()
+                return document
+        document = GeneratedDocument.objects.select_for_update().get(id=document.id)
+        if document.status == DocumentStatus.VOIDED:
+            return document
+        document.status = DocumentStatus.FAILED
+        document.error_code = error_code
+        document.save(update_fields=["status", "error_code", "updated_at"])
     record_event(
         AuditAction.DOCUMENT_GENERATION_FAILED,
         request=request,
@@ -316,6 +340,13 @@ def retry_document(*, school, membership, document, request=None) -> GeneratedDo
         raise ApiError(
             "DOCUMENT_NOT_READY",
             "إعادة المحاولة متاحة للمستندات التي فشل إنشاؤها فقط.",
+            status_code=409,
+        )
+    if document.warning_id and not StudentWarning.objects.filter(
+        id=document.warning_id, status=WarningStatus.ISSUED,
+    ).exists():
+        raise ApiError(
+            "VALIDATION_ERROR", "لا يمكن إعادة إصدار مستند لإنذار ملغى.",
             status_code=409,
         )
     return _produce_file(document=document, membership=membership, request=request)

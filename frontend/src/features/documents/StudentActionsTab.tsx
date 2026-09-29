@@ -175,7 +175,7 @@ export function StudentActionsTab({ studentId }: { studentId: number }) {
                 </span>
               </div>
               {row.warning_label && (
-                <p className="text-sm text-slate-600">مرتبط بـ: {row.warning_label}</p>
+                <p className="text-sm text-slate-600">مرتبط بـ: {row.warning_label}{row.warning_status === "VOIDED" ? " (الإنذار ملغى)" : ""}</p>
               )}
               {row.notes && <p className="text-sm text-slate-700">{row.notes}</p>}
               <p className="text-sm">

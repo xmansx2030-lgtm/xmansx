@@ -13,7 +13,7 @@ from common.tenant_rls import tenant_context
 from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsIntegration
 from school_sms.providers import SmsProviderError, send_sms
 from school_sms.security import decrypt_secret, recipient_hash
-from school_sms.services import eligible_absences, render_absence_message
+from school_sms.services import eligible_absences, recipient_issue, render_absence_message
 
 logger = logging.getLogger("xmansx.sms")
 
@@ -66,7 +66,7 @@ def send_absence_notice(notice_id: int) -> str:
             integration is None or summary is None
             or summary.absence_status != notice.absence_status
             or integration.provider != notice.provider
-            or not summary.student.guardian_mobile
+            or recipient_issue(summary.student.guardian_mobile)
             or recipient_hash(summary.student.guardian_mobile) != notice.recipient_hash
             or not notice.school.is_operational
         ):

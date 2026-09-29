@@ -265,7 +265,10 @@ def approve_excuse(
             target_id=excuse.id,
             metadata={"coverage_count": len(plan["covered"])},
         )
-    _recalculate_for_sessions([mark.session for mark in plan["covered"]], school=school)
+    _recalculate_for_sessions(
+        [mark.session for mark in plan["covered"]], school=school,
+        membership=membership, request=request,
+    )
     return excuse
 
 
@@ -324,7 +327,8 @@ def cancel_excuse(
             student_ids=[excuse.student_id],
         )
     _recalculate_for_sessions(
-        [coverage.attendance_session for coverage in active], school=school
+        [coverage.attendance_session for coverage in active], school=school,
+        membership=membership, request=request,
     )
     return excuse
 
@@ -454,7 +458,7 @@ def _pick_excuse(student_targets, period_sequence: int):
     return min(matching, key=lambda e: (e.approved_at, e.id))
 
 
-def _recalculate_for_sessions(sessions, *, school) -> None:
+def _recalculate_for_sessions(sessions, *, school, membership=None, request=None) -> None:
     """إعادة حساب ملخصات اليوم للأزواج (فصل، تاريخ) المتأثرة — بعد commit."""
     from attendance.services.daily_summary import recalculate_daily_attendance_for_section
     from students.models import Section
@@ -465,5 +469,6 @@ def _recalculate_for_sessions(sessions, *, school) -> None:
     sections = Section.objects.in_bulk([section_id for section_id, _ in pairs])
     for section_id, attendance_date in pairs:
         recalculate_daily_attendance_for_section(
-            school=school, section=sections[section_id], attendance_date=attendance_date
+            school=school, section=sections[section_id], attendance_date=attendance_date,
+            warning_membership=membership, warning_request=request,
         )

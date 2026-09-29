@@ -24,6 +24,8 @@ from devices.models import (
     SchoolArrivalChange,
 )
 from schools.services.settings import get_or_create_settings
+from student_warnings.models import WarningRuleType
+from student_warnings.services.reconciliation import reconcile_issued_warnings
 
 
 def _invalidate_dashboard_on_commit(school_id: int) -> None:
@@ -70,6 +72,7 @@ def apply_arrival_events_bulk(*, school, items: list[tuple]) -> None:
     student_ids = {key[0] for key in earliest}
     with transaction.atomic():
         changed = False
+        corrected_student_ids = set()
         existing = {
             (a.student_id, a.attendance_date): a
             for a in SchoolArrival.objects.select_for_update().filter(
@@ -105,10 +108,15 @@ def apply_arrival_events_bulk(*, school, items: list[tuple]) -> None:
                     setattr(arrival, field_name, value)
                 arrival.save()
                 changed = True
+                corrected_student_ids.add(student_id)
         if to_create:
             SchoolArrival.objects.bulk_create(to_create, ignore_conflicts=True)
             changed = True
         if changed:
+            reconcile_issued_warnings(
+                school=school, student_ids=corrected_student_ids,
+                warning_type=WarningRuleType.MORNING_LATE_OCCURRENCES,
+            )
             _invalidate_dashboard_on_commit(school.id)
 
 
@@ -155,6 +163,10 @@ def apply_arrival_event(*, school, student, occurred_at: datetime, device_event=
             for key, value in fields.items():
                 setattr(arrival, key, value)
             arrival.save()
+            reconcile_issued_warnings(
+                school=school, student_ids=[student.id],
+                warning_type=WarningRuleType.MORNING_LATE_OCCURRENCES,
+            )
             _invalidate_dashboard_on_commit(school.id)
         return arrival
 
@@ -235,6 +247,11 @@ def correct_arrival(*, arrival, membership, new_time, reason: str, request=None)
         for key, value in fields.items():
             setattr(arrival, key, value)
         arrival.save()
+        reconcile_issued_warnings(
+            school=arrival.school, student_ids=[arrival.student_id],
+            warning_type=WarningRuleType.MORNING_LATE_OCCURRENCES,
+            membership=membership, request=request,
+        )
         _invalidate_dashboard_on_commit(arrival.school_id)
     record_event(
         AuditAction.MORNING_ARRIVAL_CORRECTED,

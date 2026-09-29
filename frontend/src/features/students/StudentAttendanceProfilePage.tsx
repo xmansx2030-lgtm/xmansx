@@ -68,6 +68,12 @@ type Tab =
 
 const isoDate = localIsoDate;
 
+function isIsoDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
@@ -97,14 +103,21 @@ export function StudentAttendanceProfilePage() {
   const studentLabelText = studentLabel(schoolType, true);
   const id = Number(studentId);
   const requestedDate = searchParams.get("date");
+  const requestedFromDate = searchParams.get("from_date");
+  const requestedToDate = searchParams.get("to_date");
+  const requestedRange = isIsoDate(requestedFromDate)
+    && isIsoDate(requestedToDate)
+    && requestedFromDate <= requestedToDate
+    ? { from: requestedFromDate, to: requestedToDate }
+    : null;
   const currentDate = isoDate(new Date());
-  const initialDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+  const initialDate = isIsoDate(requestedDate)
     ? requestedDate
     : currentDate;
-  const [fromDate, setFromDate] = useState(initialDate);
-  const [toDate, setToDate] = useState(initialDate);
-  const [preset, setPresetValue] = useState(initialDate === currentDate ? "today" : "custom");
-  const [tab, setTab] = useState<Tab>("summary");
+  const [fromDate, setFromDate] = useState(requestedRange?.from ?? initialDate);
+  const [toDate, setToDate] = useState(requestedRange?.to ?? initialDate);
+  const [preset, setPresetValue] = useState(requestedRange !== null || initialDate !== currentDate ? "custom" : "today");
+  const [tab, setTab] = useState<Tab>(searchParams.get("tab") === "morning" ? "morning" : "summary");
   const [page, setPage] = useState(1);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selectedExcuse, setSelectedExcuse] = useState<number | null>(null);

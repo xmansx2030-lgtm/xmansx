@@ -229,7 +229,7 @@ export function MyReferralsPage() {
               >
                 <option value="">كل الفصول</option>
                 {filteredSections.map((item) => (
-                  <option key={item.id} value={item.id}>{item.grade_name} / {item.name}</option>
+                  <option key={item.id} value={item.id}>{item.grade_name} / {item.name}{item.department ? ` / ${item.department}` : ""}</option>
                 ))}
               </select>
             </label>

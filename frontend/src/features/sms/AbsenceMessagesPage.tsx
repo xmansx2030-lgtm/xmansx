@@ -128,6 +128,9 @@ export function AbsenceMessagesPage() {
   });
 
   const data = preview.data;
+  const contactIssues = data?.contact_issues ?? [];
+  const missingContacts = contactIssues.filter((issue) => issue.reason === "MISSING_RECIPIENT");
+  const invalidContacts = contactIssues.filter((issue) => issue.reason === "INVALID_RECIPIENT");
   const candidateIds = data?.candidate_student_ids ?? [];
   const selectedReadyIds = data?.selectable_student_ids.filter((id) => selected.has(id)) ?? [];
   const selectedReadyOnPage = data?.students.filter((student) => selectedReadyIds.includes(student.student_id)) ?? [];
@@ -164,6 +167,21 @@ export function AbsenceMessagesPage() {
             </Alert>
           )}
           {data.integration.is_active && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">المزوّد: {data.integration.provider ? PROVIDER_LABELS[data.integration.provider] : "—"} · اسم المرسل: {data.integration.sender_name}</p>}
+          {contactIssues.length > 0 && (
+            <Alert title="تنبيه: بيانات جوال ولي الأمر تحتاج تصحيحًا" tone="warning" actions={isManager ? <Link to="/students" className="font-bold text-amber-950 underline">فتح قائمة الطلاب لتصحيح الأرقام</Link> : undefined}>
+              <p>حالات الغياب الكامل لهذا التاريخ: بلا رقم {missingContacts.length} · رقم بصيغة غير صحيحة {invalidContacts.length}. تظهر الأسماء من جميع الصفحات، ولن تُرسل لهم رسالة حتى تصحيح الرقم.</p>
+              <ul className="mt-3 max-h-60 space-y-2 overflow-y-auto rounded-xl bg-white/70 p-3">
+                {contactIssues.map((issue) => (
+                  <li key={issue.student_id} className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-amber-100 pb-2 last:border-0 last:pb-0">
+                    <span className="font-bold">{issue.full_name} · {issue.grade_name} / {issue.section_name}</span>
+                    <span>{issue.reason === "MISSING_RECIPIENT" ? "لا يوجد رقم" : "الرقم المسجل بصيغة غير صحيحة"}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">فحص الصيغة لا يؤكد أن الرقم يعمل أو يخص ولي الأمر.</p>
+              {!isManager && <p className="mt-2 text-xs">يمكن لمدير المدرسة تصحيح الأرقام من قائمة الطلاب.</p>}
+            </Alert>
+          )}
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5" aria-labelledby="absence-sms-template-title">
             <h2 id="absence-sms-template-title" className="font-bold text-blue-950">قالب رسالة الغياب الكامل</h2>
             {isManager ? <SmsTemplateEditor key={schoolId} schoolId={schoolId} initial={data.message_template} defaultTemplate={data.default_message_template} /> : (
@@ -197,7 +215,7 @@ export function AbsenceMessagesPage() {
                       <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-800">{student.submitted_periods < student.expected_periods ? "غائب في جميع التحاضير المعتمدة" : "غياب يوم كامل"}</span>
                     </span>
                     <span className="mt-1 block text-xs text-slate-600">{student.grade_name} · {student.section_name} · التحاضير المعتمدة: {student.submitted_periods} من {student.expected_periods} · ولي الأمر: {student.recipient_masked || "لا يوجد رقم"}</span>
-                    {student.eligibility_reason && <span className="mt-1 block text-xs font-bold text-amber-800">{student.eligibility_reason === "INSUFFICIENT_APPROVALS" ? `بانتظار اعتماد ${student.required_periods} من حصص التحضير حسب معيار المدرسة.` : student.eligibility_reason === "EXCUSED_ABSENCE" ? "الغياب مغطى بعذر؛ لا تُرسل رسالة غياب غير معذور." : "أضف رقم جوال ولي الأمر قبل الإرسال."}</span>}
+                    {student.eligibility_reason && <span className="mt-1 block text-xs font-bold text-amber-800">{student.eligibility_reason === "INSUFFICIENT_APPROVALS" ? `بانتظار اعتماد ${student.required_periods} من حصص التحضير حسب معيار المدرسة.` : student.eligibility_reason === "EXCUSED_ABSENCE" ? "الغياب مغطى بعذر؛ لا تُرسل رسالة غياب غير معذور." : student.eligibility_reason === "INVALID_RECIPIENT" ? "صحح صيغة رقم جوال ولي الأمر قبل الإرسال." : "أضف رقم جوال ولي الأمر قبل الإرسال."}</span>}
                     {student.send_status && <span className="mt-1 block text-xs font-bold text-amber-800">{STATUS_LABELS[student.send_status]}{student.send_error && ` · ${FAILURE_LABELS[student.send_error] ?? `رمز الحالة: ${student.send_error}`}`}</span>}
                   </span>
                 </label>

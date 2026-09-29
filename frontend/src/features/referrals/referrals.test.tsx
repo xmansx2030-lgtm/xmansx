@@ -129,7 +129,7 @@ const ZERO_KPIS = {
 };
 
 const SECTIONS = [
-  { id: 3, name: "1", grade_id: 9, grade_name: "الأول الثانوي", students_count: 2 },
+  { id: 3, name: "1", grade_id: 9, grade_name: "الأول الثانوي", department: "المسار العام", students_count: 2 },
   { id: 4, name: "2", grade_id: 9, grade_name: "الأول الثانوي", students_count: 1 },
 ];
 const CANDIDATES = {
@@ -182,6 +182,8 @@ describe("referrals (Phase 13)", () => {
 
     await user.type(await screen.findByTestId("referral-student-search"), "طالب أول");
     await user.selectOptions(screen.getByTestId("referral-grade-filter"), "9");
+    expect(within(screen.getByTestId("referral-section-filter")).getByRole("option", { name: "الأول الثانوي / 1 / المسار العام" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("referral-section-filter")).getByRole("option", { name: "الأول الثانوي / 2" })).toBeInTheDocument();
     await user.selectOptions(screen.getByTestId("referral-section-filter"), "3");
 
     await waitFor(() => {

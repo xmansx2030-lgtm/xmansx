@@ -103,9 +103,9 @@ export function StudentWarningsTab({ studentId }: { studentId: number }) {
                     <span className="font-bold">{detail.data.current_metric_value}</span>{" "}
                     {WARNING_TYPE_UNITS[row.warning_type]}
                   </p>
-                  {detail.data.metric_drifted && (
+                  {detail.data.metric_drifted && row.status === "ISSUED" && (
                     <p className="text-amber-800" data-testid={`drift-${row.id}`}>
-                      تغيّر تصنيف بعض الأيام بعد إصدار الإنذار — الإنذار يبقى كما صدر.
+                      تغيّر المقياس بعد إصدار الإنذار.
                     </p>
                   )}
                   <p className="text-slate-600">
