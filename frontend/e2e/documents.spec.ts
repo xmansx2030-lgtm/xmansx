@@ -211,7 +211,7 @@ test("warning document: reprint stays frozen, then correction voids the document
   const documentRow = page.locator('[data-testid^="doc-row-"]').first();
   await expect(documentRow).toContainText("الإنذار الثاني", { timeout: 60_000 });
   await expect(documentRow).toContainText("جاهز");
-  await expect(documentRow).toContainText("warning_level_2:v2");
+  await expect(documentRow).toContainText("warning_level_2:v3");
 
   const listing = await api<{ results: { id: number; checksum: string; status: string }[] }>(
     page,
