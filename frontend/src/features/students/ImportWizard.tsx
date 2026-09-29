@@ -331,10 +331,10 @@ function MappingStep({
         {(Object.keys(MAPPING_LABELS) as MappingField[]).map((field) => (
           <div key={field} className="flex flex-wrap items-center gap-3">
             <span className="w-36 text-sm font-medium text-slate-700">
-              {field === "full_name" ? `اسم ${student}` : field === "student_number" ? `رقم ${student}` : MAPPING_LABELS[field]}
+              {field === "full_name" ? `اسم ${student}` : MAPPING_LABELS[field]}
             </span>
             <select
-              aria-label={`عمود ${field === "full_name" ? `اسم ${student}` : field === "student_number" ? `رقم ${student}` : MAPPING_LABELS[field]}`}
+              aria-label={`عمود ${field === "full_name" ? `اسم ${student}` : MAPPING_LABELS[field]}`}
               value={mapping[field] ?? ""}
               onChange={(e) =>
                 setMapping((prev) => ({

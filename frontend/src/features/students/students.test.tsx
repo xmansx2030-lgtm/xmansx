@@ -278,6 +278,7 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("status")).toHaveTextContent("جُمعت 40 ورقة، واكتُشف 837 طالبًا");
     const nidSelect = screen.getByLabelText("عمود رقم الطالب (هوية/إقامة/جواز)") as HTMLSelectElement;
     expect(nidSelect.value).toBe("0");
+    expect(screen.getByLabelText("عمود الرقم الأكاديمي (إن وجد)")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "بدء التحليل" }));
 
     // 3) المعاينة — الفئات بأعدادها + تنبيه المفقودين

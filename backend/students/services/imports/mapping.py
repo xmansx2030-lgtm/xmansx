@@ -9,7 +9,7 @@ TARGET_FIELDS = {
     "grade": "الصف",
     "section": "الفصل",
     "department": "القسم",
-    "student_number": "رقم الطالب",
+    "student_number": "الرقم الأكاديمي (إن وجد)",
     "guardian_name": "اسم ولي الأمر",
     "guardian_mobile": "جوال ولي الأمر",
 }
