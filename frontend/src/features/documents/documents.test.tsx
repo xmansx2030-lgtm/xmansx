@@ -326,6 +326,56 @@ describe("student documents tab (Phase 12)", () => {
     });
   });
 
+  it("clears a report preview as soon as its date range changes", async () => {
+    mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/attendance-profile/": { body: PROFILE },
+      "/warnings/?student=5": { body: WARNINGS },
+      "/documents/preview/": {
+        body: {
+          document_type: "MORNING_LATE_DETAIL_REPORT",
+          document_type_label: "كشف تفصيلي للتأخر الصباحي",
+          template: "morning_late_report:v1",
+          already_exists: false,
+          snapshot: { totals: { occurrences: 8 } },
+        },
+      },
+      "/documents/?student=5": { body: { count: 0, next: null, previous: null, results: [] } },
+    });
+
+    const user = await openTab("المستندات");
+    await user.selectOptions(await screen.findByTestId("document-type"), "MORNING_LATE_DETAIL_REPORT");
+    const from = screen.getByTestId("document-from");
+    await user.clear(from);
+    await user.type(from, "2026-08-01");
+    await user.click(screen.getByTestId("preview-document"));
+    expect(await screen.findByTestId("document-preview")).toHaveTextContent("عدد السجلات: 8");
+
+    await user.clear(from);
+    await user.type(from, "2026-08-02");
+    expect(screen.queryByTestId("document-preview")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("create-document")).not.toBeInTheDocument();
+  });
+
+  it("prevents generating a duplicate warning document when one already exists", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/attendance-profile/": { body: PROFILE },
+      "/warnings/?student=5": { body: WARNINGS },
+      "/documents/preview/": { body: { ...PREVIEW, already_exists: true } },
+      "/documents/?student=5": { body: { count: 0, next: null, previous: null, results: [] } },
+    });
+
+    const user = await openTab("المستندات");
+    await user.selectOptions(await screen.findByTestId("document-type"), "WARNING_LEVEL_2");
+    await user.selectOptions(screen.getByTestId("document-warning"), "21");
+    await user.click(screen.getByTestId("preview-document"));
+
+    expect(await screen.findByTestId("document-preview")).toHaveTextContent("يوجد مستند أصلي");
+    expect(screen.getByTestId("create-document")).toBeDisabled();
+    expect(calls.some((call) => call.url.includes("/documents/generate/"))).toBe(false);
+  });
+
   it("shows ready documents with a download link and version", async () => {
     mockApi({
       "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Send } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Alert } from "@/components/Alert";
@@ -41,8 +41,13 @@ function validTemplate(value: string) {
   return value.split(NAME_TOKEN).length === 2 && value.split(DATE_TOKEN).length === 2;
 }
 
-function SmsTemplateEditor({ schoolId, initial, defaultTemplate }: { schoolId: number; initial: string; defaultTemplate: string }) {
+function tokenCount(value: string, token: string) {
+  return value.split(token).length - 1;
+}
+
+function SmsTemplateEditor({ schoolId, schoolType, date, initial, defaultTemplate }: { schoolId: number; schoolType: string; date: string; initial: string; defaultTemplate: string }) {
   const queryClient = useQueryClient();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(initial);
   const [savedDraft, setSavedDraft] = useState(initial);
   const [saved, setSaved] = useState(false);
@@ -55,23 +60,92 @@ function SmsTemplateEditor({ schoolId, initial, defaultTemplate }: { schoolId: n
     },
   });
   const changed = draft.trim() !== savedDraft;
+  const nameCount = tokenCount(draft, NAME_TOKEN);
+  const dateCount = tokenCount(draft, DATE_TOKEN);
+  const sample = validTemplate(draft.trim())
+    ? draft.trim().replace(NAME_TOKEN, schoolType === "GIRLS" ? "سارة" : "أحمد").replace(DATE_TOKEN, date)
+    : null;
+
+  function insertToken(token: string) {
+    const textarea = textareaRef.current;
+    if (!textarea || tokenCount(draft, token) > 0) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (draft.length - (end - start) + token.length > 500) return;
+    const nextDraft = `${draft.slice(0, start)}${token}${draft.slice(end)}`;
+    setDraft(nextDraft);
+    setSaved(false);
+    mutation.reset();
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const caret = start + token.length;
+      textarea.setSelectionRange(caret, caret);
+    });
+  }
+
   return (
-    <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-      <label htmlFor="absence-sms-template" className="sr-only">نص رسالة الغياب الموحد</label>
-      <textarea id="absence-sms-template" rows={3} maxLength={500} value={draft}
-        onChange={(event) => { setDraft(event.target.value); setSaved(false); }}
-        className="mt-2 block w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm leading-7 text-slate-800"
-        dir="rtl" />
-      <p className="mt-2 text-xs text-blue-900">أبقِ {NAME_TOKEN} و{DATE_TOKEN} مرة واحدة في الرسالة. يضع النظام الاسم الأول والتاريخ الفعليين عند الإرسال.</p>
-      {changed && <p className="mt-1 text-xs font-bold text-amber-800">التعديل غير محفوظ؛ سيُستخدم النص المحفوظ حتى تضغط «حفظ القالب».</p>}
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+    <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }} className="mt-4 space-y-4">
+      <div>
+        <label htmlFor="absence-sms-template" className="mb-1.5 block text-sm font-bold text-slate-800">نص رسالة الغياب الموحد</label>
+        <p id="absence-sms-template-help" className="mb-2 text-xs leading-5 text-slate-600">
+          اكتب رسالة واضحة ومختصرة؛ يُستبدل كل رمز مرة واحدة بالاسم الأول والتاريخ عند الإرسال.
+        </p>
+        <textarea
+          ref={textareaRef}
+          id="absence-sms-template"
+          aria-describedby="absence-sms-template-help absence-sms-template-count"
+          rows={4}
+          maxLength={500}
+          value={draft}
+          disabled={mutation.isPending}
+          onChange={(event) => { setDraft(event.target.value); setSaved(false); mutation.reset(); }}
+          className="block min-h-28 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-800 shadow-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
+          dir="rtl"
+        />
+        <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-600">
+          <span>حتى ٥٠٠ حرف</span>
+          <span id="absence-sms-template-count" aria-live="polite" className={draft.length >= 480 ? "font-bold text-amber-800" : ""}>{draft.length} / 500</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-teal-100 bg-white/80 p-3">
+        <p className="text-sm font-bold text-slate-800">إضافة رمز إلى موضع المؤشر</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" onClick={() => insertToken(NAME_TOKEN)} disabled={nameCount > 0 || mutation.isPending}
+            className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-900 transition hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-700 disabled:cursor-not-allowed disabled:opacity-60">
+            {NAME_TOKEN} {nameCount > 0 ? "— مضاف" : "— إضافة"}
+          </button>
+          <button type="button" onClick={() => insertToken(DATE_TOKEN)} disabled={dateCount > 0 || mutation.isPending}
+            className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-900 transition hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-700 disabled:cursor-not-allowed disabled:opacity-60">
+            {DATE_TOKEN} {dateCount > 0 ? "— مضاف" : "— إضافة"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-slate-600">يجب أن يظهر كل رمز مرة واحدة فقط. انقر داخل النص أولًا لاختيار موضع الإدراج.</p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-[#f7f9f7] p-3" aria-live="polite">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-600">معاينة رسالة نموذجية</p>
+        {sample ? (
+          <p className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-7 text-slate-800">{sample}</p>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-amber-800">أكمل رمزي الاسم والتاريخ مرة واحدة لعرض المعاينة.</p>
+        )}
+      </div>
+
+      {changed && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">التعديل غير محفوظ؛ سيُستخدم النص المحفوظ حتى تضغط «حفظ القالب».</p>}
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" loading={mutation.isPending} disabled={!changed || !validTemplate(draft.trim())}>حفظ القالب لجميع الطلاب</Button>
         <Button type="button" variant="secondary" disabled={draft === defaultTemplate || mutation.isPending}
-          onClick={() => { setDraft(defaultTemplate); setSaved(false); }}>استعادة النص الافتراضي</Button>
-        {saved && <span role="status" className="text-sm font-bold text-emerald-800">حُفظ القالب لهذه المدرسة.</span>}
+          onClick={() => { setDraft(defaultTemplate); setSaved(false); mutation.reset(); }}>استعادة النص الافتراضي</Button>
+        {saved && <span role="status" className="text-sm font-bold text-teal-800">حُفظ القالب لهذه المدرسة.</span>}
       </div>
-      {!validTemplate(draft.trim()) && <p role="alert" className="mt-2 text-sm text-red-700">يجب أن يحتوي النص على {NAME_TOKEN} و{DATE_TOKEN} مرة واحدة لكل منهما.</p>}
-      {mutation.isError && <p role="alert" className="mt-2 text-sm text-red-700">{mutation.error.message}</p>}
+      {!validTemplate(draft.trim()) && (
+        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          يجب أن يحتوي النص على {NAME_TOKEN} و{DATE_TOKEN} مرة واحدة لكل منهما.
+          {nameCount > 1 && " رمز الاسم مكرر."}{dateCount > 1 && " رمز التاريخ مكرر."}
+        </p>
+      )}
+      {mutation.isError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{mutation.error.message}</p>}
     </form>
   );
 }
@@ -182,12 +256,18 @@ export function AbsenceMessagesPage() {
               {!isManager && <p className="mt-2 text-xs">يمكن لمدير المدرسة تصحيح الأرقام من قائمة الطلاب.</p>}
             </Alert>
           )}
-          <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5" aria-labelledby="absence-sms-template-title">
-            <h2 id="absence-sms-template-title" className="font-bold text-blue-950">قالب رسالة الغياب الكامل</h2>
-            {isManager ? <SmsTemplateEditor key={schoolId} schoolId={schoolId} initial={data.message_template} defaultTemplate={data.default_message_template} /> : (
-              <p className="mt-2 rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm leading-7 text-slate-800">{data.message_template}</p>
+          <section className="rounded-2xl border border-teal-200 bg-[#eff7f3] p-4 sm:p-5" aria-labelledby="absence-sms-template-title">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold tracking-wide text-teal-800">إعدادات المدرسة</p>
+                <h2 id="absence-sms-template-title" className="mt-1 font-bold text-slate-950">قالب رسالة الغياب الكامل</h2>
+              </div>
+              {isManager && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-teal-900 ring-1 ring-teal-200">يُطبق على جميع الطلاب</span>}
+            </div>
+            {isManager ? <SmsTemplateEditor key={schoolId} schoolId={schoolId} schoolType={me.data?.active_school?.school_type ?? "BOYS"} date={date} initial={data.message_template} defaultTemplate={data.default_message_template} /> : (
+              <p className="mt-3 rounded-xl border border-teal-100 bg-white px-4 py-3 text-sm leading-7 text-slate-800">{data.message_template}</p>
             )}
-            <p className="mt-2 text-xs text-blue-900">هذا قالب واحد لجميع الطلاب، ويستخدم الاسم الأول لكل طالب عند الإرسال.</p>
+            <p className="mt-3 text-xs leading-5 text-teal-950">هذا قالب واحد لجميع الطلاب، ويستخدم الاسم الأول لكل طالب عند الإرسال.</p>
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">

@@ -29,6 +29,7 @@ from documents.services.generation import (
     retry_document,
     void_document,
 )
+from documents.templates_registry import BY_REGISTRY_ID, template_for, template_of
 from memberships.models import MembershipStatus, SchoolRole
 from staff.models import StaffProfile
 from student_warnings.models import StudentWarning, WarningLevel, WarningRuleType, WarningStatus
@@ -154,12 +155,66 @@ def test_warning_document_is_ready_with_real_pdf(env):
     assert document.size_bytes > 0
     assert document.mime_type == "application/pdf"
     assert document.template_key == "warning_level_2"
-    assert document.template_version == "v2"
+    assert document.template_version == "v3"
     assert document.snapshot_schema_version == 2
     handle = open_for_download(document)
     content = handle.read()
     assert content[:5] == b"%PDF-"
     assert hashlib.sha256(content).hexdigest() == document.checksum
+
+
+def test_template_registry_selects_new_design_and_preserves_historical_versions():
+    latest = {
+        DocumentType.WARNING_LEVEL_1: "v3",
+        DocumentType.WARNING_LEVEL_2: "v3",
+        DocumentType.WARNING_LEVEL_3: "v3",
+        DocumentType.ATTENDANCE_COMMITMENT: "v2",
+        DocumentType.ABSENCE_DETAIL_REPORT: "v2",
+        DocumentType.MORNING_LATE_DETAIL_REPORT: "v2",
+        DocumentType.STUDENT_ATTENDANCE_REPORT: "v2",
+    }
+    for document_type, version in latest.items():
+        template = template_for(document_type)
+        assert template.version == version
+        assert template.source_type == "INTERNAL"
+        assert not template.source_reference
+        assert "وزاري معتمد" not in template.title
+
+    for key in (
+        "warning_level_1",
+        "warning_level_2",
+        "warning_level_3",
+        "attendance_commitment",
+        "absence_detail_report",
+        "morning_late_report",
+        "student_attendance_report",
+    ):
+        assert f"{key}:v1" in BY_REGISTRY_ID
+
+    assert BY_REGISTRY_ID["warning_level_1:v2"].template_name == "documents/warning_v2.html"
+    assert BY_REGISTRY_ID["warning_level_2:v2"].template_name == "documents/warning_v2.html"
+    assert BY_REGISTRY_ID["warning_level_3:v2"].template_name == "documents/warning_v2.html"
+    historic = type("HistoricalDocument", (), {
+        "template_key": "warning_level_2",
+        "template_version": "v2",
+    })()
+    assert template_of(historic) is BY_REGISTRY_ID["warning_level_2:v2"]
+
+
+def test_new_design_templates_compile_without_remote_asset_markup():
+    from django.template.loader import get_template
+
+    template_names = [
+        "documents/base_v2.html",
+        "documents/commitment_v2.html",
+        "documents/absence_report_v2.html",
+        "documents/morning_late_report_v2.html",
+        "documents/attendance_report_v2.html",
+        "documents/warning_v3.html",
+    ]
+    for template_name in template_names:
+        compiled = get_template(template_name)
+        assert compiled
 
 
 def test_warning_v2_renders_absence_details_only(env):
@@ -176,6 +231,13 @@ def test_warning_v2_renders_absence_details_only(env):
     assert "وقت الحضور" not in html
     assert "مدة التأخر" not in html
     assert "تفاصيل حالات التأخر الصباحي" not in html
+
+    refreshed = render_to_string(
+        "documents/warning_v3.html", {"data": snapshot, "assets": render_assets()}
+    )
+    assert "تفاصيل أيام الغياب المشمولة في الإنذار" in refreshed
+    assert "وزارة التعليم" not in refreshed
+    assert "<img" not in refreshed
 
 
 def test_warning_v2_renders_morning_late_details_only(env):

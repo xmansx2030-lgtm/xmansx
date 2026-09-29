@@ -1,0 +1,125 @@
+{% comment %}
+قاعدة التصميم الداخلي v2: تنسيق عربي RTL للطباعة، بلا أصول خارجية. تبقى
+base.html محفوظة لإعادة إصدار المستندات التاريخية كما صدرت.
+{% endcomment %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>{{ data.title }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 15mm 20mm;
+    @bottom-center {
+      content: "صفحة " counter(page) " من " counter(pages);
+      font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+      font-size: 9pt;
+      color: #71817e;
+    }
+  }
+  * { box-sizing: border-box; }
+  :root { --ink: #19312e; --muted: #657673; --line: #d4dfdc; --brand: #13766d; --brand-dark: #124b46; --tint: #eff7f5; --gold: #c3944a; }
+  body { margin: 0; color: var(--ink); font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif; font-size: 11pt; line-height: 1.75; }
+  .school-header {
+    position: relative;
+    padding: 5mm 5mm 4mm;
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--brand);
+    border-radius: 2mm;
+    background: linear-gradient(to left, var(--tint), #fff 68%);
+    page-break-inside: avoid;
+  }
+  .school-header::after { content: ""; position: absolute; left: 5mm; top: 5mm; width: 8mm; height: 8mm; border: 1.5px solid var(--gold); border-radius: 50%; }
+  .school-header .name { color: var(--brand-dark); font-size: 16pt; font-weight: bold; }
+  .school-header .meta { margin-top: 1mm; color: var(--muted); font-size: 9.5pt; }
+  h1 { margin: 6mm 0 5mm; padding: 0 0 2.5mm; border-bottom: 1px solid var(--line); color: var(--brand-dark); font-size: 16pt; text-align: center; page-break-inside: avoid; }
+  .section-heading { margin: 8mm 0 3mm; padding: 0 3mm 1.5mm 0; border-right: 3px solid var(--gold); border-bottom: 0; text-align: right; font-size: 12pt; }
+  .info-grid { width: 100%; margin-bottom: 5mm; border: 1px solid var(--line); border-collapse: separate; border-spacing: 0; border-radius: 2mm; overflow: hidden; }
+  .info-grid td { padding: 2.2mm 2.7mm; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 10.5pt; }
+  .info-grid tr:last-child td { border-bottom: 0; }
+  .info-grid td:last-child { border-left: 0; }
+  .info-grid td.label { width: 22%; background: var(--tint); color: var(--brand-dark); font-weight: bold; }
+  table.rows { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  table.rows th, table.rows td { padding: 2mm; border: 1px solid var(--line); text-align: center; }
+  table.rows th { background: var(--brand-dark); color: #fff; font-weight: bold; }
+  table.rows tbody tr:nth-child(even) { background: #f6faf9; }
+  table.rows thead { display: table-header-group; }
+  table.rows tfoot { display: table-footer-group; }
+  table.rows tr { page-break-inside: avoid; }
+  .totals { margin-top: 5mm; padding: 3mm 4mm; border: 1px solid #d5e7e2; border-right: 3px solid var(--brand); border-radius: 1mm; background: var(--tint); font-size: 10.5pt; }
+  .totals span { display: inline-block; margin-left: 7mm; }
+  .note { margin-top: 4mm; padding: 2.5mm 3mm; border-right: 2px solid var(--gold); background: #fffbf2; color: var(--muted); font-size: 9.5pt; }
+  .signatures { width: 100%; margin-top: 13mm; page-break-inside: avoid; }
+  .signatures td { width: 33%; padding: 12mm 3mm 0; color: var(--muted); font-size: 10.5pt; text-align: center; }
+  .signatures .line { padding-top: 2.5mm; border-top: 1px dashed #9aaba7; }
+  .body-text { text-align: justify; line-height: 1.95; }
+  strong { color: var(--brand-dark); }
+  .document-heading { margin: 4mm 0 3.5mm; text-align: center; page-break-inside: avoid; }
+  .document-heading .eyebrow { color: var(--brand); font-size: 9pt; }
+  .document-heading h1 { margin: 1mm 0 2mm; padding: 0; border: 0; }
+  .document-heading .type { display: inline-block; min-width: 70mm; padding: 1mm 4mm; border: 1px solid #d5e7e2; border-radius: 7mm; background: var(--tint); color: var(--brand-dark); font-weight: bold; }
+  .reference-grid, .student-grid { width: 100%; margin-bottom: 3mm; border-collapse: collapse; page-break-inside: avoid; }
+  .reference-grid td, .student-grid td { padding: 1.8mm 2.2mm; border: 1px solid var(--line); }
+  .reference-grid .label, .student-grid .label { width: 17%; background: var(--tint); color: var(--brand-dark); font-weight: bold; }
+  .formal-copy { margin: 3mm 0; text-align: justify; line-height: 1.85; }
+  .formal-copy strong { color: var(--brand-dark); }
+  .summary-box { margin: 2.5mm 0 3mm; padding: 2.5mm 3mm; border-right: 3px solid var(--gold); background: #fffbf2; page-break-inside: avoid; }
+  .summary-box strong { color: #805f1d; }
+  table.details { width: 100%; border-collapse: collapse; font-size: 9.5pt; page-break-inside: auto; }
+  table.details caption { padding: 1.8mm 2mm; background: var(--brand-dark); color: white; font-size: 10.5pt; font-weight: bold; }
+  table.details th, table.details td { padding: 1.45mm 1.8mm; border: 1px solid var(--line); text-align: center; }
+  table.details th { background: var(--tint); color: var(--brand-dark); }
+  table.details tbody tr:nth-child(even) { background: #f6faf9; }
+  table.details thead { display: table-header-group; }
+  table.details tr { page-break-inside: avoid; }
+  .legacy-note { padding: 3mm; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
+  .notice { margin-top: 3mm; color: var(--muted); font-size: 9.2pt; }
+  .notes { margin-top: 2.5mm; padding: 2mm 3mm; border: 1px solid var(--line); background: #f7faf9; }
+  .acknowledgment { margin: 3.5mm 0 2mm; padding-top: 2.5mm; border-top: 1px solid var(--line); font-size: 9.4pt; text-align: justify; }
+  .warning-signatures { width: 100%; border-collapse: separate; border-spacing: 3mm 0; page-break-inside: avoid; }
+  .warning-signatures td { width: 33.333%; height: 29mm; padding: 2.2mm; border: 1px solid var(--line); vertical-align: top; text-align: center; }
+  .warning-signatures .role { color: var(--brand-dark); font-weight: bold; }
+  .warning-signatures .person { min-height: 7mm; padding-top: 1.5mm; font-size: 9.5pt; }
+  .warning-signatures .signature-line { margin-top: 8mm; padding-top: 1.5mm; border-top: 1px dotted #879994; color: var(--muted); font-size: 9pt; }
+  .document-footer { margin-top: 2.5mm; color: var(--muted); font-size: 8pt; text-align: center; }
+</style>
+</head>
+<body>
+  {% block header %}
+  <div class="school-header">
+    <div class="name">{{ data.school.name }}</div>
+    <div class="meta">
+      {% if data.school.city %}{{ data.school.city }}{% endif %}
+      {% if data.school.ministry_school_number %} · الرقم الوزاري: {{ data.school.ministry_school_number }}{% endif %}
+    </div>
+  </div>
+  {% endblock %}
+
+  {% block title %}<h1>{{ data.title }}</h1>{% endblock %}
+
+  {% block student_info %}
+  <table class="info-grid">
+    <tr>
+      <td class="label">اسم {{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</td><td>{{ data.student.name }}</td>
+      <td class="label">الصف</td><td>{{ data.student.grade|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="label">الفصل</td><td>{{ data.student.section|default:"—" }}</td>
+      <td class="label">تاريخ الإصدار</td><td>{{ data.generated_at|slice:":10" }}</td>
+    </tr>
+  </table>
+  {% endblock %}
+
+  {% block content %}{% endblock %}
+
+  {% block signatures %}
+  <table class="signatures">
+    <tr>
+      <td><div class="line">توقيع {{ data.school.student_definite_label|default:"الطالب/الطالبة" }}</div></td>
+      <td><div class="line">توقيع ولي الأمر</div></td>
+      <td><div class="line">{{ data.school.principal_role_label|default:"مدير المدرسة" }}{% if data.school.principal_name %}: {{ data.school.principal_name }}{% endif %}</div></td>
+    </tr>
+  </table>
+  {% endblock %}
+</body>
+</html>

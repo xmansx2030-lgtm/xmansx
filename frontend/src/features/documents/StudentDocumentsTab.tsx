@@ -69,7 +69,11 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   const [warningId, setWarningId] = useState<string>("");
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-  const [preview, setPreview] = useState<DocumentPreview | null>(null);
+  const [previewState, setPreviewState] = useState<{
+    data: DocumentPreview;
+    key: string;
+    payload: ReturnType<typeof buildPayload>;
+  } | null>(null);
   const [voidId, setVoidId] = useState<number | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -92,33 +96,38 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
 
   const isWarningDocument = documentType.startsWith("WARNING_LEVEL_");
   const needsRange = RANGE_DOCUMENT_TYPES.includes(documentType);
-  const payload = () => ({
-    student_id: studentId,
-    document_type: documentType,
-    ...(isWarningDocument && warningId ? { warning_id: Number(warningId) } : {}),
-    ...(needsRange ? { from_date: fromDate, to_date: toDate } : {}),
-  });
+  function buildPayload() {
+    return {
+      student_id: studentId,
+      document_type: documentType,
+      ...(isWarningDocument && warningId ? { warning_id: Number(warningId) } : {}),
+      ...(needsRange ? { from_date: fromDate, to_date: toDate } : {}),
+    };
+  }
+  const currentPayload = buildPayload();
+  const currentPreviewKey = JSON.stringify(currentPayload);
+  const preview = previewState?.key === currentPreviewKey ? previewState.data : null;
 
   const runPreview = useMutation({
-    mutationFn: () => previewDocument(payload()),
-    onSuccess: (data) => {
-      setPreview(data);
+    mutationFn: (requestPayload: ReturnType<typeof buildPayload>) => previewDocument(requestPayload),
+    onSuccess: (data, requestPayload) => {
+      setPreviewState({ data, key: JSON.stringify(requestPayload), payload: requestPayload });
       setError(null);
     },
     onError: (err) => {
-      setPreview(null);
+      setPreviewState(null);
       setError(err);
     },
   });
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (requestPayload: ReturnType<typeof buildPayload>) =>
       generateDocument({
-        ...payload(),
-        create_action: documentType === "ATTENDANCE_COMMITMENT",
+        ...requestPayload,
+        create_action: requestPayload.document_type === "ATTENDANCE_COMMITMENT",
       }),
     onSuccess: async () => {
-      setPreview(null);
+      setPreviewState(null);
       setError(null);
       await refresh();
     },
@@ -157,49 +166,58 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   }));
 
   return (
-    <div className="space-y-3" data-testid="student-documents-tab">
+    <div className="space-y-5 text-slate-800" data-testid="student-documents-tab">
       {error != null && <ErrorState error={error} />}
 
       {canManage && (
         <div
-          className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="overflow-hidden rounded-2xl border border-teal-200 bg-[#fbfdfb] shadow-sm"
           data-testid="document-form"
         >
-          <label className="flex flex-col gap-1 text-sm">
-            نوع المستند
-            <select
-              data-testid="document-type"
-              value={documentType}
-              onChange={(event) => {
-                setDocumentType(event.target.value as DocumentType);
-                setPreview(null);
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            >
-              {CREATABLE.map((type) => (
-                <option key={type} value={type}>
-                  {documentTypeLabel(type)}
-                </option>
-              ))}
-              {warningTypes.map((warning) => (
-                <option key={warning.id} value={warning.documentType}>
-                  {documentTypeLabel(warning.documentType)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="border-b border-teal-100 bg-[#edf6f2] px-5 py-4">
+            <p className="text-xs font-bold tracking-wide text-teal-800">مستندات الطالب</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-950">إنشاء مستند مدرسي</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">راجع البيانات المثبتة قبل الإصدار. لا يُنشأ المستند إلا بعد المعاينة.</p>
+          </div>
+          <div className="space-y-4 p-5">
+            <label htmlFor="document-type-select" className="flex max-w-2xl flex-col gap-1.5 text-sm font-semibold text-slate-800">
+              نوع المستند
+              <select
+                id="document-type-select"
+                data-testid="document-type"
+                value={documentType}
+                onChange={(event) => {
+                  setDocumentType(event.target.value as DocumentType);
+                  setWarningId("");
+                  setPreviewState(null);
+                }}
+                className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 shadow-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
+              >
+                {CREATABLE.map((type) => (
+                  <option key={type} value={type}>
+                    {documentTypeLabel(type)}
+                  </option>
+                ))}
+                {warningTypes.map((warning) => (
+                  <option key={warning.id} value={warning.documentType}>
+                    {documentTypeLabel(warning.documentType)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
           {isWarningDocument && (
-            <label className="flex flex-col gap-1 text-sm">
+            <label htmlFor="document-warning-select" className="flex max-w-2xl flex-col gap-1.5 text-sm font-semibold text-slate-800">
               الإنذار
               <select
+                id="document-warning-select"
                 data-testid="document-warning"
                 value={warningId}
                 onChange={(event) => {
                   setWarningId(event.target.value);
-                  setPreview(null);
+                  setPreviewState(null);
                 }}
-                className="rounded-lg border border-slate-300 px-3 py-2"
+                className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
               >
                 <option value="">اختر الإنذار</option>
                 {warningTypes
@@ -210,97 +228,114 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
                     </option>
                   ))}
               </select>
+              {warningTypes.filter((warning) => warning.documentType === documentType).length === 0 && (
+                <span className="text-xs font-normal text-amber-800">لا يوجد إنذار صادر من هذا المستوى لهذا الطالب.</span>
+              )}
             </label>
           )}
 
           {needsRange && (
-            <div className="flex flex-wrap gap-3">
-              <label className="flex flex-col gap-1 text-sm">
+            <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+              <label htmlFor="document-from-date" className="flex flex-col gap-1.5 text-sm font-semibold">
                 من
                 <input
+                  id="document-from-date"
                   type="date"
                   data-testid="document-from"
                   value={fromDate}
-                  onChange={(event) => setFromDate(event.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2"
+                  onChange={(event) => { setFromDate(event.target.value); setPreviewState(null); }}
+                  className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm">
+              <label htmlFor="document-to-date" className="flex flex-col gap-1.5 text-sm font-semibold">
                 إلى
                 <input
+                  id="document-to-date"
                   type="date"
                   data-testid="document-to"
                   value={toDate}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2"
+                  onChange={(event) => { setToDate(event.target.value); setPreviewState(null); }}
+                  className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
                 />
               </label>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
             <Button
               data-testid="preview-document"
-              onClick={() => runPreview.mutate()}
-              disabled={runPreview.isPending || (isWarningDocument && !warningId)}
+              onClick={() => runPreview.mutate(currentPayload)}
+              disabled={runPreview.isPending || create.isPending || (isWarningDocument && !warningId) || (needsRange && (!fromDate || !toDate || fromDate > toDate))}
             >
-              معاينة البيانات
+              {runPreview.isPending ? "جارٍ تجهيز المعاينة…" : "معاينة البيانات"}
             </Button>
+            {runPreview.isPending && <span role="status" className="text-sm text-slate-600">نحدّث تفاصيل المستند المحدد…</span>}
             {preview && (
               <Button
                 data-testid="create-document"
-                onClick={() => create.mutate()}
-                disabled={create.isPending}
+                onClick={() => {
+                  if (previewState && previewState.key === currentPreviewKey && !previewState.data.already_exists) {
+                    create.mutate(previewState.payload);
+                  }
+                }}
+                disabled={create.isPending || preview.already_exists}
               >
                 {create.isPending ? "جارٍ الإنشاء…" : "إنشاء المستند"}
               </Button>
             )}
           </div>
+          {needsRange && fromDate && toDate && fromDate > toDate && (
+            <p role="alert" className="text-sm font-medium text-rose-800">تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه.</p>
+          )}
 
           {preview && (
             <div
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"
+              className={`rounded-xl border p-4 text-sm ${preview.already_exists ? "border-amber-300 bg-amber-50" : "border-teal-200 bg-white"}`}
               data-testid="document-preview"
             >
-              <p className="font-semibold">{preview.document_type_label}</p>
-              <p>{summaryLine(preview)}</p>
-              <p className="text-slate-600">القالب: {preview.template}</p>
+              <p className="font-bold text-slate-950">{preview.document_type_label}</p>
+              <p className="mt-1 text-slate-700">{summaryLine(preview)}</p>
+              <p className="mt-2 text-xs text-slate-600">إصدار القالب: <span dir="ltr" className="font-mono">{preview.template}</span></p>
               {preview.already_exists && (
-                <p className="text-amber-700">
+                <p role="status" className="mt-2 font-semibold text-amber-900">
                   يوجد مستند أصلي لهذا الإنذار — الإنشاء مرة أخرى مرفوض حتى يُلغى الأصلي.
                 </p>
               )}
             </div>
           )}
+          </div>
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-          لا توجد مستندات {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}.
-        </p>
+        <div className="rounded-2xl border border-dashed border-teal-300 bg-[#f6faf8] px-5 py-8 text-center">
+          <p className="font-bold text-slate-800">لا توجد مستندات محفوظة بعد</p>
+          <p className="mt-1 text-sm text-slate-600">لا توجد مستندات {schoolType === "GIRLS" ? "لهذه الطالبة" : "لهذا الطالب"}. ستظهر النسخ الصادرة هنا.</p>
+        </div>
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {rows.map((row) => (
-            <li key={row.id} className="space-y-1 p-4" data-testid={`doc-row-${row.id}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-semibold">{row.document_type_label}</span>
+            <li key={row.id} className="space-y-3 p-4 sm:p-5" data-testid={`doc-row-${row.id}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <span className="font-bold text-slate-950">{row.document_type_label}</span>
+                  <span className={`ms-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${row.status === "READY" ? "bg-teal-50 text-teal-800" : row.status === "FAILED" ? "bg-rose-50 text-rose-800" : row.status === "VOIDED" ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-800"}`} data-testid={`doc-status-${row.id}`}>{row.status_label}</span>
+                </div>
                 <span className="text-sm text-slate-600">
-                  {(row.generated_at ?? "").slice(0, 10)} · {row.generated_by_name ?? "—"}
+                  {(row.generated_at ?? "").slice(0, 10)} <span aria-hidden="true">·</span> {row.generated_by_name ?? "—"}
                 </span>
               </div>
               <p className="text-sm text-slate-600">
-                النسخة: {row.template} · الحالة:{" "}
-                <span data-testid={`doc-status-${row.id}`}>{row.status_label}</span>
-                {row.error_code && ` (${row.error_code})`}
+                النسخة: <span dir="ltr" className="font-mono text-xs">{row.template}</span>
+                {row.error_code && <span className="ms-2 text-rose-800">({row.error_code})</span>}
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
                 {row.can_download && (
                   <a
                     data-testid={`doc-download-${row.id}`}
                     href={documentDownloadUrl(row.id)}
-                    className="text-sm text-blue-700 underline"
+                    className="rounded font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 focus:outline-none focus:ring-2 focus:ring-teal-700"
                   >
                     عرض / إعادة طباعة
                   </a>
@@ -310,7 +345,7 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
                     type="button"
                     data-testid={`doc-retry-${row.id}`}
                     onClick={() => retry.mutate(row.id)}
-                    className="text-sm text-blue-700 underline"
+                    className="rounded font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-teal-700"
                   >
                     إعادة المحاولة
                   </button>
@@ -323,8 +358,9 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
                           data-testid="void-document-reason"
                           value={voidReason}
                           onChange={(event) => setVoidReason(event.target.value)}
+                          aria-label="سبب إلغاء المستند"
                           placeholder="سبب الإلغاء"
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                          className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-700 focus:ring-2 focus:ring-rose-700/15"
                         />
                         <Button
                           data-testid="confirm-void-document"
@@ -339,7 +375,7 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
                         type="button"
                         data-testid={`doc-void-${row.id}`}
                         onClick={() => setVoidId(row.id)}
-                        className="text-sm text-red-700 underline"
+                        className="rounded text-sm font-semibold text-rose-800 underline decoration-rose-300 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-rose-700"
                       >
                         إلغاء المستند
                       </button>

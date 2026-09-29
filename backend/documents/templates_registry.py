@@ -54,6 +54,13 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
     ),
     DocumentTemplate(
+        key="warning_level_1",
+        version="v3",
+        document_type=DocumentType.WARNING_LEVEL_1,
+        title="إشعار الإنذار الأول",
+        template_name="documents/warning_v3.html",
+    ),
+    DocumentTemplate(
         key="warning_level_2",
         version="v1",
         document_type=DocumentType.WARNING_LEVEL_2,
@@ -67,6 +74,13 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         title="إشعار الإنذار الثاني",
         template_name="documents/warning_v2.html",
         source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
+    ),
+    DocumentTemplate(
+        key="warning_level_2",
+        version="v3",
+        document_type=DocumentType.WARNING_LEVEL_2,
+        title="إشعار الإنذار الثاني",
+        template_name="documents/warning_v3.html",
     ),
     DocumentTemplate(
         key="warning_level_3",
@@ -84,11 +98,25 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         source_reference="هوية وزارة التعليم الرسمية - moe.gov.sa",
     ),
     DocumentTemplate(
+        key="warning_level_3",
+        version="v3",
+        document_type=DocumentType.WARNING_LEVEL_3,
+        title="إشعار الإنذار الثالث",
+        template_name="documents/warning_v3.html",
+    ),
+    DocumentTemplate(
         key="attendance_commitment",
         version="v1",
         document_type=DocumentType.ATTENDANCE_COMMITMENT,
         title="تعهد الالتزام بالحضور والمواظبة",
         template_name="documents/commitment.html",
+    ),
+    DocumentTemplate(
+        key="attendance_commitment",
+        version="v2",
+        document_type=DocumentType.ATTENDANCE_COMMITMENT,
+        title="تعهد الالتزام بالحضور والمواظبة",
+        template_name="documents/commitment_v2.html",
     ),
     DocumentTemplate(
         key="absence_detail_report",
@@ -98,6 +126,13 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         template_name="documents/absence_report.html",
     ),
     DocumentTemplate(
+        key="absence_detail_report",
+        version="v2",
+        document_type=DocumentType.ABSENCE_DETAIL_REPORT,
+        title="كشف تفصيلي للغياب",
+        template_name="documents/absence_report_v2.html",
+    ),
+    DocumentTemplate(
         key="morning_late_report",
         version="v1",
         document_type=DocumentType.MORNING_LATE_DETAIL_REPORT,
@@ -105,11 +140,25 @@ _TEMPLATES: tuple[DocumentTemplate, ...] = (
         template_name="documents/morning_late_report.html",
     ),
     DocumentTemplate(
+        key="morning_late_report",
+        version="v2",
+        document_type=DocumentType.MORNING_LATE_DETAIL_REPORT,
+        title="كشف تفصيلي للتأخر عن الدوام الصباحي",
+        template_name="documents/morning_late_report_v2.html",
+    ),
+    DocumentTemplate(
         key="student_attendance_report",
         version="v1",
         document_type=DocumentType.STUDENT_ATTENDANCE_REPORT,
         title="تقرير مواظبة الطالب/الطالبة",
         template_name="documents/attendance_report.html",
+    ),
+    DocumentTemplate(
+        key="student_attendance_report",
+        version="v2",
+        document_type=DocumentType.STUDENT_ATTENDANCE_REPORT,
+        title="تقرير مواظبة الطالب/الطالبة",
+        template_name="documents/attendance_report_v2.html",
     ),
 )
 
