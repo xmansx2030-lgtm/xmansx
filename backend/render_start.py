@@ -91,7 +91,7 @@ def main() -> int:
         "beat": [
             "celery",
             "-A",
-            "config",
+            "lightweight_beat:app",
             "beat",
             "--loglevel=info",
             "--schedule",
