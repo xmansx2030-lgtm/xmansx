@@ -40,7 +40,7 @@ function todayIso() {
 }
 
 function canSelect(student: AbsenceSmsCandidate) {
-  return Boolean(student.recipient_masked)
+  return student.eligibility_reason === null
     && (student.send_status === null || student.send_status === "FAILED");
 }
 
@@ -95,12 +95,12 @@ export function AbsenceMessagesPage() {
     <div className="ds-page space-y-5" data-testid="absence-messages-page">
       <PageHeader
         icon={Send} eyebrow="الحضور والتشغيل" title="رسائل الغياب"
-        description="راجع الغياب غير المعذور بعد اكتمال التحضير، ثم اختر أولياء الأمور المطلوب إشعارهم."
+        description="راجع الغياب المسجل، ثم اختر أولياء الأمور بعد بلوغ عدد التحاضير المعتمدة الذي حددته المدرسة."
         tone="executive"
         actions={<label className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/15"><CalendarDays aria-hidden size={17} /><span>تاريخ الغياب</span><input type="date" value={date} max={todayIso()} onChange={(event) => { setDate(event.target.value); setPage(1); }} className="rounded-lg border-white/20 bg-white px-2 py-1 text-slate-950" /></label>}
       />
       <Alert title="الإرسال يدوي بعد المراجعة" tone="info">
-        تظهر الأيام المصنفة غيابًا كاملًا أو جزئيًا بعد اعتماد جميع حصص الفصل، عندما بقيت حصة غياب بلا عذر. قبول المزود للرسالة لا يثبت وصولها إلى الهاتف.
+        تظهر أسماء الطلاب الغائبين في التحاضير المعتمدة حتى قبل بلوغ معيار الإرسال. تحدد المدرسة عدد التحاضير اللازم، ولا تتاح الرسالة إلا لغياب غير معذور مع رقم ولي أمر. قبول المزود للرسالة لا يثبت وصولها إلى الهاتف.
       </Alert>
       {preview.isPending && <Spinner label="جارٍ إعداد قائمة الغياب..." />}
       {preview.isError && <ErrorState error={preview.error} />}
@@ -115,15 +115,15 @@ export function AbsenceMessagesPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
-                <h2 className="font-bold text-slate-900">المستحقون للمراجعة: {data.total}</h2>
-                <p className="mt-1 text-xs text-slate-500">الرقم مخفي في العرض، ويُقرأ من سجل الطالب وقت الإرسال.</p>
+                <h2 className="font-bold text-slate-900">حالات الغياب للمراجعة: {data.total} · جاهزون للإرسال: {data.ready_total}</h2>
+                <p className="mt-1 text-xs text-slate-500">معيار المدرسة: {data.min_approved_periods === 0 ? "اعتماد جميع حصص التحضير" : `اعتماد ${data.min_approved_periods} من حصص التحضير`} · الرقم مخفي في العرض، ويُقرأ من سجل الطالب وقت الإرسال.</p>
               </div>
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
                 <input type="checkbox" checked={allSelected} disabled={!data.integration.is_active || selectable.length === 0} onChange={() => setSelection({ key: contextKey, ids: allSelected ? new Set() : new Set(selectable.map((student) => student.student_id)) })} className="size-5" />
                 تحديد المتاح في هذه الصفحة
               </label>
             </div>
-            {data.students.length === 0 && <p className="py-8 text-center text-sm text-slate-500">لا توجد حالات غياب مكتملة وغير معذورة في هذا التاريخ.</p>}
+            {data.students.length === 0 && <p className="py-8 text-center text-sm text-slate-500">لا توجد حالات غياب مسجلة في التحاضير المعتمدة لهذا التاريخ.</p>}
             <div className="divide-y divide-slate-100">
               {data.students.map((student) => (
                 <label key={student.student_id} className="flex items-start gap-3 py-4">
@@ -136,10 +136,11 @@ export function AbsenceMessagesPage() {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">
                       {student.full_name}
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-800">{student.absence_status === "FULL" ? "غياب كامل" : "غياب جزئي"}</span>
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-800">{student.absence_status === "FULL" ? (student.submitted_periods < student.expected_periods ? "غائب في جميع التحاضير المعتمدة" : "غياب كامل") : "غياب جزئي"}</span>
                     </span>
-                    <span className="mt-1 block text-xs text-slate-600">{student.grade_name} · {student.section_name} · ولي الأمر: {student.recipient_masked || "لا يوجد رقم"}</span>
-                    <span className="mt-2 block text-xs leading-6 text-slate-500">{student.message}</span>
+                    <span className="mt-1 block text-xs text-slate-600">{student.grade_name} · {student.section_name} · التحاضير المعتمدة: {student.submitted_periods} من {student.expected_periods} · ولي الأمر: {student.recipient_masked || "لا يوجد رقم"}</span>
+                    {student.eligibility_reason && <span className="mt-1 block text-xs font-bold text-amber-800">{student.eligibility_reason === "INSUFFICIENT_APPROVALS" ? `بانتظار اعتماد ${student.required_periods} من حصص التحضير حسب معيار المدرسة.` : student.eligibility_reason === "EXCUSED_ABSENCE" ? "الغياب مغطى بعذر؛ لا تُرسل رسالة غياب غير معذور." : "أضف رقم جوال ولي الأمر قبل الإرسال."}</span>}
+                    {student.message && <span className="mt-2 block text-xs leading-6 text-slate-500">{student.message}</span>}
                     {student.send_status && <span className="mt-1 block text-xs font-bold text-amber-800">{STATUS_LABELS[student.send_status]}{student.send_error && ` · ${FAILURE_LABELS[student.send_error] ?? `رمز الحالة: ${student.send_error}`}`}</span>}
                   </span>
                 </label>

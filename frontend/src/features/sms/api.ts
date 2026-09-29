@@ -17,6 +17,10 @@ export interface AbsenceSmsCandidate {
   grade_name: string;
   section_name: string;
   absence_status: "FULL" | "PARTIAL";
+  submitted_periods: number;
+  expected_periods: number;
+  required_periods: number;
+  eligibility_reason: "INSUFFICIENT_APPROVALS" | "EXCUSED_ABSENCE" | "MISSING_RECIPIENT" | null;
   recipient_masked: string;
   send_status: AbsenceSmsStatus | null;
   send_error: string;
@@ -28,6 +32,8 @@ export interface AbsenceSmsPreview {
   page: number;
   page_size: number;
   total: number;
+  ready_total: number;
+  min_approved_periods: number;
   integration: Pick<SmsIntegration, "provider" | "sender_name" | "is_active">;
   students: AbsenceSmsCandidate[];
 }

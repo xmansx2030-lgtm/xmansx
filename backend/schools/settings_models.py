@@ -60,6 +60,12 @@ class SchoolSettings(TimestampedModel):
         default=25,
         validators=[MinValueValidator(1), MaxValueValidator(120)],
     )
+    # 0 = جميع حصص التحضير في جدول اليوم؛ خلاف ذلك العدد الذي تقرره المدرسة للرسائل.
+    absence_sms_min_approved_periods = models.PositiveSmallIntegerField(
+        "عدد التحاضير المعتمدة قبل إرسال الغياب",
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(20)],
+    )
 
     # الحضور الصباحي (م8.5) — بداية الدوام مستقلة عن الحصة الأولى عمدًا
     school_day_start_time = models.TimeField("بداية الدوام الصباحي", default=time(7, 0))
@@ -83,6 +89,10 @@ class SchoolSettings(TimestampedModel):
                     unprepared_period_alert_minutes__lte=120,
                 ),
                 name="settings_alert_minutes_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(absence_sms_min_approved_periods__lte=20),
+                name="settings_absence_sms_periods_max",
             ),
         ]
 

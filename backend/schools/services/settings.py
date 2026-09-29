@@ -20,6 +20,7 @@ SETTINGS_EDITABLE_FIELDS = {
     "timezone",
     "attendance_edit_window_minutes",
     "unprepared_period_alert_minutes",
+    "absence_sms_min_approved_periods",
     "school_day_start_time",
     "morning_late_grace_minutes",
 }
