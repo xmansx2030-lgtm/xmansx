@@ -200,6 +200,19 @@ def test_period_keeps_approved_absence_after_section_replacement(env):
         row["section_id"] for row in report["incomplete_sections"]
     }
 
+    unapproved_period = multi(env, [3], grade_id=env["grade"].id)
+    incomplete_ids = {
+        row["section_id"] for row in unapproved_period["incomplete_sections"]
+    }
+    assert env["a"].id not in incomplete_ids
+    assert replacement.id in incomplete_ids
+    assert unapproved_period["summary"]["matching_students"] == 0
+
+    combined = multi(env, [2, 3], grade_id=env["grade"].id)
+    assert env["a"].id not in {
+        row["section_id"] for row in combined["incomplete_sections"]
+    }
+
 
 @pytest.mark.django_db
 def test_in_progress_not_official_and_reason_shown(env):

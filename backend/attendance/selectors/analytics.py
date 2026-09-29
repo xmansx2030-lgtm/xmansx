@@ -149,6 +149,10 @@ def get_multi_period_report(
     for section in sections:
         if section.id in complete_ids:
             continue
+        # Historical sections remain eligible for their approved attendance,
+        # but an inactive section is no longer expected to prepare other periods.
+        if not section.is_active:
+            continue
         missing = sorted(wanted - submitted_by_section.get(section.id, set()))
         reasons = []
         names = {p["sequence"]: p["name"] for p in context.attendance_periods}
