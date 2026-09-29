@@ -6,6 +6,7 @@ production.py يعيد فرض المتغيرات الحساسة كمتغيرات
 
 from pathlib import Path
 
+from beat_schedule import build_beat_schedule
 from config.database import postgres_database
 from config.env import env_bool, env_float, env_int, env_list, env_str
 
@@ -294,19 +295,16 @@ CELERY_TASK_ROUTES = {
     "students.run_purge_job": {"queue": "maintenance"},
     "operations.scheduled_database_backup": {"queue": "maintenance"},
 }
-CELERY_BEAT_SCHEDULE = {
-    "system-operational-heartbeat": {
-        "task": "operations.system_heartbeat",
-        "schedule": env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
-        "options": {"expires": 110},
-    },
-}
-if env_bool("BACKUP_SCHEDULE_ENABLED", False):
-    CELERY_BEAT_SCHEDULE["scheduled-database-backup"] = {
-        "task": "operations.scheduled_database_backup",
-        "schedule": env_int("BACKUP_SCHEDULE_INTERVAL_SECONDS", 24 * 60 * 60),
-        "options": {"expires": 60 * 60},
-    }
+_backup_schedule_enabled = env_bool("BACKUP_SCHEDULE_ENABLED", False)
+CELERY_BEAT_SCHEDULE = build_beat_schedule(
+    heartbeat_interval_seconds=env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
+    backup_enabled=_backup_schedule_enabled,
+    backup_interval_seconds=(
+        env_int("BACKUP_SCHEDULE_INTERVAL_SECONDS", 24 * 60 * 60)
+        if _backup_schedule_enabled
+        else 24 * 60 * 60
+    ),
+)
 
 # ---- DRF ----
 REST_FRAMEWORK = {
