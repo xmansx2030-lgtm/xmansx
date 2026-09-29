@@ -1,0 +1,2 @@
+- [GitHub connector pushes](github-connector-pushes.md) — OAuth API access may not authenticate git push; keep the remote and local commit trees aligned.
+- [Sandbox shell output](sandbox-shell-output.md) — CodeExecution shell output can alter delimiters; avoid parsing git output by tabs there.
