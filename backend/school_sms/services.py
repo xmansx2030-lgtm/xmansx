@@ -75,7 +75,7 @@ def candidate_absences(*, school, attendance_date: date) -> QuerySet:
             attendance_date=attendance_date,
             student_id__in=enrolled_ids,
             student__status=StudentStatus.ACTIVE,
-            absence_status__in=(DailyAbsenceStatus.FULL, DailyAbsenceStatus.PARTIAL),
+            absence_status=DailyAbsenceStatus.FULL,
         )
         .select_related("student", "section__grade")
         .order_by("section__grade__sequence", "section__code", "student__full_name", "student_id")
@@ -101,20 +101,27 @@ def eligible_absences(*, school, attendance_date: date,
     return rows.filter(submitted_periods__gte=F("expected_periods"))
 
 
-def render_absence_message(*, school, summary) -> str:
+def _compose_absence_message(*, school, student_name: str, attendance_date: str) -> str:
     noun = "الطالبة" if school.school_type == "GIRLS" else "الطالب"
-    if summary.absence_status == DailyAbsenceStatus.FULL:
-        status = (
-            "غيابًا كاملًا" if summary.submitted_periods >= summary.expected_periods
-            else f"غيابًا في {summary.submitted_periods} من حصص التحضير المعتمدة"
-        )
-    else:
-        status = "غيابًا جزئيًا"
     return (
-        f"ولي الأمر الكريم، تم رصد {status} لـ{noun} "
-        f"{summary.student.full_name} بتاريخ {summary.attendance_date.isoformat()} "
-        f"في {school.name}، وتوجد حصص غياب دون عذر مسجل. "
-        "يرجى متابعة المدرسة عند وجود عذر."
+        f"ولي الأمر الكريم، تم رصد غياب يوم كامل لـ{noun} {student_name} "
+        f"بتاريخ {attendance_date} في {school.name} وفق معيار التحضير المعتمد "
+        "لدى المدرسة. يرجى التواصل مع المدرسة لتقديم العذر إن وجد."
+    )
+
+
+def absence_message_template(*, school) -> str:
+    name_placeholder = "«اسم الطالبة»" if school.school_type == "GIRLS" else "«اسم الطالب»"
+    return _compose_absence_message(
+        school=school, student_name=name_placeholder, attendance_date="«تاريخ الغياب»"
+    )
+
+
+def render_absence_message(*, school, summary) -> str:
+    return _compose_absence_message(
+        school=school,
+        student_name=summary.student.full_name,
+        attendance_date=summary.attendance_date.isoformat(),
     )
 
 
@@ -169,7 +176,6 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             if row.student.guardian_mobile else "",
             "send_status": notice_states.get(row.student_id, (None, ""))[0],
             "send_error": notice_states.get(row.student_id, (None, ""))[1],
-            "message": render_absence_message(school=school, summary=row) if reason is None else "",
         }
 
     return {
@@ -179,6 +185,7 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
         "total": total,
         "ready_total": ready_total,
         "min_approved_periods": min_approved_periods,
+        "message_template": absence_message_template(school=school),
         "integration": {
             "provider": integration.provider if integration else None,
             "sender_name": integration.sender_name if integration else "",
