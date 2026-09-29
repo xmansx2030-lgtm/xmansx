@@ -221,7 +221,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click((await screen.findAllByRole("tab", { name: /المدارس/ }))[0]!);
     await user.click(screen.getByRole("button", { name: "إضافة مدرسة جديدة" }));
     const createButton = screen.getByRole("button", { name: "إنشاء المدرسة بدون اشتراك" });
     expect(createButton).toBeDisabled();
@@ -379,7 +379,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click((await screen.findAllByRole("tab", { name: /المدارس/ }))[0]!);
     await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
     expect(await screen.findByLabelText("اسم المدير الجديد")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تعيين مدير" })).toBeInTheDocument();
@@ -452,7 +452,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click((await screen.findAllByRole("tab", { name: /المدارس/ }))[0]!);
     const schoolButton = await screen.findByRole("button", { name: new RegExp(SCHOOL.name) });
     expect(schoolButton).toHaveTextContent("مدير النور");
     await user.click(schoolButton);
@@ -525,7 +525,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click((await screen.findAllByRole("tab", { name: /المدارس/ }))[0]!);
     await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
     await user.click(await screen.findByRole("button", { name: "حذف المدرسة نهائيًا" }));
     const confirmButton = screen.getByRole("button", { name: "تأكيد الحذف النهائي" });
@@ -606,7 +606,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "المدارس" }));
+    await user.click((await screen.findAllByRole("tab", { name: /المدارس/ }))[0]!);
     await user.click(await screen.findByRole("button", { name: new RegExp(SCHOOL.name) }));
 
     expect(await screen.findByRole("heading", { name: "بيانات المدرسة والدخول" })).toBeInTheDocument();
@@ -640,7 +640,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click(await screen.findByRole("button", { name: "الباقات" }));
+    await user.click((await screen.findAllByRole("tab", { name: /الباقات/ }))[0]!);
     await user.click(await screen.findByRole("button", { name: "تعديل" }));
     expect(screen.getByText("داخلية")).toBeInTheDocument();
     const name = screen.getByPlaceholderText("اسم الباقة");
@@ -691,7 +691,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click((await screen.findAllByRole("button", { name: /فريق المنصة/ }))[0]!);
+    await user.click((await screen.findAllByRole("tab", { name: /فريق المنصة/ }))[0]!);
     await user.click(await screen.findByRole("button", { name: "إضافة موظف" }));
     await user.type(screen.getByLabelText("الاسم الكامل"), member.name);
     await user.type(screen.getByLabelText("رقم الجوال"), "0522222222");
@@ -712,7 +712,7 @@ describe("platform and subscription UI", () => {
     });
 
     renderApp("/platform");
-    await user.click((await screen.findAllByRole("button", { name: /حسابي/ }))[0]!);
+    await user.click((await screen.findAllByRole("tab", { name: /حسابي/ }))[0]!);
     expect(await screen.findByTestId("platform-account-panel")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "الأمان وكلمة المرور" })).toBeInTheDocument();
     expect(screen.getByText(/حساب المالك محمي/)).toBeInTheDocument();
