@@ -14,7 +14,8 @@ from school_sms.providers import SmsProviderError, SmsProviderResult, send_sms
 from school_sms.security import decrypt_secret
 from school_sms.tasks import send_absence_notice
 from schools.settings_models import DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE
-from tests.attendance_helpers import setup_attendance_env
+from students.models import Section
+from tests.attendance_helpers import make_students, setup_attendance_env
 
 INTEGRATION_URL = "/api/v1/school/sms/integration/"
 PREVIEW_URL = "/api/v1/school/sms/absences/preview/"
@@ -391,54 +392,67 @@ def test_partial_absence_is_neither_listed_nor_sent(role_client):
 
 
 @pytest.mark.django_db
-def test_school_sets_two_approved_periods_for_sms_without_waiting_for_full_schedule(role_client):
+def test_full_absence_in_sections_with_different_approved_periods_is_sendable(role_client):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     student, summary, day = _absence(school)
     summary.expected_periods = 7
     summary.completeness_status = DailyCompleteness.INCOMPLETE
     summary.save(update_fields=["expected_periods", "completeness_status"])
-    assert _integration(manager).status_code == 200
-
-    before = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
-    assert before["total"] == 1
-    assert before["ready_total"] == 0
-    assert before["students"][0]["eligibility_reason"] == "INSUFFICIENT_APPROVALS"
-    assert before["students"][0]["required_periods"] == 7
-
-    settings = manager.patch(
-        "/api/v1/school/settings/", {"absence_sms_min_approved_periods": 2},
-        content_type="application/json",
+    section = Section.objects.create(
+        school=school, grade=summary.section.grade, code="2", name="2",
     )
-    assert settings.status_code == 200
-    assert settings.json()["absence_sms_min_approved_periods"] == 2
-    with patch("school_sms.tasks.send_sms") as provider:
-        assert manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
-                            content_type="application/json").status_code == 409
-    provider.assert_not_called()
+    second_student = make_students(school, section, summary.academic_year, 1, prefix="10661")[0]
+    second_student.guardian_mobile = "+966500000002"
+    second_student.save(update_fields=["guardian_mobile"])
+    DailyAttendanceSummary.objects.create(
+        school=school, student=second_student, academic_year=summary.academic_year,
+        section=section, attendance_date=day, expected_periods=7,
+        submitted_periods=2, absent_periods=2, present_periods=0,
+        excused_absent_periods=0, unexcused_absent_periods=2,
+        completeness_status=DailyCompleteness.INCOMPLETE,
+        absence_status=DailyAbsenceStatus.FULL, calculated_at=timezone.now(),
+    )
+    assert _integration(manager).status_code == 200
+    # A stored school threshold may remain, but it no longer gates sending.
+    assert manager.patch(
+        "/api/v1/school/settings/", {"absence_sms_min_approved_periods": 7},
+        content_type="application/json",
+    ).status_code == 200
 
+    preview = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
+    assert preview["total"] == preview["ready_total"] == 2
+    assert set(preview["selectable_student_ids"]) == {student.id, second_student.id}
+    assert {row["submitted_periods"] for row in preview["students"]} == {1, 2}
+    assert all(row["eligibility_reason"] is None for row in preview["students"])
+    with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult()) as provider:
+        sent = manager.post(
+            SEND_URL,
+            {"date": day.isoformat(), "student_ids": [student.id, second_student.id]},
+            content_type="application/json",
+        )
+    assert sent.status_code == 202
+    assert sent.json()["queued"] == 2
+    assert provider.call_count == 2
+    assert {call.kwargs["mobile"] for call in provider.call_args_list} == {
+        student.guardian_mobile, second_student.guardian_mobile,
+    }
     summary.submitted_periods = 2
     summary.absent_periods = 2
     summary.unexcused_absent_periods = 2
-    summary.save(update_fields=["submitted_periods", "absent_periods",
-                                "unexcused_absent_periods"])
-    after = manager.get(PREVIEW_URL, {"date": day.isoformat()}).json()
-    assert after["total"] == after["ready_total"] == 1
-    assert after["students"][0]["eligibility_reason"] is None
-    assert "message" not in after["students"][0]
-    with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult()) as provider:
-        sent = manager.post(SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
-                            content_type="application/json")
-    assert sent.status_code == 202
-    provider.assert_called_once()
-    assert provider.call_args.kwargs["message"] == (
-        after["message_template"]
-        .replace("«اسم الطالب»", student.full_name.split(maxsplit=1)[0])
-        .replace("«التاريخ»", day.isoformat())
-    )
+    summary.save(update_fields=["submitted_periods", "absent_periods", "unexcused_absent_periods"])
+    with patch("school_sms.tasks.send_sms") as repeat_provider:
+        repeated = manager.post(
+            SEND_URL, {"date": day.isoformat(), "student_ids": [student.id]},
+            content_type="application/json",
+        )
+    assert repeated.status_code == 202
+    assert repeated.json()["skipped"] == 1
+    repeat_provider.assert_not_called()
 
 
 @pytest.mark.django_db
-def test_worker_rechecks_absence_before_calling_provider(role_client):
+@pytest.mark.parametrize("change", ["excused", "later_present"])
+def test_worker_rechecks_absence_before_calling_provider(role_client, change):
     manager, school, _ = role_client(["SCHOOL_MANAGER"])
     student, summary, day = _absence(school)
     assert _integration(manager).status_code == 200
@@ -450,8 +464,17 @@ def test_worker_rechecks_absence_before_calling_provider(role_client):
         )
     assert response.status_code == 202
     enqueue.assert_called_once()
-    summary.unexcused_absent_periods = 0
-    summary.save(update_fields=["unexcused_absent_periods"])
+    if change == "excused":
+        summary.unexcused_absent_periods = 0
+        summary.save(update_fields=["unexcused_absent_periods"])
+    else:
+        summary.expected_periods = 7
+        summary.submitted_periods = 2
+        summary.present_periods = 1
+        summary.absence_status = DailyAbsenceStatus.PARTIAL
+        summary.save(update_fields=[
+            "expected_periods", "submitted_periods", "present_periods", "absence_status",
+        ])
     notice = AbsenceSmsNotice.objects.get(student=student)
     with patch("school_sms.tasks.send_sms") as provider:
         assert send_absence_notice(notice.id) == "failed"

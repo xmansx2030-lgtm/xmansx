@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 
 from django.db import transaction
-from django.db.models import F, QuerySet
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from accounts.mobile import NORMALIZED_MOBILE_RE, mask_mobile
@@ -91,23 +91,11 @@ def candidate_absences(*, school, attendance_date: date) -> QuerySet:
     )
 
 
-def minimum_approved_periods(*, school) -> int:
-    return SchoolSettings.objects.filter(school=school).values_list(
-        "absence_sms_min_approved_periods", flat=True
-    ).first() or 0
-
-
-def eligible_absences(*, school, attendance_date: date,
-                      min_approved_periods: int | None = None) -> QuerySet:
-    if min_approved_periods is None:
-        min_approved_periods = minimum_approved_periods(school=school)
-    rows = candidate_absences(school=school, attendance_date=attendance_date).filter(
+def eligible_absences(*, school, attendance_date: date) -> QuerySet:
+    return candidate_absences(school=school, attendance_date=attendance_date).filter(
         unexcused_absent_periods__gt=0,
-        expected_periods__gt=0,
+        submitted_periods__gt=0,
     )
-    if min_approved_periods:
-        return rows.filter(submitted_periods__gte=min_approved_periods)
-    return rows.filter(submitted_periods__gte=F("expected_periods"))
 
 
 def absence_message_template(*, school) -> str:
@@ -127,15 +115,11 @@ def render_absence_message(*, school, summary) -> str:
 
 def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
-    min_approved_periods = minimum_approved_periods(school=school)
     rows = list(candidate_absences(school=school, attendance_date=attendance_date))
     candidate_ids = [row.student_id for row in rows]
     ready_ids = [
         row.student_id
-        for row in eligible_absences(
-            school=school, attendance_date=attendance_date,
-            min_approved_periods=min_approved_periods,
-        )
+        for row in eligible_absences(school=school, attendance_date=attendance_date)
         if recipient_issue(row.student.guardian_mobile) is None
     ]
     page = max(page, 1)
@@ -157,9 +141,8 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     ]
 
     def candidate_payload(row) -> dict:
-        required_periods = min_approved_periods or row.expected_periods
-        if required_periods == 0 or row.submitted_periods < required_periods:
-            reason = "INSUFFICIENT_APPROVALS"
+        if row.submitted_periods == 0:
+            reason = "NO_APPROVED_ATTENDANCE"
         elif row.unexcused_absent_periods == 0:
             reason = "EXCUSED_ABSENCE"
         elif recipient_issue(row.student.guardian_mobile):
@@ -174,7 +157,7 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             "absence_status": row.absence_status,
             "submitted_periods": row.submitted_periods,
             "expected_periods": row.expected_periods,
-            "required_periods": required_periods,
+            "required_periods": 1,  # Compatibility with clients loaded before this release.
             "eligibility_reason": reason,
             "recipient_masked": mask_mobile(row.student.guardian_mobile)
             if row.student.guardian_mobile else "",
@@ -201,7 +184,7 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             for row in rows
             if recipient_issue(row.student.guardian_mobile)
         ],
-        "min_approved_periods": min_approved_periods,
+        "min_approved_periods": 1,  # Effective policy for older clients.
         "message_template": absence_message_template(school=school),
         "default_message_template": DEFAULT_ABSENCE_SMS_MESSAGE_TEMPLATE,
         "integration": {
