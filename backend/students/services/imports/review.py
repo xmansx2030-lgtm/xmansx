@@ -27,7 +27,10 @@ def _normalized_from_staged(row: StudentImportRow) -> dict:
         national_id_hash=row.national_id_hash,
         errors=[
             code for code in row.error_codes
-            if code not in {"DUPLICATE_IN_FILE", "IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE"}
+            if code not in {
+                "DUPLICATE_IN_FILE", "IDENTITY_CONFLICT", "POSSIBLE_DUPLICATE",
+                "MERGED_IDENTIFIER",
+            }
         ],
     )
     return data

@@ -49,6 +49,11 @@ def set_student_status(
 ) -> Student:
     if new_status not in ALLOWED_TARGET_STATUSES:
         raise ApiError("VALIDATION_ERROR", "حالة الطالب المطلوبة غير معروفة.")
+    if student.merged_into_id:
+        raise ApiError(
+            "STUDENT_MERGED",
+            "هذا سجل قديم مدمج؛ استخدم سجل الطالب المعتمد بدل إعادة تنشيطه.",
+        )
     old_status = student.status
     if old_status == new_status:
         return student
