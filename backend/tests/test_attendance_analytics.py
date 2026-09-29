@@ -165,6 +165,43 @@ def test_period_absentees_and_incomplete_sections(env):
 
 
 @pytest.mark.django_db
+def test_period_keeps_approved_absence_after_section_replacement(env):
+    """A same-day section import must not hide an already approved absence."""
+    student = env["sa"][0]
+    session = make_session(env, env["a"], 2)
+    mark(env, session, student, "ABSENT")
+    recalculate_daily_attendance_for_section(
+        school=env["school"], section=env["a"], attendance_date=DAY
+    )
+
+    old_enrollment = student.enrollments.get()
+    old_enrollment.status = "TRANSFERRED"
+    old_enrollment.ended_at = DAY
+    old_enrollment.save(update_fields=["status", "ended_at"])
+    env["a"].is_active = False
+    env["a"].save(update_fields=["is_active"])
+    replacement = Section.objects.create(
+        school=env["school"], grade=env["grade"],
+        code=env["a"].code, name=env["a"].name, department="new",
+    )
+    student.enrollments.create(
+        school=env["school"], academic_year=env["year"],
+        grade=env["grade"], section=replacement, enrolled_at=DAY,
+    )
+
+    report = multi(env, [2], grade_id=env["grade"].id)
+    assert report["summary"]["matching_students"] == 1
+    assert report["students"][0]["student_id"] == student.id
+    assert report["students"][0]["period_statuses"] == [
+        {"sequence": 2, "status": "ABSENT"}
+    ]
+    assert report["summary"]["complete_sections"] == 1
+    assert env["a"].id not in {
+        row["section_id"] for row in report["incomplete_sections"]
+    }
+
+
+@pytest.mark.django_db
 def test_in_progress_not_official_and_reason_shown(env):
     """‏IN_PROGRESS ليست بيانات رسمية (البند 6) وسببها يعرض (البند 74)."""
     session = make_session(env, env["a"], 1, status="IN_PROGRESS")

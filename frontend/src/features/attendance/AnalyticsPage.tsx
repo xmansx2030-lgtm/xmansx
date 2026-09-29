@@ -337,7 +337,7 @@ function ReportResults({
           data-testid="incomplete-warning"
         >
           <p className="mb-1 font-medium">
-            ⚠️ فصول استبعد {schoolType === "GIRLS" ? "طالباتها" : "طلابها"} من النتيجة لعدم اكتمال تحضير الحصص المحددة:
+            ⚠️ فصول لم يكتمل تحضير الحصص المحددة لها:
           </p>
           <ul className="list-inside list-disc">
             {data.incomplete_sections.map((s) => (
