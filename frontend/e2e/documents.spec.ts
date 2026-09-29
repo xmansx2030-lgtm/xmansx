@@ -1,8 +1,8 @@
 /** E2E المرحلة 12 — الإجراءات والمستندات والطباعة (ضد Docker حقيقي).
  *
  * السيناريوهات الإلزامية (البنود 126-133، 155-159):
- * 1) إنذار صادر ← إنشاء مستنده ← تنزيل PDF فعلي ← تغيير المقاييس ← إعادة تنزيل
- *    تعطي نفس البايتات والبصمة (اللقطة مجمدة).
+ * 1) إنذار صادر ← إنشاء مستنده ← إعادة تنزيل بنفس البايتات والبصمة؛ ثم
+ *    انخفاض المقياس دون الحد يلغي الإنذار ومستنده مع بقاء اللقطة التاريخية.
  * 2) تعهد ← PDF + إجراء «أخذ تعهد» يظهران في ملف الطالب.
  * 3) تسجيل «التواصل مع ولي الأمر» يبقى بعد إعادة التحميل.
  * 4) كشف غياب لفترة → التصنيف بعذر/بدون عذر صحيح داخل اللقطة.
@@ -127,7 +127,7 @@ async function downloadDocument(page: Page, documentId: number) {
   }, documentId);
 }
 
-test("warning document: generate, download a real PDF, and reprint the frozen snapshot", async ({
+test("warning document: reprint stays frozen, then correction voids the document", async ({
   page,
 }) => {
   const m = meta();
@@ -226,6 +226,12 @@ test("warning document: generate, download a real PDF, and reprint the frozen sn
   expect(first.header).toBe("%PDF-");
   expect(first.size).toBeGreaterThan(1000);
 
+  // إعادة الطباعة قبل التصحيح: نفس الملف المخزن حرفيًا ونفس البصمة.
+  const second = await downloadDocument(page, document.id);
+  expect(second.status).toBe(200);
+  expect(second.size).toBe(first.size);
+  expect(second.fingerprint).toBe(first.fingerprint);
+
   // تتغير المقاييس الحالية: عذر معتمد ليومين → القيمة الحالية تنخفض
   const excuse = await api<{ id: number }>(page, "/excuses/", {
     method: "POST",
@@ -248,14 +254,19 @@ test("warning document: generate, download a real PDF, and reprint the frozen sn
   });
   expect(approved.status).toBe(200);
 
-  // إعادة الطباعة: نفس الملف المخزن حرفيًا ونفس البصمة (البند 132)
-  const second = await downloadDocument(page, document.id);
-  expect(second.size).toBe(first.size);
-  expect(second.fingerprint).toBe(first.fingerprint);
-  const after = await api<{ checksum: string; snapshot: { warning: { metric_value_at_issue: number } } }>(
+  // بعد هبوط القيمة دون حد الإصدار يُلغى المستند ويبقى سجل لقطته الأصلية.
+  const blocked = await downloadDocument(page, document.id);
+  expect(blocked.status).toBe(409);
+  const after = await api<{
+    status: string;
+    checksum: string;
+    snapshot: { warning: { metric_value_at_issue: number } };
+  }>(
     page,
     `/documents/${document.id}/`,
   );
+  expect(after.status).toBe(200);
+  expect(after.body.status).toBe("VOIDED");
   expect(after.body.checksum).toBe(document.checksum);
   expect(after.body.snapshot.warning.metric_value_at_issue).toBe(5);
 });
