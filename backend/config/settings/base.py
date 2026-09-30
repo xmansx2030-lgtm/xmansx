@@ -213,6 +213,7 @@ DATABASE_BACKUP_ROOT = env_str("DATABASE_BACKUP_ROOT", str(BASE_DIR / "local_sto
 BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "local")
 BACKUP_REMOTE_ENABLED = env_bool("BACKUP_REMOTE_ENABLED", False)
 BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", False)
+BACKUP_KEEP_LATEST_ONLY = env_bool("BACKUP_KEEP_LATEST_ONLY", False)
 BACKUP_COMMAND_TIMEOUT_SECONDS = env_int("BACKUP_COMMAND_TIMEOUT_SECONDS", 60 * 60)
 RESTORE_COMMAND_TIMEOUT_SECONDS = env_int("RESTORE_COMMAND_TIMEOUT_SECONDS", 60 * 60)
 BACKUP_MAX_AGE_SECONDS = env_int("BACKUP_MAX_AGE_SECONDS", 26 * 60 * 60)
@@ -220,6 +221,7 @@ PG_DUMP_BINARY = env_str("PG_DUMP_BINARY", "pg_dump")
 PG_RESTORE_BINARY = env_str("PG_RESTORE_BINARY", "pg_restore")
 
 R2_ENABLED = env_bool("R2_ENABLED", False)
+R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", False)
 
 
 def _r2_storage(bucket_name: str, location: str) -> dict:
@@ -240,41 +242,38 @@ def _r2_storage(bucket_name: str, location: str) -> dict:
             "default_acl": None,
             "querystring_auth": True,
             "file_overwrite": False,
-            "object_parameters": {"ServerSideEncryption": "AES256"},
+            # R2 encrypts at rest automatically and rejects the S3 SSE header.
         },
     }
 
 
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "private_documents": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": GENERATED_DOCUMENTS_ROOT},
+    },
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "backups": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": env_str(
+                "BACKUP_STORAGE_LOCATION", str(BASE_DIR / "local_storage" / "repository")
+            )
+        },
+    },
+}
 if R2_ENABLED:
     _private_bucket = env_str("R2_PRIVATE_BUCKET_NAME", "")
-    _backup_bucket = env_str("R2_BACKUP_BUCKET_NAME", "")
-    STORAGES = {
-        "default": _r2_storage(_private_bucket, env_str("R2_MEDIA_PREFIX", "media")),
-        "private_documents": _r2_storage(
-            _private_bucket, env_str("R2_DOCUMENTS_PREFIX", "documents")
-        ),
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-        "backups": _r2_storage(
-            _backup_bucket, env_str("R2_BACKUPS_PREFIX", "database-backups")
-        ),
-    }
-else:
-    STORAGES = {
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "private_documents": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-            "OPTIONS": {"location": GENERATED_DOCUMENTS_ROOT},
-        },
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-        "backups": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-            "OPTIONS": {
-                "location": env_str(
-                    "BACKUP_STORAGE_LOCATION", str(BASE_DIR / "local_storage" / "repository")
-                )
-            },
-        },
-    }
+    STORAGES["default"] = _r2_storage(_private_bucket, env_str("R2_MEDIA_PREFIX", "media"))
+    STORAGES["private_documents"] = _r2_storage(
+        _private_bucket, env_str("R2_DOCUMENTS_PREFIX", "documents")
+    )
+if R2_BACKUP_ENABLED:
+    STORAGES["backups"] = _r2_storage(
+        env_str("R2_BACKUP_BUCKET_NAME", ""),
+        env_str("R2_BACKUPS_PREFIX", "database-backups"),
+    )
 
 # Application workflows persist their progress in PostgreSQL and clients poll that
 # durable state. Keep the result backend only for the small number of diagnostic

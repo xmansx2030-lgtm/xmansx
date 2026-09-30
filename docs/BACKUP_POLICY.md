@@ -28,6 +28,11 @@ Baseline retention is configurable policy implemented as:
 - 3 distinct monthly recovery points;
 - always retain the newest successful backup.
 
+The Render deployment opts into `BACKUP_KEEP_LATEST_ONLY=true`: after a new remote
+backup is uploaded and read back successfully, the scheduled task keeps that remote
+recovery point and deletes older remote database backups. Failed runs never prune the
+previous successful copy. Local-only backups are outside this remote pruning mode.
+
 `cleanup_backups --dry-run` is mandatory before `--apply`. Cleanup never deletes the final valid
 recovery point and preserves historical `BackupRun` metadata after deleting an artifact.
 

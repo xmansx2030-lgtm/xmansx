@@ -115,11 +115,13 @@ def _upload_backup(dump_path: Path, manifest_path: Path, prefix: str) -> str:
     storage = storages["backups"]
     dump_key = f"{prefix}/{dump_path.name}"
     manifest_key = f"{prefix}/{manifest_path.name}"
+    stored_dump_key = dump_key
     try:
         dump_exists = storage.exists(dump_key)
         manifest_exists = storage.exists(manifest_key)
         if dump_exists and manifest_exists:
-            return dump_key
+            if _uploaded_backup_matches(storage, dump_key, manifest_key, dump_path, manifest_path):
+                return dump_key
         if dump_exists or manifest_exists:
             storage.delete(dump_key)
             storage.delete(manifest_key)
@@ -127,14 +129,39 @@ def _upload_backup(dump_path: Path, manifest_path: Path, prefix: str) -> str:
             stored_dump_key = storage.save(dump_key, File(stream))
         with manifest_path.open("rb") as stream:
             storage.save(manifest_key, File(stream))
+        if not _uploaded_backup_matches(
+            storage, stored_dump_key, manifest_key, dump_path, manifest_path
+        ):
+            raise BackupUploadError("uploaded backup failed read-back verification")
     except Exception as exc:
         try:
             storage.delete(dump_key)
+            if stored_dump_key != dump_key:
+                storage.delete(stored_dump_key)
             storage.delete(manifest_key)
         except Exception:
             logger.warning("partial_backup_upload_cleanup_failed")
         raise BackupUploadError("backup repository upload failed") from exc
     return stored_dump_key
+
+
+def _uploaded_backup_matches(storage, dump_key, manifest_key, dump_path, manifest_path) -> bool:
+    digest = hashlib.sha256()
+    with storage.open(dump_key, "rb") as uploaded:
+        for chunk in iter(lambda: uploaded.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != sha256_file(dump_path):
+        return False
+    with storage.open(manifest_key, "rb") as uploaded_manifest:
+        return uploaded_manifest.read() == manifest_path.read_bytes()
+
+
+def _discard_staging(*paths: Path) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("uploaded_backup_staging_cleanup_failed")
 
 
 def create_database_backup(*, local_only: bool = False) -> BackupRun:
@@ -146,7 +173,7 @@ def create_database_backup(*, local_only: bool = False) -> BackupRun:
     )
     root = Path(settings.DATABASE_BACKUP_ROOT).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    timestamp = started_at.strftime("%Y%m%dT%H%M%SZ")
+    timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
     database_id = re.sub(r"[^A-Za-z0-9_-]", "-", str(_database_config()["NAME"]))[:32]
     stem = f"{timestamp}_{_safe_environment()}_{database_id}"
     partial = root / f"{stem}.dump.partial"
@@ -159,6 +186,9 @@ def create_database_backup(*, local_only: bool = False) -> BackupRun:
                 settings.PG_DUMP_BINARY,
                 *_postgres_args(),
                 "--format=custom",
+                # FORCE RLS tables reject pg_dump's default row_security=off.
+                # PGOPTIONS grants this audited backup connection all tenant rows.
+                "--enable-row-security",
                 "--no-owner",
                 "--no-privileges",
                 "--file",
@@ -214,6 +244,8 @@ def create_database_backup(*, local_only: bool = False) -> BackupRun:
             run.storage_reference = storage_reference
             run.duration_ms = int((time.perf_counter() - began) * 1000)
             run.save()
+            if settings.BACKUP_REMOTE_ENABLED and not local_only:
+                _discard_staging(dump_path, manifest_path)
             return run
     except Exception as exc:
         partial.unlink(missing_ok=True)
@@ -259,6 +291,7 @@ def retry_backup_upload(run_id: int) -> BackupRun:
                 "updated_at",
             ]
         )
+        _discard_staging(dump_path, manifest_path)
         return run
 
 

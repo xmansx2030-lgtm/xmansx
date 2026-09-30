@@ -3,6 +3,7 @@ import json
 import logging
 import subprocess
 from datetime import timedelta
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -24,6 +25,7 @@ from operations.backups import (
     ChecksumMismatch,
     DatabaseDumpError,
     RestoreSafetyError,
+    _upload_backup,
     create_database_backup,
     restore_database_backup,
     retry_backup_upload,
@@ -170,6 +172,8 @@ def test_system_health_is_platform_admin_only(make_user):
 
 
 def _fake_dump(command, **kwargs):
+    assert "--enable-row-security" in command
+    assert "-c app.rls_bypass=on" in kwargs["env"]["PGOPTIONS"]
     output = Path(command[command.index("--file") + 1])
     output.write_bytes(b"PGDMP-phase18-test")
     return subprocess.CompletedProcess(command, 0, b"", b"")
@@ -239,6 +243,39 @@ def test_remote_upload_failure_never_reports_success(tmp_path):
     assert run.error_code == "UPLOAD_FAILED"
     assert run.checksum
     assert run.size_bytes > 0
+
+
+def test_remote_upload_rejects_corrupt_readback(tmp_path):
+    class CorruptStorage:
+        def __init__(self):
+            self.objects = {}
+
+        def exists(self, name):
+            return name in self.objects
+
+        def save(self, name, source):
+            data = source.read()
+            self.objects[name] = b"corrupt" if name.endswith(".dump") else data
+            return name
+
+        def open(self, name, mode):
+            assert mode == "rb"
+            return BytesIO(self.objects[name])
+
+        def delete(self, name):
+            self.objects.pop(name, None)
+
+    dump = tmp_path / "backup.dump"
+    manifest = tmp_path / "backup.json"
+    dump.write_bytes(b"valid-dump")
+    manifest.write_bytes(b"{}")
+    storage = CorruptStorage()
+    with (
+        patch("operations.backups.storages", {"backups": storage}),
+        pytest.raises(BackupUploadError),
+    ):
+        _upload_backup(dump, manifest, "database/2026/09")
+    assert storage.objects == {}
 
 
 def test_failed_upload_retry_is_idempotent(tmp_path):
@@ -326,6 +363,47 @@ def test_cleanup_dry_run_never_deletes(tmp_path):
     run.refresh_from_db()
     assert artifact.exists()
     assert run.storage_reference == "local:old.dump"
+
+
+def test_latest_only_cleanup_removes_old_remote_copy_after_new_success(tmp_path):
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    now = timezone.now()
+    old = BackupRun.objects.create(
+        backup_type="DATABASE",
+        status=BackupStatus.SUCCEEDED,
+        started_at=now - timedelta(days=1),
+        finished_at=now - timedelta(days=1),
+        storage_reference="database/old.dump",
+        metadata={"manifest": "old.json"},
+    )
+    new = BackupRun.objects.create(
+        backup_type="DATABASE",
+        status=BackupStatus.SUCCEEDED,
+        started_at=now,
+        finished_at=now,
+        storage_reference="database/new.dump",
+        metadata={"manifest": "new.json"},
+    )
+    (remote / "database").mkdir()
+    for name in ("old.dump", "old.json", "new.dump", "new.json"):
+        (remote / "database" / name).write_bytes(b"backup")
+    storage_config = {
+        "backups": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(remote)},
+        }
+    }
+    with override_settings(STORAGES=storage_config):
+        call_command("cleanup_backups", "--apply", "--latest-only")
+    old.refresh_from_db()
+    new.refresh_from_db()
+    assert not (remote / "database" / "old.dump").exists()
+    assert not (remote / "database" / "old.json").exists()
+    assert (remote / "database" / "new.dump").exists()
+    assert (remote / "database" / "new.json").exists()
+    assert old.storage_reference == ""
+    assert new.storage_reference == "database/new.dump"
 
 
 def _private_records(make_school, make_user, make_membership):
