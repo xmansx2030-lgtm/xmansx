@@ -92,9 +92,9 @@ services:
       - key: BACKUP_ENVIRONMENT
         value: render-production
       - key: BACKUP_REMOTE_ENABLED
-        value: "false"
+        value: "true"
       - key: BACKUP_REQUIRE_REMOTE
-        value: "false"
+        value: "true"
       - key: BACKUP_KEEP_LATEST_ONLY
         value: "true"
       - key: BACKUP_SCHEDULE_ENABLED
@@ -106,7 +106,15 @@ services:
       - key: R2_ENABLED
         value: "false"
       - key: R2_BACKUP_ENABLED
-        value: "false"
+        value: "true"
+      - key: R2_ENDPOINT_URL
+        value: https://640f52af1c8c648558148768c0189d70.eu.r2.cloudflarestorage.com
+      - key: R2_BACKUP_BUCKET_NAME
+        value: xmansx-production-database-backups
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
       - key: GUNICORN_WORKERS
         value: "1"
       - key: GUNICORN_THREADS
