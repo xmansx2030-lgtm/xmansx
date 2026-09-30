@@ -221,7 +221,7 @@ PG_DUMP_BINARY = env_str("PG_DUMP_BINARY", "pg_dump")
 PG_RESTORE_BINARY = env_str("PG_RESTORE_BINARY", "pg_restore")
 
 R2_ENABLED = env_bool("R2_ENABLED", False)
-R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", False)
+R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", R2_ENABLED)
 
 
 def _r2_storage(bucket_name: str, location: str) -> dict:

@@ -37,7 +37,7 @@ SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "production")
 BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "production")
 BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", True)
 R2_ENABLED = env_bool("R2_ENABLED", False)
-R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", False)
+R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", R2_ENABLED)
 
 # مفاتيح تشفير المعرفات — إلزامية في الإنتاج (ADR-009)
 FIELD_ENCRYPTION_KEYS = env_list("FIELD_ENCRYPTION_KEYS")
