@@ -65,9 +65,12 @@ def get_or_create_attendance_day_context(*, school, attendance_date: date) -> At
     ).first()
     # إذا لم تكن لقطة تاريخية محفوظة، لا ننسب جدول العام الحالي إلى عام سابق.
     # غياب اللقطة يعني أن اكتمال اليوم غير محسوم، بينما تبقى جلسات الحضور نفسها.
+    use_current_schedule = (year is None and active_year is None) or (
+        year is not None and active_year is not None and year.id == active_year.id
+    )
     snapshot = (
         build_day_schedule_snapshot(school, attendance_date)
-        if year is not None and active_year is not None and year.id == active_year.id
+        if use_current_schedule
         else {"schedule_name": None, "is_school_day": False, "periods": []}
     )
     try:
