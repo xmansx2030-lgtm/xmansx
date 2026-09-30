@@ -14,7 +14,7 @@ services:
     preDeployCommand: python manage.py migrate --noinput
     initialDeployHook: >-
       python manage.py bootstrap_platform_admin &&
-      python manage.py create_database_backup --local-only
+      python manage.py create_database_backup
     autoDeployTrigger: checksPass
     disk:
       name: xmansx-storage
