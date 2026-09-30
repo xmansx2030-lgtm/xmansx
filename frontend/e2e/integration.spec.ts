@@ -355,7 +355,7 @@ test("document checksum and referral snapshot both survive the other feature", a
   expect(redownload.header).toBe("%PDF-");
 
   // (البند 71) عذر معتمد ليومين: اللقطة تبقى 5 والقيمة الحالية 3
-  const excuse = await api<{ id: number }>(page, "/excuses/", {
+  const excuse = await api<{ id: number; status: string }>(page, "/excuses/", {
     method: "POST",
     body: {
       student_id: studentId,
@@ -365,16 +365,7 @@ test("document checksum and referral snapshot both survive the other feature", a
     },
   });
   expect(excuse.status).toBe(201);
-  const preview = await api<{ preview_hash: string }>(
-    page,
-    `/excuses/${excuse.body.id}/preview/`,
-    { method: "POST" },
-  );
-  const approved = await api(page, `/excuses/${excuse.body.id}/approve/`, {
-    method: "POST",
-    body: { preview_hash: preview.body.preview_hash },
-  });
-  expect(approved.status).toBe(200);
+  expect(excuse.body.status).toBe("APPROVED");
 
   const referral = await api<{
     snapshot_at_referral: { unexcused_full_absence_days: number };

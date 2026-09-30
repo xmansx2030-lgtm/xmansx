@@ -1,7 +1,7 @@
 """اختبارات API الأعذار (م10): سير العمل، الصلاحيات، العزل بين المدارس، المرفقات."""
 
 import io
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -16,14 +16,18 @@ from academics.models import (
     SchoolWeekDay,
     Weekday,
 )
+from attendance.models import AttendanceMark, AttendanceMarkStatus, DailyAttendanceSummary
+from attendance.services.day_context import get_or_create_attendance_day_context
+from attendance.services.sessions import get_roster, roster_fingerprint, submit_session
 from audit.models import AuditAction, AuditLog
-from excuses.models import AbsenceExcuseAttachment
-from students.models import Grade, Section
+from excuses.models import AbsenceExcuseAttachment, AbsenceExcuseCoverage
+from students.models import Grade, Section, StudentEnrollment
 from tests.attendance_helpers import make_students
 from tests.test_excuses import (
     DAY,
     PERIOD_COUNT,
     full_day_absent,
+    make_session,
 )
 
 BASE = "/api/v1/excuses/"
@@ -104,30 +108,18 @@ def _approve(client, excuse_id):
 
 
 @pytest.mark.django_db
-def test_create_preview_approve_flow(api_env):
+def test_create_approves_and_covers_recorded_absence_immediately(api_env):
     client, student = api_env["client"], api_env["students"][0]
     full_day_absent(api_env, student)
 
     created = _create_excuse(client, student)
     assert created.status_code == 201
     excuse_id = created.json()["id"]
-    assert created.json()["status"] == "PENDING"
-
-    preview = client.post(f"{BASE}{excuse_id}/preview/")
-    body = preview.json()
-    assert body["covered_absent_periods"] == PERIOD_COUNT
-    assert body["days"][0]["complete"] is True
-
-    approved = client.post(
-        f"{BASE}{excuse_id}/approve/",
-        {"preview_hash": body["preview_hash"]},
-        content_type="application/json",
-    )
-    assert approved.status_code == 200
-    detail = approved.json()
+    detail = created.json()
     assert detail["status"] == "APPROVED"
     assert detail["active_coverage_count"] == PERIOD_COUNT
     assert detail["approved_by_name"] is not None
+    assert client.post(f"{BASE}{excuse_id}/preview/").status_code == 409
 
     kpis = client.get(f"{BASE}kpis/").json()
     assert kpis["approved_today_count"] == 1
@@ -135,6 +127,126 @@ def test_create_preview_approve_flow(api_env):
 
     assert AuditLog.objects.filter(action=AuditAction.EXCUSE_APPROVED).exists()
     assert AuditLog.objects.filter(action=AuditAction.EXCUSE_CREATED).exists()
+
+
+@pytest.mark.django_db
+def test_future_three_day_excuse_covers_absence_when_session_is_submitted(api_env, monkeypatch):
+    """إنشاء مسبق لا يغير الحضور؛ اعتماد الحصة لاحقًا يضيف التغطية والملخص."""
+    from zoneinfo import ZoneInfo
+
+    monkeypatch.setattr(
+        "excuses.services.excuses.school_now",
+        lambda _school: datetime(2026, 8, 19, 10, tzinfo=ZoneInfo("Asia/Riyadh")),
+    )
+    client, student = api_env["client"], api_env["students"][0]
+    future_day = DAY + timedelta(days=7)  # الأحد 2026-08-23
+    targets = [
+        {"attendance_date": (future_day + timedelta(days=offset)).isoformat()}
+        for offset in range(3)
+    ]
+    created = _create_excuse(client, student, targets=targets)
+    assert created.status_code == 201, created.content
+    excuse_id = created.json()["id"]
+    assert created.json()["status"] == "APPROVED"
+    assert created.json()["active_coverage_count"] == 0
+
+    session = make_session(api_env, 1, day=future_day, status="IN_PROGRESS")
+    session.roster_fingerprint = roster_fingerprint(get_roster(
+        school=api_env["school"], section=api_env["section"],
+        academic_year=api_env["year"],
+    ))
+    session.save(update_fields=["roster_fingerprint"])
+    submit_session(
+        session_id=session.id, school=api_env["school"],
+        membership=api_env["teacher"],
+        marks=[{"student_id": student.id, "status": "ABSENT"}],
+    )
+
+    assert (
+        AttendanceMark.objects.get(session=session, student=student).status
+        == AttendanceMarkStatus.ABSENT
+    )
+    assert AbsenceExcuseCoverage.objects.filter(
+        excuse_id=excuse_id, attendance_session=session, status="ACTIVE",
+    ).exists()
+    summary = DailyAttendanceSummary.objects.get(student=student, attendance_date=future_day)
+    assert summary.excused_absent_periods == 1
+    assert summary.unexcused_absent_periods == 0
+
+
+@pytest.mark.django_db
+def test_overlapping_approved_targets_are_rejected_but_cancelled_targets_can_be_reused(api_env):
+    client, student = api_env["client"], api_env["students"][0]
+    first = _create_excuse(client, student)
+    assert first.status_code == 201
+    duplicate = _create_excuse(client, student)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "EXCUSE_TARGET_ALREADY_COVERED"
+    assert client.post(
+        f"{BASE}{first.json()['id']}/cancel/", {"reason": "تصحيح"},
+        content_type="application/json",
+    ).status_code == 200
+    assert _create_excuse(client, student).status_code == 201
+
+
+@pytest.mark.django_db
+def test_excuse_date_must_belong_to_school_year_and_student_enrollment(api_env):
+    client, student = api_env["client"], api_env["students"][0]
+    outside = _create_excuse(
+        client, student, targets=[{"attendance_date": "2025-08-16"}],
+    )
+    assert outside.status_code == 400
+    assert outside.json()["code"] == "EXCUSE_DATE_OUTSIDE_ACADEMIC_YEAR"
+
+    student.enrollments.update(enrolled_at=DAY + timedelta(days=1))
+    before_enrollment = _create_excuse(client, student)
+    assert before_enrollment.status_code == 400
+    assert before_enrollment.json()["code"] == "EXCUSE_STUDENT_NOT_ENROLLED_ON_DATE"
+
+    # استيراد الطالب المتأخر لا يمنع عذرًا ليوم غياب مُسجل بالفعل.
+    full_day_absent(api_env, student)
+    recorded_absence = _create_excuse(client, student)
+    assert recorded_absence.status_code == 201, recorded_absence.content
+    assert recorded_absence.json()["status"] == "APPROVED"
+
+
+@pytest.mark.django_db
+def test_old_year_context_does_not_inherit_active_year_schedule(api_env):
+    prior_year = AcademicYear.objects.create(
+        school=api_env["school"], name="2025/2026",
+        start_date=datetime(2025, 8, 1).date(),
+        end_date=datetime(2026, 6, 25).date(),
+        status=AcademicYearStatus.CLOSED,
+    )
+    context = get_or_create_attendance_day_context(
+        school=api_env["school"], attendance_date=datetime(2025, 8, 17).date(),
+    )
+    assert context.academic_year_id == prior_year.id
+    assert context.attendance_periods == []
+
+
+@pytest.mark.django_db
+def test_past_excuse_is_allowed_for_student_historical_enrollment(api_env):
+    prior_year = AcademicYear.objects.create(
+        school=api_env["school"], name="2025/2026",
+        start_date=datetime(2025, 8, 1).date(),
+        end_date=datetime(2026, 6, 25).date(),
+        status=AcademicYearStatus.CLOSED,
+    )
+    student = api_env["students"][0]
+    StudentEnrollment.objects.create(
+        school=api_env["school"], student=student, academic_year=prior_year,
+        grade=api_env["grade"], section=api_env["section"],
+        status="COMPLETED", enrolled_at=datetime(2025, 8, 1).date(),
+        ended_at=datetime(2026, 6, 25).date(),
+    )
+    created = _create_excuse(
+        api_env["client"], student,
+        targets=[{"attendance_date": "2025-08-17"}],
+    )
+    assert created.status_code == 201, created.content
+    assert created.json()["status"] == "APPROVED"
+    assert created.json()["active_coverage_count"] == 0
 
 
 @pytest.mark.django_db
@@ -155,7 +267,7 @@ def test_list_filters(api_env):
     by_reason = client.get(f"{BASE}?reason_type=FAMILY").json()
     assert by_reason["count"] == 1
 
-    by_status = client.get(f"{BASE}?status=PENDING").json()
+    by_status = client.get(f"{BASE}?status=APPROVED").json()
     assert by_status["count"] == 2
 
     by_grade = client.get(f"{BASE}?grade={api_env['grade'].id}").json()
@@ -166,7 +278,12 @@ def test_list_filters(api_env):
 def test_patch_pending_only(api_env):
     client, student = api_env["client"], api_env["students"][0]
     full_day_absent(api_env, student)
-    excuse_id = _create_excuse(client, student).json()["id"]
+    from excuses.services.excuses import create_excuse
+
+    excuse_id = create_excuse(
+        school=api_env["school"], membership=api_env["vice"], student=student,
+        reason_type="MEDICAL_REPORT", notes="", targets=[{"attendance_date": DAY}],
+    ).id
 
     patched = client.patch(
         f"{BASE}{excuse_id}/", {"notes": "ملاحظة"}, content_type="application/json"
@@ -185,7 +302,12 @@ def test_patch_pending_only(api_env):
 @pytest.mark.django_db
 def test_reject_requires_reason(api_env):
     client, student = api_env["client"], api_env["students"][0]
-    excuse_id = _create_excuse(client, student).json()["id"]
+    from excuses.services.excuses import create_excuse
+
+    excuse_id = create_excuse(
+        school=api_env["school"], membership=api_env["vice"], student=student,
+        reason_type="MEDICAL_REPORT", notes="", targets=[{"attendance_date": DAY}],
+    ).id
     missing = client.post(f"{BASE}{excuse_id}/reject/", {}, content_type="application/json")
     assert missing.status_code == 400
     rejected = client.post(
@@ -202,7 +324,6 @@ def test_cancel_endpoint(api_env):
     client, student = api_env["client"], api_env["students"][0]
     full_day_absent(api_env, student)
     excuse_id = _create_excuse(client, student).json()["id"]
-    _approve(client, excuse_id)
     cancelled = client.post(
         f"{BASE}{excuse_id}/cancel/", {"reason": "خطأ"}, content_type="application/json"
     )
@@ -223,7 +344,7 @@ def test_manager_full_access(role_client, make_user, make_membership):
     student = env["students"][0]
     full_day_absent(env, student)
     excuse_id = _create_excuse(client, student).json()["id"]
-    assert _approve(client, excuse_id).status_code == 200
+    assert client.get(f"{BASE}{excuse_id}/").json()["status"] == "APPROVED"
 
 
 @pytest.mark.django_db
@@ -403,9 +524,14 @@ def test_attachment_delete_rules(api_env):
     assert deleted.status_code == 204
     assert not AbsenceExcuseAttachment.objects.exists()
 
-    # بعد الاعتماد لا حذف للمرفقات
+    # الاعتماد فوري؛ يمكن تصحيح المرفقات حتى الإلغاء.
     attachment_id = _upload(client, excuse_id, "report.pdf", VALID_PDF).json()["id"]
-    _approve(client, excuse_id)
+    assert client.delete(f"{BASE}{excuse_id}/attachments/{attachment_id}/").status_code == 204
+    attachment_id = _upload(client, excuse_id, "report.pdf", VALID_PDF).json()["id"]
+    assert client.post(
+        f"{BASE}{excuse_id}/cancel/", {"reason": "خطأ"},
+        content_type="application/json",
+    ).status_code == 200
     denied = client.delete(f"{BASE}{excuse_id}/attachments/{attachment_id}/")
     assert denied.status_code == 409
 
@@ -460,8 +586,9 @@ def test_patch_cannot_set_status_or_school(api_env):
     excuse_id = _create_excuse(client, student).json()["id"]
     response = client.patch(
         f"{BASE}{excuse_id}/",
-        {"status": "APPROVED", "school": 999, "approved_by_membership": 1},
+        {"status": "PENDING", "school": 999, "approved_by_membership": 1},
         content_type="application/json",
     )
-    assert response.status_code == 200
-    assert response.json()["status"] == "PENDING"  # الحقول الدخيلة تجاهلت
+    assert response.status_code == 409
+    detail = client.get(f"{BASE}{excuse_id}/").json()
+    assert detail["status"] == "APPROVED"

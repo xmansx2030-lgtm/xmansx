@@ -111,7 +111,7 @@ describe("excuses page (Phase 10)", () => {
 
     expect(await screen.findByRole("heading", { name: "الأعذار" })).toBeInTheDocument();
     const kpis = await screen.findByTestId("excuse-kpis");
-    expect(within(kpis).getByText("بانتظار الاعتماد").nextSibling).toHaveTextContent("2");
+    expect(within(kpis).getByText("أعذار سابقة بانتظار الاعتماد").nextSibling).toHaveTextContent("2");
     expect(await screen.findByTestId("excuse-row-7")).toHaveTextContent("محمد أحمد");
     expect(screen.getByTestId("excuse-row-7")).toHaveTextContent("تقرير طبي");
   });
@@ -335,6 +335,65 @@ describe("excuses page (Phase 10)", () => {
       { attendance_date: "2026-08-18" },
       { attendance_date: "2026-08-19" },
     ]);
+  });
+
+  it("sends all three future days and explains automatic coverage", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["VICE_PRINCIPAL"]) },
+      "/excuses/kpis/": { body: KPIS },
+      "/students/search/": {
+        body: { results: [{ id: 5, full_name: "محمد أحمد", national_id_masked: "******5678" }] },
+      },
+      "/excuses/7/": { body: { ...DETAIL, status: "APPROVED" } },
+      "/excuses/": { body: LIST },
+    });
+    renderApp("/excuses");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("new-excuse"));
+    expect(screen.getByText(/تُصنّف حصص الغياب ضمنه بعذر تلقائيًا/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("بحث عن طالب"), "محمد");
+    await user.click(await screen.findByTestId("pick-student-5"));
+    await user.clear(screen.getByTestId("excuse-from"));
+    await user.type(screen.getByTestId("excuse-from"), "2026-10-01");
+    await user.clear(screen.getByTestId("excuse-to"));
+    await user.type(screen.getByTestId("excuse-to"), "2026-10-03");
+    await user.click(screen.getByTestId("save-excuse"));
+    const create = calls.find((call) => call.url.endsWith("/excuses/") && call.init?.method === "POST");
+    expect(JSON.parse(String(create!.init!.body)).targets).toEqual([
+      { attendance_date: "2026-10-01" },
+      { attendance_date: "2026-10-02" },
+      { attendance_date: "2026-10-03" },
+    ]);
+  });
+
+  it("blocks reversed and longer than 60-day ranges without truncating", async () => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: meWithRoles(["VICE_PRINCIPAL"]) },
+      "/excuses/kpis/": { body: KPIS },
+      "/students/search/": {
+        body: { results: [{ id: 5, full_name: "محمد أحمد", national_id_masked: "******5678" }] },
+      },
+      "/excuses/": { body: LIST },
+    });
+    renderApp("/excuses");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("new-excuse"));
+    await user.type(screen.getByLabelText("بحث عن طالب"), "محمد");
+    await user.click(await screen.findByTestId("pick-student-5"));
+    await user.clear(screen.getByTestId("excuse-from"));
+    await user.type(screen.getByTestId("excuse-from"), "2026-10-03");
+    await user.clear(screen.getByTestId("excuse-to"));
+    await user.type(screen.getByTestId("excuse-to"), "2026-10-01");
+    expect(screen.getByRole("alert")).toHaveTextContent("تاريخ النهاية يجب ألا يسبق تاريخ البداية");
+    expect(screen.getByTestId("save-excuse")).toBeDisabled();
+
+    await user.clear(screen.getByTestId("excuse-from"));
+    await user.type(screen.getByTestId("excuse-from"), "2026-08-01");
+    await user.clear(screen.getByTestId("excuse-to"));
+    await user.type(screen.getByTestId("excuse-to"), "2026-10-10");
+    expect(screen.getByRole("alert")).toHaveTextContent("60 يومًا كحد أقصى");
+    expect(screen.getByTestId("save-excuse")).toBeDisabled();
+    expect(calls.some((call) => call.url.endsWith("/excuses/") && call.init?.method === "POST")).toBe(false);
   });
 
   it("creates a period-specific excuse", async () => {

@@ -233,7 +233,7 @@ test("warning document: reprint stays frozen, then correction voids the document
   expect(second.fingerprint).toBe(first.fingerprint);
 
   // تتغير المقاييس الحالية: عذر معتمد ليومين → القيمة الحالية تنخفض
-  const excuse = await api<{ id: number }>(page, "/excuses/", {
+  const excuse = await api<{ id: number; status: string }>(page, "/excuses/", {
     method: "POST",
     body: {
       student_id: turkiId,
@@ -243,16 +243,7 @@ test("warning document: reprint stays frozen, then correction voids the document
     },
   });
   expect(excuse.status).toBe(201);
-  const previewExcuse = await api<{ preview_hash: string }>(
-    page,
-    `/excuses/${excuse.body.id}/preview/`,
-    { method: "POST" },
-  );
-  const approved = await api(page, `/excuses/${excuse.body.id}/approve/`, {
-    method: "POST",
-    body: { preview_hash: previewExcuse.body.preview_hash },
-  });
-  expect(approved.status).toBe(200);
+  expect(excuse.body.status).toBe("APPROVED");
 
   // بعد هبوط القيمة دون حد الإصدار يُلغى المستند ويبقى سجل لقطته الأصلية.
   const blocked = await downloadDocument(page, document.id);

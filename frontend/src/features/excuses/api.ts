@@ -183,6 +183,9 @@ export const rejectExcuse = (id: number, reason: string) =>
 export const cancelExcuse = (id: number, reason: string) =>
   apiRequest<ExcuseDetail>(`/excuses/${id}/cancel/`, { method: "POST", body: { reason } });
 
+export const removeExcuseAttachment = (excuseId: number, attachmentId: number) =>
+  apiRequest<void>(`/excuses/${excuseId}/attachments/${attachmentId}/`, { method: "DELETE" });
+
 /** الرفع بـFormData — خارج apiRequest كنمط رفع الشعار/الاستيراد. */
 export async function uploadExcuseAttachment(excuseId: number, file: File) {
   const formData = new FormData();

@@ -1,9 +1,9 @@
 /** E2E المرحلة 10 — أعذار الغياب والتصنيف الإداري (ضد Docker حقيقي).
  *
  * السيناريوهات الإلزامية (البنود 179-182):
- * 1) غياب يوم كامل → معاينة → اعتماد → الغياب يبقى ويصبح «بعذر».
+ * 1) غياب يوم كامل → تسجيل معتمد فورًا → الغياب يبقى ويصبح «بعذر».
  * 2) عذر حصص محددة → 2 بعذر و1 بدون عذر.
- * 3) تعديل الحضور بعد الاعتماد → التغطية تلغى والعدادات تتحدث.
+ * 3) تعديل الحضور بعد التسجيل → التغطية تلغى والعدادات تتحدث.
  * 4) يوم ناقص ثم اعتماد الحصة المفقودة → التغطية تتوسع تلقائيًا.
  *
  * صف/فصل فريد لكل تشغيل (noor-7) يعزل العدادات عن بقية بيانات المدرسة.
@@ -162,7 +162,7 @@ test("full-day excuse: absence stays, classification becomes excused", async ({ 
   expect(metrics.excused_full_absence_days).toBe(0);
   expect(metrics.unexcused_absent_periods).toBe(daySeqs.length);
 
-  // الوكيل (لا المدير) هو من ينشئ ويعتمد العذر — سيناريو البند 179
+  // الوكيل يسجل العذر ويُعتمد فورًا — سيناريو البند 179
   await logout(page);
   await login(page, "0550000003", "ثانوية الأندلس");
   await page.goto("/excuses");
@@ -174,16 +174,13 @@ test("full-day excuse: absence stays, classification becomes excused", async ({ 
   await page.getByTestId("excuse-to").fill(seeded.date);
   await page.getByTestId("save-excuse").click();
 
-  // المعاينة تعرض عدد الحصص المغطاة ثم الاعتماد
   await expect(page.getByTestId("excuse-detail")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("preview-excuse").click();
-  await expect(page.getByTestId("excuse-preview")).toContainText(
-    `${daySeqs.length} حصة غياب سيتحول تصنيفها`,
-  );
-  await page.getByTestId("confirm-approve").click();
   await expect(page.getByTestId("excuse-detail")).toContainText("معتمد", {
     timeout: 15_000,
   });
+  await expect(page.getByTestId("excuse-detail")).toContainText(
+    `الحصص المغطاة فعليًا: ${daySeqs.length}`,
+  );
 
   // سجل الحضور الخام لم يتغير: كل الحصص ما زالت ABSENT
   const detail = await api<{ periods: { status: string; excused: boolean | null }[] }>(
@@ -238,12 +235,10 @@ test("period-specific excuse: 2 excused, 1 unexcused", async ({ page }) => {
   await page.getByTestId("save-excuse").click();
 
   await expect(page.getByTestId("excuse-detail")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("preview-excuse").click();
-  await expect(page.getByTestId("excuse-preview")).toContainText("2 حصة غياب");
-  await page.getByTestId("confirm-approve").click();
   await expect(page.getByTestId("excuse-detail")).toContainText("معتمد", {
     timeout: 15_000,
   });
+  await expect(page.getByTestId("excuse-detail")).toContainText("الحصص المغطاة فعليًا: 2");
 
   const metrics = await profileMetrics(page, nasserId);
   expect(metrics.absent_periods).toBe(3);
@@ -330,7 +325,7 @@ test("incomplete day then late submission expands coverage automatically", async
     { cwd: PROJECT_ROOT, encoding: "utf-8" },
   );
 
-  // عذر يوم كامل: المعاينة تعلن نقص البيانات ثم الاعتماد يغطي الموجود فقط
+  // عذر يوم كامل: التسجيل يغطي الحصص الموجودة، ثم تُضاف الناقصة عند اعتمادها
   await page.goto("/excuses");
   await expect(page.getByTestId("excuse-kpis")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("new-excuse").click();
@@ -341,12 +336,12 @@ test("incomplete day then late submission expands coverage automatically", async
   await page.getByTestId("save-excuse").click();
 
   await expect(page.getByTestId("excuse-detail")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("preview-excuse").click();
-  await expect(page.getByTestId("excuse-preview")).toContainText("بيانات اليوم غير مكتملة");
-  await page.getByTestId("confirm-approve").click();
   await expect(page.getByTestId("excuse-detail")).toContainText("معتمد", {
     timeout: 15_000,
   });
+  await expect(page.getByTestId("excuse-detail")).toContainText(
+    `الحصص المغطاة فعليًا: ${daySeqs.length - 1}`,
+  );
 
   const partial = await profileMetrics(page, nasserId);
   expect(partial.excused_absent_periods).toBe(daySeqs.length - 1);

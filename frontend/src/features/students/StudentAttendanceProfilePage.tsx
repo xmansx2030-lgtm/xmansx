@@ -390,6 +390,9 @@ export function StudentAttendanceProfilePage() {
                 setQuickExcuse(null);
                 setSelectedExcuse(excuseId);
                 excuses.refetch();
+                profile.refetch();
+                days.refetch();
+                dayDetail.refetch();
               }}
               onCancel={() => setQuickExcuse(null)}
             />

@@ -1,5 +1,11 @@
 # أعذار الغياب والتصنيف الإداري (المرحلة 10)
 
+> السياسة الحالية: إنشاء العذر من الواجهة أو `POST /api/v1/excuses/` يعتمد العذر
+> فورًا. يجوز تحديد أيام مستقبلية ضمن عام دراسي مسجل وقيد الطالب الساري. إذا سُجل
+> غياب في أي يوم مستهدف لاحقًا، تنشئ مواءمة الحضور تغطيته تلقائيًا. بقيت إجراءات
+> المعاينة والاعتماد والرفض فقط لمعالجة أعذار `PENDING` القديمة؛ الإنشاء الجديد لا
+> ينتج هذه الحالة.
+
 > تحديث المرحلة 11: `count_unexcused_full_absence_days` وأخواتها صارت **المصدر
 > الوحيد** لمقياس إنذارات الغياب (عبر `UNEXCUSED_FULL_DAY_FILTER` المستخرج هنا)،
 > وأضيف لها معامل اختياري `academic_year` (سلوكها الافتراضي بلا تغيير). اعتماد عذر
@@ -10,7 +16,7 @@
 | الطبقة | المصدر | يتغير بـ |
 |---|---|---|
 | **الحقيقة التشغيلية** — هل حضر الطالب؟ | `AttendanceMark.status` = `ABSENT` | التحضير وتصحيحه فقط |
-| **التصنيف الإداري** — بعذر أم بدون عذر؟ | `AbsenceExcuseCoverage` النشطة لعذر `APPROVED` | اعتماد/إلغاء العذر |
+| **التصنيف الإداري** — بعذر أم بدون عذر؟ | `AbsenceExcuseCoverage` النشطة لعذر `APPROVED` | تسجيل/إلغاء العذر ومواءمة الحضور |
 
 اعتماد العذر **لا يعدل `AttendanceMark` إطلاقًا**: لا يوجد ولن يوجد
 `AttendanceMarkStatus.EXCUSED`. الطالب الذي غاب يبقى غائبًا في السجل إلى الأبد؛
@@ -27,8 +33,9 @@
 بكل إجراء ومتى (`recorded/approved/rejected/cancelled_by_membership` وتواريخها
 وأسباب الرفض/الإلغاء).
 
-- **الحالات:** `PENDING` → `APPROVED` | `REJECTED`، و`APPROVED` → `CANCELLED`.
-  القيم إنجليزية في قاعدة البيانات والعربية للعرض فقط.
+- **الحالات:** الإنشاء الجديد يبدأ `APPROVED`، ويمكن إلغاؤه إلى `CANCELLED`.
+  تبقى `PENDING` و`REJECTED` للسجلات القديمة. القيم إنجليزية في قاعدة البيانات
+  والعربية للعرض فقط.
 - **أنواع الأعذار:** `MEDICAL_REPORT` (تقرير طبي)، `MEDICAL_APPOINTMENT` (موعد
   طبي)، `OFFICIAL` (عذر رسمي)، `FAMILY` (ظرف أسري)، `OTHER` (أخرى). لا تُخزَّن
   تشخيصات صحية تفصيلية كحقول منظمة؛ `notes` نص حر اختياري.
@@ -40,10 +47,13 @@
 **اليوم كامل**. عذر عدة أيام = عدة صفوف Target تولّدها الخدمة بعد التحقق.
 
 قيود التحقق:
-- **لا تواريخ مستقبلية** في MVP (`EXCUSE_FUTURE_DATE_NOT_ALLOWED`) — العذر يغطي
-  غيابًا وقع فعلًا؛ الإجازة المسبقة ميزة منفصلة لاحقًا.
+- **الماضي والمستقبل مسموحان** إذا كان كل تاريخ ضمن عام دراسي مسجل وقيد الطالب
+  ساريًا فيه. يقبل التاريخ السابق للقيد عند وجود غياب مُسجل للطالب في ذلك اليوم
+  والعام نفسه، لاستيعاب الاستيراد المتأخر. المستقبل يتطلب قيدًا ساريًا في تاريخه.
+  لا تقبل التواريخ خارج الأعوام. الحد 60 هدفًا لكل عذر.
 - **لا جمع بين يوم كامل وحصص لنفس التاريخ** داخل عذر واحد (اليوم الكامل يبتلعها).
-- الحصة المستهدفة يجب أن تكون موجودة في جدول ذلك اليوم.
+- الحصة المستهدفة يجب أن تكون في لقطة جدول اليوم، أو في جلسات اليوم التاريخية.
+  لا تُنشأ لقطة يوم قديم من جدول اليوم الحالي لمجرد إدخال عذر.
 - قيد DB `uniq_excuse_target` مع `nulls_distinct=False` يمنع تكرار هدف اليوم الكامل.
 
 ### `AbsenceExcuseCoverage` — التغطية الفعلية
@@ -57,8 +67,7 @@ attendance_date, period_sequence_snapshot, status)`.
   والجلسة يجب أن تكون `SUBMITTED` (المسودة `IN_PROGRESS` ليست غيابًا رسميًا).
 - **قيد DB جزئي** `uniq_active_coverage_per_absence` على
   `(attendance_session, student) WHERE status='ACTIVE'` — هذا القيد وحده يضمن:
-  استحالة تغطية غياب واحد بعذرين معتمدين، وIdempotency الاعتماد المزدوج،
-  وسلامة الاعتماد المتزامن (لا اعتماد على الواجهة).
+  استحالة تغطية غياب واحد بعذرين معتمدين وسلامة المواءمة المتزامنة.
 
 ### `AbsenceExcuseAttachment`
 `file`, `original_filename`, `mime_type`, `size_bytes`, `checksum` (SHA-256),
@@ -79,12 +88,24 @@ get_effective_absence_classification(student=..., attendance_session=...)
 (مصدر حقيقة واحد). الاستثناء الوحيد هو عدادات `DailyAttendanceSummary` أدناه،
 وهي عدادات مشتقة يعاد حسابها آليًا لا مصدر حقيقة مستقل.
 
-## المعاينة قبل الاعتماد
+## تسجيل العذر المعتمد مباشرة
+
+يحفظ الإنشاء العذر والأهداف وحالة `APPROVED` وهوية المسجل والمعتمد في معاملة
+واحدة، ثم يوائم الغياب المسجل حاليًا ويعيد حساب ملخصاته. لا يغيّر العذر وحده
+سجل الحضور. عند اعتماد جلسة في تاريخ مستقبلي مستهدف، تُضاف تغطية `ACTIVE` لكل
+حصة `ABSENT` ضمن النطاق، ويصبح تصنيفها «بعذر»؛ الحضور لا يتغير.
+
+إذا تداخل عذران معتمدان على الحصة نفسها، تبقى تغطية واحدة للعذر الأقدم.
+إلغاء الأقدم يسمح للمواءمة بنقل التغطية إلى العذر الآخر.
+الإنشاء الجديد يرفض هدفًا يتداخل مع عذر معتمد قائم للطالب نفسه، مع قفل صف الطالب
+لمنع السباق بين طلبين متزامنين؛ تظل الأعذار القديمة المتداخلة قابلة للقراءة.
+
+## معاينة واعتماد الأعذار القديمة المعلقة
 
 `POST /api/v1/excuses/{id}/preview/` يحل الأهداف مقابل الحالة الفعلية ويعيد لكل
 يوم: عدد حصص النطاق، المعتمدة، الناقصة، الغياب، الحضور، وهل اليوم مكتمل.
 
-مثال ما يراه الوكيل:
+مثال معاينة عذر `PENDING` قديم:
 
 ```
 17 أغسطس: 7 حصص غياب سيتحول تصنيفها إلى «بعذر»
@@ -107,7 +128,7 @@ get_effective_absence_classification(student=..., attendance_session=...)
 عذر آخر، أو تغيير الأهداف — يُرفض بـ`EXCUSE_PREVIEW_STALE`. لا اعتماد بصمت لأثر
 مختلف عما شاهده المستخدم.
 
-## الاعتماد والرفض والإلغاء
+## الاعتماد القديم والرفض والإلغاء
 
 `approve_absence_excuse` (‏`excuses/services/coverage.py::approve_excuse`) داخل
 `transaction.atomic()` مع `select_for_update()` على العذر:
@@ -120,14 +141,14 @@ get_effective_absence_classification(student=..., attendance_session=...)
 5. إنشاء التغطيات `ACTIVE` دفعة واحدة، ثم `status = APPROVED`.
 6. Audit، ثم إعادة حساب ملخصات الأيام المتأثرة **بعد** الـcommit.
 
-- **الرفض:** `PENDING → REJECTED` مع سبب. لا أثر على أي غياب — كله يبقى
+- **الرفض القديم:** `PENDING → REJECTED` مع سبب. لا أثر على أي غياب — كله يبقى
   `UNEXCUSED` ما لم يوجد عذر معتمد آخر.
 - **الإلغاء:** `APPROVED → CANCELLED` مع سبب: كل التغطيات النشطة تصبح `VOIDED`
   بسبب `EXCUSE_CANCELLED`، ثم **تُعاد المواءمة** فورًا: إن كان عذر معتمد آخر
   يستهدف نفس الغياب يلتقطه مباشرة، وإلا يعود `UNEXCUSED`. (بدون هذه المواءمة كان
   التصنيف يبقى «بدون عذر» حتى يقلبه تعديل حضور عابر لاحقًا — أي أن النتيجة تعتمد
   على ترتيب الإجراءات، وهو ما تمنعه القاعدة.)
-- التداخل بين أعذار **معلقة** مسموح؛ يُحسم عند الاعتماد ويظهر تحذيرًا في المعاينة.
+- التداخل بين أعذار **معلقة قديمة** مسموح؛ يُحسم عند اعتمادها.
 
 ## المواءمة مع تعديلات الحضور (Reconciliation)
 
@@ -214,7 +235,7 @@ excused_absent_periods + unexcused_absent_periods = absent_periods   # invariant
 
 ## الصلاحيات
 
-| الدور | عرض | إنشاء/تعديل | اعتماد/رفض/إلغاء | رفع مرفق | تنزيل مرفق |
+| الدور | عرض | إنشاء معتمد/تعديل سجل قديم | اعتماد/رفض قديم/إلغاء | رفع مرفق | تنزيل مرفق |
 |---|---|---|---|---|---|
 | `SCHOOL_MANAGER` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `VICE_PRINCIPAL` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -222,23 +243,23 @@ excused_absent_periods + unexcused_absent_periods = absent_periods   # invariant
 | `TEACHER` | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 المرشد يرى بيانات العذر ضمن سياسة ملف الطالب لكن **لا يفتح المرفقات** (وثائق طبية
-— أقل امتياز ممكن). فصل المسجل عن المعتمد ممكن مستقبلًا دون تغيير النماذج.
+— أقل امتياز ممكن). في الإنشاء الجديد المسجل هو المعتمد نفسه.
 
 ## نقاط النهاية
 
 ```
 GET   /api/v1/excuses/                                   قائمة + فلاتر
-POST  /api/v1/excuses/                                   إنشاء (PENDING)
+POST  /api/v1/excuses/                                   إنشاء معتمد فورًا
 GET   /api/v1/excuses/kpis/                              مؤشرات الصفحة
 GET   /api/v1/excuses/{id}/                              تفاصيل
-PATCH /api/v1/excuses/{id}/                              تعديل (PENDING فقط)
-POST  /api/v1/excuses/{id}/preview/                      معاينة الأثر + hash
-POST  /api/v1/excuses/{id}/approve/                      اعتماد (يتطلب hash)
-POST  /api/v1/excuses/{id}/reject/                       رفض (يتطلب سببًا)
+PATCH /api/v1/excuses/{id}/                              تعديل (PENDING قديم فقط)
+POST  /api/v1/excuses/{id}/preview/                      معاينة عذر قديم معلق
+POST  /api/v1/excuses/{id}/approve/                      اعتماد عذر قديم معلق
+POST  /api/v1/excuses/{id}/reject/                       رفض عذر قديم معلق
 POST  /api/v1/excuses/{id}/cancel/                       إلغاء (يتطلب سببًا)
 POST  /api/v1/excuses/{id}/attachments/                  رفع مرفق
 GET   /api/v1/excuses/{id}/attachments/{attachment_id}/  تنزيل مصرح
-DELETE /api/v1/excuses/{id}/attachments/{attachment_id}/ حذف (PENDING فقط)
+DELETE /api/v1/excuses/{id}/attachments/{attachment_id}/ حذف (APPROVED أو PENDING)
 ```
 
 الفلاتر: `status`, `reason_type`, `student`, `grade`, `section`, `from_date`,
@@ -256,7 +277,10 @@ DELETE /api/v1/excuses/{id}/attachments/{attachment_id}/ حذف (PENDING فقط)
 | `EXCUSE_NOT_FOUND` | 404 | غير موجود أو من مدرسة أخرى |
 | `EXCUSE_ALREADY_APPROVED` / `_REJECTED` / `_CANCELLED` | 409 | حالة العذر لا تسمح بالعملية |
 | `EXCUSE_INVALID_TARGET` | 400 | هدف مكرر/متعارض/حصة غير موجودة |
-| `EXCUSE_FUTURE_DATE_NOT_ALLOWED` | 400 | تاريخ مستقبلي |
+| `EXCUSE_DATE_OUTSIDE_ACADEMIC_YEAR` | 400 | التاريخ خارج الأعوام الدراسية المسجلة |
+| `EXCUSE_STUDENT_NOT_ENROLLED_ON_DATE` | 400 | لا قيد ساري للطالب في التاريخ |
+| `EXCUSE_TARGET_ALREADY_COVERED` | 409 | عذر معتمد آخر يستهدف اليوم أو الحصة |
+| `EXCUSE_FUTURE_DATE_NOT_ALLOWED` | 400 | مسار إنشاء قديم لا يدعم المستقبل |
 | `EXCUSE_NO_ABSENCE_FOUND` | 409 | لا غياب مسجل ضمن النطاق |
 | `ABSENCE_ALREADY_EXCUSED` | 409 | الغياب مغطى بعذر معتمد آخر |
 | `EXCUSE_PREVIEW_STALE` | 409 | تغير سجل الحضور منذ المعاينة |
@@ -268,7 +292,8 @@ DELETE /api/v1/excuses/{id}/attachments/{attachment_id}/ حذف (PENDING فقط)
 `EXCUSE_CREATED`, `EXCUSE_UPDATED`, `EXCUSE_APPROVED`, `EXCUSE_REJECTED`,
 `EXCUSE_CANCELLED`, `EXCUSE_ATTACHMENT_UPLOADED`, `EXCUSE_ATTACHMENT_REMOVED`.
 
-الـmetadata أعداد ومعرفات فقط (`coverage_count`, `targets`, `size_bytes`) —
+الـmetadata أعداد ومعرفات وعلم الاعتماد التلقائي فقط (`coverage_count`, `targets`,
+`automatic`, `size_bytes`) —
 **ممنوع**: أرقام الهوية، محتوى المستندات الطبية، بايتات المرفقات، أي تفاصيل صحية.
 
 ## الحذف النهائي (Purge)
@@ -305,4 +330,3 @@ count_mixed_full_absence_days(...)
 مختلط كله خطأ ولا يعد الناقص غيابًا كاملًا. اعتماد عذر **بعد** إصدار مستند لا يغير
 المستند: لقطته مجمدة وإعادة طباعته تعيد الملف الأصلي
 ([GENERATED_DOCUMENTS.md](GENERATED_DOCUMENTS.md)).
-

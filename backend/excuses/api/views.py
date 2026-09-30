@@ -151,6 +151,7 @@ class ExcuseListCreateView(SchoolScopedAPIView):
             notes=data["notes"],
             targets=data["targets"],
             request=request,
+            approve_immediately=True,
         )
         return Response(
             serialize_excuse_detail(_get_excuse(request.school, excuse.id, for_detail=True)),
