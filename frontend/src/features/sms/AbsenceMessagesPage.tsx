@@ -22,13 +22,14 @@ const STATUS_LABELS: Record<AbsenceSmsStatus, string> = {
   SENDING: "جارٍ الإرسال",
   ACCEPTED: "قبله المزود",
   FAILED: "فشل الإرسال؛ يمكن إعادة المحاولة",
-  UNKNOWN: "النتيجة غير مؤكدة؛ راجع المزود قبل إعادة الإرسال",
+  UNKNOWN: "لم نتأكد من إرسال الرسالة",
 };
 
 const FAILURE_LABELS: Record<string, string> = {
   QUEUE_UNAVAILABLE: "تعذر جدولة الرسالة؛ يمكن إعادة المحاولة.",
   PRE_SEND_STATE_CHANGED: "تغير الغياب أو رقم ولي الأمر قبل الإرسال؛ حدّث القائمة.",
   CREDENTIAL_UNAVAILABLE: "تعذر قراءة مفتاح المزود؛ راجع إعدادات الربط.",
+  DREAMS_RESPONSE_UNKNOWN: "تحقق من «الرسائل المرسلة» في حساب دريمز قبل إعادة إرسالها؛ فقد تكون أُرسلت بالفعل.",
   DREAMS_110: "اسم المستخدم أو مفتاح دريمز غير صحيح.",
   DREAMS_113: "رصيد دريمز غير كافٍ.",
   DREAMS_124: "عنوان خادم المنصة غير مسموح به لدى دريمز.",

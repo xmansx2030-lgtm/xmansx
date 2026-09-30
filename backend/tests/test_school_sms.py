@@ -527,6 +527,7 @@ def test_new_sms_tables_enforce_postgres_school_scope(make_school):
 @pytest.mark.parametrize(
     ("provider", "response", "reference"),
     [
+        ("DREAMS", "Result: Success", ""),
         ("DREAMS", "Result:123:966500000001", "123"),
         ("MSEGAT", '{"code":"M0000","id":"abc"}', "abc"),
     ],
@@ -542,3 +543,18 @@ def test_provider_accepts_documented_success(provider, response, reference):
             message="test",
         )
     assert result.reference == reference
+
+
+def test_dreams_unrecognized_response_stays_uncertain():
+    with patch("school_sms.providers._post", return_value="Result: unexpected"):
+        with pytest.raises(SmsProviderError) as error:
+            send_sms(
+                provider="DREAMS",
+                username="user",
+                secret="secret",
+                sender="School",
+                mobile="+966500000001",
+                message="test",
+            )
+    assert error.value.code == "DREAMS_RESPONSE_UNKNOWN"
+    assert error.value.ambiguous is True

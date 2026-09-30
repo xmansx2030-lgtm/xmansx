@@ -56,4 +56,44 @@ describe("absence SMS template editor", () => {
     expect(screen.getByText(new RegExp(`${template}أحمد\\d{4}-\\d{2}-\\d{2}`))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "حفظ القالب لجميع الطلاب" })).toBeEnabled();
   });
+
+  it("explains a previously uncertain Dreams response without offering a resend", async () => {
+    mockApi({
+      "/auth/me/": {
+        body: buildMe({
+          active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
+          roles: ["SCHOOL_MANAGER"],
+          memberships: [membership(1, 10, "ثانوية الأندلس", ["SCHOOL_MANAGER"])],
+        }),
+      },
+      "/school/sms/absences/preview/": {
+        body: {
+          ...messagePreview,
+          total: 1,
+          candidate_student_ids: [1],
+          students: [{
+            student_id: 1,
+            full_name: "طالب تجريبي",
+            grade_name: "الثاني الثانوي",
+            section_name: "أ",
+            absence_status: "FULL",
+            submitted_periods: 1,
+            expected_periods: 1,
+            recipient_masked: "***1234",
+            eligibility_reason: null,
+            send_status: "UNKNOWN",
+            send_error: "DREAMS_RESPONSE_UNKNOWN",
+          }],
+        },
+      },
+    });
+
+    renderApp("/attendance/absence-messages");
+
+    expect(await screen.findByText(/لم نتأكد من إرسال الرسالة/)).toHaveTextContent(
+      "تحقق من «الرسائل المرسلة» في حساب دريمز قبل إعادة إرسالها",
+    );
+    expect(screen.queryByText(/DREAMS_RESPONSE_UNKNOWN/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /مراجعة إرسال 0 من 0 محدد/ })).toBeDisabled();
+  });
 });
