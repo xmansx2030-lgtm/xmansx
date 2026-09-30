@@ -1,20 +1,23 @@
 from datetime import date
 
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from attendance.services.periods import school_now
 from common.errors import ApiError
+from common.pagination import DefaultPagination
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
-from school_sms.models import SchoolSmsIntegration, SmsProvider
+from school_sms.models import AbsenceSmsNotice, SchoolSmsIntegration, SmsProvider
 from school_sms.services import (
     absence_preview,
     integration_payload,
     queue_absence_sms,
     save_integration,
 )
+from students.models import Student
 
 
 class IntegrationInputSerializer(serializers.Serializer):
@@ -102,3 +105,30 @@ class AbsenceSmsSendView(SchoolScopedAPIView):
             attendance_date=target_date,
             student_ids=serializer.validated_data["student_ids"], request=request,
         ), status=202)
+
+
+class StudentSmsHistoryView(SchoolScopedAPIView):
+    read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+    def get(self, request: Request, student_id: int) -> Response:
+        get_object_or_404(Student.objects.filter(school=request.school), pk=student_id)
+        notices = AbsenceSmsNotice.objects.filter(
+            school=request.school, student_id=student_id
+        ).order_by("-updated_at", "-id")
+        paginator = DefaultPagination()
+        page = paginator.paginate_queryset(notices, request)
+        return paginator.get_paginated_response([
+            {
+                "id": notice.id,
+                "attendance_date": notice.attendance_date,
+                "provider": notice.provider,
+                "recipient_masked": notice.recipient_masked,
+                "status": notice.status,
+                "message_text": notice.message_text,
+                "requested_at": notice.created_at,
+                "attempted_at": notice.attempted_at,
+                "accepted_at": notice.accepted_at,
+                "attempts": notice.attempts,
+            }
+            for notice in page
+        ])

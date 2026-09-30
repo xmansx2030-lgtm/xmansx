@@ -53,6 +53,8 @@ class AbsenceSmsNotice(TimestampedModel):
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"
     )
+    message_text = models.TextField(blank=True, default="")
+    attempted_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

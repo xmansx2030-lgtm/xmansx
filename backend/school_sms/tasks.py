@@ -87,7 +87,9 @@ def send_absence_notice(notice_id: int) -> str:
         username = integration.username
         sender = integration.sender_name
         notice.status = AbsenceSmsStatus.SENDING
-        notice.save(update_fields=["status", "updated_at"])
+        notice.message_text = message
+        notice.attempted_at = timezone.now()
+        notice.save(update_fields=["status", "message_text", "attempted_at", "updated_at"])
 
     try:
         result = send_sms(
