@@ -1,5 +1,7 @@
 from celery import shared_task
+from django.conf import settings
 from django.core.cache import cache
+from django.core.management import call_command
 from django.utils import timezone
 
 BEAT_HEARTBEAT_CACHE_KEY = "operations:beat-heartbeat"
@@ -19,4 +21,8 @@ def system_heartbeat() -> str:
 def scheduled_database_backup() -> int:
     from operations.backups import create_database_backup
 
-    return create_database_backup().id
+    run = create_database_backup()
+    if settings.BACKUP_REMOTE_ENABLED and settings.BACKUP_KEEP_LATEST_ONLY:
+        call_command("cleanup_backups", "--dry-run", "--latest-only")
+        call_command("cleanup_backups", "--apply", "--latest-only")
+    return run.id

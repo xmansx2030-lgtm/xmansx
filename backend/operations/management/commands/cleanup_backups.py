@@ -15,6 +15,11 @@ class Command(BaseCommand):
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument("--dry-run", action="store_true")
         mode.add_argument("--apply", action="store_true")
+        parser.add_argument(
+            "--latest-only",
+            action="store_true",
+            help="Keep only the newest verified remote database backup.",
+        )
 
     def handle(self, *args, **options):
         runs = list(
@@ -23,7 +28,11 @@ class Command(BaseCommand):
                 status=BackupStatus.SUCCEEDED,
             ).exclude(storage_reference="")
         )
-        keep = retained_backup_ids(runs)
+        if options["latest_only"]:
+            runs = [run for run in runs if not run.storage_reference.startswith("local:")]
+            keep = {max(runs, key=lambda run: run.started_at).id} if runs else set()
+        else:
+            keep = retained_backup_ids(runs)
         candidates = [run for run in runs if run.id not in keep]
         if options["dry_run"]:
             self.stdout.write(f"dry-run candidates={len(candidates)} kept={len(keep)}")

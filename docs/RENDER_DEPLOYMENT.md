@@ -44,6 +44,8 @@ GET https://xmansx-web.onrender.com/api/v1/readiness/
 
 التهيئة الافتراضية تشغّل نسخة قاعدة بيانات محلية يومية على القرص الدائم، بينما
 ينشئ Render لقطات دورية للقرص. هذه بداية تشغيلية وليست نسخة خارج مزود الخدمة.
-للتعافي من تعطل مزود كامل يجب إنشاء حاويتي R2 منفصلتين (ملفات خاصة ونسخ قاعدة
-البيانات)، ثم ضبط متغيرات R2 وتفعيل `BACKUP_REMOTE_ENABLED` و
-`BACKUP_REQUIRE_REMOTE` وفق `docs/BACKUP_POLICY.md`.
+لحفظ قاعدة البيانات خارج Render يمكن إنشاء حاوية R2 خاصة بالنسخ وحدها، ثم ضبط
+`R2_BACKUP_ENABLED=true` و`BACKUP_REMOTE_ENABLED=true` و`BACKUP_REQUIRE_REMOTE=true`
+ومعلومات اتصال R2. يبقى `R2_ENABLED=false` إذا كانت المرفقات لا تزال على قرص Render.
+في هذا النشر، `BACKUP_KEEP_LATEST_ONLY=true` يحذف النسخ البعيدة القديمة بعد نجاح رفع
+النسخة الجديدة وقراءتها للتحقق من بصمتها. إذا فشل النسخ أو الرفع فلا يحدث حذف.

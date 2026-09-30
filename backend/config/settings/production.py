@@ -37,6 +37,7 @@ SENTRY_ENVIRONMENT = env_str("SENTRY_ENVIRONMENT", "production")
 BACKUP_ENVIRONMENT = env_str("BACKUP_ENVIRONMENT", "production")
 BACKUP_REQUIRE_REMOTE = env_bool("BACKUP_REQUIRE_REMOTE", True)
 R2_ENABLED = env_bool("R2_ENABLED", False)
+R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", R2_ENABLED)
 
 # مفاتيح تشفير المعرفات — إلزامية في الإنتاج (ADR-009)
 FIELD_ENCRYPTION_KEYS = env_list("FIELD_ENCRYPTION_KEYS")
@@ -62,20 +63,26 @@ def _reject_insecure_production_values() -> None:
             Fernet(key.encode("ascii"))
     except (ValueError, TypeError) as exc:
         raise ImproperlyConfigured("FIELD_ENCRYPTION_KEYS contains an invalid Fernet key") from exc
-    if R2_ENABLED:
+    if R2_ENABLED or R2_BACKUP_ENABLED:
         required_r2_values = {
             "R2_ENDPOINT_URL": env_str("R2_ENDPOINT_URL", ""),
             "R2_ACCESS_KEY_ID": env_str("R2_ACCESS_KEY_ID", ""),
             "R2_SECRET_ACCESS_KEY": env_str("R2_SECRET_ACCESS_KEY", ""),
-            "R2_PRIVATE_BUCKET_NAME": env_str("R2_PRIVATE_BUCKET_NAME", ""),
-            "R2_BACKUP_BUCKET_NAME": env_str("R2_BACKUP_BUCKET_NAME", ""),
         }
+        if R2_ENABLED:
+            required_r2_values["R2_PRIVATE_BUCKET_NAME"] = env_str(
+                "R2_PRIVATE_BUCKET_NAME", ""
+            )
+        if R2_BACKUP_ENABLED:
+            required_r2_values["R2_BACKUP_BUCKET_NAME"] = env_str(
+                "R2_BACKUP_BUCKET_NAME", ""
+            )
         missing_r2_values = [name for name, value in required_r2_values.items() if not value]
         if missing_r2_values:
             raise ImproperlyConfigured(
                 "Missing required R2 settings: " + ", ".join(sorted(missing_r2_values))
             )
-        if (
+        if R2_ENABLED and R2_BACKUP_ENABLED and (
             required_r2_values["R2_PRIVATE_BUCKET_NAME"]
             == required_r2_values["R2_BACKUP_BUCKET_NAME"]
         ):
