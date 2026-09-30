@@ -217,7 +217,7 @@ test("absence warnings: level 1 then level 2, excuse voids unsupported level", a
   await expect(page.getByTestId("issue-result")).toContainText("الإنذار الثاني");
 
   // (3) عذر ليومين → القيمة الحالية 3 ويلغى إنذار المستوى الثاني (حده 5)
-  const excuse = await api<{ id: number }>(page, "/excuses/", {
+  const excuse = await api<{ id: number; status: string }>(page, "/excuses/", {
     method: "POST",
     body: {
       student_id: faisalId,
@@ -227,15 +227,7 @@ test("absence warnings: level 1 then level 2, excuse voids unsupported level", a
     },
   });
   expect(excuse.status).toBe(201);
-  const preview = await api<{ preview_hash: string }>(
-    page, `/excuses/${excuse.body.id}/preview/`, { method: "POST" },
-  );
-  expect(preview.status).toBe(200);
-  const approved = await api(page, `/excuses/${excuse.body.id}/approve/`, {
-    method: "POST",
-    body: { preview_hash: preview.body.preview_hash },
-  });
-  expect(approved.status).toBe(200);
+  expect(excuse.body.status).toBe("APPROVED");
 
   await page.goto(`/students/${faisalId}/attendance`);
   await page.getByRole("button", { name: "الإنذارات" }).click();

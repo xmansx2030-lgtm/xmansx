@@ -327,7 +327,7 @@ test("snapshot stays fixed while current metrics improve", async ({ page }) => {
   expect(atReferral).toBeGreaterThan(0);
 
   // اعتماد عذر يوم كامل يخفض «بدون عذر» الحالية دون لمس اللقطة
-  const excuse = await api<{ id: number }>(page, "/excuses/", {
+  const excuse = await api<{ id: number; status: string }>(page, "/excuses/", {
     method: "POST",
     body: {
       student_id: studentId,
@@ -337,15 +337,7 @@ test("snapshot stays fixed while current metrics improve", async ({ page }) => {
     },
   });
   expect(excuse.status).toBe(201);
-  const preview = await api<{ preview_hash: string }>(
-    page,
-    `/excuses/${excuse.body.id}/preview/`,
-    { method: "POST" },
-  );
-  await api(page, `/excuses/${excuse.body.id}/approve/`, {
-    method: "POST",
-    body: { preview_hash: preview.body.preview_hash },
-  });
+  expect(excuse.body.status).toBe("APPROVED");
 
   const detail = await api<{
     snapshot_at_referral: { unexcused_full_absence_days: number };
