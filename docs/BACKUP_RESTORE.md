@@ -16,6 +16,27 @@ remote repository. A successful database command prints only run ID, size, check
 The dump and adjacent JSON manifest are staged under `DATABASE_BACKUP_ROOT`; production then saves
 both through the private `backups` Django storage alias.
 
+## Retrieve from R2 on a Replacement Server
+
+Use an R2 key with read access to the private backup bucket. Supply it to the AWS CLI as
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` through the replacement host's secret manager.
+For the production EU bucket, list the stored dump and adjacent manifest, then download the
+newest matching pair:
+
+```bash
+R2_ENDPOINT=https://640f52af1c8c648558148768c0189d70.eu.r2.cloudflarestorage.com
+R2_BUCKET=xmansx-production-database-backups
+aws --endpoint-url "$R2_ENDPOINT" s3 ls "s3://$R2_BUCKET/database-backups/database/" --recursive
+aws --endpoint-url "$R2_ENDPOINT" s3 cp "s3://$R2_BUCKET/database-backups/database/YYYY/MM/BACKUP.dump" /restore/backup.dump
+aws --endpoint-url "$R2_ENDPOINT" s3 cp "s3://$R2_BUCKET/database-backups/database/YYYY/MM/BACKUP.json" /restore/backup.json
+```
+
+Choose the two objects with the same stem; replace `YYYY/MM/BACKUP` with their actual path and
+name. Verify the manifest checksum and use the clean-database restore flow below. Preserve the
+application's secret and field-encryption keys separately: the database dump does not contain
+Render environment variables. Database backups also do not include uploaded media or private
+documents; copy those objects separately when moving the whole project.
+
 ## Restore to a Clean Database
 
 1. Identify the latest successful `BackupRun`; confirm repository object size and manifest.
