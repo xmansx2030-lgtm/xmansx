@@ -1,5 +1,6 @@
 """Regression coverage for school-owned absence SMS and uncertain delivery."""
 
+from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from tests.attendance_helpers import make_students, setup_attendance_env
 INTEGRATION_URL = "/api/v1/school/sms/integration/"
 PREVIEW_URL = "/api/v1/school/sms/absences/preview/"
 SEND_URL = "/api/v1/school/sms/absences/send/"
+HISTORY_URL = "/api/v1/school/sms/students/{student_id}/history/"
 
 
 def _integration(client, *, provider="DREAMS", key="school-only-key"):
@@ -61,6 +63,52 @@ def _absence(
         calculated_at=timezone.now(),
     )
     return student, summary, day
+
+
+@pytest.mark.django_db
+def test_student_sms_history_shows_attempt_and_is_school_and_role_scoped(role_client, make_school):
+    school_a = make_school("مدرسة أ")
+    school_b = make_school("مدرسة ب")
+    manager_a, _, _ = role_client(["SCHOOL_MANAGER"], school_a)
+    vice_a, _, _ = role_client(["VICE_PRINCIPAL"], school_a)
+    counselor_a, _, _ = role_client(["COUNSELOR"], school_a)
+    manager_b, _, _ = role_client(["SCHOOL_MANAGER"], school_b)
+    student, _, day = _absence(school_a)
+    assert _integration(manager_a).status_code == 200
+
+    with patch("school_sms.tasks.send_sms", return_value=SmsProviderResult(reference="42")):
+        response = manager_a.post(
+            SEND_URL,
+            {"date": day.isoformat(), "student_ids": [student.id]},
+            content_type="application/json",
+        )
+    assert response.status_code == 202
+    url = HISTORY_URL.format(student_id=student.id)
+    history = manager_a.get(url)
+    assert history.status_code == 200
+    assert history.json()["count"] == 1
+    sent = history.json()["results"][0]
+    assert sent["status"] == AbsenceSmsStatus.ACCEPTED
+    assert sent["message_text"].startswith("ولي الأمر")
+    assert sent["requested_at"]
+    assert sent["attempted_at"]
+    assert sent["accepted_at"]
+    assert sent["recipient_masked"] != student.guardian_mobile
+    assert vice_a.get(url).status_code == 200
+    assert counselor_a.get(url).status_code == 403
+    assert manager_b.get(url).status_code == 404
+
+    old = AbsenceSmsNotice.objects.create(
+        school=school_a, student=student, attendance_date=day - timedelta(days=1),
+        absence_status=DailyAbsenceStatus.FULL, provider="DREAMS",
+        recipient_masked=sent["recipient_masked"], recipient_hash="a" * 64,
+        status=AbsenceSmsStatus.UNKNOWN,
+    )
+    old_history = manager_a.get(url).json()["results"]
+    old_row = next(row for row in old_history if row["id"] == old.id)
+    assert old_row["message_text"] == ""
+    assert old_row["attempted_at"] is None
+    assert old_row["accepted_at"] is None
 
 
 @pytest.mark.django_db

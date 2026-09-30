@@ -52,6 +52,49 @@ describe("student attendance profile (Phase 9)", () => {
     document.cookie = "csrftoken=test-token";
   });
 
+  it("shows the guardian SMS history with attempt time and an honest provider status", async () => {
+    mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/attendance-profile/": { body: PROFILE },
+      "/settings/": { body: { timezone: "Asia/Riyadh" } },
+      "/sms/students/5/history/": {
+        body: {
+          count: 2, next: null, previous: null,
+          results: [
+            {
+              id: 11, attendance_date: "2026-08-18", provider: "DREAMS",
+              recipient_masked: "05******01", status: "ACCEPTED",
+              message_text: "ولي الأمر، تم تسجيل غياب محمد.",
+              requested_at: "2026-08-18T05:00:00Z",
+              attempted_at: "2026-08-18T05:01:00Z",
+              accepted_at: "2026-08-18T05:02:00Z", attempts: 1,
+            },
+            {
+              id: 12, attendance_date: "2026-08-17", provider: "DREAMS",
+              recipient_masked: "05******01", status: "UNKNOWN",
+              message_text: "", requested_at: "2026-08-17T05:00:00Z",
+              attempted_at: null, accepted_at: null, attempts: 1,
+            },
+          ],
+        },
+      },
+    });
+    renderApp("/students/5/attendance?date=2026-08-19");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "محمد أحمد" });
+    await user.click(screen.getByRole("button", { name: "رسائل ولي الأمر" }));
+
+    const history = await screen.findByTestId("student-sms-history");
+    expect(within(history).getByText("ولي الأمر، تم تسجيل غياب محمد.")).toBeInTheDocument();
+    expect(history).toHaveTextContent("إشعار غياب يوم 2026-08-18");
+    expect(history).toHaveTextContent("آخر محاولة إرسال:");
+    expect(history).toHaveTextContent("قبول المزود:");
+    expect(history).toHaveTextContent("قبله مزود الرسائل");
+    expect(history).toHaveTextContent("نتيجة الإرسال غير مؤكدة");
+    expect(history).toHaveTextContent("لا يوجد نص محفوظ لهذه الرسالة");
+    expect(history).toHaveTextContent("قبول المزود للرسالة لا يؤكد وصولها");
+  });
+
   it("renders header, metrics, and morning lateness", async () => {
     mockApi({
       "/auth/me/": { body: managerMe() },

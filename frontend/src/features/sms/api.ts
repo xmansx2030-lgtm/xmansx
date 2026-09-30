@@ -48,6 +48,26 @@ export interface AbsenceSmsPreview {
   students: AbsenceSmsCandidate[];
 }
 
+export interface StudentSmsHistoryItem {
+  id: number;
+  attendance_date: string;
+  provider: SmsProvider;
+  recipient_masked: string;
+  status: AbsenceSmsStatus;
+  message_text: string;
+  requested_at: string;
+  attempted_at: string | null;
+  accepted_at: string | null;
+  attempts: number;
+}
+
+export interface StudentSmsHistory {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: StudentSmsHistoryItem[];
+}
+
 export const PROVIDER_LABELS: Record<SmsProvider, string> = {
   DREAMS: "دريمز",
   MSEGAT: "مسجات",
@@ -74,4 +94,10 @@ export const sendAbsenceSms = (date: string, studentIds: number[]) =>
   apiRequest<{ queued: number; skipped: number; queue_failed: number }>(
     "/school/sms/absences/send/",
     { method: "POST", body: { date, student_ids: studentIds } },
+  );
+
+export const getStudentSmsHistory = (studentId: number, page: number, signal?: AbortSignal) =>
+  apiRequest<StudentSmsHistory>(
+    `/school/sms/students/${studentId}/history/?page=${page}`,
+    { signal },
   );

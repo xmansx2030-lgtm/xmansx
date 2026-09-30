@@ -19,6 +19,7 @@ import { StudentDocumentsTab } from "@/features/documents/StudentDocumentsTab";
 import { StudentLeavesTab } from "@/features/leaves/StudentLeavesTab";
 import { StudentReferralsTab } from "@/features/referrals/StudentReferralsTab";
 import { StudentWarningsTab } from "@/features/warnings/StudentWarningsTab";
+import { StudentSmsHistoryTab } from "@/features/sms/StudentSmsHistoryTab";
 import {
   correctStudentAttendance,
   getAttendanceChanges,
@@ -64,7 +65,8 @@ type Tab =
   | "documents"
   | "referrals"
   | "counseling"
-  | "changes";
+  | "changes"
+  | "messages";
 
 const isoDate = localIsoDate;
 
@@ -240,6 +242,7 @@ export function StudentAttendanceProfilePage() {
     ["documents", "المستندات"],
     ["referrals", "الإحالات"],
     ["counseling", "الإرشاد والمتابعة"],
+    ...(canSeeChanges ? [["messages", "رسائل ولي الأمر"] as [Tab, string]] : []),
     ...(canSeeChanges ? [["changes", "سجل التعديلات"] as [Tab, string]] : []),
   ];
 
@@ -370,6 +373,7 @@ export function StudentAttendanceProfilePage() {
         <StudentReferralsTab studentId={id} studentName={student.full_name} />
       )}
       {tab === "counseling" && <StudentCounselingTab studentId={id} />}
+      {tab === "messages" && canSeeChanges && <StudentSmsHistoryTab studentId={id} />}
       {tab === "excuses" && (
         <div className="space-y-4">
           {canManageExcuses && !quickExcuse && (

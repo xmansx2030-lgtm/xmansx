@@ -246,6 +246,7 @@ def queue_absence_sms(*, school, actor, attendance_date: date,
                 notice.status = AbsenceSmsStatus.QUEUED
                 notice.failure_code = ""
                 notice.provider_reference = ""
+                notice.accepted_at = None
                 notice.attempts += 1
                 notice.save()
             queued.append(notice.id)
