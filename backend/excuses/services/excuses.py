@@ -57,6 +57,11 @@ def _validate_targets(
     enrollments = list(StudentEnrollment.objects.filter(
         school=school, student=student, academic_year__in=years,
     ))
+    recorded_absences = set(AttendanceSession.objects.filter(
+        school=school, attendance_date__in=dates,
+        status=AttendanceSessionStatus.SUBMITTED,
+        marks__student=student, marks__status=AttendanceMarkStatus.ABSENT,
+    ).values_list("attendance_date", "academic_year_id"))
     contexts = {
         context.attendance_date: context
         for context in AttendanceDayContext.objects.filter(school=school, attendance_date__in=dates)
@@ -76,11 +81,16 @@ def _validate_targets(
                 "تاريخ العذر خارج الأعوام الدراسية المسجلة للمدرسة.",
                 details={"attendance_date": day.isoformat()},
             )
-        if not any(
+        enrollment_covers_day = any(
             enrollment.academic_year_id == year.id
             and enrollment.enrolled_at <= day
             and (enrollment.ended_at is None or enrollment.ended_at > day)
             for enrollment in enrollments
+        )
+        # قد تُستورد بيانات الطالب بعد تحضير يوم سابق. السجل الفعلي للغياب
+        # يثبت أحقيته بالعذر لذلك اليوم، مع بقاء المستقبل مقيدًا بمدة القيد.
+        if not enrollment_covers_day and not (
+            day <= today and (day, year.id) in recorded_absences
         ):
             raise ApiError(
                 "EXCUSE_STUDENT_NOT_ENROLLED_ON_DATE",

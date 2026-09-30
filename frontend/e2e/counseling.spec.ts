@@ -333,8 +333,8 @@ test("opening snapshot stays frozen while current metrics drop after an excuse",
 }) => {
   const studentId = studentIds[caseStudent];
 
-  await login(page, "0550000003", "ثانوية الأندلس"); // الوكيل يعتمد العذر
-  const excuse = await api<{ id: number }>(page, "/excuses/", {
+  await login(page, "0550000003", "ثانوية الأندلس"); // الوكيل يسجل العذر المعتمد فورًا
+  const excuse = await api<{ id: number; status: string }>(page, "/excuses/", {
     method: "POST",
     body: {
       student_id: studentId,
@@ -344,16 +344,7 @@ test("opening snapshot stays frozen while current metrics drop after an excuse",
     },
   });
   expect(excuse.status).toBe(201);
-  const preview = await api<{ preview_hash: string }>(
-    page,
-    `/excuses/${excuse.body.id}/preview/`,
-    { method: "POST" },
-  );
-  const approved = await api(page, `/excuses/${excuse.body.id}/approve/`, {
-    method: "POST",
-    body: { preview_hash: preview.body.preview_hash },
-  });
-  expect(approved.status).toBe(200);
+  expect(excuse.body.status).toBe("APPROVED");
 
   await logout(page);
   await login(page, "0550000005", "ثانوية الأندلس");

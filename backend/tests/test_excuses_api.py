@@ -203,6 +203,12 @@ def test_excuse_date_must_belong_to_school_year_and_student_enrollment(api_env):
     assert before_enrollment.status_code == 400
     assert before_enrollment.json()["code"] == "EXCUSE_STUDENT_NOT_ENROLLED_ON_DATE"
 
+    # استيراد الطالب المتأخر لا يمنع عذرًا ليوم غياب مُسجل بالفعل.
+    full_day_absent(api_env, student)
+    recorded_absence = _create_excuse(client, student)
+    assert recorded_absence.status_code == 201, recorded_absence.content
+    assert recorded_absence.json()["status"] == "APPROVED"
+
 
 @pytest.mark.django_db
 def test_old_year_context_does_not_inherit_active_year_schedule(api_env):
