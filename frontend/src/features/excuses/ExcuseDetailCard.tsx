@@ -13,6 +13,7 @@ import {
   getExcuse,
   previewExcuse,
   rejectExcuse,
+  removeExcuseAttachment,
   uploadExcuseAttachment,
 } from "@/features/excuses/api";
 import { StatusBadge, formatDate } from "@/features/excuses/ExcusesPage";
@@ -98,6 +99,13 @@ export function ExcuseDetailCard({
       setActionError(error.message ?? "تعذر رفع المرفق."),
   });
 
+  const removeAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: number) => removeExcuseAttachment(excuseId, attachmentId),
+    onSuccess: refreshAll,
+    onError: (error: { message?: string }) =>
+      setActionError(error.message ?? "تعذر حذف المرفق."),
+  });
+
   if (detail.isPending) return <Spinner />;
   if (detail.isError) return <ErrorState error={detail.error} />;
   const excuse = detail.data;
@@ -146,7 +154,9 @@ export function ExcuseDetailCard({
         </h3>
         {excuse.coverages.length === 0 ? (
           <p className="text-sm text-slate-500" data-testid="no-coverage">
-            لا توجد تغطية بعد — الاعتماد ينشئها.
+            {excuse.status === "APPROVED"
+              ? "العذر معتمد. ستُغطى حصص الغياب ضمن أيامه تلقائيًا عند تسجيلها."
+              : "لا توجد حصص غياب مغطاة حتى الآن."}
           </p>
         ) : (
           <ul className="divide-y rounded-lg border border-slate-200 text-sm">
@@ -178,7 +188,7 @@ export function ExcuseDetailCard({
         <h3 className="mb-2 text-sm font-bold">المرفقات</h3>
         <ul className="divide-y rounded-lg border border-slate-200 text-sm">
           {excuse.attachments.map((attachment) => (
-            <li key={attachment.id} className="flex justify-between p-2">
+            <li key={attachment.id} className="flex items-center justify-between gap-2 p-2">
               <a
                 href={attachmentDownloadUrl(excuse.id, attachment.id)}
                 target="_blank"
@@ -191,6 +201,15 @@ export function ExcuseDetailCard({
               <span className="text-slate-500">
                 {Math.round(attachment.size_bytes / 1024)} ك.ب
               </span>
+              {canManage && (excuse.status === "APPROVED" || excuse.status === "PENDING") && (
+                <Button
+                  variant="secondary"
+                  onClick={() => removeAttachmentMutation.mutate(attachment.id)}
+                  disabled={removeAttachmentMutation.isPending}
+                >
+                  حذف المرفق
+                </Button>
+              )}
             </li>
           ))}
           {excuse.attachments.length === 0 && (

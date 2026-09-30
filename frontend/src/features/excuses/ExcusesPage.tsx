@@ -56,6 +56,9 @@ export function ExcusesPage() {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "excuses") });
     queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, "excuse-kpis") });
+    for (const key of ["student-profile-summary", "dashboard", "reports", "warnings", "documents"]) {
+      queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId, key) });
+    }
   };
 
   if (me.isSuccess && !canRead) {
@@ -80,14 +83,14 @@ export function ExcusesPage() {
         icon={FileCheck2}
         eyebrow="السجل الإداري"
         title="الأعذار"
-        description={`استقبال أعذار ${studentPluralLabel(schoolType)} ومراجعتها واعتماد أثرها على سجل المواظبة من مساحة واضحة وقابلة للتتبع.`}
+        description={`تسجيل أعذار ${studentPluralLabel(schoolType)} واعتمادها فورًا، مع تغطية الغياب المسجل في أيامها تلقائيًا.`}
         tone="operational"
-        badge={canManage ? "صلاحية الاعتماد" : "عرض السجل"}
+        badge={canManage ? "اعتماد تلقائي عند الحفظ" : "عرض السجل"}
         actions={canManage ? <Button variant="header" onClick={() => setCreating((value) => !value)} data-testid="new-excuse"><Plus aria-hidden size={18} />{creating ? "إغلاق النموذج" : "إضافة عذر"}</Button> : undefined}
       />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="excuse-kpis">
-        <MetricCard label="بانتظار الاعتماد" value={kpis.data?.pending_count ?? 0} icon={Clock3} tone="amber" />
+        <MetricCard label="أعذار سابقة بانتظار الاعتماد" value={kpis.data?.pending_count ?? 0} icon={Clock3} tone="amber" />
         <MetricCard label="معتمدة اليوم" value={kpis.data?.approved_today_count ?? 0} icon={CheckCircle2} tone="teal" />
         <MetricCard label="مرفوضة" value={kpis.data?.rejected_count ?? 0} icon={XCircle} tone="red" />
         <MetricCard label="ملغاة" value={kpis.data?.cancelled_count ?? 0} icon={Ban} tone="neutral" />
@@ -115,7 +118,7 @@ export function ExcusesPage() {
             className="rounded-lg border border-slate-300 px-3 py-2"
           >
             <option value="">الكل</option>
-            <option value="PENDING">بانتظار الاعتماد</option>
+            <option value="PENDING">أعذار سابقة بانتظار الاعتماد</option>
             <option value="APPROVED">معتمد</option>
             <option value="REJECTED">مرفوض</option>
             <option value="CANCELLED">ملغى</option>

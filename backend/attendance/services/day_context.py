@@ -55,13 +55,27 @@ def get_or_create_attendance_day_context(*, school, attendance_date: date) -> At
         return existing
 
     settings_obj = get_or_create_settings(school=school)
-    year = AcademicYear.objects.filter(school=school, status=AcademicYearStatus.ACTIVE).first()
+    year = AcademicYear.objects.filter(
+        school=school,
+        start_date__lte=attendance_date,
+        end_date__gte=attendance_date,
+    ).order_by("-start_date", "-id").first()
+    active_year = AcademicYear.objects.filter(
+        school=school, status=AcademicYearStatus.ACTIVE,
+    ).first()
+    # إذا لم تكن لقطة تاريخية محفوظة، لا ننسب جدول العام الحالي إلى عام سابق.
+    # غياب اللقطة يعني أن اكتمال اليوم غير محسوم، بينما تبقى جلسات الحضور نفسها.
+    snapshot = (
+        build_day_schedule_snapshot(school, attendance_date)
+        if year is not None and active_year is not None and year.id == active_year.id
+        else {"schedule_name": None, "is_school_day": False, "periods": []}
+    )
     try:
         return AttendanceDayContext.objects.create(
             school=school,
             academic_year=year,
             attendance_date=attendance_date,
-            schedule_snapshot=build_day_schedule_snapshot(school, attendance_date),
+            schedule_snapshot=snapshot,
             timezone_snapshot=settings_obj.timezone,
         )
     except IntegrityError:
@@ -74,6 +88,10 @@ def get_or_refresh_pristine_day_context(*, school, attendance_date: date) -> Att
     context = get_or_create_attendance_day_context(school=school, attendance_date=attendance_date)
     from attendance.models import AttendanceSession
 
+    if context.academic_year_id is not None and not AcademicYear.objects.filter(
+        id=context.academic_year_id, school=school, status=AcademicYearStatus.ACTIVE,
+    ).exists():
+        return context
     if AttendanceSession.objects.filter(school=school, attendance_date=attendance_date).exists():
         return context
 

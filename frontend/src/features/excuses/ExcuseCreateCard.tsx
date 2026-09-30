@@ -10,7 +10,7 @@ import { studentLabel } from "@/utils/roles";
 
 type Scope = "FULL_DAY" | "PERIODS";
 
-/** إنشاء عذر: طالب ← نوع ← يوم/أيام أو حصص ← حفظ Pending (المعاينة في التفاصيل). */
+/** إنشاء عذر معتمد مباشرة، وتُضاف تغطية الغياب عند تسجيل الحضور. */
 export function ExcuseCreateCard({
   onCreated,
   onCancel,
@@ -35,20 +35,21 @@ export function ExcuseCreateCard({
   const [fromDate, setFromDate] = useState(fixedDate ?? today);
   const [toDate, setToDate] = useState(fixedDate ?? today);
   const [periodsText, setPeriodsText] = useState(fixedPeriod ? String(fixedPeriod) : "");
+  const dayRange = scope === "FULL_DAY" ? datesBetween(fromDate, toDate) : null;
+  const periodSequences = scope === "PERIODS" ? parsePeriodSequences(periodsText) : null;
+  const validationError = scope === "FULL_DAY"
+    ? dayRange?.error
+    : !fromDate ? "حدد تاريخ العذر." : periodSequences?.error;
 
   const mutation = useMutation({
     mutationFn: () => {
       const targets: { attendance_date: string; period_sequence?: number | null }[] = [];
       if (scope === "FULL_DAY") {
-        for (const date of datesBetween(fromDate, toDate)) {
+        for (const date of dayRange?.dates ?? []) {
           targets.push({ attendance_date: date });
         }
       } else {
-        const sequences = periodsText
-          .split(/[,،\s]+/)
-          .map((part) => Number(part.trim()))
-          .filter((value) => Number.isInteger(value) && value > 0);
-        for (const sequence of sequences) {
+        for (const sequence of periodSequences?.sequences ?? []) {
           targets.push({ attendance_date: fromDate, period_sequence: sequence });
         }
       }
@@ -62,8 +63,7 @@ export function ExcuseCreateCard({
     onSuccess: (excuse) => onCreated(excuse.id),
   });
 
-  const targetsReady =
-    student !== null && (scope === "FULL_DAY" || periodsText.trim().length > 0);
+  const targetsReady = student !== null && !validationError;
 
   return (
     <div
@@ -71,6 +71,9 @@ export function ExcuseCreateCard({
       data-testid="excuse-create"
     >
       <h2 className="font-bold">تسجيل عذر جديد</h2>
+      <p className="text-sm text-slate-600">
+        يعتمد العذر عند حفظه. إذا كان التاريخ مستقبلًا، تُصنّف حصص الغياب ضمنه بعذر تلقائيًا بعد تسجيلها.
+      </p>
 
       {student === null ? (
         <StudentPicker
@@ -169,6 +172,7 @@ export function ExcuseCreateCard({
           {(mutation.error as { message?: string }).message ?? "تعذر حفظ العذر."}
         </p>
       )}
+      {validationError && <p role="alert" className="text-sm text-red-700">{validationError}</p>}
 
       <div className="flex gap-2">
         <Button
@@ -176,7 +180,7 @@ export function ExcuseCreateCard({
           disabled={!targetsReady || mutation.isPending}
           data-testid="save-excuse"
         >
-          {mutation.isPending ? "جارٍ الحفظ..." : "حفظ ومتابعة للمعاينة"}
+          {mutation.isPending ? "جارٍ الحفظ..." : "حفظ العذر واعتماده"}
         </Button>
         <Button variant="secondary" onClick={onCancel}>
           إلغاء
@@ -186,17 +190,34 @@ export function ExcuseCreateCard({
   );
 }
 
-function datesBetween(from: string, to: string): string[] {
+function datesBetween(from: string, to: string): { dates: string[]; error?: string } {
+  if (!from || !to) return { dates: [], error: "حدد تاريخ البداية والنهاية." };
   const start = new Date(`${from}T12:00:00`);
   const end = new Date(`${to}T12:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return [from];
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ||
+      localIsoDate(start) !== from || localIsoDate(end) !== to) {
+    return { dates: [], error: "صيغة التاريخ غير صحيحة." };
   }
+  if (end < start) return { dates: [], error: "تاريخ النهاية يجب ألا يسبق تاريخ البداية." };
   const dates: string[] = [];
   const cursor = new Date(start);
-  while (cursor <= end && dates.length < 60) {
+  while (cursor <= end) {
+    if (dates.length === 60) return { dates: [], error: "يمكن تسجيل 60 يومًا كحد أقصى في العذر الواحد." };
     dates.push(localIsoDate(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
-  return dates;
+  return { dates };
+}
+
+function parsePeriodSequences(value: string): { sequences: number[]; error?: string } {
+  const parts = value.trim().split(/[,،\s]+/).filter(Boolean);
+  if (parts.length === 0) return { sequences: [], error: "حدد رقم حصة واحدة على الأقل." };
+  const sequences = parts.map(Number);
+  if (sequences.some((number) => !Number.isInteger(number) || number < 1 || number > 30)) {
+    return { sequences: [], error: "أدخل أرقام حصص صحيحة من 1 إلى 30." };
+  }
+  if (new Set(sequences).size !== sequences.length) {
+    return { sequences: [], error: "أرقام الحصص مكررة." };
+  }
+  return { sequences };
 }
