@@ -11,13 +11,14 @@ from dataclasses import dataclass
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models.deletion import ProtectedError
 
-from audit.models import AuditAction
+from audit.models import AuditAction, AuditLog
 from audit.services import record_event
 from common.errors import ApiError
 from memberships.models import SchoolMembership
+from platform_team.access import PlatformCapability, has_platform_capability
 from schools.models import School
 
 logger = logging.getLogger("xmansx.school_purge")
@@ -95,8 +96,47 @@ def _storage_objects(school_id: int, scoped_models: list[SchoolScopedModel]):
     return found
 
 
+def _delete_school_audit_logs(school_id: int):
+    """Open the audit DELETE policy for this school and this transaction only."""
+    if not connection.in_atomic_block:
+        raise RuntimeError("School audit deletion requires an atomic school purge")
+    if connection.vendor != "postgresql":
+        return AuditLog.objects.filter(school_id=school_id).delete()
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('app.school_purge_id', true)")
+        previous_scope = cursor.fetchone()[0] or ""
+        cursor.execute(
+            "SELECT set_config('app.school_purge_id', %s, true)", [str(school_id)]
+        )
+    try:
+        result = AuditLog.objects.filter(school_id=school_id).delete()
+        # RLS can silently filter a DELETE. Never continue after an incomplete purge.
+        if AuditLog.objects.filter(school_id=school_id).exists():
+            raise ApiError(
+                "SCHOOL_DELETE_BLOCKED",
+                "تعذر إكمال حذف سجلات المدرسة؛ لم يتم حذف أي بيانات.",
+                status_code=409,
+            )
+        return result
+    finally:
+        # A failed database statement is rolled back by the enclosing atomic block.
+        # On success restore immediately, including when a caller owns a larger transaction.
+        if not connection.needs_rollback:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT set_config('app.school_purge_id', %s, true)", [previous_scope]
+                )
+
+
 def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, request=None):
     """يحذف المدرسة وبياناتها، ويعيد ملخصًا صريحًا لنتيجة التخزين."""
+    if not has_platform_capability(actor, PlatformCapability.SCHOOLS_MANAGE):
+        raise ApiError(
+            "PERMISSION_DENIED",
+            "لا تملك صلاحية حذف المدارس من المنصة.",
+            status_code=403,
+        )
     scoped_models = school_scoped_models_in_delete_order()
     storage_objects: list[tuple[object, str]] = []
     database_records_deleted = 0
@@ -121,9 +161,12 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
             storage_objects = _storage_objects(school.id, scoped_models)
 
             for scoped in scoped_models:
-                deleted, _ = scoped.model._default_manager.filter(
-                    **{scoped.school_field.attname: school.id}
-                ).delete()
+                if scoped.model is AuditLog:
+                    deleted, _ = _delete_school_audit_logs(school.id)
+                else:
+                    deleted, _ = scoped.model._default_manager.filter(
+                        **{scoped.school_field.attname: school.id}
+                    ).delete()
                 database_records_deleted += deleted
 
             deleted, _ = school.delete()
@@ -132,7 +175,11 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
             User = get_user_model()
             orphan_ids = list(
                 User.objects.filter(id__in=member_user_ids, memberships__isnull=True)
-                .filter(is_superuser=False, is_staff=False)
+                .filter(
+                    is_superuser=False,
+                    is_staff=False,
+                    platform_staff_membership__isnull=True,
+                )
                 .values_list("id", flat=True)
             )
             if orphan_ids:
