@@ -68,7 +68,8 @@ def roster_fingerprint(roster: list[dict]) -> str:
 
 
 def start_session(
-    *, school, membership, section, source="DIRECT_LINK", request=None
+    *, school, membership, section, source="DIRECT_LINK", request=None,
+    attendance_date=None, period_sequence=None,
 ) -> tuple[AttendanceSession, list[dict], bool]:
     """يفتح/يستأنف جلسة الحصة الحالية — يعيد (session, roster, resumed)."""
     if section.school_id != school.id or not section.is_active:
@@ -76,12 +77,30 @@ def start_session(
 
     year = _active_year(school)
     period, local_date = get_current_attendance_period(school)
-    if period is None:
+    if attendance_date is not None or period_sequence is not None:
+        from academics.models import BellPeriod
+        from attendance.services.admin_preparation import resolve_today_period
+
+        snapshot = resolve_today_period(
+            school=school, attendance_date=attendance_date, period_sequence=period_sequence,
+        )
+        local_date = attendance_date
+        period = BellPeriod.objects.filter(
+            school=school, bell_schedule_id=snapshot["bell_schedule_id"],
+            sequence=period_sequence, start_time=snapshot["start_time"],
+            end_time=snapshot["end_time"], is_attendance_period=True,
+        ).first()
+    elif period is None:
         raise ApiError(
             "NO_CURRENT_ATTENDANCE_PERIOD",
             "لا توجد حصة دراسية نشطة في الوقت الحالي.",
             status_code=409,
         )
+    else:
+        settings_obj = get_or_create_settings(school=school)
+        snapshot = build_period_snapshot(period, local_date, settings_obj.timezone)
+
+    sequence = snapshot["sequence"]
 
     # Reopening an existing session is the common polling/navigation path. Avoid using a
     # failed INSERT as control flow; the unique constraint remains the concurrency authority.
@@ -91,7 +110,7 @@ def start_session(
             school=school,
             section=section,
             attendance_date=local_date,
-            period_sequence=period.sequence,
+            period_sequence=sequence,
         )
         .first()
     )
@@ -117,10 +136,8 @@ def start_session(
                 section=section,
                 attendance_date=local_date,
                 bell_period=period,
-                period_sequence=period.sequence,
-                bell_period_snapshot=build_period_snapshot(
-                    period, local_date, settings_obj.timezone
-                ),
+                period_sequence=sequence,
+                bell_period_snapshot=snapshot,
                 roster_fingerprint=roster_fingerprint(roster),
                 unprepared_alert_minutes_snapshot=(settings_obj.unprepared_period_alert_minutes),
                 started_by_membership=membership,
@@ -134,10 +151,13 @@ def start_session(
             target_id=session.id,
             metadata={
                 "section_id": section.id,
-                "period": period.sequence,
+                "period": sequence,
                 "source": source,
             },
         )
+        from school_dashboard.cache import invalidate_school
+
+        invalidate_school(school.id)
         return session, roster, False
     except IntegrityError:
         # جلسة قائمة لنفس (الفصل، التاريخ، الحصة) — الحكم من قاعدة البيانات
@@ -145,7 +165,7 @@ def start_session(
             school=school,
             section=section,
             attendance_date=local_date,
-            period_sequence=period.sequence,
+            period_sequence=sequence,
         )
         # SUBMITTED: تعاد الجلسة ليعرضها الواجهة (المرسل/الوقت/التعديل) —
         # منع الإرسال المزدوج مسؤولية submit (409) لا العرض.
@@ -209,7 +229,8 @@ _ROSTER_CHANGED_ERROR = (
 
 
 def submit_session(
-    *, session_id: int, school, membership, marks: list[dict], request=None
+    *, session_id: int, school, membership, marks: list[dict], request=None,
+    administrative_reason: str = "",
 ) -> AttendanceSession:
     """تحديث بصمة الـ roster عند التغير يجب أن يثبت رغم رفض الاعتماد —
     لذا الخطأ يرفع بعد خروج الـ transaction بنجاح (نمط المرحلة 4)."""
@@ -246,6 +267,11 @@ def submit_session(
             "students": len(roster),
             "absent": absent,
             "late": validated_count - absent,
+            **({"administrative_reason": administrative_reason} if administrative_reason else {}),
+            **({"administrative_role": (
+                "SCHOOL_MANAGER" if SchoolRole.SCHOOL_MANAGER in request.school_roles
+                else "VICE_PRINCIPAL"
+            )} if administrative_reason and request else {}),
         },
     )
     from school_dashboard.cache import invalidate_school

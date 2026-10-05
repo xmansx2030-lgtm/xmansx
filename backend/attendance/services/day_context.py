@@ -32,6 +32,7 @@ def build_day_schedule_snapshot(school, attendance_date: date) -> dict:
 
     periods = BellPeriod.objects.filter(bell_schedule=week_day.bell_schedule).order_by("sequence")
     return {
+        "bell_schedule_id": week_day.bell_schedule_id,
         "schedule_name": week_day.bell_schedule.name,
         "is_school_day": True,
         "periods": [

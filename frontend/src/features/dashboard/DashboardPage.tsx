@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -32,6 +32,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections } from "@/features/attendance/api";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
+import { PreparationTodayCard, preparationKey } from "@/features/attendance/PreparationTodayCard";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import type {
   AttentionItem,
@@ -86,6 +87,7 @@ function localIsoDate(offsetDays = 0): string {
  */
 export function DashboardPage() {
   const me = useMe();
+  const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
 
   const [preset, setPreset] = useState<DashboardPreset>("LAST_7_DAYS");
@@ -203,6 +205,7 @@ export function DashboardPage() {
     if (canManageCalendar) refreshes.push(setupReadinessQuery.refetch());
     if (operationalEnabled) {
       refreshes.push(todayQuery.refetch(), attentionQuery.refetch());
+      refreshes.push(queryClient.refetchQueries({ queryKey: preparationKey(activeSchoolId), type: "active" }));
       if (canManageCalendar) refreshes.push(overviewQuery.refetch());
     }
     void Promise.all(refreshes);
@@ -321,6 +324,7 @@ export function DashboardPage() {
 
           {liveToday ? (
             <>
+              <PreparationTodayCard schoolId={activeSchoolId} />
               <SchoolTodayStatusCard data={liveToday} schoolType={schoolType} showPreparation={!canManageCalendar} />
               {canManageCalendar && <TodayCard data={liveToday} />}
             </>

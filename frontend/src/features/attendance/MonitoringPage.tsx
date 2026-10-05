@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle2, Clock3, Layers3, LoaderCircle, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Clock3, Layers3, LoaderCircle, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { MetricCard } from "@/components/MetricCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
-import type { MonitoringSection } from "@/features/attendance/api";
-import { getMonitoring } from "@/features/attendance/api";
+import type { MonitoringResponse, MonitoringSection } from "@/features/attendance/api";
+import { getMonitoring, getPreparationToday } from "@/features/attendance/api";
+import { PreparationTodayCard, preparationKey } from "@/features/attendance/PreparationTodayCard";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
 import {
   monitoringKey,
@@ -20,6 +22,7 @@ import { studentCountLabel } from "@/utils/roles";
 
 type StatusFilter =
   | "ALL"
+  | "INCOMPLETE"
   | "SUBMITTED"
   | "IN_PROGRESS"
   | "NOT_STARTED"
@@ -28,6 +31,7 @@ type StatusFilter =
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "ALL", label: "الكل" },
+  { value: "INCOMPLETE", label: "لم يكتمل تحضيرها" },
   { value: "SUBMITTED", label: "تم التحضير" },
   { value: "IN_PROGRESS", label: "قيد التحضير" },
   { value: "NOT_STARTED", label: "لم يبدأ" },
@@ -37,6 +41,8 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 
 function matchesFilter(section: MonitoringSection, filter: StatusFilter): boolean {
   switch (filter) {
+    case "INCOMPLETE":
+      return section.attendance_status !== "SUBMITTED";
     case "ALL":
       return true;
     case "OVERDUE":
@@ -54,21 +60,52 @@ export function MonitoringPage() {
   const me = useMe();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [params, setParams] = useSearchParams();
+  const requestedSequence = Number(params.get("period"));
+  const selectedSequence = Number.isInteger(requestedSequence) && requestedSequence > 0 ? requestedSequence : 0;
+  const statusFilter = STATUS_FILTERS.find((filter) => filter.value === params.get("status"))?.value ?? "ALL";
+  const setStatusFilter = (value: StatusFilter) => setParams((previous) => {
+    previous.set("status", value);
+    return previous;
+  });
   const [gradeFilter, setGradeFilter] = useState<number | "">("");
   const [search, setSearch] = useState("");
 
-  const query = useQuery({
+  const currentQuery = useQuery({
     queryKey: monitoringKey(activeSchoolId),
     queryFn: ({ signal }) => getMonitoring(signal),
-    enabled: activeSchoolId > 0,
+    enabled: activeSchoolId > 0 && selectedSequence === 0,
     refetchInterval: monitoringPollInterval,
     // لا نستهلك API/DB عندما لا تكون شاشة المتابعة معروضة للمستخدم.
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: "always",
   });
 
-  const data = query.data;
+  const dayQuery = useQuery({
+    queryKey: preparationKey(activeSchoolId), queryFn: ({ signal }) => getPreparationToday(signal),
+    enabled: activeSchoolId > 0 && selectedSequence > 0, refetchInterval: monitoringPollInterval,
+    refetchIntervalInBackground: false, refetchOnWindowFocus: "always",
+  });
+  const query = selectedSequence > 0 ? dayQuery : currentQuery;
+  const refreshMonitoring = () => {
+    void query.refetch();
+    if (selectedSequence === 0) void dayQuery.refetch();
+  };
+  const selectedPeriod = dayQuery.data?.periods.find((period) => period.sequence === selectedSequence);
+  const data: MonitoringResponse | undefined = selectedSequence > 0 ? dayQuery.data && {
+    date: dayQuery.data.date, school_time: dayQuery.data.school_time,
+    period: selectedPeriod?.summary ? selectedPeriod : null, alert: null,
+    sections: selectedPeriod?.sections ?? [], summary: null,
+  } : currentQuery.data;
+  const wrongDate = selectedSequence > 0 && !!dayQuery.data && !!params.get("date") && params.get("date") !== dayQuery.data.date;
+  const listRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (selectedSequence > 0 && query.isSuccess && !wrongDate) {
+      listRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      listRef.current?.focus({ preventScroll: true });
+    }
+  }, [selectedSequence, query.isSuccess, wrongDate]);
+
   const grades = useMemo(() => {
     const map = new Map<number, string>();
     for (const s of data?.sections ?? []) map.set(s.grade_id, s.grade_name);
@@ -116,6 +153,7 @@ export function MonitoringPage() {
       </section>
     );
   }
+  if (wrongDate) return <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6"><p className="font-bold text-amber-950">هذا الرابط يخص يومًا سابقًا. افتح حصص اليوم لمتابعة التحضير.</p><Link to="/attendance/monitoring" className="mt-4 inline-block text-amber-900 underline">متابعة اليوم</Link></section>;
   if (!data) return null;
 
   return (
@@ -123,13 +161,15 @@ export function MonitoringPage() {
       <PageHeader
         icon={Activity}
         eyebrow="غرفة العمليات المباشرة"
-        title="متابعة تحضير الحصة الحالية"
-        description={data.period ? "راقب اكتمال التحضير لحظة بلحظة، وركّز التدخل على الفصول المتأخرة فقط." : "لا توجد حصة نشطة الآن؛ تبدأ المتابعة والتنبيهات تلقائيًا مع الحصة القادمة."}
+        title={selectedSequence > 0 ? `متابعة تحضير ${data.period?.name ?? "الحصة المحددة"}` : "متابعة تحضير الحصة الحالية"}
+        description={data.period ? "تابع الفصول التي لم يكتمل تحضيرها، وافتح الفصل للتحضير أو استكمال الاعتماد." : "اختر من بطاقة اليوم حصة بدأ وقتها لمتابعة الفصول واستكمال التحضير."}
         tone="executive"
         badge={data.period?.name ?? "خارج وقت الحصص"}
         meta={data.period ? <span data-testid="monitoring-period"><Clock3 aria-hidden size={14} className="inline" /> {data.period.name} · <span dir="ltr">{data.period.start_time} – {data.period.end_time}</span>{data.alert && <> · التنبيه <span dir="ltr">{data.alert.alert_at}</span> ({data.alert.minutes} دقيقة)</>}</span> : <span data-testid="monitoring-no-period">لا توجد حصة دراسية نشطة حاليًا — لا تنبيهات خارج الحصص.</span>}
-        actions={<div className="flex flex-wrap items-center gap-2">{lastUpdated && <span className="text-xs text-slate-300" data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}<Button variant="header" onClick={() => void query.refetch()} disabled={query.isFetching} data-testid="manual-refresh"><RefreshCw aria-hidden size={17} className={query.isFetching ? "animate-spin" : ""} /> تحديث</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2">{lastUpdated && <span className="text-xs text-slate-300" data-testid="last-updated">آخر تحديث: {lastUpdated}</span>}<Button variant="header" onClick={refreshMonitoring} disabled={query.isFetching} data-testid="manual-refresh"><RefreshCw aria-hidden size={17} className={query.isFetching ? "animate-spin" : ""} /> تحديث</Button></div>}
       />
+
+      <PreparationTodayCard schoolId={activeSchoolId} selectedPeriod={selectedSequence} />
 
       {data.period && (
         <>
@@ -198,10 +238,16 @@ export function MonitoringPage() {
             )}
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <section ref={listRef} tabIndex={-1} className="scroll-mt-28 rounded-2xl border border-slate-200 bg-white shadow-sm focus:outline-none" aria-label="قائمة فصول الحصة">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-4 sm:px-5">
+              <div><h2 className="font-black text-slate-900">فصول {data.period.name}</h2><p className="mt-1 text-xs text-slate-500">راجع الفصل والقسم، ثم افتح التحضير أو استكمل الجلسة القائمة.</p></div>
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">{filtered.length} من {data.sections.length} فصول</span>
+            </div>
             {filtered.length === 0 ? (
               <p className="p-6 text-slate-600" data-testid="monitoring-empty">
-                {data.sections.length === 0
+                {statusFilter === "INCOMPLETE" && data.sections.length > 0 && data.sections.every((section) => section.attendance_status === "SUBMITTED")
+                  ? "اكتمل تحضير جميع فصول هذه الحصة."
+                  : data.sections.length === 0
                   ? "لا توجد فصول نشطة."
                   : "لا توجد فصول مطابقة للفلاتر الحالية."}
               </p>
@@ -212,7 +258,7 @@ export function MonitoringPage() {
                   return (
                     <li
                       key={section.section_id}
-                      className="flex flex-wrap items-center justify-between gap-2 p-3"
+                      className="flex flex-col gap-4 p-4 transition hover:bg-slate-50/70 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5"
                       data-testid={`monitoring-section-${section.section_id}`}
                     >
                       <div className="min-w-28">
@@ -236,6 +282,17 @@ export function MonitoringPage() {
                         </span>
                         <span className="min-w-24">{section.teacher_name ?? "—"}</span>
                       </div>
+                      {section.attendance_status !== "SUBMITTED" && (
+                        <Link
+                          to={`/attendance/section/${section.section_id}?date=${data.date}&period=${data.period?.sequence}`}
+                          data-testid={`prepare-section-${section.section_id}`}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+                        >
+                          <ClipboardCheck aria-hidden size={17} />
+                          {section.attendance_status === "IN_PROGRESS" ? "استكمال التحضير" : "تحضير الفصل"}
+                          <ArrowLeft aria-hidden size={15} />
+                        </Link>
+                      )}
                     </li>
                   );
                 })}
