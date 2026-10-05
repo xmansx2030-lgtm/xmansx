@@ -180,7 +180,7 @@ export const routes = [
                     ],
                   },
                   {
-                    element: <RequireSchoolRoles allowedRoles={["TEACHER"]} />,
+                    element: <RequireSchoolRoles allowedRoles={["TEACHER", "SCHOOL_MANAGER", "VICE_PRINCIPAL"]} />,
                     children: [
                       {
                         path: "attendance/section/:sectionId",

@@ -85,6 +85,21 @@ export const getAttendanceSections = (signal?: AbortSignal) =>
 export const getAttendancePreview = (sectionId: number, signal?: AbortSignal) =>
   apiRequest<AttendancePreview>(`/attendance/sections/${sectionId}/preview/`, { signal });
 
+export interface AdministrativeTarget { date: string; period_sequence: number }
+
+export const getAdministrativePreview = (sectionId: number, target: AdministrativeTarget, signal?: AbortSignal) =>
+  apiRequest<AttendancePreview>(`/attendance/admin/sections/${sectionId}/preview/?${new URLSearchParams({ date: target.date, period_sequence: String(target.period_sequence) })}`, { signal });
+
+export const startAdministrativeSession = (sectionId: number, target: AdministrativeTarget) =>
+  apiRequest<AttendanceSessionData>("/attendance/admin/sessions/start/", {
+    method: "POST", body: { section_id: sectionId, ...target },
+  });
+
+export const submitAdministrativeSession = (sessionId: number, marks: MarkInput[], reason: string) =>
+  apiRequest<AttendanceSessionData>(`/attendance/admin/sessions/${sessionId}/submit/`, {
+    method: "POST", body: { marks, reason },
+  });
+
 export const startSession = (sectionId: number, source: AttendanceStartSource) =>
   apiRequest<AttendanceSessionData>("/attendance/sessions/start/", {
     method: "POST",
@@ -161,6 +176,22 @@ export interface MonitoringResponse {
 
 export const getMonitoring = (signal?: AbortSignal) =>
   apiRequest<MonitoringResponse>("/attendance/monitoring/current/", { signal });
+
+export interface PreparationPeriod extends CurrentPeriod {
+  state: "CURRENT" | "ENDED" | "UPCOMING";
+  summary: { total: number; submitted: number; in_progress: number; not_started: number; incomplete: number; overdue: number } | null;
+  sections: MonitoringSection[];
+}
+
+export interface PreparationToday {
+  date: string;
+  school_time: string;
+  is_school_day: boolean;
+  periods: PreparationPeriod[];
+}
+
+export const getPreparationToday = (signal?: AbortSignal) =>
+  apiRequest<PreparationToday>("/attendance/preparation/today/", { signal });
 
 // ---- تحليلات الغياب (المرحلة 8) — بلا PII: لا هوية ولا بيانات ولي أمر ----
 

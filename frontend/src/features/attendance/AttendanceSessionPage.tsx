@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardCheck, Search, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
@@ -17,11 +17,16 @@ import type {
 } from "@/features/attendance/api";
 import {
   editSession,
+  getAdministrativePreview,
   getAttendancePreview,
   getSession,
   startSession,
+  startAdministrativeSession,
   submitSession,
+  submitAdministrativeSession,
 } from "@/features/attendance/api";
+import { monitoringKey } from "@/features/attendance/monitoringShared";
+import { preparationKey } from "@/features/attendance/PreparationTodayCard";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
@@ -65,14 +70,35 @@ function buildPayload(marks: Record<number, LocalMark>, roster: RosterStudent[])
 }
 
 export function AttendanceSessionPage() {
+  const location = useLocation();
+  const me = useMe();
+  return <AttendanceSessionForm key={`${me.data?.active_school?.id ?? 0}:${location.pathname}${location.search}`} />;
+}
+
+function AttendanceSessionForm() {
   const { sectionId } = useParams();
   const location = useLocation();
   const me = useMe();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const studentsLabel = studentPluralLabel(schoolType);
   const statusLabels = schoolType === "GIRLS" ? FEMININE_STATUS_LABELS : STATUS_LABELS;
+  const canPrepareAdministratively = me.data?.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL") ?? false;
+  const requestedAdministrativeContext = searchParams.has("period") || searchParams.has("date");
+  const administrative = canPrepareAdministratively && (requestedAdministrativeContext || !me.data?.roles.includes("TEACHER"));
+  const target = { date: searchParams.get("date") ?? "", period_sequence: Number(searchParams.get("period")) };
+  const validTarget = /^\d{4}-\d{2}-\d{2}$/.test(target.date) && Number.isInteger(target.period_sequence) && target.period_sequence > 0;
+  const backTo = administrative ? `/attendance/monitoring?date=${target.date}&period=${target.period_sequence}&status=INCOMPLETE` : "/workspace";
+  const invalidatePreparation = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId, "dashboard") }),
+      queryClient.invalidateQueries({ queryKey: monitoringKey(activeSchoolId) }),
+      queryClient.invalidateQueries({ queryKey: preparationKey(activeSchoolId) }),
+      queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId, "attendance", "analytics") }),
+    ]);
+  };
 
   const navigationSource = (location.state as { attendanceSource?: AttendanceStartSource } | null)
     ?.attendanceSource;
@@ -82,9 +108,9 @@ export function AttendanceSessionPage() {
       : "DIRECT_LINK";
 
   const previewQuery = useQuery({
-    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-preview", sectionId),
-    queryFn: ({ signal }) => getAttendancePreview(Number(sectionId), signal),
-    enabled: activeSchoolId > 0,
+    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-preview", sectionId, administrative ? target.date : "current", administrative ? target.period_sequence : "current"),
+    queryFn: ({ signal }) => administrative ? getAdministrativePreview(Number(sectionId), target, signal) : getAttendancePreview(Number(sectionId), signal),
+    enabled: activeSchoolId > 0 && (!administrative || validTarget) && (!requestedAdministrativeContext || canPrepareAdministratively),
     staleTime: 15_000,
     gcTime: 0,
     retry: false,
@@ -110,14 +136,12 @@ export function AttendanceSessionPage() {
   }
 
   const startMutation = useMutation({
-    mutationFn: () => startSession(Number(sectionId), startSource),
+    mutationFn: () => administrative ? startAdministrativeSession(Number(sectionId), target) : startSession(Number(sectionId), startSource),
     onSuccess: async (started) => {
       setLoadedSessionId(started.id);
       setSession(started);
       setMarks(marksFromSession(started));
-      await queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(activeSchoolId, "dashboard"),
-      });
+      await invalidatePreparation();
     },
   });
 
@@ -142,6 +166,12 @@ export function AttendanceSessionPage() {
     });
   }, [exceptionsOnly, marks, roster, rosterSearch]);
 
+  if (requestedAdministrativeContext && !canPrepareAdministratively && me.isSuccess) {
+    return <section className="rounded-2xl border border-slate-200 bg-white p-6"><p className="font-bold text-slate-800">التحضير لحصة محددة متاح للمدير والوكيل. اختر الفصل من مساحة المعلم لتحضير الحصة الحالية.</p><Link to="/workspace" className="mt-4 inline-block text-teal-700 underline">مساحة المعلم</Link></section>;
+  }
+  if (administrative && !validTarget) {
+    return <section className="rounded-2xl border border-slate-200 bg-white p-6"><p className="font-bold text-slate-800">اختر الحصة والفصل من متابعة تحضير اليوم.</p><Link to="/attendance/monitoring" className="mt-4 inline-block text-teal-700 underline">فتح متابعة التحضير</Link></section>;
+  }
   if (previewQuery.isPending || me.isPending) {
     return <Spinner label="جارٍ عرض بيانات الفصل..." />;
   }
@@ -150,7 +180,7 @@ export function AttendanceSessionPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <ErrorState error={previewQuery.error} />
         <p className="mt-3">
-          <Link to="/workspace" className="text-blue-700 underline">
+          <Link to={backTo} className="text-blue-700 underline">
             العودة للرئيسية
           </Link>
         </p>
@@ -167,12 +197,12 @@ export function AttendanceSessionPage() {
           eyebrow="معاينة الفصل"
           title={<span data-testid="preview-section-name">{sectionTitle}</span>}
           description="راجع بيانات الفصل والحصة قبل إنشاء جلسة التحضير. لن يظهر الفصل قيد التحضير إلا بعد التأكيد أدناه."
-          tone="teacher"
+          tone={administrative ? "executive" : "teacher"}
           badge="لم يبدأ"
           meta={<><span>{preview.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{preview.period.start_time} – {preview.period.end_time}</span><span className="text-white/30">•</span><span>{preview.attendance_date}</span></>}
           actions={(
             <Link
-              to="/workspace"
+              to={backTo}
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto"
             >
               <ArrowRight aria-hidden size={17} />
@@ -196,7 +226,7 @@ export function AttendanceSessionPage() {
                 وعدد {studentsLabel} المسجلين {preview.section.students_count}.
               </p>
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
-                لن تُنشأ جلسة ولن يظهر «قيد التحضير» للوكيل قبل ضغط زر البدء.
+                {administrative ? "سيُحفظ اعتماد التحضير باسمك مع سبب التدخل الإداري. راجع الفصل والحصة قبل البدء." : "لن تُنشأ جلسة ولن يظهر «قيد التحضير» للوكيل قبل ضغط زر البدء."}
               </p>
             </div>
           </div>
@@ -204,7 +234,7 @@ export function AttendanceSessionPage() {
           {startMutation.isError && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
           <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <Link
-              to="/workspace"
+              to={backTo}
               className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50 sm:w-auto"
             >
               إلغاء واختيار فصل آخر
@@ -242,6 +272,7 @@ export function AttendanceSessionPage() {
   };
 
   const handleSubmit = async () => {
+    if (administrative && !editing && !reason.trim()) return;
     setPending(true);
     setActionError(null);
     setRosterNotice(false);
@@ -249,16 +280,14 @@ export function AttendanceSessionPage() {
       const payload = buildPayload(marks, roster);
       const updated = editing
         ? await editSession(session.id, payload, reason)
-        : await submitSession(session.id, payload);
+        : administrative ? await submitAdministrativeSession(session.id, payload, reason.trim()) : await submitSession(session.id, payload);
       setSession(updated);
       setMarks(marksFromSession(updated));
       setEditing(false);
       setReason("");
       // إن كانت لوحة الإدارة مفتوحة في نفس التطبيق فتُحدّث فورًا؛ أما الأجهزة
       // الأخرى فتلتقط النتيجة عبر الاستعلام الحي القصير.
-      await queryClient.invalidateQueries({
-        queryKey: schoolScopedKey(activeSchoolId, "dashboard"),
-      });
+      await invalidatePreparation();
     } catch (error) {
       if (error instanceof ApiError && error.code === "ATTENDANCE_ROSTER_CHANGED") {
         // الخادم حدّث بصمة القائمة — نعيد فتح الجلسة لقائمة محدثة ونبقي العلامات الصالحة
@@ -273,6 +302,13 @@ export function AttendanceSessionPage() {
             );
           });
         }
+      } else if (error instanceof ApiError && error.code === "ATTENDANCE_SESSION_ALREADY_SUBMITTED") {
+        const refreshed = await getSession(session.id);
+        setSession(refreshed);
+        setMarks(marksFromSession(refreshed));
+        setEditing(false);
+        setActionError(error);
+        await invalidatePreparation();
       } else {
         setActionError(error);
       }
@@ -285,15 +321,15 @@ export function AttendanceSessionPage() {
     <div className="space-y-4">
       <PageHeader
         icon={ClipboardCheck}
-        eyebrow="جلسة التحضير"
+        eyebrow={administrative ? "تحضير إداري" : "جلسة التحضير"}
         title={<span data-testid="session-section-name">{sectionLabel(session.section.grade_name, session.section.name, session.section.department)}</span>}
         description={`التحضير بخيارين فقط: ${schoolType === "GIRLS" ? "حاضرة أو غائبة" : "حاضر أو غائب"}. جميع ${studentsLabel} ${schoolType === "GIRLS" ? "حاضرات" : "حاضرون"} افتراضيًا حتى تحدد الغياب.`}
-        tone="teacher"
+        tone={administrative ? "executive" : "teacher"}
         badge={session.status === "SUBMITTED" && !editing ? "تم الاعتماد" : editing ? "تعديل معتمد" : "قيد التحضير"}
         meta={<><span>{session.period.name}</span><span className="text-white/30">•</span><span dir="ltr">{session.period.start_time} – {session.period.end_time}</span><span className="text-white/30">•</span><span>{session.attendance_date}</span></>}
         actions={(
           <Link
-            to={me.data?.roles.includes("TEACHER") ? "/workspace" : "/attendance/monitoring"}
+            to={backTo}
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto"
           >
             <ArrowRight aria-hidden size={17} />
@@ -339,6 +375,7 @@ export function AttendanceSessionPage() {
           تغيرت قائمة الفصل منذ فتح الجلسة — حُدِّثت القائمة، راجع العلامات ثم أعد الإرسال.
         </p>
       )}
+      {actionError != null && !marking && <ErrorState error={actionError} />}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-gradient-to-l from-slate-50 to-white p-4 sm:p-5">
@@ -454,16 +491,17 @@ export function AttendanceSessionPage() {
 
       {marking && (
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-900/5 sm:p-5">
-          {editing && (
+          {(editing || administrative) && (
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">سبب التعديل (اختياري)</span>
+              <span className="mb-1 block text-slate-600">{editing ? "سبب التعديل (اختياري)" : "سبب التحضير الإداري (مطلوب)"}</span>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 maxLength={300}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                data-testid="edit-reason"
+                placeholder={administrative && !editing ? "مثال: استكمال تحضير الفصل لعدم اعتماد المعلم" : undefined}
+                data-testid={editing ? "edit-reason" : "administrative-reason"}
               />
             </label>
           )}
@@ -476,10 +514,10 @@ export function AttendanceSessionPage() {
               <Button
                 className="w-full justify-center sm:w-auto"
                 onClick={() => void handleSubmit()}
-                disabled={pending}
+                disabled={pending || (administrative && !editing && !reason.trim())}
                 data-testid="submit-attendance"
               >
-                {pending ? "جارٍ الإرسال..." : editing ? "حفظ التعديل" : "إرسال التحضير"}
+                {pending ? "جارٍ الإرسال..." : editing ? "حفظ التعديل" : administrative ? "اعتماد التحضير" : "إرسال التحضير"}
               </Button>
               {editing && (
                 <Button

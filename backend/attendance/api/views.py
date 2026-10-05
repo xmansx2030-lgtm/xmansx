@@ -12,6 +12,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from attendance.api.serializers import (
+    AdministrativePeriodSerializer,
+    AdministrativeStartSerializer,
+    AdministrativeSubmitSerializer,
     AttendancePreviewSerializer,
     AttendanceSectionSerializer,
     CorrectStudentAttendanceResponseSerializer,
@@ -22,6 +25,7 @@ from attendance.api.serializers import (
     MonitoringResponseSerializer,
     MultiPeriodRequestSerializer,
     MultiPeriodResponseSerializer,
+    PreparationTodaySerializer,
     QrInfoSerializer,
     QrResolveSerializer,
     RepairDailyAttendanceSummaryResponseSerializer,
@@ -35,7 +39,7 @@ from attendance.models import AttendanceSession, AttendanceSessionStatus
 from attendance.selectors.monitoring import get_current_section_attendance_statuses
 from attendance.services import qr as qr_service
 from attendance.services import sessions as sessions_service
-from attendance.services.periods import get_current_attendance_period
+from attendance.services.periods import get_current_attendance_period, school_now
 from common.errors import ApiError
 from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
@@ -163,25 +167,31 @@ class AttendanceSectionPreviewView(SchoolScopedAPIView):
     read_roles = TEACHER_ROLES
     write_roles = TEACHER_ROLES
 
-    @extend_schema(responses=AttendancePreviewSerializer)
-    def get(self, request: Request, section_id: int) -> Response:
+    def _period_context(self, request):
         _teacher_membership(request)
-        section = _attendance_section_for_teacher(request, section_id)
-        year = sessions_service._active_year(request.school)
         period, local_date = get_current_attendance_period(request.school)
         if period is None:
             raise ApiError(
                 "NO_CURRENT_ATTENDANCE_PERIOD",
-                "لا توجد حصة دراسية نشطة في الوقت الحالي.",
-                status_code=409,
+                "لا توجد حصة دراسية نشطة في الوقت الحالي.", status_code=409,
             )
-
         settings_obj = get_or_create_settings(school=request.school)
+        return {
+            "sequence": period.sequence, "name": period.name,
+            "start_time": period.start_time.strftime("%H:%M"),
+            "end_time": period.end_time.strftime("%H:%M"), "timezone": settings_obj.timezone,
+        }, local_date
+
+    @extend_schema(responses=AttendancePreviewSerializer)
+    def get(self, request: Request, section_id: int) -> Response:
+        section = _attendance_section_for_teacher(request, section_id)
+        period, local_date = self._period_context(request)
+        year = sessions_service._active_year(request.school)
         existing = AttendanceSession.objects.filter(
             school=request.school,
             section=section,
             attendance_date=local_date,
-            period_sequence=period.sequence,
+            period_sequence=period["sequence"],
         ).first()
         serialized = None
         if existing is not None:
@@ -215,15 +225,57 @@ class AttendanceSectionPreviewView(SchoolScopedAPIView):
                     "department": section.department,
                     "students_count": students_count,
                 },
-                "period": {
-                    "sequence": period.sequence,
-                    "name": period.name,
-                    "start_time": period.start_time.strftime("%H:%M"),
-                    "end_time": period.end_time.strftime("%H:%M"),
-                    "timezone": settings_obj.timezone,
-                },
+                "period": period,
                 "session": serialized,
             }
+        )
+
+
+class AdministrativePreviewView(AttendanceSectionPreviewView):
+    read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+    @extend_schema(
+        parameters=[AdministrativePeriodSerializer], responses=AttendancePreviewSerializer,
+    )
+    def get(self, request, section_id):
+        return super().get(request, section_id)
+
+    def _period_context(self, request):
+        from attendance.services.admin_preparation import resolve_today_period
+
+        serializer = AdministrativePeriodSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        target_date = serializer.validated_data["date"]
+        snapshot = resolve_today_period(
+            school=request.school, attendance_date=target_date,
+            period_sequence=serializer.validated_data["period_sequence"],
+        )
+        return snapshot, target_date
+
+
+class AdministrativeStartView(SchoolScopedAPIView):
+    write_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+    @extend_schema(request=AdministrativeStartSerializer, responses=SessionSerializer)
+    def post(self, request):
+        serializer = AdministrativeStartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        section = _attendance_section_for_teacher(request, data["section_id"])
+        year = sessions_service._active_year(request.school)
+        if not sessions_service.get_roster(
+            school=request.school, section=section, academic_year=year,
+        ):
+            raise ApiError("ATTENDANCE_EMPTY_SECTION", "لا يوجد طلاب نشطون لتحضير هذا الفصل.")
+        session, roster, resumed = sessions_service.start_session(
+            school=request.school, membership=request.membership, section=section,
+            source="ADMIN_DASHBOARD", attendance_date=data["date"],
+            period_sequence=data["period_sequence"], request=request,
+        )
+        session = _load_session(request, session.id)
+        return Response(
+            serialize_session(session, roster, can_edit=_can_edit(session, request)),
+            status=http_status.HTTP_200_OK if resumed else http_status.HTTP_201_CREATED,
         )
 
 
@@ -329,6 +381,32 @@ class StudentAttendanceCorrectionView(SchoolScopedAPIView):
         return Response(result)
 
 
+class AdministrativeSubmitView(SchoolScopedAPIView):
+    write_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+    @extend_schema(request=AdministrativeSubmitSerializer, responses=SessionSerializer)
+    def post(self, request, session_id):
+        from attendance.services.admin_preparation import resolve_today_period
+
+        serializer = AdministrativeSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session = _load_session(request, session_id)
+        resolve_today_period(
+            school=request.school, attendance_date=session.attendance_date,
+            period_sequence=session.period_sequence,
+        )
+        sessions_service.submit_session(
+            session_id=session.id, school=request.school, membership=request.membership,
+            marks=serializer.validated_data["marks"], request=request,
+            administrative_reason=serializer.validated_data["reason"],
+        )
+        session = _load_session(request, session.id)
+        roster = sessions_service.get_roster(
+            school=request.school, section=session.section, academic_year=session.academic_year,
+        )
+        return Response(serialize_session(session, roster, can_edit=_can_edit(session, request)))
+
+
 class SubmitSessionView(SchoolScopedAPIView):
     read_roles = TEACHER_ROLES
     write_roles = TEACHER_ROLES
@@ -413,6 +491,24 @@ class SectionQrView(SchoolScopedAPIView):
 
 
 MONITORING_ROLES = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
+
+
+class PreparationTodayView(SchoolScopedAPIView):
+    read_roles = MONITORING_ROLES
+
+    @extend_schema(responses=PreparationTodaySerializer)
+    def get(self, request):
+        from attendance.selectors.preparation import get_today_preparation
+
+        ttl = settings.ATTENDANCE_MONITORING_CACHE_TTL
+        key = build_key(
+            school_id=request.school.id, section="attendance-preparation-today",
+            parts={"date": school_now(request.school).date().isoformat()},
+        )
+        return Response(cached(
+            key=key, ttl=ttl, stale_grace_seconds=ttl,
+            builder=lambda: get_today_preparation(school=request.school),
+        ))
 
 
 def _parse_date(value: str | None):

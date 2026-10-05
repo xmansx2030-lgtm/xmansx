@@ -3,6 +3,16 @@ from django.urls import path
 from attendance.api import views
 
 urlpatterns = [
+    path("attendance/preparation/today/", views.PreparationTodayView.as_view()),
+    path(
+        "attendance/admin/sections/<int:section_id>/preview/",
+        views.AdministrativePreviewView.as_view(),
+    ),
+    path("attendance/admin/sessions/start/", views.AdministrativeStartView.as_view()),
+    path(
+        "attendance/admin/sessions/<int:session_id>/submit/",
+        views.AdministrativeSubmitView.as_view(),
+    ),
     path("attendance/current-period/", views.CurrentPeriodView.as_view()),
     path("attendance/sections/", views.AttendanceSectionsView.as_view()),
     path(

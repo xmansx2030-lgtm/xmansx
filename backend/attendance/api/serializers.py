@@ -15,6 +15,15 @@ class StartSessionSerializer(serializers.Serializer):
     )
 
 
+class AdministrativePeriodSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    period_sequence = serializers.IntegerField(min_value=1, max_value=99)
+
+
+class AdministrativeStartSerializer(AdministrativePeriodSerializer, StartSessionSerializer):
+    pass
+
+
 class MarkInputSerializer(serializers.Serializer):
     student_id = serializers.IntegerField(min_value=1)
     # التحضير الصفي ثنائي فقط: الحاضر لا يرسل كسجل، والغائب هو الاستثناء الوحيد.
@@ -30,6 +39,10 @@ class MarkInputSerializer(serializers.Serializer):
 
 class SubmitSessionSerializer(serializers.Serializer):
     marks = MarkInputSerializer(many=True)
+
+
+class AdministrativeSubmitSerializer(SubmitSessionSerializer):
+    reason = serializers.CharField(max_length=300, trim_whitespace=True, allow_blank=False)
 
 
 class EditSessionSerializer(SubmitSessionSerializer):
@@ -287,6 +300,28 @@ class MonitoringResponseSerializer(serializers.Serializer):
     alert = MonitoringAlertSerializer(allow_null=True)
     summary = MonitoringSummarySerializer(allow_null=True)
     sections = MonitoringSectionSerializer(many=True)
+
+
+class PreparationSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    submitted = serializers.IntegerField()
+    in_progress = serializers.IntegerField()
+    not_started = serializers.IntegerField()
+    incomplete = serializers.IntegerField()
+    overdue = serializers.IntegerField()
+
+
+class PreparationPeriodSerializer(PeriodSerializer):
+    state = serializers.ChoiceField(choices=["CURRENT", "ENDED", "UPCOMING"])
+    summary = PreparationSummarySerializer(allow_null=True)
+    sections = MonitoringSectionSerializer(many=True)
+
+
+class PreparationTodaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    school_time = serializers.DateTimeField()
+    is_school_day = serializers.BooleanField()
+    periods = PreparationPeriodSerializer(many=True)
 
 
 def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edit: bool) -> dict:
