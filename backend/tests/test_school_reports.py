@@ -18,6 +18,7 @@ from referrals.models import (
     ReferralCategory,
     ReferralPriority,
     ReferralReason,
+    ReferralStatus,
     StudentReferral,
 )
 from students.models import Grade, Section, Student
@@ -272,3 +273,110 @@ def test_teacher_cannot_access_school_reports(role_client):
     for path in ("absence", "lateness", "referrals"):
         assert client.get(f"/api/v1/reports/{path}/?preset=TODAY").status_code == 403
         assert client.get(f"/api/v1/reports/{path}/export.xlsx?preset=TODAY").status_code == 403
+
+
+@pytest.fixture(params=[["COUNSELOR"], ["COUNSELOR", "TEACHER"]])
+def counselor_report_env(request, report_env, role_client):
+    school = report_env["school"]
+    client, _, user = role_client(request.param, school=school)
+    membership = SchoolMembership.objects.get(school=school, user=user)
+    _, _, colleague = role_client(["COUNSELOR"], school=school)
+    colleague_membership = SchoolMembership.objects.get(school=school, user=colleague)
+    manager = SchoolMembership.objects.get(school=school, roles__role="SCHOOL_MANAGER")
+
+    def referral(student, counselor, *, status=ReferralStatus.REFERRED, **kwargs):
+        return StudentReferral.objects.create(
+            school=school,
+            student=student,
+            source_type="SCHOOL_MANAGER",
+            category=ReferralCategory.ATTENDANCE,
+            reason_code=ReferralReason.REPEATED_ABSENCE,
+            description="متابعة الإحالة",
+            created_by_membership=kwargs.pop("created_by_membership", manager),
+            assigned_counselor_membership=counselor,
+            status=status,
+            **kwargs,
+        )
+
+    own = referral(report_env["student"], membership, priority=ReferralPriority.HIGH)
+    own_closed = referral(
+        report_env["partial_student"], membership,
+        status=ReferralStatus.CLOSED, closed_at=timezone.now(),
+    )
+    # Even a counselor who created a colleague's referral as a teacher must not export it.
+    referral(report_env["student"], colleague_membership, created_by_membership=membership)
+    referral(report_env["student"], None, status=ReferralStatus.PENDING_VICE)
+
+    _, other_school, other_user = role_client(["COUNSELOR"])
+    other_membership = SchoolMembership.objects.get(school=other_school, user=other_user)
+    other_student = Student.objects.create(
+        school=other_school, full_name="طالب مدرسة أخرى",
+        national_id_encrypted="other-school", national_id_lookup_hash="c" * 64,
+        national_id_masked="******3333",
+    )
+    StudentReferral.objects.create(
+        school=other_school, student=other_student, source_type="SCHOOL_MANAGER",
+        category=ReferralCategory.ATTENDANCE, reason_code=ReferralReason.REPEATED_ABSENCE,
+        description="مدرسة أخرى", created_by_membership=other_membership,
+        assigned_counselor_membership=other_membership, status=ReferralStatus.REFERRED,
+    )
+    return {
+        **report_env, "client": client, "membership": membership,
+        "colleague": colleague_membership, "own": own, "own_closed": own_closed,
+        "other_school": other_school,
+    }
+
+
+@pytest.mark.django_db
+def test_counselor_report_and_summary_include_only_assigned_referrals(counselor_report_env):
+    env = counselor_report_env
+    response = env["client"].get("/api/v1/reports/referrals/?preset=TODAY")
+    assert response.status_code == 200
+    payload = response.json()
+    assert {row["id"] for row in payload["results"]} == {env["own"].id, env["own_closed"].id}
+    assert payload["count"] == 2
+    assert payload["summary"] == {
+        "total": 2, "new": 0, "under_vice_review": 0, "referred": 1,
+        "acknowledged": 0, "closed": 1, "unassigned": 0, "high_priority": 1,
+    }
+    assert payload["context"]["scope"]["counselor_membership_id"] == env["membership"].id
+    assert env["manager"].get("/api/v1/reports/referrals/?preset=TODAY").json()["count"] == 4
+
+
+@pytest.mark.django_db
+def test_counselor_report_filters_cannot_expand_assignment_or_school(counselor_report_env):
+    env = counselor_report_env
+    base_url = "/api/v1/reports/referrals/?preset=TODAY"
+    for filters in (f"&counselor={env['colleague'].id}", "&counselor=UNASSIGNED"):
+        response = env["client"].get(base_url + filters)
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+        assert response.json()["summary"]["total"] == 0
+        export = env["client"].get(base_url.replace("/?", "/export.xlsx?") + filters)
+        assert export.status_code == 200
+        assert load_workbook(BytesIO(export.content))["الإحالات"].max_row == 7
+    filtered = env["client"].get(base_url + "&priority=HIGH&status=OPEN")
+    assert [row["id"] for row in filtered.json()["results"]] == [env["own"].id]
+    other_school = env["client"].get(base_url + f"&school_id={env['other_school'].id}")
+    assert other_school.json()["count"] == 2
+
+
+@pytest.mark.django_db
+def test_counselor_excel_exports_all_own_referrals_and_scope(counselor_report_env):
+    env = counselor_report_env
+    response = env["client"].get("/api/v1/reports/referrals/export.xlsx?preset=TODAY&page_size=1")
+    assert response.status_code == 200
+    sheet = load_workbook(BytesIO(response.content))["الإحالات"]
+    assert sheet["B4"].value == "الإحالات الخاصة بالمرشد"
+    assert sheet["A5"].value == "عدد النتائج المطابقة: 2"
+    assert sheet.max_row == 9
+    assert {sheet["A8"].value, sheet["A9"].value} == {"طالب التقرير", "طالب غياب حصة"}
+
+
+@pytest.mark.django_db
+def test_counselor_cannot_access_executive_reports_or_dashboard(role_client):
+    client, _, _ = role_client(["COUNSELOR"])
+    for path in ("absence", "lateness"):
+        assert client.get(f"/api/v1/reports/{path}/?preset=TODAY").status_code == 403
+        assert client.get(f"/api/v1/reports/{path}/export.xlsx?preset=TODAY").status_code == 403
+    assert client.get("/api/v1/dashboard/overview/?preset=TODAY").status_code == 403

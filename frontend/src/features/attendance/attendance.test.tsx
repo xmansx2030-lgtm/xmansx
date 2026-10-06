@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
+import { schoolScopedKey } from "@/features/auth/useMe";
 import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
@@ -40,6 +41,7 @@ const ROSTER = [
 function sessionBody(overrides: Record<string, unknown> = {}) {
   return {
     id: 5,
+    updated_at: "2026-08-19T08:20:00.123456Z",
     status: "IN_PROGRESS",
     attendance_date: "2026-08-19",
     section: { id: 3, name: "1", grade_name: "الأول الثانوي", department: "السنة المشتركة", students_count: 3 },
@@ -236,6 +238,8 @@ describe("attendance", () => {
   });
 
   it("edits a submitted session with a reason via PATCH", async () => {
+    const profileKey = schoolScopedKey(10, "student-profile-summary", 11);
+    queryClient.setQueryData(profileKey, { attendance: {} });
     const submitted = sessionBody({
       status: "SUBMITTED",
       submitted_by: "أحمد المعلم",
@@ -273,6 +277,8 @@ describe("attendance", () => {
       const body = parseBody(patchCall?.init);
       expect(body.marks).toEqual([]);
       expect(body.reason).toBe("عاد الطالب");
+      expect(body.expected_updated_at).toBe(submitted.updated_at);
+      expect(queryClient.getQueryState(profileKey)?.isInvalidated).toBe(true);
     });
   });
 

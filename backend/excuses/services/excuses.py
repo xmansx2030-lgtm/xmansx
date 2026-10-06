@@ -74,24 +74,31 @@ def _validate_targets(
         sequence = target.get("period_sequence")
         if day > today and not allow_future:
             raise ApiError("EXCUSE_FUTURE_DATE_NOT_ALLOWED", "لا يمكن تسجيل عذر لتاريخ مستقبلي.")
-        year = next((year for year in years if year.start_date <= day <= year.end_date), None)
-        if year is None:
+        matching_year_ids = {
+            year.id for year in years if year.start_date <= day <= year.end_date
+        }
+        if not matching_year_ids:
             raise ApiError(
                 "EXCUSE_DATE_OUTSIDE_ACADEMIC_YEAR",
                 "تاريخ العذر خارج الأعوام الدراسية المسجلة للمدرسة.",
                 details={"attendance_date": day.isoformat()},
             )
-        enrollment_covers_day = any(
-            enrollment.academic_year_id == year.id
+        # Several school years may cover the same date. Eligibility follows the
+        # student's enrollment/recorded absence, never the first database row.
+        eligible_year_ids = {
+            enrollment.academic_year_id for enrollment in enrollments
+            if enrollment.academic_year_id in matching_year_ids
             and enrollment.enrolled_at <= day
             and (enrollment.ended_at is None or enrollment.ended_at > day)
-            for enrollment in enrollments
-        )
+        }
         # قد تُستورد بيانات الطالب بعد تحضير يوم سابق. السجل الفعلي للغياب
         # يثبت أحقيته بالعذر لذلك اليوم، مع بقاء المستقبل مقيدًا بمدة القيد.
-        if not enrollment_covers_day and not (
-            day <= today and (day, year.id) in recorded_absences
-        ):
+        if day <= today:
+            eligible_year_ids.update(
+                year_id for absence_day, year_id in recorded_absences
+                if absence_day == day and year_id in matching_year_ids
+            )
+        if not eligible_year_ids:
             raise ApiError(
                 "EXCUSE_STUDENT_NOT_ENROLLED_ON_DATE",
                 "الطالب غير مقيد في المدرسة بتاريخ العذر.",
@@ -106,12 +113,13 @@ def _validate_targets(
         else:
             period_days.add(day)
             context = contexts.get(day)
-            if context is not None and context.academic_year_id == year.id:
+            if context is not None and context.academic_year_id in eligible_year_ids:
                 valid_sequences = {p["sequence"] for p in context.attendance_periods}
             elif day < today:
                 # لا نستنتج جدول يوم قديم من الجدول الحالي إذا لم تحفظ له لقطة.
                 valid_sequences = set(AttendanceSession.objects.filter(
-                    school=school, attendance_date=day, academic_year=year,
+                    school=school, attendance_date=day,
+                    academic_year_id__in=eligible_year_ids,
                     status=AttendanceSessionStatus.SUBMITTED,
                 ).values_list("period_sequence", flat=True))
             else:

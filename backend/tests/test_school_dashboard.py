@@ -389,8 +389,10 @@ def test_daily_attendance_counts_proven_presence_not_every_prepared_student(env)
         school_id=env["school"].id, section="today", parts=cache_parts
     )
 
+    session.refresh_from_db()
     edit_session(
         session_id=session.id,
+        expected_updated_at=session.updated_at,
         school=env["school"],
         membership=env["vice"],
         roles=["VICE_PRINCIPAL"],

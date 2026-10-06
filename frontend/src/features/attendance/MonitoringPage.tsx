@@ -282,14 +282,14 @@ export function MonitoringPage() {
                         </span>
                         <span className="min-w-24">{section.teacher_name ?? "—"}</span>
                       </div>
-                      {section.attendance_status !== "SUBMITTED" && (
+                      {data.period && (
                         <Link
                           to={`/attendance/section/${section.section_id}?date=${data.date}&period=${data.period?.sequence}`}
-                          data-testid={`prepare-section-${section.section_id}`}
+                          data-testid={`${section.attendance_status === "SUBMITTED" ? "correct" : "prepare"}-section-${section.section_id}`}
                           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
                         >
                           <ClipboardCheck aria-hidden size={17} />
-                          {section.attendance_status === "IN_PROGRESS" ? "استكمال التحضير" : "تحضير الفصل"}
+                          {section.attendance_status === "SUBMITTED" ? "عرض / تصحيح التحضير" : section.attendance_status === "IN_PROGRESS" ? "استكمال التحضير" : "تحضير الفصل"}
                           <ArrowLeft aria-hidden size={15} />
                         </Link>
                       )}

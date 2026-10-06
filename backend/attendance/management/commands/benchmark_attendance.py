@@ -61,7 +61,7 @@ class Command(BaseCommand):
                     {"student_id": s.id, "status": "ABSENT"} for s in students[:3]
                 ]
                 t0 = time_module.perf_counter()
-                svc.submit_session(
+                session = svc.submit_session(
                     session_id=session.id, school=school,
                     membership=membership, marks=marks,
                 )
@@ -70,6 +70,7 @@ class Command(BaseCommand):
                 t0 = time_module.perf_counter()
                 svc.edit_session(
                     session_id=session.id, school=school, membership=membership,
+                    expected_updated_at=session.updated_at,
                     roles=[SchoolRole.TEACHER], marks=[], reason="قياس",
                 )
                 edit_seconds = time_module.perf_counter() - t0

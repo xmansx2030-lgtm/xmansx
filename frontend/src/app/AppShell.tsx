@@ -59,7 +59,7 @@ const GROUP_LABELS: Record<NavigationGroup, string> = {
 
 const NAVIGATION: NavigationItem[] = [
   { to: "/dashboard", label: "لوحة الإدارة", roles: MANAGER_VP, icon: LayoutDashboard, group: "overview" },
-  { to: "/reports", label: "التقارير", roles: MANAGER_VP, icon: FileSpreadsheet, group: "overview" },
+  { to: "/reports", label: "التقارير", roles: MANAGER_VP_COUNSELOR, icon: FileSpreadsheet, group: "overview" },
   { to: "/workspace", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
   { to: "/students", label: "الطلاب", roles: MANAGER_VP_COUNSELOR, icon: GraduationCap, group: "students" },
   { to: "/warnings", label: "الإنذارات", roles: MANAGER_VP, icon: BellRing, group: "students" },

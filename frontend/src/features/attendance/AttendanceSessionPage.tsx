@@ -25,8 +25,6 @@ import {
   submitSession,
   submitAdministrativeSession,
 } from "@/features/attendance/api";
-import { monitoringKey } from "@/features/attendance/monitoringShared";
-import { preparationKey } from "@/features/attendance/PreparationTodayCard";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
@@ -90,14 +88,9 @@ function AttendanceSessionForm() {
   const administrative = canPrepareAdministratively && (requestedAdministrativeContext || !me.data?.roles.includes("TEACHER"));
   const target = { date: searchParams.get("date") ?? "", period_sequence: Number(searchParams.get("period")) };
   const validTarget = /^\d{4}-\d{2}-\d{2}$/.test(target.date) && Number.isInteger(target.period_sequence) && target.period_sequence > 0;
-  const backTo = administrative ? `/attendance/monitoring?date=${target.date}&period=${target.period_sequence}&status=INCOMPLETE` : "/workspace";
   const invalidatePreparation = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId, "dashboard") }),
-      queryClient.invalidateQueries({ queryKey: monitoringKey(activeSchoolId) }),
-      queryClient.invalidateQueries({ queryKey: preparationKey(activeSchoolId) }),
-      queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId, "attendance", "analytics") }),
-    ]);
+    // Corrections also change student profiles, reports and excuse coverage.
+    await queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId) });
   };
 
   const navigationSource = (location.state as { attendanceSource?: AttendanceStartSource } | null)
@@ -126,6 +119,8 @@ function AttendanceSessionForm() {
   const [rosterNotice, setRosterNotice] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [exceptionsOnly, setExceptionsOnly] = useState(false);
+  const reasonRequired = canPrepareAdministratively && (editing || administrative);
+  const backTo = administrative ? `/attendance/monitoring?date=${target.date}&period=${target.period_sequence}&status=${session?.status === "SUBMITTED" ? "ALL" : "INCOMPLETE"}` : "/workspace";
 
   // مزامنة أثناء العرض (نمط adjusting state during render) — مرة واحدة لكل جلسة
   const [loadedSessionId, setLoadedSessionId] = useState<number | null>(null);
@@ -268,18 +263,19 @@ function AttendanceSessionForm() {
   };
 
   const beginEditing = () => {
+    setActionError(null);
     setEditing(true);
   };
 
   const handleSubmit = async () => {
-    if (administrative && !editing && !reason.trim()) return;
+    if (reasonRequired && !reason.trim()) return;
     setPending(true);
     setActionError(null);
     setRosterNotice(false);
     try {
       const payload = buildPayload(marks, roster);
       const updated = editing
-        ? await editSession(session.id, payload, reason)
+        ? await editSession(session.id, payload, reason.trim(), session.updated_at)
         : administrative ? await submitAdministrativeSession(session.id, payload, reason.trim()) : await submitSession(session.id, payload);
       setSession(updated);
       setMarks(marksFromSession(updated));
@@ -302,7 +298,7 @@ function AttendanceSessionForm() {
             );
           });
         }
-      } else if (error instanceof ApiError && error.code === "ATTENDANCE_SESSION_ALREADY_SUBMITTED") {
+      } else if (error instanceof ApiError && (error.code === "ATTENDANCE_SESSION_ALREADY_SUBMITTED" || error.code === "ATTENDANCE_SESSION_CHANGED")) {
         const refreshed = await getSession(session.id);
         setSession(refreshed);
         setMarks(marksFromSession(refreshed));
@@ -493,12 +489,13 @@ function AttendanceSessionForm() {
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-900/5 sm:p-5">
           {(editing || administrative) && (
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">{editing ? "سبب التعديل (اختياري)" : "سبب التحضير الإداري (مطلوب)"}</span>
+              <span className="mb-1 block text-slate-600">{editing ? reasonRequired ? "سبب التصحيح الإداري (مطلوب)" : "سبب التعديل (اختياري)" : "سبب التحضير الإداري (مطلوب)"}</span>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 maxLength={300}
+                required={reasonRequired}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 placeholder={administrative && !editing ? "مثال: استكمال تحضير الفصل لعدم اعتماد المعلم" : undefined}
                 data-testid={editing ? "edit-reason" : "administrative-reason"}
@@ -514,7 +511,7 @@ function AttendanceSessionForm() {
               <Button
                 className="w-full justify-center sm:w-auto"
                 onClick={() => void handleSubmit()}
-                disabled={pending || (administrative && !editing && !reason.trim())}
+                disabled={pending || (reasonRequired && !reason.trim())}
                 data-testid="submit-attendance"
               >
                 {pending ? "جارٍ الإرسال..." : editing ? "حفظ التعديل" : administrative ? "اعتماد التحضير" : "إرسال التحضير"}

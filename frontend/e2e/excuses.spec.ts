@@ -260,9 +260,10 @@ test("attendance corrected to present: coverage voided and counters updated", as
   expect(before.excused_absent_periods).toBeGreaterThan(0);
 
   // تصحيح: سالم حاضر في الحصة الأولى (قائمة العلامات بلا علامته)
+  const current = await api<{ updated_at: string }>(page, `/attendance/sessions/${firstSession}/`);
   const edit = await api(page, `/attendance/sessions/${firstSession}/`, {
     method: "PATCH",
-    body: { marks: [], reason: "تصحيح إداري E2E" },
+    body: { marks: [], reason: "تصحيح إداري E2E", expected_updated_at: current.body.updated_at },
   });
   expect(edit.status).toBe(200);
 

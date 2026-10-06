@@ -1,4 +1,4 @@
-"""Detailed school reports for managers and vice principals.
+"""School reports for managers and vice principals, and counselors' own referrals.
 
 The dashboard remains an operational summary.  These selectors expose
 paginated, filterable rows without creating another source of truth.
@@ -9,6 +9,7 @@ from django.db.models import Count, Prefetch, Q, Sum
 from attendance.models import DailyAbsenceStatus
 from common.errors import ApiError
 from devices.models import ArrivalStatus
+from memberships.models import SchoolRole
 from referrals import selectors as referral_selectors
 from referrals.api.serializers import serialize_referral_row
 from referrals.models import ReferralPriority, ReferralStatus
@@ -254,6 +255,12 @@ def referrals_report(*, school, membership, roles, date_range, params) -> dict:
     queryset = referral_selectors.visible_referrals(
         school=school, membership=membership, roles=roles
     )
+    role_set = set(roles or [])
+    if SchoolRole.COUNSELOR in role_set and not role_set & {
+        SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL,
+    }:
+        # A counselor's additional teacher role must not include colleagues' referrals.
+        queryset = queryset.filter(assigned_counselor_membership=membership)
     queryset = referral_selectors.apply_filters(queryset, params).filter(
         created_at__date__gte=date_range.from_date,
         created_at__date__lte=date_range.to_date,

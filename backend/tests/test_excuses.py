@@ -281,6 +281,7 @@ def test_attendance_edit_absent_to_present_voids_coverage(env):
     ]
     edit_session(
         session_id=sessions[0].id, school=env["school"], membership=env["vice"],
+        expected_updated_at=sessions[0].updated_at,
         roles=["VICE_PRINCIPAL"], marks=other_marks, reason="تصحيح",
     )
     voided = AbsenceExcuseCoverage.objects.get(
@@ -311,6 +312,7 @@ def test_attendance_edit_present_to_absent_creates_coverage(env):
 
     edit_session(
         session_id=sessions[0].id, school=env["school"], membership=env["vice"],
+        expected_updated_at=sessions[0].updated_at,
         roles=["VICE_PRINCIPAL"],
         marks=[{"student_id": student.id, "status": "ABSENT"}],
         reason="تصحيح إلى غياب",
@@ -606,6 +608,7 @@ def test_stale_preview_rejected(env):
     ]
     edit_session(
         session_id=sessions[0].id, school=env["school"], membership=env["vice"],
+        expected_updated_at=sessions[0].updated_at,
         roles=["VICE_PRINCIPAL"], marks=other_marks, reason="تصحيح",
     )
     with pytest.raises(ApiError) as exc:

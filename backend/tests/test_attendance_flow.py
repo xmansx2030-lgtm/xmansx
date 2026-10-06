@@ -30,10 +30,13 @@ def _submit(client, session_id, marks):
     )
 
 
-def _edit(client, session_id, marks, reason=""):
+def _edit(client, session_id, marks, reason="", expected_updated_at=None):
+    expected_updated_at = expected_updated_at or (
+        AttendanceSession.objects.get(id=session_id).updated_at.isoformat()
+    )
     return client.patch(
         f"/api/v1/attendance/sessions/{session_id}/",
-        {"marks": marks, "reason": reason},
+        {"marks": marks, "reason": reason, "expected_updated_at": expected_updated_at},
         content_type="application/json",
     )
 
@@ -41,7 +44,9 @@ def _edit(client, session_id, marks, reason=""):
 def _correct(client, session_id, student_id, status, reason="تصحيح إداري"):
     return client.patch(
         f"/api/v1/attendance/sessions/{session_id}/students/{student_id}/",
-        {"status": status, "reason": reason},
+        {"status": status, "reason": reason, "expected_updated_at": (
+            AttendanceSession.objects.get(id=session_id).updated_at.isoformat()
+        )},
         content_type="application/json",
     )
 

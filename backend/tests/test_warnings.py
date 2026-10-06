@@ -452,6 +452,7 @@ def test_absence_correction_voids_only_levels_below_original_threshold(env):
     session = sessions_for_day(env, DAY)[0]
     correct_student_attendance(
         session_id=session.id, student_id=student.id, school=env["school"],
+        expected_updated_at=session.updated_at,
         membership=env["vice"], status="PRESENT", reason="تصحيح سجل الحضور",
     )
 
@@ -472,8 +473,9 @@ def test_absence_correction_keeps_warning_at_threshold_then_voids_below_it(env):
     absence_days(env, student, 4)
     warning = issue(env, student, ABSENCE, WarningLevel.LEVEL_1)
     for day in (DAY, DAY2):
+        session = sessions_for_day(env, day)[0]
         correct_student_attendance(
-            session_id=sessions_for_day(env, day)[0].id,
+            session_id=session.id, expected_updated_at=session.updated_at,
             student_id=student.id, school=env["school"], membership=env["vice"],
             status="PRESENT", reason="تصحيح سجل الحضور",
         )

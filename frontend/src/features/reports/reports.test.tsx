@@ -1,10 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
 import { buildMe, membership, mockApi } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
+import type { SchoolRole } from "@/types/auth";
 
 const me = buildMe({
   name: "سعد الوكيل",
@@ -25,6 +26,52 @@ const range = {
 
 describe("school reports", () => {
   beforeEach(() => queryClient.clear());
+
+  it.each<SchoolRole[]>([["COUNSELOR"], ["COUNSELOR", "TEACHER"]])("يعرض إحالات المرشد مع أدوات التقرير للأدوار %j", async (...roles) => {
+    const { calls } = mockApi({
+      "/auth/me/": { body: buildMe({
+        ...me, roles, name: "أحمد المرشد",
+        memberships: [membership(2, 10, "ثانوية الأندلس", roles)],
+      }) },
+      "/sections/": { body: [{ id: 20, name: "أ", department: "المسار العام", grade: { id: 2, name: "الأول" } }] },
+      "/referrals/options/": { body: { categories: [] } },
+      "/reports/referrals/": { body: {
+        context: { ...range, scope: { ...range.scope, counselor_membership_id: 2 } },
+        summary: { total: 1, new: 0, under_vice_review: 0, referred: 1, acknowledged: 0, closed: 0, unassigned: 0, high_priority: 1 },
+        results: [{
+          id: 9, student: { id: 7, full_name: "طالب إحالاتي" },
+          category_label: "المواظبة", reason_label: "غياب متكرر",
+          created_by_name: "معلم الطالب", assigned_counselor_name: "أحمد المرشد",
+          status: "REFERRED", status_label: "محوّلة للمرشد",
+          priority: "HIGH", priority_label: "عاجلة", created_at: "2026-08-25T08:00:00Z",
+        }], count: 1, page: 1, page_size: 25,
+      } },
+    });
+    renderApp("/reports");
+
+    expect(await screen.findByRole("heading", { name: "تقرير إحالاتي" })).toBeInTheDocument();
+    expect(await screen.findByText("طالب إحالاتي")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "التقارير" })).toHaveAttribute("href", "/reports");
+    expect(screen.getByRole("tab", { name: "إحالاتي" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "الغياب" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "التأخر" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("المرشد")).not.toBeInTheDocument();
+    expect(screen.getByText("الإحالات الخاصة بالمرشد")).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "الأول / أ / المسار العام" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تصدير Excel" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "تصدير المعروض CSV" })).toBeEnabled();
+
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    await userEvent.click(screen.getByRole("button", { name: "طباعة واضحة" }));
+    expect(print).toHaveBeenCalledOnce();
+    print.mockRestore();
+    await userEvent.selectOptions(screen.getByLabelText("الأولوية"), "HIGH");
+    await waitFor(() => expect(calls.some((call) => call.url.includes("/reports/referrals/") && call.url.includes("priority=HIGH"))).toBe(true));
+    expect(calls.some((call) => /\/reports\/(absence|lateness)\/|\/attendance\/sections\/|\/referrals\/counselors\//.test(call.url))).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "فتح قائمة التنقل" }));
+    expect(screen.getAllByRole("link", { name: "التقارير" })).toHaveLength(2);
+  });
 
   it("يعرض للوكيل تقارير الغياب والتأخر والإحالات دون المخالفات", async () => {
     mockApi({
