@@ -46,7 +46,7 @@ import {
   type ReportPreset,
   type ReportResponse,
 } from "@/features/reports/api";
-import { getStudents, type StudentRow } from "@/features/students/api";
+import { getSections, getStudents, type StudentRow } from "@/features/students/api";
 import { roleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 type Tab = "absence" | "lateness" | "referrals";
@@ -99,6 +99,10 @@ function formatRange(context?: ReportResponse<unknown, unknown>["context"]) {
 
 function formatScope(context?: ReportResponse<unknown, unknown>["context"]) {
   if (!context) return "نطاق المدرسة الحالية";
+  if (context.scope.counselor_membership_id) {
+    const filterScope = context.scope.section_id ? " · فصل محدد" : context.scope.grade_id ? " · صف محدد" : "";
+    return `الإحالات الخاصة بالمرشد${filterScope}`;
+  }
   if (context.scope.section_id) return "فصل محدد حسب الفلتر";
   if (context.scope.grade_id) return "صف محدد حسب الفلتر";
   return "كل المدرسة";
@@ -135,7 +139,10 @@ export function ReportsPage() {
   const schoolId = me.data?.active_school?.id ?? 0;
   const schoolName = me.data?.active_school?.name ?? "المدرسة الحالية";
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
-  const [tab, setTab] = useState<Tab>("absence");
+  const isCounselorReport = me.data?.roles.includes("COUNSELOR") === true
+    && !me.data.roles.some((role) => role === "SCHOOL_MANAGER" || role === "VICE_PRINCIPAL");
+  const [selectedTab, setTab] = useState<Tab>("absence");
+  const tab = isCounselorReport ? "referrals" : selectedTab;
   const [draft, setDraft] = useState<CommonReportFilters>({
     ...INITIAL_FILTERS,
     fromDate: todayIso(-29),
@@ -149,8 +156,13 @@ export function ReportsPage() {
   });
 
   const sectionsQuery = useQuery({
-    queryKey: schoolScopedKey(schoolId, "attendance", "sections"),
-    queryFn: ({ signal }) => getAttendanceSections(signal),
+    queryKey: schoolScopedKey(schoolId, "reports", "sections", isCounselorReport),
+    queryFn: async ({ signal }) => isCounselorReport
+      ? (await getSections(signal)).map((section) => ({
+        id: section.id, name: section.name, department: section.department,
+        grade_id: section.grade.id, grade_name: section.grade.name, students_count: 0,
+      }))
+      : getAttendanceSections(signal),
     enabled: schoolId > 0,
   });
   const grades = useMemo(() => {
@@ -190,9 +202,9 @@ export function ReportsPage() {
         icon={BarChart3}
         eyebrow="التحليل والتوثيق"
         title="مركز التقارير"
-        description={`تقارير الغياب والتأخر والإحالات المخصصة ${schoolType === "GIRLS" ? "لمديرة المدرسة والوكيلة" : "لمدير المدرسة والوكيل"}.`}
-        tone="executive"
-        badge="نطاق المدرسة الحالية"
+        description={isCounselorReport ? "تقارير الإحالات المحوّلة إليك مع الفلاتر والطباعة والتصدير." : `تقارير الغياب والتأخر والإحالات المخصصة ${schoolType === "GIRLS" ? "لمديرة المدرسة والوكيلة" : "لمدير المدرسة والوكيل"}.`}
+        tone={isCounselorReport ? "counselor" : "executive"}
+        badge={isCounselorReport ? "إحالاتي فقط" : "نطاق المدرسة الحالية"}
         actions={<Button variant="secondary" onClick={() => window.print()}><Printer aria-hidden size={17} /> طباعة التقرير النشط</Button>}
       />
 
@@ -201,7 +213,7 @@ export function ReportsPage() {
         onChange={(nextTab) => setTab(nextTab)}
         label="أنواع التقارير"
         className="print:hidden"
-        items={[
+        items={isCounselorReport ? [{ value: "referrals", label: "إحالاتي" }] : [
           { value: "absence", label: "الغياب" },
           { value: "lateness", label: "التأخر" },
           { value: "referrals", label: "الإحالات للمرشد" },
@@ -251,6 +263,7 @@ export function ReportsPage() {
       )}
       {tab === "referrals" && (
         <ReferralsReport
+          isCounselorReport={isCounselorReport}
           schoolId={schoolId}
           filters={draft}
           onPage={(page) => setDraft((current) => ({ ...current, page }))}
@@ -379,7 +392,7 @@ function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isC
   );
 }
 
-function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore }: ReportProps) {
+function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore, isCounselorReport }: ReportProps & { isCounselorReport: boolean }) {
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
@@ -388,9 +401,9 @@ function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, is
   const [priority, setPriority] = useState("");
   const [excelLoading, setExcelLoading] = useState(false);
   const options = useQuery({ queryKey: schoolScopedKey(schoolId, "referral-options"), queryFn: ({ signal }) => getReferralOptions(signal), enabled: schoolId > 0 });
-  const counselors = useQuery({ queryKey: schoolScopedKey(schoolId, "referral-counselors"), queryFn: ({ signal }) => getCounselors(signal), enabled: schoolId > 0 });
+  const counselors = useQuery({ queryKey: schoolScopedKey(schoolId, "referral-counselors"), queryFn: ({ signal }) => getCounselors(signal), enabled: schoolId > 0 && !isCounselorReport });
   const reasons = options.data?.categories.find((item) => item.value === category)?.reasons ?? [];
-  const extra = { status, category, reason_code: reason, source_type: source, counselor, priority };
+  const extra = { status, category, reason_code: reason, source_type: source, counselor: isCounselorReport ? "" : counselor, priority };
   const report = useQuery({
     queryKey: schoolScopedKey(schoolId, "reports", "referrals", filters, extra),
     queryFn: ({ signal }) => getReferralsReport(filters, extra, signal),
@@ -398,15 +411,36 @@ function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, is
   });
   return (
     <ReportFrame<ReferralRow, ReferralReportSummary>
-      title={REPORT_TITLES.referrals}
-      description="الإحالات المعروضة للمدير والوكيل حسب نطاق الرؤية والصلاحيات الحالية."
+      title={isCounselorReport ? "تقرير إحالاتي" : REPORT_TITLES.referrals}
+      description={isCounselorReport ? "الإحالات المحوّلة إليك فقط، حسب الفترة والفلاتر المحددة." : "الإحالات المعروضة للمدير والوكيل حسب نطاق الرؤية والصلاحيات الحالية."}
       fileSlug="referrals-report"
       schoolName={schoolName}
       query={report}
       rows={report.data?.results ?? []}
       columns={referralColumns}
-      controls={<><Select label="الحالة" value={status} onChange={setStatus} options={[["", "الكل"], ["OPEN", "المفتوحة"], ["PENDING_VICE", "بانتظار الوكيل"], ["UNDER_VICE_REVIEW", "قيد معالجة الوكيل"], ["REFERRED", "محوّلة للمرشد"], ["ACKNOWLEDGED", "قيد متابعة المرشد"], ["CLOSED", "مغلقة"], ["CANCELLED", "ملغاة"]]} /><Select label="الأولوية" value={priority} onChange={setPriority} options={[["", "الكل"], ["HIGH", "عاجلة"], ["NORMAL", "عادية"]]} /><Select label="الفئة" value={category} onChange={(value) => { setCategory(value); setReason(""); }} options={[["", "الكل"], ...(options.data?.categories.map((item) => [item.value, item.label] as [string, string]) ?? [])]} /><Select label="السبب" value={reason} onChange={setReason} options={[["", "الكل"], ...reasons.map((item) => [item.value, item.label] as [string, string])]} /><Select label="المُحيل" value={source} onChange={setSource} options={[["", "الكل"], ["TEACHER", roleLabel("TEACHER", schoolType)], ["VICE_PRINCIPAL", roleLabel("VICE_PRINCIPAL", schoolType)], ["SCHOOL_MANAGER", roleLabel("SCHOOL_MANAGER", schoolType)]]} /><Select label="المرشد" value={counselor} onChange={setCounselor} options={[["", "الكل"], ["UNASSIGNED", "غير معيّنة"], ...(counselors.data?.counselors.map((item) => [String(item.id), item.name] as [string, string]) ?? [])]} /></>}
-      summary={report.data && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><MetricCard label="إجمالي الإحالات" value={report.data.summary.total} /><MetricCard label="بانتظار الوكيل" value={report.data.summary.new} tone="amber" /><MetricCard label="تحتاج تعيين وكيل" value={report.data.summary.unassigned} tone="red" /><MetricCard label="محوّلة للمرشد" value={report.data.summary.referred} tone="blue" /></div>}
+      controls={<>
+        <Select label="الحالة" value={status} onChange={setStatus} options={[
+          ["", "الكل"], ["OPEN", "المفتوحة"],
+          ...(!isCounselorReport ? [["PENDING_VICE", "بانتظار الوكيل"], ["UNDER_VICE_REVIEW", "قيد معالجة الوكيل"]] as [string, string][] : []),
+          ["REFERRED", "محوّلة للمرشد"], ["ACKNOWLEDGED", "قيد متابعة المرشد"], ["CLOSED", "مغلقة"], ["CANCELLED", "ملغاة"],
+        ]} />
+        <Select label="الأولوية" value={priority} onChange={setPriority} options={[["", "الكل"], ["HIGH", "عاجلة"], ["NORMAL", "عادية"]]} />
+        <Select label="الفئة" value={category} onChange={(value) => { setCategory(value); setReason(""); }} options={[["", "الكل"], ...(options.data?.categories.map((item) => [item.value, item.label] as [string, string]) ?? [])]} />
+        <Select label="السبب" value={reason} onChange={setReason} options={[["", "الكل"], ...reasons.map((item) => [item.value, item.label] as [string, string])]} />
+        <Select label="المُحيل" value={source} onChange={setSource} options={[["", "الكل"], ["TEACHER", roleLabel("TEACHER", schoolType)], ["VICE_PRINCIPAL", roleLabel("VICE_PRINCIPAL", schoolType)], ["SCHOOL_MANAGER", roleLabel("SCHOOL_MANAGER", schoolType)]]} />
+        {!isCounselorReport && <Select label="المرشد" value={counselor} onChange={setCounselor} options={[["", "الكل"], ["UNASSIGNED", "غير معيّنة"], ...(counselors.data?.counselors.map((item) => [String(item.id), item.name] as [string, string]) ?? [])]} />}
+      </>}
+      summary={report.data && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MetricCard label="إجمالي الإحالات" value={report.data.summary.total} />
+        {isCounselorReport ? <>
+          <MetricCard label="قيد متابعة المرشد" value={report.data.summary.acknowledged} tone="amber" />
+          <MetricCard label="مغلقة" value={report.data.summary.closed} tone="teal" />
+        </> : <>
+          <MetricCard label="بانتظار الوكيل" value={report.data.summary.new} tone="amber" />
+          <MetricCard label="تحتاج تعيين وكيل" value={report.data.summary.unassigned} tone="red" />
+        </>}
+        <MetricCard label="محوّلة للمرشد" value={report.data.summary.referred} tone="blue" />
+      </div>}
       table={report.data && <ReferralsTable rows={report.data.results} />}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}

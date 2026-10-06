@@ -218,6 +218,7 @@ def get_day_detail(*, school, student: Student, attendance_date: date) -> dict:
             "sequence": period["sequence"],
             "name": period["name"],
             "session_id": session.id if session else None,
+            "session_updated_at": session.updated_at.isoformat() if session else None,
             "start_time": period.get("start_time"),
             "end_time": period.get("end_time"),
             **payload,

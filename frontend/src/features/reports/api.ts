@@ -26,7 +26,7 @@ export interface CommonReportFilters {
 export interface ReportResponse<TSummary, TRow> {
   context: {
     range: { from_date: string; to_date: string; days: number; preset: ReportPreset };
-    scope: { grade_id: number | null; section_id: number | null };
+    scope: { grade_id: number | null; section_id: number | null; counselor_membership_id?: number };
   };
   summary: TSummary;
   results: TRow[];

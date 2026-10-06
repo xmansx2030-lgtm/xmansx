@@ -39,6 +39,7 @@ export interface SessionMark {
 
 export interface AttendanceSessionData {
   id: number;
+  updated_at: string;
   status: "IN_PROGRESS" | "SUBMITTED";
   attendance_date: string;
   section: AttendanceSection;
@@ -115,10 +116,10 @@ export const submitSession = (sessionId: number, marks: MarkInput[]) =>
     body: { marks },
   });
 
-export const editSession = (sessionId: number, marks: MarkInput[], reason: string) =>
+export const editSession = (sessionId: number, marks: MarkInput[], reason: string, expectedUpdatedAt: string) =>
   apiRequest<AttendanceSessionData>(`/attendance/sessions/${sessionId}/`, {
     method: "PATCH",
-    body: { marks, reason },
+    body: { marks, reason, expected_updated_at: expectedUpdatedAt },
   });
 
 export const resolveQr = (token: string) =>

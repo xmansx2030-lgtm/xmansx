@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -410,7 +410,7 @@ describe("student attendance profile (Phase 9)", () => {
           excused_absent_periods: 0,
           unexcused_absent_periods: corrected ? 0 : 1,
           periods: [
-            { sequence: 1, session_id: 44, name: "الحصة الأولى", status: corrected ? "PRESENT" : "ABSENT", excused: corrected ? null : false },
+            { sequence: 1, session_id: 44, session_updated_at: `${today}T08:00:00.123456Z`, name: "الحصة الأولى", status: corrected ? "PRESENT" : "ABSENT", excused: corrected ? null : false },
             { sequence: 2, session_id: null, name: "الحصة الثانية", status: "NOT_RECORDED", excused: null },
           ],
         },
@@ -434,6 +434,45 @@ describe("student attendance profile (Phase 9)", () => {
     expect(patch?.init?.method).toBe("PATCH");
     expect(JSON.parse(String(patch?.init?.body))).toEqual({
       status: "PRESENT", reason: "تم تسجيل الغياب بالخطأ",
+      expected_updated_at: `${today}T08:00:00.123456Z`,
     });
+  });
+
+  it("refreshes a stale individual correction and requires reopening the form", async () => {
+    const today = localIsoDate(new Date());
+    const oldVersion = `${today}T08:00:00.123456Z`;
+    const newVersion = `${today}T08:01:00.654321Z`;
+    let rejected = false;
+    const { calls } = mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/attendance-profile/": { body: { ...PROFILE, period: { from: today, to: today } } },
+      [`/attendance-days/${today}/`]: () => ({ body: {
+        date: today, absence_status: "FULL", section: null,
+        expected_periods: 1, submitted_periods: 1, present_periods: 0, absent_periods: 1,
+        excused_absent_periods: 0, unexcused_absent_periods: 1,
+        periods: [{ sequence: 1, session_id: 44, session_updated_at: rejected ? newVersion : oldVersion, name: "الحصة الأولى", status: "ABSENT", excused: false }],
+      } }),
+      "/attendance/sessions/44/students/5/": () => {
+        rejected = true;
+        return { status: 409, body: { code: "ATTENDANCE_SESSION_CHANGED", message: "تغير هذا التحضير. لم يُحفظ تصحيحك؛ راجع أحدث البيانات.", details: {} } };
+      },
+    });
+    renderApp("/students/5/attendance");
+    const user = userEvent.setup();
+    const period = await screen.findByTestId("period-status-1");
+    await user.click(within(period).getByRole("button", { name: "تصحيح الحضور" }));
+    await user.type(within(period).getByLabelText("سبب التصحيح"), "تحقق إداري");
+    await user.click(within(period).getByRole("button", { name: "تصحيح إلى حاضر" }));
+    expect(await within(period).findByRole("alert")).toHaveTextContent("لم يُحفظ تصحيحك");
+    expect(within(period).queryByLabelText("سبب التصحيح")).toBeNull();
+    expect(screen.queryByText("تم حفظ التصحيح وتحديث سجل الحضور.")).toBeNull();
+    await waitFor(() => expect(calls.filter((call) => call.url.includes("attendance-days")).length).toBeGreaterThan(1));
+    expect(calls.filter((call) => call.init?.method === "PATCH")).toHaveLength(1);
+    await user.click(within(period).getByRole("button", { name: "تصحيح الحضور" }));
+    await user.click(within(period).getByRole("button", { name: "تصحيح إلى حاضر" }));
+    await waitFor(() => expect(calls.filter((call) => call.init?.method === "PATCH")).toHaveLength(2));
+    const patches = calls.filter((call) => call.init?.method === "PATCH");
+    expect(JSON.parse(String(patches[0]?.init?.body)).expected_updated_at).toBe(oldVersion);
+    expect(JSON.parse(String(patches[1]?.init?.body)).expected_updated_at).toBe(newVersion);
   });
 });

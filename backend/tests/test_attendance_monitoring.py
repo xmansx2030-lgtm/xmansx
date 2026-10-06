@@ -335,6 +335,7 @@ def test_submitted_at_and_started_at_immutable_after_edit(
 
     edit_session(
         session_id=session.id, school=school, membership=membership,
+        expected_updated_at=session.updated_at,
         roles=["TEACHER"], marks=[], reason="تصحيح",
     )
     session.refresh_from_db()

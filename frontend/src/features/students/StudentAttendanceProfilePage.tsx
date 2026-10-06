@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, CircleAlert, Clock3, GraduationCap, XCircle }
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
+import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -624,9 +625,10 @@ function AttendanceDayOverview({ detail, canManageExcuses, onQuickExcuse }: {
                   )}
                 </div>
               )}
-              {canManageExcuses && period.session_id && (isAbsent || isPresent) && (
+              {canManageExcuses && period.session_id && period.session_updated_at && (isAbsent || isPresent) && (
                 <AttendanceCorrectionControl
                   sessionId={period.session_id}
+                  sessionUpdatedAt={period.session_updated_at}
                   date={detail.date}
                   periodName={period.name || `الحصة ${period.sequence}`}
                   currentStatus={period.status as "PRESENT" | "ABSENT"}
@@ -643,8 +645,9 @@ function AttendanceDayOverview({ detail, canManageExcuses, onQuickExcuse }: {
   );
 }
 
-function AttendanceCorrectionControl({ sessionId, date, periodName, currentStatus }: {
+function AttendanceCorrectionControl({ sessionId, sessionUpdatedAt, date, periodName, currentStatus }: {
   sessionId: number;
+  sessionUpdatedAt: string;
   date: string;
   periodName: string;
   currentStatus: "PRESENT" | "ABSENT";
@@ -655,22 +658,34 @@ function AttendanceCorrectionControl({ sessionId, date, periodName, currentStatu
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [saved, setSaved] = useState(false);
-  const nextStatus = currentStatus === "ABSENT" ? "PRESENT" : "ABSENT";
+  const [editingSnapshot, setEditingSnapshot] = useState<{ status: "PRESENT" | "ABSENT"; updatedAt: string } | null>(null);
+  const statusForCorrection = editingSnapshot?.status ?? currentStatus;
+  const nextStatus = statusForCorrection === "ABSENT" ? "PRESENT" : "ABSENT";
   const action = nextStatus === "PRESENT" ? "تصحيح إلى حاضر" : "تصحيح إلى غائب";
   const mutation = useMutation({
-    mutationFn: () => correctStudentAttendance(Number(studentId), sessionId, nextStatus, reason.trim()),
+    mutationFn: () => correctStudentAttendance(Number(studentId), sessionId, nextStatus, reason.trim(), editingSnapshot?.updatedAt ?? sessionUpdatedAt),
     onSuccess: () => {
       setOpen(false);
       setReason("");
       setSaved(true);
+      setEditingSnapshot(null);
       void queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId) });
+    },
+    onError: async (error) => {
+      if (error instanceof ApiError && (error.code === "ATTENDANCE_SESSION_CHANGED" || error.code === "ATTENDANCE_STATUS_UNCHANGED")) {
+        setOpen(false);
+        setEditingSnapshot(null);
+        setSaved(false);
+        await queryClient.invalidateQueries({ queryKey: schoolScopedKey(schoolId) });
+      }
     },
   });
 
   return (
     <div className="mt-3 border-t border-slate-200 pt-3 text-sm">
+      {mutation.isError && <p role="alert" className="mb-2 text-red-700">{mutation.error.message}</p>}
       {!open ? (
-        <button type="button" className="font-bold text-blue-700 underline" onClick={() => { setOpen(true); setSaved(false); mutation.reset(); }}>
+        <button type="button" className="font-bold text-blue-700 underline" onClick={() => { setEditingSnapshot({ status: currentStatus, updatedAt: sessionUpdatedAt }); setOpen(true); setSaved(false); mutation.reset(); }}>
           تصحيح الحضور
         </button>
       ) : (
@@ -691,7 +706,6 @@ function AttendanceCorrectionControl({ sessionId, date, periodName, currentStatu
           {currentStatus === "ABSENT" && (
             <p className="text-xs text-slate-600">إذا صدر إنذار سابق بسبب هذا الغياب، راجعه من قسم الإنذارات بعد التصحيح.</p>
           )}
-          {mutation.isError && <p role="alert" className="text-red-700">{mutation.error.message}</p>}
           <div className="flex gap-2">
             <Button type="submit" disabled={!reason.trim() || mutation.isPending}>{mutation.isPending ? "جارٍ الحفظ..." : action}</Button>
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); mutation.reset(); }}>إلغاء</Button>

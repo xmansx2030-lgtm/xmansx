@@ -61,10 +61,6 @@ export const routes = [
                         lazy: async () => ({ Component: (await import("@/features/dashboard/DashboardPage")).DashboardPage }),
                       },
                       {
-                        path: "reports",
-                        lazy: async () => ({ Component: (await import("@/features/reports/ReportsPage")).ReportsPage }),
-                      },
-                      {
                         path: "warnings",
                         lazy: async () => ({ Component: (await import("@/features/warnings/WarningsDashboardPage")).WarningsDashboardPage }),
                       },
@@ -153,6 +149,10 @@ export const routes = [
                   {
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"]} />,
                     children: [
+                      {
+                        path: "reports",
+                        lazy: async () => ({ Component: (await import("@/features/reports/ReportsPage")).ReportsPage }),
+                      },
                       {
                         path: "students",
                         lazy: async () => ({ Component: (await import("@/features/students/StudentsPage")).StudentsPage }),

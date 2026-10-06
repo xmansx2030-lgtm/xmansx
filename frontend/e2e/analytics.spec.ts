@@ -223,11 +223,13 @@ test("attendance edit updates analytics after refresh", async ({ page }) => {
         .split("; ")
         .find((c) => c.startsWith("csrftoken="))
         ?.split("=")[1];
+      const current = await fetch(`/api/v1/attendance/sessions/${sessionId}/`, { credentials: "include" });
+      const session = await current.json();
       const res = await fetch(`/api/v1/attendance/sessions/${sessionId}/`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrf ?? "" },
-        body: JSON.stringify({ marks, reason: "تصحيح إداري E2E" }),
+        body: JSON.stringify({ marks, reason: "تصحيح إداري E2E", expected_updated_at: session.updated_at }),
       });
       return res.status;
     },

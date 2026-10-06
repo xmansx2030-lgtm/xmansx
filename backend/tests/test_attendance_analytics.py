@@ -500,8 +500,10 @@ def test_submit_and_edit_update_summaries_synchronously(make_school, make_user, 
     assert other.absence_status == "NONE"  # حاضر واليوم مكتمل (حصة واحدة متوقعة)
 
     # ‏ABSENT → PRESENT
+    session.refresh_from_db()
     edit_session(
         session_id=session.id,
+        expected_updated_at=session.updated_at,
         school=school,
         membership=membership,
         roles=["TEACHER"],

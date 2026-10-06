@@ -1,4 +1,4 @@
-"""Excel exports for manager and vice-principal reports."""
+"""Excel exports for school reports within the current user's scope."""
 
 from __future__ import annotations
 
@@ -105,6 +105,10 @@ def _write_metadata(
         scope_label = "فصل محدد حسب الفلتر"
     elif scope.get("grade_id"):
         scope_label = "صف محدد حسب الفلتر"
+    if scope.get("counselor_membership_id"):
+        scope_label = "الإحالات الخاصة بالمرشد" + (
+            f" - {scope_label}" if scope_label != "كل المدرسة" else ""
+        )
 
     metadata = [
         ("المدرسة", school.name),

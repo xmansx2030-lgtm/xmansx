@@ -46,10 +46,12 @@ class AdministrativeSubmitSerializer(SubmitSessionSerializer):
 
 
 class EditSessionSerializer(SubmitSessionSerializer):
+    expected_updated_at = serializers.DateTimeField()
     reason = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
 
 
 class CorrectStudentAttendanceSerializer(serializers.Serializer):
+    expected_updated_at = serializers.DateTimeField()
     status = serializers.ChoiceField(choices=["PRESENT", AttendanceMarkStatus.ABSENT])
     reason = serializers.CharField(max_length=300, trim_whitespace=True, allow_blank=False)
 
@@ -117,6 +119,7 @@ class MarkSerializer(serializers.Serializer):
 
 class SessionSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+    updated_at = serializers.DateTimeField()
     status = serializers.CharField()
     attendance_date = serializers.DateField()
     section = AttendanceSectionSerializer()
@@ -336,6 +339,7 @@ def serialize_session(session: AttendanceSession, roster: list[dict], *, can_edi
     snapshot = session.bell_period_snapshot
     return {
         "id": session.id,
+        "updated_at": session.updated_at.isoformat(),
         "status": session.status,
         "attendance_date": session.attendance_date.isoformat(),
         "section": {

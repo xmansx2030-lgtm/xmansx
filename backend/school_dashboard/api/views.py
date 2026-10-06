@@ -1,7 +1,7 @@
 """‏API لوحة إدارة المدرسة — طبقة قراءة فقط فوق أنظمة قائمة (م15).
 
 - المدرسة من `request.school` حصرًا؛ لا `school_id` من العميل.
-- المدير والوكيل فقط: المرشد لديه لوحته (م14) والمعلم لا لوحة تنفيذية له.
+- اللوحة التنفيذية للمدير والوكيل؛ المرشد يصل إلى تقرير إحالاته فقط.
 - كل استجابة تحمل سياقها (العام/الفصل/المنطقة الزمنية/النطاق) حتى لا تُقرأ
   أرقامها خارج سياقها.
 """
@@ -284,7 +284,17 @@ class LatenessReportExcelView(_DashboardView):
         return excel_exports.workbook_response(report_type="lateness", content=content)
 
 
-class ReferralsReportView(_DashboardView):
+class _ReferralsReportView(_DashboardView):
+    read_roles = (*DASHBOARD_ROLES, SchoolRole.COUNSELOR)
+
+    def context(self, request):
+        date_range, scope = super().context(request)
+        if not set(request.school_roles or []) & set(DASHBOARD_ROLES):
+            scope = {**scope, "counselor_membership_id": request.membership.id}
+        return date_range, scope
+
+
+class ReferralsReportView(_ReferralsReportView):
     @extend_schema(responses=None)
     def get(self, request):
         date_range, scope = self.context(request)
@@ -302,7 +312,7 @@ class ReferralsReportView(_DashboardView):
         )
 
 
-class ReferralsReportExcelView(_DashboardView):
+class ReferralsReportExcelView(_ReferralsReportView):
     @extend_schema(responses=None)
     def get(self, request):
         date_range, scope = self.context(request)

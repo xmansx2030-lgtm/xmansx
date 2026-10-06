@@ -342,12 +342,24 @@ def _can_edit(session: AttendanceSession, membership, roles: list[str]) -> None:
         )
 
 
+def _require_current_session(session, expected_updated_at) -> None:
+    # The comparison must run under the same row lock as the write. A lock alone
+    # serializes writes but cannot detect an outdated form opened by another actor.
+    if session.updated_at != expected_updated_at:
+        raise ApiError(
+            "ATTENDANCE_SESSION_CHANGED",
+            "تغير هذا التحضير منذ فتحه. لم يُحفظ تصحيحك؛ راجع أحدث البيانات ثم أعد التعديل.",
+            status_code=409,
+        )
+
+
 def edit_session(
     *,
     session_id: int,
     school,
     membership,
     roles: list[str],
+    expected_updated_at,
     marks: list[dict],
     reason: str = "",
     request=None,
@@ -362,6 +374,10 @@ def edit_session(
         if session.status != AttendanceSessionStatus.SUBMITTED:
             raise ApiError("VALIDATION_ERROR", "لا يمكن تعديل جلسة غير معتمدة.")
         _can_edit(session, membership, roles)
+        reason = reason.strip()
+        if ADMIN_CORRECTION_ROLES & set(roles) and not reason:
+            raise ApiError("VALIDATION_ERROR", "سبب التصحيح الإداري مطلوب.")
+        _require_current_session(session, expected_updated_at)
 
         roster = get_roster(
             school=school, section=session.section, academic_year=session.academic_year
@@ -440,7 +456,7 @@ def edit_session(
 
 def correct_student_attendance(
     *, session_id: int, student_id: int, school, membership, status: str,
-    reason: str, request=None,
+    reason: str, expected_updated_at, request=None,
 ) -> dict:
     """تصحيح علامة طالب واحد في جلسة معتمدة دون إعادة كتابة علامات الفصل."""
     from students.services.enrollments import enrollments_on_date
@@ -484,6 +500,7 @@ def correct_student_attendance(
                 "ATTENDANCE_STATUS_UNCHANGED", "حالة الطالب مسجلة بالفعل بهذه القيمة.",
                 status_code=409,
             )
+        _require_current_session(session, expected_updated_at)
         if status == AttendanceMarkStatus.ABSENT:
             AttendanceMark.objects.create(
                 school=school, session=session, student_id=student_id, status=status,

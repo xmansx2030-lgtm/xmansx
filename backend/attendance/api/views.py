@@ -342,6 +342,7 @@ class SessionDetailView(SchoolScopedAPIView):
             school=request.school,
             membership=request.membership,
             roles=request.school_roles,
+            expected_updated_at=serializer.validated_data["expected_updated_at"],
             marks=serializer.validated_data["marks"],
             reason=serializer.validated_data.get("reason", ""),
             request=request,
@@ -375,6 +376,7 @@ class StudentAttendanceCorrectionView(SchoolScopedAPIView):
             school=request.school,
             membership=request.membership,
             status=serializer.validated_data["status"],
+            expected_updated_at=serializer.validated_data["expected_updated_at"],
             reason=serializer.validated_data["reason"],
             request=request,
         )
