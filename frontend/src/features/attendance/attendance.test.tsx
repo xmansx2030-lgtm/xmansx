@@ -6,6 +6,7 @@ import { queryClient } from "@/app/queryClient";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
+import { mockBrowserStorage } from "@/test/browserStorage";
 
 vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
@@ -83,6 +84,7 @@ function parseBody(init?: RequestInit): Record<string, unknown> {
 describe("attendance", () => {
   beforeEach(() => {
     queryClient.clear();
+    mockBrowserStorage();
     document.cookie = "csrftoken=test-token";
   });
 
@@ -158,6 +160,7 @@ describe("attendance", () => {
       "/auth/me/": { body: teacherMe() },
       "/attendance/sections/3/preview/": { body: previewBody() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
+      "/attendance/sessions/5/": { body: sessionBody() },
     });
 
     renderApp("/attendance/section/3");
@@ -206,6 +209,7 @@ describe("attendance", () => {
           ],
         }),
       },
+      "/attendance/sessions/5/": { body: sessionBody() },
     });
 
     renderApp("/attendance/section/3");
@@ -259,7 +263,7 @@ describe("attendance", () => {
                 marks: [],
               }),
             }
-          : { body: sessionBody() },
+          : { body: submitted },
     });
 
     renderApp("/attendance/section/3");
@@ -325,6 +329,7 @@ describe("attendance", () => {
       "/attendance/qr/resolve/": { body: SECTIONS[0] },
       "/attendance/sections/3/preview/": { body: previewBody() },
       "/attendance/sessions/start/": { status: 201, body: sessionBody() },
+      "/attendance/sessions/5/": { body: sessionBody() },
     });
 
     renderApp("/qr/tok-abc123");

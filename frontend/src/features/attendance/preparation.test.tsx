@@ -6,6 +6,7 @@ import { queryClient } from "@/app/queryClient";
 import type { MonitoringSection, PreparationToday } from "@/features/attendance/api";
 import { buildMe, membership, mockApi } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
+import { mockBrowserStorage } from "@/test/browserStorage";
 
 const DATE = "2026-10-05";
 const PERIOD = { sequence: 1, name: "الحصة الأولى", start_time: "08:00", end_time: "08:40", timezone: "Asia/Riyadh" };
@@ -27,7 +28,7 @@ const DAY: PreparationToday = {
 };
 
 describe("administrative preparation", () => {
-  beforeEach(() => { queryClient.clear(); document.cookie = "csrftoken=test-token"; });
+  beforeEach(() => { queryClient.clear(); mockBrowserStorage(); document.cookie = "csrftoken=test-token"; });
 
   it("opens only unfinished sections for the chosen period and links explicit targets", async () => {
     mockApi({ "/auth/me/": { body: roleMe("VICE_PRINCIPAL") }, "/attendance/preparation/today/": { body: DAY } });

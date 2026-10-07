@@ -25,6 +25,7 @@ from attendance.api.serializers import (
     MonitoringResponseSerializer,
     MultiPeriodRequestSerializer,
     MultiPeriodResponseSerializer,
+    PendingSessionSerializer,
     PreparationTodaySerializer,
     QrInfoSerializer,
     QrResolveSerializer,
@@ -296,6 +297,8 @@ class StartSessionView(SchoolScopedAPIView):
             membership=membership,
             section=section,
             source=serializer.validated_data["source"],
+            expected_date=serializer.validated_data.get("expected_date"),
+            expected_period_sequence=serializer.validated_data.get("expected_period_sequence"),
             request=request,
         )
         session = _load_session(request, session.id)
@@ -303,6 +306,40 @@ class StartSessionView(SchoolScopedAPIView):
             serialize_session(session, roster, can_edit=_can_edit(session, request)),
             status=http_status.HTTP_200_OK if resumed else http_status.HTTP_201_CREATED,
         )
+
+
+class PendingSessionsView(SchoolScopedAPIView):
+    """Own unfinished sessions for the school-local day, even after the period ends."""
+
+    read_roles = TEACHER_ROLES
+    write_roles = TEACHER_ROLES
+
+    @extend_schema(responses=PendingSessionSerializer(many=True))
+    def get(self, request: Request) -> Response:
+        membership = _teacher_membership(request)
+        today = school_now(request.school).date()
+        sessions = AttendanceSession.objects.filter(
+            school=request.school, started_by_membership=membership,
+            attendance_date=today, status=AttendanceSessionStatus.IN_PROGRESS,
+            section__is_active=True,
+        ).select_related("section__grade").order_by("period_sequence", "started_at", "id")
+        return Response([
+            {
+                "id": session.id,
+                "attendance_date": session.attendance_date.isoformat(),
+                "section": {
+                    "id": session.section_id, "name": session.section.name,
+                    "grade_name": session.section.grade.name,
+                    "department": session.section.department,
+                },
+                "period": {
+                    key: session.bell_period_snapshot[key]
+                    for key in ("sequence", "name", "start_time", "end_time", "timezone")
+                },
+                "started_at": session.started_at.isoformat(),
+            }
+            for session in sessions
+        ])
 
 
 def _load_session(request: Request, session_id: int) -> AttendanceSession:

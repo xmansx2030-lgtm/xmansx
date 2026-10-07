@@ -101,11 +101,22 @@ export const submitAdministrativeSession = (sessionId: number, marks: MarkInput[
     method: "POST", body: { marks, reason },
   });
 
-export const startSession = (sectionId: number, source: AttendanceStartSource) =>
+export const startSession = (sectionId: number, source: AttendanceStartSource, preview: AttendancePreview) =>
   apiRequest<AttendanceSessionData>("/attendance/sessions/start/", {
     method: "POST",
-    body: { section_id: sectionId, source },
+    body: { section_id: sectionId, source, expected_date: preview.attendance_date, expected_period_sequence: preview.period.sequence },
   });
+
+export interface PendingSession {
+  id: number;
+  attendance_date: string;
+  section: Pick<AttendanceSection, "id" | "name" | "grade_name" | "department">;
+  period: CurrentPeriod;
+  started_at: string;
+}
+
+export const getPendingSessions = (signal?: AbortSignal) =>
+  apiRequest<PendingSession[]>("/attendance/sessions/pending/", { signal });
 
 export const getSession = (sessionId: number, signal?: AbortSignal) =>
   apiRequest<AttendanceSessionData>(`/attendance/sessions/${sessionId}/`, { signal });

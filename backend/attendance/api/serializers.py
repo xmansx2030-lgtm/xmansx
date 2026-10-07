@@ -13,6 +13,14 @@ class StartSessionSerializer(serializers.Serializer):
         choices=["SECTION_LIST", "QR", "DIRECT_LINK"],
         default="DIRECT_LINK",
     )
+    # Optional for older clients; the web client binds start to its displayed preview.
+    expected_date = serializers.DateField(required=False)
+    expected_period_sequence = serializers.IntegerField(min_value=1, max_value=99, required=False)
+
+    def validate(self, attrs):
+        if ("expected_date" in attrs) != ("expected_period_sequence" in attrs):
+            raise serializers.ValidationError("يجب إرسال تاريخ المعاينة وحصتها معًا.")
+        return attrs
 
 
 class AdministrativePeriodSerializer(serializers.Serializer):
@@ -104,6 +112,21 @@ class AttendanceSectionSerializer(serializers.Serializer):
     grade_name = serializers.CharField()
     department = serializers.CharField(allow_blank=True)
     students_count = serializers.IntegerField()
+
+
+class PendingSectionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    grade_name = serializers.CharField()
+    department = serializers.CharField(allow_blank=True)
+
+
+class PendingSessionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    attendance_date = serializers.DateField()
+    section = PendingSectionSerializer()
+    period = PeriodSerializer()
+    started_at = serializers.DateTimeField()
 
 
 class RosterStudentSerializer(serializers.Serializer):

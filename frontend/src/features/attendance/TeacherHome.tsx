@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { getAttendanceSections, getCurrentPeriod } from "@/features/attendance/api";
 import { QrScanner } from "@/features/attendance/QrScanner";
+import { PendingAttendance } from "@/features/attendance/PendingAttendance";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { getMyFollowUpRequests } from "@/features/counseling/api";
@@ -117,6 +118,8 @@ export function TeacherHome({ activeSchoolId }: TeacherHomeProps) {
         }
         testId="teacher-workspace-header"
       />
+
+      <PendingAttendance />
 
       <section
         className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
