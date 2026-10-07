@@ -1,3 +1,5 @@
+import { clearAttendanceDrafts } from "@/features/attendance/drafts";
+
 const PRIVATE_PATH_PREFIXES = ["/api/", "/media/", "/private/"];
 
 function isPrivateRequest(request: Request): boolean {
@@ -7,6 +9,8 @@ function isPrivateRequest(request: Request): boolean {
 
 /** Remove sensitive responses left by any older or misconfigured service worker version. */
 export async function purgeSensitiveBrowserCaches(): Promise<void> {
+  // Includes logout, login and school switching, even without CacheStorage support.
+  clearAttendanceDrafts();
   if (!("caches" in globalThis)) return;
 
   const cacheNames = await globalThis.caches.keys();

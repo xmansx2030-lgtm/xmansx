@@ -153,6 +153,12 @@ async function installTeacherApi(page: Page) {
     if (path.endsWith("/attendance/sessions/start/") && route.request().method() === "POST") {
       return fulfillJson(route, SESSION, 201);
     }
+    if (path.endsWith("/attendance/sessions/pending/")) {
+      return fulfillJson(route, []);
+    }
+    if (path.endsWith(`/attendance/sessions/${SESSION.id}/`)) {
+      return fulfillJson(route, SESSION);
+    }
     if (path.endsWith("/teacher/follow-up-requests/")) {
       return fulfillJson(route, [{
         id: 41,

@@ -70,6 +70,7 @@ def roster_fingerprint(roster: list[dict]) -> str:
 def start_session(
     *, school, membership, section, source="DIRECT_LINK", request=None,
     attendance_date=None, period_sequence=None,
+    expected_date=None, expected_period_sequence=None,
 ) -> tuple[AttendanceSession, list[dict], bool]:
     # Only managed schools serialize first attendance with a calendar transition.
     from academics.ministry_models import CalendarProfile, SchoolCalendarPolicy
@@ -82,6 +83,8 @@ def start_session(
         "request": request,
         "attendance_date": attendance_date,
         "period_sequence": period_sequence,
+        "expected_date": expected_date,
+        "expected_period_sequence": expected_period_sequence,
     }
     if SchoolCalendarPolicy.objects.filter(
         school=school, profile=CalendarProfile.NATIONAL
@@ -95,6 +98,7 @@ def start_session(
 def _start_session(
     *, school, membership, section, source="DIRECT_LINK", request=None,
     attendance_date=None, period_sequence=None,
+    expected_date=None, expected_period_sequence=None,
 ) -> tuple[AttendanceSession, list[dict], bool]:
     """يفتح/يستأنف جلسة الحصة الحالية — يعيد (session, roster, resumed)."""
     if section.school_id != school.id or not section.is_active:
@@ -102,6 +106,18 @@ def _start_session(
 
     year = _active_year(school)
     period, local_date = get_current_attendance_period(school)
+    # Check before creating the day context, inserting a session or auditing a start.
+    # These are expectations, never permission to select a past/future teacher period.
+    if expected_date is not None and (
+        local_date != expected_date
+        or period is None
+        or period.sequence != expected_period_sequence
+    ):
+        raise ApiError(
+            "ATTENDANCE_PERIOD_CHANGED",
+            "تغيرت الحصة منذ المعاينة. راجع الحصة الحالية ثم أكد بدء التحضير مجددًا.",
+            status_code=409,
+        )
     if attendance_date is not None or period_sequence is not None:
         from academics.models import BellPeriod
         from attendance.services.admin_preparation import resolve_today_period

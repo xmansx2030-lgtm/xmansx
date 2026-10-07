@@ -1,9 +1,13 @@
 import { purgeSensitiveBrowserCaches } from "@/app/cacheSafety";
+import { mockBrowserStorage } from "@/test/browserStorage";
 
 describe("PWA private cache safety", () => {
+  beforeEach(() => mockBrowserStorage());
   afterEach(() => vi.unstubAllGlobals());
 
   it("removes API and private file responses while preserving static assets", async () => {
+    window.localStorage.setItem("attendance-draft:v1:1:10:5", "private draft");
+    window.localStorage.setItem("unrelated-preference", "keep");
     const apiRequest = new Request("https://app.example.test/api/v1/students/1/");
     const mediaRequest = new Request("https://app.example.test/media/excuses/private.pdf");
     const assetRequest = new Request("https://app.example.test/assets/index-fingerprint.js");
@@ -25,5 +29,7 @@ describe("PWA private cache safety", () => {
     expect(deleteRequest).toHaveBeenCalledTimes(2);
     expect(deletedUrls).toEqual([apiRequest.url, mediaRequest.url]);
     expect(deletedUrls).not.toContain(assetRequest.url);
+    expect(window.localStorage.getItem("attendance-draft:v1:1:10:5")).toBeNull();
+    expect(window.localStorage.getItem("unrelated-preference")).toBe("keep");
   });
 });

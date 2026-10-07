@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardCheck, Search, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useBlocker, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
@@ -26,6 +26,8 @@ import {
   submitAdministrativeSession,
 } from "@/features/attendance/api";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
+import { readDraft, removeDraft, writeDraft } from "@/features/attendance/drafts";
+import { PendingAttendance } from "@/features/attendance/PendingAttendance";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
@@ -70,16 +72,20 @@ function buildPayload(marks: Record<number, LocalMark>, roster: RosterStudent[])
 export function AttendanceSessionPage() {
   const location = useLocation();
   const me = useMe();
-  return <AttendanceSessionForm key={`${me.data?.active_school?.id ?? 0}:${location.pathname}${location.search}`} />;
+  const context = new URLSearchParams(location.search);
+  context.delete("session"); // Binding an opened session must not remount and discard live state.
+  return <AttendanceSessionForm key={`${me.data?.id ?? 0}:${me.data?.active_school?.id ?? 0}:${location.pathname}?${context}`} />;
 }
 
 function AttendanceSessionForm() {
   const { sectionId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const me = useMe();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const activeSchoolId = me.data?.active_school?.id ?? 0;
+  const draftScope = { userId: me.data?.id ?? 0, schoolId: activeSchoolId };
   const schoolType = me.data?.active_school?.school_type ?? "BOYS";
   const studentsLabel = studentPluralLabel(schoolType);
   const statusLabels = schoolType === "GIRLS" ? FEMININE_STATUS_LABELS : STATUS_LABELS;
@@ -88,6 +94,8 @@ function AttendanceSessionForm() {
   const administrative = canPrepareAdministratively && (requestedAdministrativeContext || !me.data?.roles.includes("TEACHER"));
   const target = { date: searchParams.get("date") ?? "", period_sequence: Number(searchParams.get("period")) };
   const validTarget = /^\d{4}-\d{2}-\d{2}$/.test(target.date) && Number.isInteger(target.period_sequence) && target.period_sequence > 0;
+  const selectedSessionId = searchParams.has("session") ? Number(searchParams.get("session")) : null;
+  const validSessionId = selectedSessionId === null || (Number.isSafeInteger(selectedSessionId) && selectedSessionId > 0);
   const invalidatePreparation = async () => {
     // Corrections also change student profiles, reports and excuse coverage.
     await queryClient.invalidateQueries({ queryKey: schoolScopedKey(activeSchoolId) });
@@ -101,9 +109,16 @@ function AttendanceSessionForm() {
       : "DIRECT_LINK";
 
   const previewQuery = useQuery({
-    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-preview", sectionId, administrative ? target.date : "current", administrative ? target.period_sequence : "current"),
-    queryFn: ({ signal }) => administrative ? getAdministrativePreview(Number(sectionId), target, signal) : getAttendancePreview(Number(sectionId), signal),
-    enabled: activeSchoolId > 0 && (!administrative || validTarget) && (!requestedAdministrativeContext || canPrepareAdministratively),
+    queryKey: schoolScopedKey(activeSchoolId, "attendance", "session-preview", sectionId, administrative ? target.date : "current", administrative ? target.period_sequence : "current", selectedSessionId),
+    queryFn: async ({ signal }) => {
+      if (!administrative && selectedSessionId !== null) {
+        const resumed = await getSession(selectedSessionId, signal);
+        if (resumed.section.id !== Number(sectionId)) throw new ApiError(404, { code: "ATTENDANCE_SESSION_SECTION_MISMATCH", message: "جلسة التحضير لا تتبع الفصل المحدد.", details: {} }, null);
+        return { attendance_date: resumed.attendance_date, section: resumed.section, period: resumed.period, session: resumed };
+      }
+      return administrative ? getAdministrativePreview(Number(sectionId), target, signal) : getAttendancePreview(Number(sectionId), signal);
+    },
+    enabled: activeSchoolId > 0 && validSessionId && (!administrative || validTarget) && (!requestedAdministrativeContext || canPrepareAdministratively),
     staleTime: 15_000,
     gcTime: 0,
     retry: false,
@@ -119,24 +134,66 @@ function AttendanceSessionForm() {
   const [rosterNotice, setRosterNotice] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [exceptionsOnly, setExceptionsOnly] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<"none" | "saved" | "unavailable">("none");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [periodChanged, setPeriodChanged] = useState(false);
   const reasonRequired = canPrepareAdministratively && (editing || administrative);
   const backTo = administrative ? `/attendance/monitoring?date=${target.date}&period=${target.period_sequence}&status=${session?.status === "SUBMITTED" ? "ALL" : "INCOMPLETE"}` : "/workspace";
 
   // مزامنة أثناء العرض (نمط adjusting state during render) — مرة واحدة لكل جلسة
   const [loadedSessionId, setLoadedSessionId] = useState<number | null>(null);
-  if (previewQuery.data?.session && previewQuery.data.session.id !== loadedSessionId) {
+  if (previewQuery.data?.session && !periodChanged && (
+    loadedSessionId === null ||
+    (selectedSessionId !== null && previewQuery.data.session.id !== loadedSessionId) ||
+    (session?.status === "IN_PROGRESS" && previewQuery.data.session.status === "SUBMITTED")
+  )) {
     setLoadedSessionId(previewQuery.data.session.id);
     setSession(previewQuery.data.session);
-    setMarks(marksFromSession(previewQuery.data.session));
+    const restored = readDraft(draftScope, previewQuery.data.session);
+    setMarks(restored === null ? marksFromSession(previewQuery.data.session) : Object.fromEntries(restored.map((id) => [id, { status: "ABSENT" as const }])));
+    setDraftRestored(restored !== null);
+    setDraftStatus(restored === null ? "none" : "saved");
+    if (previewQuery.data.session.status === "SUBMITTED") removeDraft(draftScope, previewQuery.data.session.id);
   }
 
+  // Keep reloads bound to the opened session, including sessions resumed from preview.
+  useEffect(() => {
+    if (administrative || !session || selectedSessionId !== null) return;
+    const params = new URLSearchParams(location.search);
+    params.set("session", String(session.id));
+    navigate(`${location.pathname}?${params}`, { replace: true, state: location.state });
+  }, [administrative, session, selectedSessionId, location.pathname, location.search, location.state, navigate]);
+
+  // Saved drafts can safely survive navigation. Warn only if device storage failed
+  // or an approval request is still in flight, whose result must remain visible.
+  const unsafeToLeave = pending || draftStatus === "unavailable";
+  const blocker = useBlocker(unsafeToLeave);
+  useEffect(() => {
+    if (!unsafeToLeave && blocker.state === "blocked") blocker.reset();
+  }, [unsafeToLeave, blocker]);
+  useEffect(() => {
+    if (!unsafeToLeave) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsafeToLeave]);
+
   const startMutation = useMutation({
-    mutationFn: () => administrative ? startAdministrativeSession(Number(sectionId), target) : startSession(Number(sectionId), startSource),
+    mutationFn: () => administrative ? startAdministrativeSession(Number(sectionId), target) : startSession(Number(sectionId), startSource, previewQuery.data!),
     onSuccess: async (started) => {
       setLoadedSessionId(started.id);
       setSession(started);
-      setMarks(marksFromSession(started));
+      const restored = readDraft(draftScope, started);
+      setMarks(restored === null ? marksFromSession(started) : Object.fromEntries(restored.map((id) => [id, { status: "ABSENT" as const }])));
+      setDraftRestored(restored !== null);
+      setDraftStatus(restored === null ? "none" : "saved");
       await invalidatePreparation();
+    },
+    onError: async (error) => {
+      if (error instanceof ApiError && error.code === "ATTENDANCE_PERIOD_CHANGED") {
+        setPeriodChanged(true);
+        await previewQuery.refetch();
+      }
     },
   });
 
@@ -167,12 +224,15 @@ function AttendanceSessionForm() {
   if (administrative && !validTarget) {
     return <section className="rounded-2xl border border-slate-200 bg-white p-6"><p className="font-bold text-slate-800">اختر الحصة والفصل من متابعة تحضير اليوم.</p><Link to="/attendance/monitoring" className="mt-4 inline-block text-teal-700 underline">فتح متابعة التحضير</Link></section>;
   }
-  if (previewQuery.isPending || me.isPending) {
+  if (!validSessionId) return <ErrorState error={new ApiError(400, { code: "INVALID_ATTENDANCE_SESSION", message: "رابط جلسة التحضير غير صالح.", details: {} }, null)} />;
+  const needsSelectedSession = !administrative && selectedSessionId !== null && session?.id !== selectedSessionId;
+  if ((previewQuery.isPending && (!session || needsSelectedSession)) || me.isPending) {
     return <Spinner label="جارٍ عرض بيانات الفصل..." />;
   }
-  if (previewQuery.isError) {
+  if (previewQuery.isError && (!session || needsSelectedSession)) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        {!administrative && <PendingAttendance sectionId={Number(sectionId)} />}
         <ErrorState error={previewQuery.error} />
         <p className="mt-3">
           <Link to={backTo} className="text-blue-700 underline">
@@ -187,6 +247,7 @@ function AttendanceSessionForm() {
     const sectionTitle = sectionLabel(preview.section.grade_name, preview.section.name, preview.section.department);
     return (
       <div className="space-y-4">
+        {!administrative && <PendingAttendance sectionId={Number(sectionId)} />}
         <PageHeader
           icon={ClipboardCheck}
           eyebrow="معاينة الفصل"
@@ -226,7 +287,8 @@ function AttendanceSessionForm() {
             </div>
           </div>
 
-          {startMutation.isError && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
+          {periodChanged && <p role="alert" data-testid="period-changed-notice" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">تغيرت الحصة منذ المعاينة. راجع الحصة المعروضة أعلاه ثم أكد البدء مجددًا.</p>}
+          {startMutation.isError && !periodChanged && <div className="mt-4"><ErrorState error={startMutation.error} /></div>}
           <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <Link
               to={backTo}
@@ -236,8 +298,8 @@ function AttendanceSessionForm() {
             </Link>
             <Button
               className="w-full justify-center sm:w-auto"
-              onClick={() => startMutation.mutate()}
-              disabled={startMutation.isPending}
+              onClick={() => { setPeriodChanged(false); startMutation.mutate(); }}
+              disabled={startMutation.isPending || previewQuery.isFetching}
               data-testid="start-attendance"
             >
               {startMutation.isPending
@@ -254,12 +316,11 @@ function AttendanceSessionForm() {
   const marking = session.status === "IN_PROGRESS" || editing;
 
   const setStatus = (studentId: number, status: TeacherAttendanceStatus) => {
-    setMarks((prev) => ({
-      ...prev,
-      [studentId]: {
-        status,
-      },
-    }));
+    const next = { ...marks, [studentId]: { status } };
+    setMarks(next);
+    if (session.status === "IN_PROGRESS") {
+      setDraftStatus(writeDraft(draftScope, session, buildPayload(next, roster).map((mark) => mark.student_id)) ? "saved" : "unavailable");
+    }
   };
 
   const beginEditing = () => {
@@ -277,6 +338,12 @@ function AttendanceSessionForm() {
       const updated = editing
         ? await editSession(session.id, payload, reason.trim(), session.updated_at)
         : administrative ? await submitAdministrativeSession(session.id, payload, reason.trim()) : await submitSession(session.id, payload);
+      if (updated.id !== session.id || updated.status !== "SUBMITTED" || !updated.submitted_at) {
+        throw new ApiError(409, { code: "ATTENDANCE_CONFIRMATION_REQUIRED", message: "لم يؤكد الخادم اعتماد هذه الجلسة. احتُفظ باختياراتك؛ أعد المحاولة أو حدّث الصفحة للتحقق.", details: {} }, null);
+      }
+      removeDraft(draftScope, session.id);
+      setDraftStatus("none");
+      setDraftRestored(false);
       setSession(updated);
       setMarks(marksFromSession(updated));
       setEditing(false);
@@ -285,28 +352,42 @@ function AttendanceSessionForm() {
       // الأخرى فتلتقط النتيجة عبر الاستعلام الحي القصير.
       await invalidatePreparation();
     } catch (error) {
-      if (error instanceof ApiError && error.code === "ATTENDANCE_ROSTER_CHANGED") {
-        // الخادم حدّث بصمة القائمة — نعيد فتح الجلسة لقائمة محدثة ونبقي العلامات الصالحة
-        setRosterNotice(true);
-        const refreshed = await getSession(session.id);
-        if (refreshed) {
-          setSession(refreshed);
-          setMarks((prev) => {
+      try {
+        if (error instanceof ApiError && error.code === "ATTENDANCE_ROSTER_CHANGED") {
+          // الخادم حدّث بصمة القائمة — نعيد فتح الجلسة لقائمة محدثة ونبقي العلامات الصالحة
+          setRosterNotice(true);
+          const refreshed = await getSession(session.id);
+          if (refreshed) {
+            setSession(refreshed);
             const validIds = new Set(refreshed.roster.map((s) => s.student_id));
-            return Object.fromEntries(
-              Object.entries(prev).filter(([id]) => validIds.has(Number(id))),
-            );
-          });
+            const next = Object.fromEntries(Object.entries(marks).filter(([id]) => validIds.has(Number(id))));
+            if (refreshed.status === "IN_PROGRESS") {
+              setMarks(next);
+              setDraftStatus(writeDraft(draftScope, refreshed, buildPayload(next, refreshed.roster).map((mark) => mark.student_id)) ? "saved" : "unavailable");
+            } else {
+              setMarks(marksFromSession(refreshed));
+              setEditing(false);
+              removeDraft(draftScope, session.id);
+              setDraftStatus("none");
+              setDraftRestored(false);
+            }
+          }
+        } else if (error instanceof ApiError && (error.code === "ATTENDANCE_SESSION_ALREADY_SUBMITTED" || error.code === "ATTENDANCE_SESSION_CHANGED")) {
+          const refreshed = await getSession(session.id);
+          setSession(refreshed);
+          setMarks(marksFromSession(refreshed));
+          setEditing(false);
+          removeDraft(draftScope, session.id);
+          setDraftStatus("none");
+          setDraftRestored(false);
+          setActionError(error);
+          await invalidatePreparation();
+        } else {
+          setActionError(error);
         }
-      } else if (error instanceof ApiError && (error.code === "ATTENDANCE_SESSION_ALREADY_SUBMITTED" || error.code === "ATTENDANCE_SESSION_CHANGED")) {
-        const refreshed = await getSession(session.id);
-        setSession(refreshed);
-        setMarks(marksFromSession(refreshed));
-        setEditing(false);
-        setActionError(error);
-        await invalidatePreparation();
-      } else {
-        setActionError(error);
+      } catch (refreshError) {
+        // A failed conflict refresh must retain choices and leave an actionable error.
+        setActionError(refreshError);
       }
     } finally {
       setPending(false);
@@ -338,6 +419,14 @@ function AttendanceSessionForm() {
           <span className="rounded-full bg-red-400/15 px-3 py-1 font-bold text-red-100 ring-1 ring-red-300/20">{statusLabels.ABSENT} {summary.absent}</span>
         </div>
       </PageHeader>
+
+      {blocker.state === "blocked" && <section role="alert" className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p>{pending ? "جارٍ إرسال التحضير. انتظر نتيجة الاعتماد قبل مغادرة الصفحة." : "تعذر حفظ المسودة على جهازك. المغادرة ستفقد اختيارات الغياب غير المرسلة."}</p>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => blocker.reset()}>البقاء في التحضير</Button>{!pending && <Button variant="danger" onClick={() => blocker.proceed()}>مغادرة دون حفظ</Button>}</div>
+      </section>}
+      {session.status === "IN_PROGRESS" && draftStatus !== "none" && <p role="status" data-testid="draft-status" className={`rounded-xl border p-3 text-sm ${draftStatus === "saved" ? "border-teal-200 bg-teal-50 text-teal-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+        {draftStatus === "saved" ? `${draftRestored ? "استُعيدت اختيارات الغياب من المسودة. " : ""}المسودة محفوظة على هذا الجهاز فقط؛ لا يُعتمد التحضير حتى تضغط إرسال التحضير.` : "تعذر حفظ المسودة على هذا الجهاز. أبقِ الصفحة مفتوحة وأرسل التحضير لحفظه واعتماده."}
+      </p>}
 
       {session.status === "SUBMITTED" && !editing && (
           <div
@@ -437,6 +526,7 @@ function AttendanceSessionForm() {
                         key={option}
                         type="button"
                         onClick={() => setStatus(student.student_id, option)}
+                        disabled={pending}
                         aria-pressed={status === option}
                         className={`min-h-10 w-full rounded-xl px-3 py-1.5 text-sm font-bold transition-all sm:w-auto ${
                           status === option

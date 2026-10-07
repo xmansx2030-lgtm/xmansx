@@ -20,6 +20,7 @@ urlpatterns = [
         views.AttendanceSectionPreviewView.as_view(),
     ),
     path("attendance/sessions/start/", views.StartSessionView.as_view()),
+    path("attendance/sessions/pending/", views.PendingSessionsView.as_view()),
     path("attendance/sessions/<int:session_id>/", views.SessionDetailView.as_view()),
     path(
         "attendance/sessions/<int:session_id>/students/<int:student_id>/",
