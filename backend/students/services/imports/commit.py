@@ -15,10 +15,12 @@ from datetime import date
 from django.db import transaction
 from django.utils import timezone
 
-from academics.models import AcademicYearStatus
+from academics.models import AcademicYear, AcademicYearStatus
+from academics.services.import_calendar import can_prepare_ministry_year
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
+from schools.models import School
 from students.models import (
     EnrollmentStatus,
     Grade,
@@ -72,6 +74,9 @@ def commit_import(
 def _commit_locked(
     *, job_id: int, actor, request=None, allow_importing: bool = False
 ) -> tuple[StudentImportJob, ApiError | None]:
+    # Serialize calendar activation and imports without changing the chosen year.
+    school_id = StudentImportJob.objects.values_list("school_id", flat=True).get(pk=job_id)
+    School.objects.select_for_update().get(pk=school_id)
     job = (
         StudentImportJob.objects.select_for_update()
         .select_related("school", "academic_year")
@@ -91,8 +96,11 @@ def _commit_locked(
     if job.status not in allowed_statuses:
         raise ApiError("IMPORT_NOT_READY", "الاستيراد غير جاهز للاعتماد.", 409)
 
-    # العام الدراسي وقت الإنشاء يجب أن يظل هو النشط (لا استخدام صامت لعام جديد)
-    if job.academic_year.status != AcademicYearStatus.ACTIVE:
+    job.academic_year = AcademicYear.objects.select_for_update().get(pk=job.academic_year_id)
+    # Upcoming Ministry-managed years can be prepared without changing the active roster.
+    if job.academic_year.status != AcademicYearStatus.ACTIVE and not can_prepare_ministry_year(
+        job.academic_year
+    ):
         job.status = ImportJobStatus.FAILED
         job.error_code = "ACTIVE_ACADEMIC_YEAR_REQUIRED"
         job.failed_at = timezone.now()
@@ -235,6 +243,8 @@ def _commit_locked(
                 )
 
     today = date.today()
+    if can_prepare_ministry_year(job.academic_year):
+        today = max(today, job.academic_year.start_date)
     created_students = 0
     updated_students = 0
     enrollment_changes = 0

@@ -1,5 +1,5 @@
 import {
-  BarChart3, BellRing, BookOpenCheck, Building2, CreditCard, FileSpreadsheet, Fingerprint,
+  BarChart3, BellRing, BookOpenCheck, Building2, CalendarDays, CreditCard, FileSpreadsheet, Fingerprint,
   ChevronDown, DoorOpen, GraduationCap, HeartHandshake, LayoutDashboard, LogOut, Menu,
   MessageSquareMore, QrCode, RefreshCw, Send, Settings, Sunrise,
   UsersRound, X, type LucideIcon,
@@ -36,6 +36,7 @@ const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/attendance/absence-messages",
   "/excuses",
   "/student-leaves",
+  "/academic-calendar",
 ]);
 const MANAGER_PRIMARY_PATHS = new Set([
   "/dashboard",
@@ -78,6 +79,7 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/devices", label: "أجهزة الحضور", roles: ["SCHOOL_MANAGER"], icon: Fingerprint, group: "operations" },
   { to: "/devices/roster-sync", label: "مزامنة أجهزة الطلاب", roles: ["SCHOOL_MANAGER"], icon: RefreshCw, group: "operations" },
   { to: "/staff", label: "الموظفون", roles: MANAGER_VP, icon: UsersRound, group: "management" },
+  { to: "/academic-calendar", label: "التقويم الدراسي", roles: MANAGER_VP_COUNSELOR, icon: CalendarDays, group: "management" },
   { to: "/subscription", label: "الاشتراك", roles: ["SCHOOL_MANAGER"], icon: CreditCard, group: "management" },
   { to: "/settings", label: "الإعدادات", roles: ["SCHOOL_MANAGER"], icon: Settings, group: "management" },
 ];

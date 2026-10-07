@@ -293,9 +293,13 @@ CELERY_TASK_ROUTES = {
     "staff.process_import_job": {"queue": "imports"},
     "students.run_purge_job": {"queue": "maintenance"},
     "operations.scheduled_database_backup": {"queue": "maintenance"},
+    "academics.sync_ministry_calendar": {"queue": "maintenance"},
+    "academics.apply_ministry_calendars": {"queue": "maintenance"},
 }
 _backup_schedule_enabled = env_bool("BACKUP_SCHEDULE_ENABLED", False)
+MINISTRY_CALENDAR_ENABLED = env_bool("MINISTRY_CALENDAR_ENABLED", True)
 CELERY_BEAT_SCHEDULE = build_beat_schedule(
+    ministry_calendar_enabled=MINISTRY_CALENDAR_ENABLED,
     heartbeat_interval_seconds=env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
     backup_enabled=_backup_schedule_enabled,
     backup_interval_seconds=(

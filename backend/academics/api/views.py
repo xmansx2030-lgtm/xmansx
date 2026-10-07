@@ -1,5 +1,6 @@
 """واجهات التقويم وجداول الحصص — كل الكائنات تجلب مقيدة بـ request.school (أجنبي → 404)."""
 
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -24,6 +25,7 @@ from academics.services import academic_years as years_service
 from academics.services import bell_schedules as schedules_service
 from academics.services import semesters as semesters_service
 from academics.services import week_days as week_days_service
+from academics.services.ministry_calendar import require_manual_calendar
 from memberships.api_base import SchoolScopedAPIView
 
 
@@ -35,7 +37,18 @@ def _years_queryset(request):
     )
 
 
-class AcademicYearListCreateView(SchoolScopedAPIView):
+class ManualCalendarView(SchoolScopedAPIView):
+    @transaction.atomic
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            require_manual_calendar(school=request.school)
+
+
+class AcademicYearListCreateView(ManualCalendarView):
     def get(self, request: Request) -> Response:
         return Response(AcademicYearSerializer(_years_queryset(request), many=True).data)
 
@@ -51,7 +64,7 @@ class AcademicYearListCreateView(SchoolScopedAPIView):
         return Response(AcademicYearSerializer(year).data, status=status.HTTP_201_CREATED)
 
 
-class AcademicYearDetailView(SchoolScopedAPIView):
+class AcademicYearDetailView(ManualCalendarView):
     def patch(self, request: Request, year_id: int) -> Response:
         year = get_object_or_404(AcademicYear, id=year_id, school=request.school)
         serializer = AcademicYearInputSerializer(data=request.data, partial=True)
@@ -62,7 +75,7 @@ class AcademicYearDetailView(SchoolScopedAPIView):
         return Response(AcademicYearSerializer(year).data)
 
 
-class AcademicYearActionView(SchoolScopedAPIView):
+class AcademicYearActionView(ManualCalendarView):
     """POST /academic-years/{id}/{action}/ — action: activate | close | archive"""
 
     _actions = {
@@ -80,7 +93,7 @@ class AcademicYearActionView(SchoolScopedAPIView):
         return Response(AcademicYearSerializer(year).data)
 
 
-class SemesterListCreateView(SchoolScopedAPIView):
+class SemesterListCreateView(ManualCalendarView):
     def get(self, request: Request, year_id: int) -> Response:
         year = get_object_or_404(AcademicYear, id=year_id, school=request.school)
         return Response(SemesterSerializer(year.semesters.all(), many=True).data)
@@ -95,7 +108,7 @@ class SemesterListCreateView(SchoolScopedAPIView):
         return Response(SemesterSerializer(semester).data, status=status.HTTP_201_CREATED)
 
 
-class SemesterDetailView(SchoolScopedAPIView):
+class SemesterDetailView(ManualCalendarView):
     def patch(self, request: Request, semester_id: int) -> Response:
         semester = get_object_or_404(
             Semester.objects.select_related("academic_year"),
@@ -110,7 +123,7 @@ class SemesterDetailView(SchoolScopedAPIView):
         return Response(SemesterSerializer(semester).data)
 
 
-class SemesterActivateView(SchoolScopedAPIView):
+class SemesterActivateView(ManualCalendarView):
     def post(self, request: Request, semester_id: int) -> Response:
         semester = get_object_or_404(Semester, id=semester_id, school=request.school)
         semester = semesters_service.activate_semester(

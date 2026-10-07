@@ -36,7 +36,45 @@ export interface AcademicYear {
   end_date: string;
   status: "UPCOMING" | "ACTIVE" | "CLOSED" | "ARCHIVED";
   semesters: Semester[];
+  ministry_snapshot?: number | null;
 }
+
+export interface MinistryEvidence {
+  id: string;
+  title: string;
+  date: string;
+  url: string;
+  basis: "PUBLISHED" | "CALCULATED" | "YEAR_BOUNDARY";
+  source_date?: string;
+  rule?: string;
+  offset_days?: number;
+}
+
+export interface MinistryCalendar {
+  name: string;
+  status: "READY" | "INCOMPLETE" | "INVALID";
+  dates: Record<string, string | null>;
+  evidence: Record<string, MinistryEvidence>;
+  missing: string[];
+  problems: string[];
+}
+
+export interface MinistryCalendarStatus {
+  source_url: string;
+  automatic_enabled?: boolean;
+  checked_at: string | null;
+  succeeded_at: string | null;
+  error_code: string;
+  fingerprint: string | null;
+  profile: "UNCONFIRMED" | "NATIONAL" | "EXCEPTION";
+  scope_note: string;
+  outcome: string;
+  current_calendar: MinistryCalendar | null;
+  calendars: MinistryCalendar[];
+}
+
+export const getMinistryCalendar = (signal?: AbortSignal) =>
+  apiRequest<MinistryCalendarStatus>("/school/ministry-calendar/", { signal });
 
 export interface BellPeriod {
   id?: number;

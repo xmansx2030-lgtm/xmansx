@@ -15,6 +15,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from academics.models import AcademicYear, AcademicYearStatus
+from academics.services.import_calendar import can_prepare_ministry_year
 from accounts.mobile import normalize_mobile
 from audit.models import AuditAction
 from audit.services import record_event
@@ -538,7 +539,20 @@ class ImportUploadView(SchoolScopedAPIView):
         return Response([_serialize_job(j) for j in jobs])
 
     def post(self, request: Request) -> Response:
-        year = _active_year(request.school)
+        selection = serializers.Serializer(data=request.data)
+        selection.fields["academic_year_id"] = serializers.IntegerField(required=False, min_value=1)
+        selection.is_valid(raise_exception=True)
+        year_id = selection.validated_data.get("academic_year_id")
+        year = (
+            get_object_or_404(AcademicYear, pk=year_id, school=request.school)
+            if year_id else _active_year(request.school)
+        )
+        if (
+            year and year.status != AcademicYearStatus.ACTIVE
+            and not can_prepare_ministry_year(year)
+        ):
+            raise ApiError("IMPORT_ACADEMIC_YEAR_NOT_AVAILABLE",
+                           "اختر العام النشط أو العام الرسمي القادم المجهز للمدرسة.", 409)
         if year is None:
             raise ApiError(
                 "ACTIVE_ACADEMIC_YEAR_REQUIRED",

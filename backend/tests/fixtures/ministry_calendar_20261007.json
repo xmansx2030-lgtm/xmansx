@@ -1,0 +1,374 @@
+[
+  {
+    "url": "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/Years.aspx",
+    "rows": [
+      {
+        "id": "1",
+        "title": "1435"
+      },
+      {
+        "id": "2",
+        "title": "1436"
+      },
+      {
+        "id": "3",
+        "title": "1437"
+      },
+      {
+        "id": "4",
+        "title": "1438"
+      },
+      {
+        "id": "5",
+        "title": "1439"
+      },
+      {
+        "id": "6",
+        "title": "1440"
+      },
+      {
+        "id": "7",
+        "title": "1441"
+      },
+      {
+        "id": "8",
+        "title": "1442"
+      },
+      {
+        "id": "10",
+        "title": "1443"
+      },
+      {
+        "id": "11",
+        "title": "1444"
+      },
+      {
+        "id": "12",
+        "title": "1445"
+      },
+      {
+        "id": "13",
+        "title": "1446"
+      },
+      {
+        "id": "14",
+        "title": "1447"
+      },
+      {
+        "id": "15",
+        "title": "1448"
+      },
+      {
+        "id": "16",
+        "title": "1449"
+      }
+    ],
+    "sha256": "457fffb1de22ce2f701dc25602c83f850da8b02c39f3e7fb9b4f5399d875776f"
+  },
+  {
+    "url": "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/AcademicCalendar.aspx?Year=1446",
+    "rows": [
+      {
+        "id": "282",
+        "title": "عودة المشرفين التربويين ومنسوبي مكاتب التعليم في جميع المراحل الدراسية",
+        "eventdate": "29/01/1446",
+        "dategregorian": "04/08/2024"
+      },
+      {
+        "id": "283",
+        "title": "عودة المعلمين الممارسين للتدريس في جميع المراحل الدراسية",
+        "eventdate": "07/02/1446",
+        "dategregorian": "11/08/2024"
+      },
+      {
+        "id": "281",
+        "title": "بداية الدراسة للعام الدراسي 1447/1446هـ",
+        "eventdate": "14/02/1446",
+        "dategregorian": "18/08/2024"
+      },
+      {
+        "id": "284",
+        "title": "إجازة اليوم الوطني",
+        "eventdate": "19/03/1446",
+        "dategregorian": "22/09/2024"
+      },
+      {
+        "id": "285",
+        "title": "إجازة نهاية أسبوع مطولة",
+        "eventdate": "14/04/1446",
+        "dategregorian": "17/10/2024"
+      },
+      {
+        "id": "286",
+        "title": "نهاية الفصل الدراسي الأول",
+        "eventdate": "05/05/1446",
+        "dategregorian": "07/11/2024"
+      },
+      {
+        "id": "287",
+        "title": "إجازة الخريف",
+        "eventdate": "06/05/1446",
+        "dategregorian": "08/11/2024"
+      },
+      {
+        "id": "288",
+        "title": "بداية الدراسة للفصل الدراسي الثاني",
+        "eventdate": "15/05/1446",
+        "dategregorian": "17/11/2024"
+      },
+      {
+        "id": "289",
+        "title": "إجازة نهاية أسبوع مطولة",
+        "eventdate": "10/06/1446",
+        "dategregorian": "11/12/2024"
+      },
+      {
+        "id": "290",
+        "title": "إجازة منتصف العام الدراسي",
+        "eventdate": "03/07/1446",
+        "dategregorian": "03/01/2025"
+      },
+      {
+        "id": "291",
+        "title": "بداية الدراسة بعد إجازة منتصف العام الدراسي",
+        "eventdate": "12/07/1446",
+        "dategregorian": "12/01/2025"
+      },
+      {
+        "id": "292",
+        "title": "نهاية الفصل الدراسي الثاني",
+        "eventdate": "21/08/1446",
+        "dategregorian": "20/02/2025"
+      },
+      {
+        "id": "293",
+        "title": "إجازة يوم التأسيس",
+        "eventdate": "24/08/1446",
+        "dategregorian": "23/02/2025"
+      },
+      {
+        "id": "294",
+        "title": "إجازة الشتاء",
+        "eventdate": "25/08/1446",
+        "dategregorian": "24/02/2025"
+      },
+      {
+        "id": "295",
+        "title": "بداية الدراسة للفصل الدراسي الثالث",
+        "eventdate": "02/09/1446",
+        "dategregorian": "02/03/2025"
+      },
+      {
+        "id": "296",
+        "title": "إجازة عيد الفطر",
+        "eventdate": "20/09/1446",
+        "dategregorian": "20/03/2025"
+      },
+      {
+        "id": "297",
+        "title": "بداية الدراسة بعد إجازة عيد الفطر",
+        "eventdate": "08/10/1446",
+        "dategregorian": "06/04/2025"
+      },
+      {
+        "id": "298",
+        "title": "إجازة نهاية أسبوع مطولة",
+        "eventdate": "06/11/1446",
+        "dategregorian": "04/05/2025"
+      },
+      {
+        "id": "299",
+        "title": "إجازة عيد الأضحى",
+        "eventdate": "03/12/1446",
+        "dategregorian": "30/05/2025"
+      },
+      {
+        "id": "300",
+        "title": "بداية الدراسة بعد إجازة عيد الأضحى",
+        "eventdate": "19/12/1446",
+        "dategregorian": "15/06/2025"
+      }
+    ],
+    "sha256": "87d9f3827f68ad8c2dc7923670beddeea3e570e97d3eb2abc3edbcc8b177fa05"
+  },
+  {
+    "url": "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/AcademicCalendar.aspx?Year=1447",
+    "rows": [
+      {
+        "id": "301",
+        "title": "بداية إجازة نهاية العام الدراسي 1446-1447 نهاية دوام يوم الخميس 1 / 1 /1447 هــ",
+        "eventdate": "01/01/1447",
+        "dategregorian": "26/06/2025"
+      },
+      {
+        "id": "302",
+        "title": "عودة المشرفين والهيئتين التعليمية والإدارية بالمدارس",
+        "eventdate": "18/02/1447",
+        "dategregorian": "12/08/2025"
+      },
+      {
+        "id": "303",
+        "title": "عودة المعلمين الممارسين للتدريس",
+        "eventdate": "23/02/1447",
+        "dategregorian": "17/08/2025"
+      },
+      {
+        "id": "304",
+        "title": "بداية الدراسة للعام الدراسي 1447-1448",
+        "eventdate": "01/03/1447",
+        "dategregorian": "24/08/2025"
+      },
+      {
+        "id": "305",
+        "title": "إجازة اليوم الوطني",
+        "eventdate": "01/04/1447",
+        "dategregorian": "23/09/2025"
+      },
+      {
+        "id": "306",
+        "title": "إجازة إضافية",
+        "eventdate": "20/04/1447",
+        "dategregorian": "12/10/2025"
+      },
+      {
+        "id": "307",
+        "title": "إجازة الخريف",
+        "eventdate": "30/05/1447",
+        "dategregorian": "21/11/2025"
+      },
+      {
+        "id": "308",
+        "title": "إجازة إضافية",
+        "eventdate": "20/06/1447",
+        "dategregorian": "11/12/2025"
+      },
+      {
+        "id": "309",
+        "title": "إجازة منتصف العام الدراسي",
+        "eventdate": "20/07/1447",
+        "dategregorian": "09/01/2026"
+      },
+      {
+        "id": "310",
+        "title": "إجازة يوم التأسيس",
+        "eventdate": "05/09/1447",
+        "dategregorian": "22/02/2026"
+      },
+      {
+        "id": "311",
+        "title": "إجازة عيد الفطر",
+        "eventdate": "17/09/1447",
+        "dategregorian": "06/03/2026"
+      },
+      {
+        "id": "315",
+        "title": "يوم العلَم السعودي",
+        "eventdate": "22/09/1447",
+        "dategregorian": "11/03/2026"
+      },
+      {
+        "id": "312",
+        "title": "إجازة عيد الأضحى ",
+        "eventdate": "05/12/1447",
+        "dategregorian": "22/05/2026"
+      }
+    ],
+    "sha256": "327da8b36e30542066b057e36b09e8c989502484b95fd9bb4d07ce1940c0ca55"
+  },
+  {
+    "url": "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/AcademicCalendar.aspx?Year=1448",
+    "rows": [
+      {
+        "id": "313",
+        "title": "بداية إجازة نهاية العام الدراسي نهاية دوام يوم الخميس ",
+        "eventdate": "10/01/1448",
+        "dategregorian": "25/06/2026"
+      },
+      {
+        "id": "316",
+        "title": "عودة الهيئة الإدارية والمشرفين التربويين في جميع المراحل الدراسية",
+        "eventdate": "28/02/1448",
+        "dategregorian": "11/08/2026"
+      },
+      {
+        "id": "327",
+        "title": "عودة المعلمين الممارسين للتدريس في جميع المراحل الدراسية",
+        "eventdate": "03/03/1448",
+        "dategregorian": "16/08/2026"
+      },
+      {
+        "id": "314",
+        "title": "بداية العام الدراسي 1448 - 1449 هـ",
+        "eventdate": "10/03/1448",
+        "dategregorian": "23/08/2026"
+      },
+      {
+        "id": "317",
+        "title": "إجازة اليوم الوطني",
+        "eventdate": "12/04/1448",
+        "dategregorian": "23/09/2026"
+      },
+      {
+        "id": "318",
+        "title": "إجازة الخريف",
+        "eventdate": "10/06/1448",
+        "dategregorian": "20/11/2026"
+      },
+      {
+        "id": "319",
+        "title": "إجازة منتصف العام الدراسي",
+        "eventdate": "30/07/1448",
+        "dategregorian": "08/01/2027"
+      },
+      {
+        "id": "320",
+        "title": "إجازة يوم التأسيس",
+        "eventdate": "12/09/1448",
+        "dategregorian": "19/02/2027"
+      },
+      {
+        "id": "321",
+        "title": "إجازة عيد الفطر",
+        "eventdate": "19/09/1448",
+        "dategregorian": "26/02/2027"
+      },
+      {
+        "id": "322",
+        "title": "إجازة عيد الأضحى",
+        "eventdate": "01/12/1448",
+        "dategregorian": "07/05/2027"
+      }
+    ],
+    "sha256": "d9514dd02cc410f20ad35bc4278247f8ed0a398d4b16283daf67cb0e143b8110"
+  },
+  {
+    "url": "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/AcademicCalendar.aspx?Year=1449",
+    "rows": [
+      {
+        "id": "323",
+        "title": "بداية إجازة نهاية العام الدراسي - نهاية دوام يوم الخميس",
+        "eventdate": "19/01/1449",
+        "dategregorian": "24/06/2027"
+      },
+      {
+        "id": "325",
+        "title": "عودة الهيئة الإدارية والمشرفين التربويين في جميع المراحل الدراسية",
+        "eventdate": "08/03/1449",
+        "dategregorian": "10/08/2027"
+      },
+      {
+        "id": "326",
+        "title": "عودة المعلمين الممارسين للتدريس في جميع المراحل الدراسية",
+        "eventdate": "13/03/1449",
+        "dategregorian": "15/08/2027"
+      },
+      {
+        "id": "324",
+        "title": "بداية العام الدراسي 1449/1450 هـ",
+        "eventdate": "20/03/1449",
+        "dategregorian": "22/08/2027"
+      }
+    ],
+    "sha256": "e11c6232a0c4a7a2400d7d1f4b32f4efbf862e5ca034b8e8592f4e38642262c5"
+  }
+]

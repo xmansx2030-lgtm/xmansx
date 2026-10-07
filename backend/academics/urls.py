@@ -1,8 +1,10 @@
 from django.urls import path
 
 from academics.api import views
+from academics.api.ministry import SchoolMinistryCalendarView
 
 urlpatterns = [
+    path("ministry-calendar/", SchoolMinistryCalendarView.as_view()),
     path("academic-years/", views.AcademicYearListCreateView.as_view()),
     path("academic-years/<int:year_id>/", views.AcademicYearDetailView.as_view()),
     path("academic-years/<int:year_id>/semesters/", views.SemesterListCreateView.as_view()),

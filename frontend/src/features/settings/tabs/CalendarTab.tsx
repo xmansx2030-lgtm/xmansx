@@ -30,7 +30,8 @@ import {
   type AcademicYear,
   type Semester,
 } from "@/features/settings/api";
-import { useInvalidateSchoolData, useYearsQuery } from "@/features/settings/hooks";
+import { useInvalidateSchoolData, useYearsQuery, useMinistryCalendarQuery } from "@/features/settings/hooks";
+import { MinistryCalendarCard } from "@/features/settings/tabs/MinistryCalendarCard";
 
 type YearFormValue = {
   name: string;
@@ -85,7 +86,9 @@ const arabicNumberFormatter = new Intl.NumberFormat("ar-SA");
 const DAY_IN_MS = 86_400_000;
 
 export function CalendarTab({ canWrite }: { canWrite: boolean }) {
-  const years = useYearsQuery();
+  const ministry = useMinistryCalendarQuery();
+  const years = useYearsQuery(true, ministry.data?.profile === "NATIONAL" ? 60_000 : false);
+  const canEditCalendar = canWrite && ministry.isSuccess && ministry.data.profile !== "NATIONAL";
   const invalidate = useInvalidateSchoolData();
   const [editor, setEditor] = useState<CalendarEditor>(null);
   const [confirmation, setConfirmation] = useState<CalendarConfirmation>(null);
@@ -197,12 +200,14 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="space-y-6" data-testid="academic-calendar-tab">
+      {ministry.data && <MinistryCalendarCard data={ministry.data} />}
+      {ministry.isError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">تعذر تحميل حالة المزامنة الرسمية. <button type="button" className="font-bold underline" onClick={() => void ministry.refetch()}>إعادة المحاولة</button></div>}
       <CalendarOverview
         activeYear={activeYear}
         activeSemester={activeSemester}
         upcomingCount={upcomingCount}
         totalSemesters={totalSemesters}
-        canWrite={canWrite}
+        canWrite={canEditCalendar}
         onCreateYear={() => openEditor({ kind: "create-year" })}
       />
 
@@ -232,7 +237,7 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
               الأعوام الحالية والقادمة
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              عدّل المواعيد وجهّز الفصول قبل اعتمادها للتشغيل.
+              {ministry.data?.profile === "NATIONAL" ? "تُزامن المواعيد وتُفعّل الفصول تلقائيًا وفق المصدر والقواعد المعروضة أعلاه." : "عدّل المواعيد وجهّز الفصول قبل اعتمادها للتشغيل."}
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
@@ -246,7 +251,7 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
               key={year.id}
               year={year}
               activeYear={activeYear}
-              canWrite={canWrite}
+              canWrite={canEditCalendar}
               busy={busy}
               onEdit={() => openEditor({ kind: "edit-year", year })}
               onAddSemester={() => openEditor({ kind: "create-semester", year })}
@@ -257,7 +262,7 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
             />
           ))}
           {currentYears.length === 0 && (
-            <EmptyCalendar canWrite={canWrite} onCreate={() => openEditor({ kind: "create-year" })} />
+            <EmptyCalendar canWrite={canEditCalendar} onCreate={() => openEditor({ kind: "create-year" })} />
           )}
           {hiddenUpcomingCount > 0 && (
             <button
@@ -304,7 +309,7 @@ export function CalendarTab({ canWrite }: { canWrite: boolean }) {
                   key={year.id}
                   year={year}
                   activeYear={activeYear}
-                  canWrite={canWrite}
+                  canWrite={canEditCalendar}
                   busy={busy}
                   onEdit={() => openEditor({ kind: "edit-year", year })}
                   onAddSemester={() => openEditor({ kind: "create-semester", year })}

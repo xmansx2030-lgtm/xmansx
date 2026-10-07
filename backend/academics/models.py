@@ -9,6 +9,12 @@
 
 from django.db import models
 
+from academics.ministry_models import (  # noqa: F401 - register models with this app
+    CalendarProfile,
+    MinistryCalendarSnapshot,
+    MinistryCalendarSync,
+    SchoolCalendarPolicy,
+)
 from common.models import TimestampedModel
 
 
@@ -28,6 +34,13 @@ class AcademicYear(TimestampedModel):
     end_date = models.DateField()
     status = models.CharField(
         max_length=20, choices=AcademicYearStatus.choices, default=AcademicYearStatus.UPCOMING
+    )
+    ministry_snapshot = models.ForeignKey(
+        MinistryCalendarSnapshot,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="academic_years",
     )
 
     class Meta:

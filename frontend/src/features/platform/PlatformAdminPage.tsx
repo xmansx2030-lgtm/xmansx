@@ -56,6 +56,7 @@ import {
 import type { SchoolType } from "@/types/auth";
 import type { PlatformCapability } from "@/types/auth";
 import { PlatformAccountPanel, PlatformTeamPanel } from "@/features/platform/PlatformTeamPanels";
+import { MinistryCalendarPanel, SchoolCalendarScopePanel } from "@/features/platform/MinistryCalendarPanel";
 import { formatPlanDuration, type PlanDurationUnit } from "@/utils/planDuration";
 
 const LIMIT_KEYS = ["MAX_STUDENTS", "MAX_STAFF", "MAX_DEVICES", "MAX_STORAGE_GB"] as const;
@@ -112,7 +113,7 @@ function statusClass(status: string | null | undefined) {
   return "bg-slate-100 text-slate-700";
 }
 
-type PlatformTab = "dashboard" | "schools" | "plans" | "team" | "account";
+type PlatformTab = "dashboard" | "schools" | "plans" | "team" | "account" | "calendar";
 type SubscriptionActionName =
   | "start-trial"
   | "extend-trial"
@@ -184,6 +185,13 @@ const PLATFORM_TABS = [
     description: "الملف الشخصي والأمان",
     icon: UserRoundCog,
     capability: null,
+  },
+  {
+    id: "calendar" as const,
+    label: "التقويم الرسمي",
+    description: "المصدر والمزامنة الآلية",
+    icon: CalendarClock,
+    capability: "SCHOOLS_VIEW" as PlatformCapability,
   },
 ] satisfies { id: PlatformTab; label: string; description: string; icon: typeof BarChart3; capability: PlatformCapability | null }[];
 
@@ -619,6 +627,7 @@ function SchoolAccountManagement({ detail, canManageSchool, canManageAccounts }:
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      <SchoolCalendarScopePanel schoolId={detail.id} canManage={canManageSchool} />
       <div>
         <h3 className="font-bold text-slate-900">بيانات المدرسة والدخول</h3>
         <p className="text-xs text-slate-500">المعرف: {detail.slug} · أضيفت {formatDate(detail.created_at)}</p>
@@ -1173,6 +1182,7 @@ export function PlatformAdminPage() {
           {currentTab === "plans" && (plans.isPending ? <div className="rounded-2xl border border-slate-200 bg-white p-8"><Spinner label="جارٍ تحميل الباقات..." /></div> : <PlanForm plans={activePlans} canManage={hasCapability("PLANS_MANAGE")} />)}
           {currentTab === "team" && <PlatformTeamPanel canManage={hasCapability("TEAM_MANAGE")} currentUserId={me.data?.id} />}
           {currentTab === "account" && <PlatformAccountPanel />}
+          {currentTab === "calendar" && <MinistryCalendarPanel canManage={hasCapability("SCHOOLS_MANAGE")} />}
           </section>
         </div>
       </div>
