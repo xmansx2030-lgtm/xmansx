@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
+import { useMinistryCalendarQuery, useYearsQuery } from "@/features/settings/hooks";
 import { schoolScopedKey } from "@/features/auth/useMe";
 import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hooks";
 import {
@@ -39,6 +40,9 @@ export function ImportWizard() {
   const schoolType = useActiveSchoolType();
   const studentsLabel = studentPluralLabel(schoolType);
   const queryClient = useQueryClient();
+  const ministry = useMinistryCalendarQuery();
+  const years = useYearsQuery(ministry.data?.profile === "NATIONAL");
+  const [targetYearId, setTargetYearId] = useState("");
   const [job, setJob] = useState<ImportJob | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export function ImportWizard() {
   }, [handledAsyncError, jobQuery.data, queryClient, schoolId]);
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadImportFile(file),
+    mutationFn: (file: File) => uploadImportFile(file, targetYearId ? Number(targetYearId) : undefined),
     onSuccess: (created) => {
       setJob(created);
       setStep(1);
@@ -169,9 +173,18 @@ export function ImportWizard() {
 
       {error && <Alert tone="danger" title="تعذر إكمال خطوة الاستيراد">{error}</Alert>}
 
-      {step === 0 && (
+      {step === 0 && <>
+        {ministry.data?.profile === "NATIONAL" && <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+          <label className="block text-sm font-bold text-teal-950">قيد الطلاب للعام الدراسي
+            <select className="mt-2 min-h-11 w-full rounded-xl border border-teal-200 bg-white px-3" value={targetYearId} onChange={(event) => setTargetYearId(event.target.value)} disabled={uploadMutation.isPending}>
+              <option value="">العام الدراسي النشط</option>
+              {years.data?.filter((year) => year.status === "UPCOMING" && Boolean(year.ministry_snapshot)).map((year) => <option key={year.id} value={year.id}>{year.name} — تجهيز قيد العام القادم</option>)}
+            </select>
+          </label>
+          <p className="mt-2 text-xs leading-5 text-teal-800">يُفعّل العام الرسمي تلقائيًا عند حلول موعده واكتمال قيود الطلاب. اختيار العام القادم يحفظ قيد العام الحالي وسجلاته.</p>
+        </section>}
         <UploadStep pending={uploadMutation.isPending} onUpload={uploadMutation.mutate} />
-      )}
+      </>}
       {step === 1 && job && (
         <MappingStep
           job={job}

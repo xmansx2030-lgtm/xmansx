@@ -6,6 +6,7 @@ import {
   getSettings,
   getWeekDays,
   getYears,
+  getMinistryCalendar,
 } from "@/features/settings/api";
 import type { SchoolType } from "@/types/auth";
 
@@ -29,12 +30,23 @@ export function useSettingsQuery() {
   });
 }
 
-export function useYearsQuery() {
+export function useYearsQuery(enabled = true, refetchInterval: number | false = false) {
   const schoolId = useActiveSchoolId();
   return useQuery({
     queryKey: schoolScopedKey(schoolId, "academic-years"),
     queryFn: ({ signal }) => getYears(signal),
+    enabled: schoolId > 0 && enabled,
+    refetchInterval,
+  });
+}
+
+export function useMinistryCalendarQuery() {
+  const schoolId = useActiveSchoolId();
+  return useQuery({
+    queryKey: schoolScopedKey(schoolId, "ministry-calendar"),
+    queryFn: ({ signal }) => getMinistryCalendar(signal),
     enabled: schoolId > 0,
+    refetchInterval: 60_000,
   });
 }
 

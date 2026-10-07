@@ -150,6 +150,10 @@ export const routes = [
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"]} />,
                     children: [
                       {
+                        path: "academic-calendar",
+                        lazy: async () => ({ Component: (await import("@/features/settings/SchoolCalendarPage")).SchoolCalendarPage }),
+                      },
+                      {
                         path: "reports",
                         lazy: async () => ({ Component: (await import("@/features/reports/ReportsPage")).ReportsPage }),
                       },

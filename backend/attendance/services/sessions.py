@@ -71,6 +71,31 @@ def start_session(
     *, school, membership, section, source="DIRECT_LINK", request=None,
     attendance_date=None, period_sequence=None,
 ) -> tuple[AttendanceSession, list[dict], bool]:
+    # Only managed schools serialize first attendance with a calendar transition.
+    from academics.ministry_models import CalendarProfile, SchoolCalendarPolicy
+    from schools.models import School
+
+    kwargs = {
+        "membership": membership,
+        "section": section,
+        "source": source,
+        "request": request,
+        "attendance_date": attendance_date,
+        "period_sequence": period_sequence,
+    }
+    if SchoolCalendarPolicy.objects.filter(
+        school=school, profile=CalendarProfile.NATIONAL
+    ).exists():
+        with transaction.atomic():
+            School.objects.select_for_update().get(pk=school.pk)
+            return _start_session(school=school, **kwargs)
+    return _start_session(school=school, **kwargs)
+
+
+def _start_session(
+    *, school, membership, section, source="DIRECT_LINK", request=None,
+    attendance_date=None, period_sequence=None,
+) -> tuple[AttendanceSession, list[dict], bool]:
     """يفتح/يستأنف جلسة الحصة الحالية — يعيد (session, roster, resumed)."""
     if section.school_id != school.id or not section.is_active:
         raise ApiError("NOT_FOUND", "المورد المطلوب غير موجود.", status_code=404)

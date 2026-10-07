@@ -22,7 +22,15 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AcademicYear
-        fields = ["id", "name", "start_date", "end_date", "status", "semesters"]
+        fields = [
+            "id",
+            "name",
+            "start_date",
+            "end_date",
+            "status",
+            "semesters",
+            "ministry_snapshot",
+        ]
 
 
 class BellPeriodSerializer(serializers.ModelSerializer):

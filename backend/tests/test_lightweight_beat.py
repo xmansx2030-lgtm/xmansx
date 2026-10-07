@@ -60,3 +60,13 @@ print(json.dumps({
         }
     else:
         assert "scheduled-database-backup" not in data["schedule"]
+    assert data["schedule"]["sync-ministry-calendar"] == {
+        "task": "academics.sync_ministry_calendar",
+        "schedule": 21600,
+        "options": {"expires": 3600},
+    }
+    assert data["schedule"]["activate-ministry-calendars"] == {
+        "task": "academics.apply_ministry_calendars",
+        "schedule": 300,
+        "options": {"expires": 240},
+    }

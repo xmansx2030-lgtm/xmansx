@@ -409,9 +409,10 @@ export const deleteSection = (id: number) =>
 
 // ---- الاستيراد ----
 
-export async function uploadImportFile(file: File): Promise<ImportJob> {
+export async function uploadImportFile(file: File, academicYearId?: number): Promise<ImportJob> {
   const formData = new FormData();
   formData.append("file", file);
+  if (academicYearId) formData.append("academic_year_id", String(academicYearId));
   const response = await fetch("/api/v1/student-imports/", {
     method: "POST",
     credentials: "include",

@@ -81,6 +81,24 @@ describe("SettingsPage", () => {
     expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
   });
 
+  it("vice principal can read the calendar without getting settings or date editing", async () => {
+    mockApi({
+      "/auth/me/": { body: meWithRoles(["VICE_PRINCIPAL"]) },
+      "/school/academic-years/": { body: [] },
+      "/school/ministry-calendar/": { body: {
+        source_url: "https://www.moe.gov.sa/ar/education/generaleducation/Pages/academicCalendar.aspx",
+        profile: "NATIONAL", scope_note: "مدرسة مطابقة", outcome: "APPLIED",
+        error_code: "", checked_at: null, succeeded_at: null,
+        fingerprint: null, current_calendar: null, calendars: [],
+      } },
+    });
+    renderApp("/academic-calendar");
+    expect(await screen.findByTestId("school-calendar-page")).toBeVisible();
+    expect(await screen.findByRole("region", { name: "مصدر التقويم الدراسي" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /إضافة عام/ })).not.toBeInTheDocument();
+  });
+
   it("يعيد المعلم من رابط الإعدادات إلى مساحة عمله", async () => {
     mockApi({ "/auth/me/": { body: meWithRoles(["TEACHER"]) } });
     renderApp("/settings");

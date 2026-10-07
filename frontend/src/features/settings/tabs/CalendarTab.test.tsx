@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
-import type { AcademicYear, Semester } from "@/features/settings/api";
+import type { AcademicYear, Semester, MinistryCalendarStatus } from "@/features/settings/api";
 import { buildMe, membership } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 
@@ -63,7 +63,7 @@ function managerMe() {
   });
 }
 
-function installCalendarApi(initialYears: AcademicYear[]): CalendarApiHarness {
+function installCalendarApi(initialYears: AcademicYear[], ministry?: MinistryCalendarStatus): CalendarApiHarness {
   const years = cloneYears(initialYears);
   let nextYearId = Math.max(100, ...years.map((year) => year.id)) + 1;
   let nextSemesterId =
@@ -92,6 +92,9 @@ function installCalendarApi(initialYears: AcademicYear[]): CalendarApiHarness {
 
       if (pathname === "/api/v1/auth/me/" && method === "GET") {
         return response(managerMe());
+      }
+      if (pathname === "/api/v1/school/ministry-calendar/" && method === "GET") {
+        return response(ministry ?? { source_url: "https://www.moe.gov.sa/ar/education/generaleducation/Pages/academicCalendar.aspx", profile: "UNCONFIRMED", scope_note: "", outcome: "", error_code: "", checked_at: null, succeeded_at: null, fingerprint: null, current_calendar: null, calendars: [] });
       }
 
       if (pathname === YEARS_PATH && method === "GET") {
@@ -220,11 +223,26 @@ function mutationCalls(api: CalendarApiHarness, pathname: string, method: string
   return api.calls.filter((call) => call.pathname === pathname && call.method === method);
 }
 
-async function renderCalendar(initialYears: AcademicYear[]) {
-  const api = installCalendarApi(initialYears);
+async function renderCalendar(initialYears: AcademicYear[], ministry?: MinistryCalendarStatus) {
+  const api = installCalendarApi(initialYears, ministry);
   renderApp("/settings?section=calendar");
   await screen.findByTestId("academic-calendar-tab");
   return { api, user: userEvent.setup() };
+}
+
+function ministryStatus(): MinistryCalendarStatus {
+  return {
+    source_url: "https://www.moe.gov.sa/ar/education/generaleducation/Pages/academicCalendar.aspx",
+    profile: "NATIONAL", scope_note: "مدرسة حكومية مطابقة", outcome: "APPLIED",
+    error_code: "", checked_at: "2026-10-07T06:00:00Z", succeeded_at: "2026-10-07T06:00:00Z", fingerprint: "a".repeat(64), calendars: [],
+    current_calendar: {
+      name: "2026/2027", status: "READY", missing: [], problems: [],
+      dates: { year_start: "2026-08-23", year_end: "2027-06-24", semester_1_start: "2026-08-23", semester_1_end: "2027-01-07", semester_2_start: "2027-01-17", semester_2_end: "2027-06-24" },
+      evidence: {
+        semester_2_start: { id: "319", title: "إجازة منتصف العام الدراسي", date: "2027-01-17", source_date: "2027-01-08", basis: "CALCULATED", offset_days: 9, rule: "MIDYEAR_PLUS_9_DAYS_V1", url: "https://www.moe.gov.sa/ar/education/generaleducation/DataSources/AcademicCalendar.aspx?Year=1448" },
+      },
+    },
+  };
 }
 
 describe("CalendarTab", () => {
@@ -235,6 +253,29 @@ describe("CalendarTab", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("shows the official source and calculated second opening without manual date controls", async () => {
+    await renderCalendar([makeYear({ semesters: [makeSemester()] })], ministryStatus());
+    const source = await screen.findByRole("region", { name: "مصدر التقويم الدراسي" });
+    expect(within(source).getByRole("link", { name: "الموقع الرسمي" })).toHaveAttribute("href", ministryStatus().source_url);
+    expect(within(source).getByText("محسوب: بداية إجازة منتصف العام + 9 أيام")).toBeInTheDocument();
+    expect(within(source).getByText(/١٧ يناير ٢٠٢٧/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إضافة عام دراسي" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "تعديل العام «2026/2027»" })).not.toBeInTheDocument();
+  });
+
+  it("keeps known dates visible when source refresh fails and explains the pause", async () => {
+    const ministry = { ...ministryStatus(), error_code: "MINISTRY_UNAVAILABLE" };
+    await renderCalendar([makeYear()], ministry);
+    const source = await screen.findByRole("region", { name: "مصدر التقويم الدراسي" });
+    expect(within(source).getByRole("alert")).toHaveTextContent("يتوقف الانتقال التلقائي");
+    expect(within(source).getByText(/١٧ يناير ٢٠٢٧/)).toBeInTheDocument();
+  });
+
+  it("shows an enrollment readiness explanation when the new year cannot yet activate", async () => {
+    await renderCalendar([makeYear()], { ...ministryStatus(), outcome: "ENROLLMENTS_NOT_READY" });
+    expect(await screen.findByText(/ينتظر التفعيل اكتمال قيود الطلاب/)).toBeInTheDocument();
   });
 
   it("creates and activates the first year and semester atomically in their POST bodies", async () => {
