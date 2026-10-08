@@ -1,8 +1,9 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { BinaryBitmap, DecodeHintType, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from "@zxing/library";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+import { promisify } from "node:util";
 import { FRONTEND_URL } from "./compose";
 
 interface FixtureSchool {
@@ -33,6 +34,7 @@ const fixturePath =
 if (!existsSync(fixturePath)) throw new Error("Run seed_parent_e2e on the isolated localhost database before Parent E2E.");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf-8")) as Fixture;
 const password = process.env.E2E_SEED_PASSWORD;
+const execFileAsync = promisify(execFile);
 if (!password) throw new Error("E2E_SEED_PASSWORD must explicitly match the synthetic seed command password.");
 if (fixture.schools.length !== 3 || !fixture.employee || !fixture.expired_activation_url) throw new Error("Recreate the expanded synthetic Parent E2E fixture before running.");
 
@@ -626,21 +628,14 @@ test("an actually expired server session during excuse submission never reports 
   await page.goto(`/parent/children/${relation}?tab=requests`);
   await page.getByLabel("نطاق العذر").selectOption("1");
   await page.getByLabel("سبب العذر", { exact: true }).fill("عذر اصطناعي لاختبار انتهاء جلسة الخادم");
-  // Pause browser timers while the local owner helper starts; server sessions remain real.
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
-  let expired = false;
-  await page.route(`**/api/v1/parent/children/${relation}/excuses/`, async (route) => {
-    if (route.request().method() === "POST") {
-      execFileSync("docker", ["compose", "-f", verificationCompose, "run", "--rm", "--no-deps", "--volume", `${dirname(fixturePath)}:/fixtures:ro`, "-e", "DJANGO_SETTINGS_MODULE=config.settings.local", "tests", "python", "manage.py", "seed_parent_e2e", "--password", password!, "--output", `/fixtures/${basename(fixturePath)}`, "--expire-session-for", fixture.parent_mobile], { cwd: resolve(".."), stdio: "pipe", timeout: 30_000 });
-      expired = true;
-    }
-    await route.continue();
-  });
+  // Expire the real session while the completed form remains open, before submission.
+  // Docker/Django setup is separate from the product POST timeout; Windows runs measured around 45s.
+  const { stdout } = await execFileAsync("docker", ["compose", "-f", verificationCompose, "run", "--rm", "--no-deps", "--volume", `${dirname(fixturePath)}:/fixtures:ro`, "-e", "DJANGO_SETTINGS_MODULE=config.settings.local", "tests", "python", "manage.py", "seed_parent_e2e", "--password", password!, "--output", `/fixtures/${basename(fixturePath)}`, "--expire-session-for", fixture.parent_mobile], { cwd: resolve(".."), timeout: 60_000, encoding: "utf8" });
+  const expiredSessionCount = Number(stdout.match(/Expired (\d+) synthetic account sessions\./)?.[1]);
+  expect(expiredSessionCount, "The guarded helper must delete a real synthetic session.").toBeGreaterThan(0);
   const responsePromise = page.waitForResponse((response) => response.url().includes(`/parent/children/${relation}/excuses/`) && response.request().method() === "POST");
   await page.getByRole("button", { name: "إرسال طلب العذر" }).click();
   expect((await responsePromise).status()).toBe(403);
-  expect(expired).toBe(true);
   await expect(page.getByRole("heading", { name: "تسجيل الدخول", exact: true })).toBeVisible();
   await expect(page.getByText(/تم إرسال طلب العذر #/)).toHaveCount(0);
   expect((await page.request.get("/api/v1/parent/children/")).status()).toBe(403);
