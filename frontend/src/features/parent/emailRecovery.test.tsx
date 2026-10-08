@@ -76,8 +76,13 @@ describe("verified recovery email and parent-only access", () => {
     expect(await screen.findByText("البريد الإلكتروني مطلوب.")).toBeVisible();
     await user.type(email, "invalid-address");
     await user.click(screen.getByRole("button", { name: "تقديم طلب تسجيل" }));
-    expect(await screen.findByText("صيغة البريد الإلكتروني غير صحيحة.")).toBeVisible();
-    expect(postCalls(calls, REGISTRATION_PATH)).toHaveLength(0);
+      expect(await screen.findByText("صيغة البريد الإلكتروني غير صحيحة.")).toBeVisible();
+      await user.clear(email);
+      await user.type(email, "parent@example.invalid");
+      expect(screen.queryByText("صيغة البريد الإلكتروني غير صحيحة.")).not.toBeInTheDocument();
+      expect(email).not.toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText(RECOVERY_EMAIL_DESCRIPTION)).toBeVisible();
+      expect(postCalls(calls, REGISTRATION_PATH)).toHaveLength(0);
   });
 
   it("gates child data until email verification without disabling the staff workspace", async () => {

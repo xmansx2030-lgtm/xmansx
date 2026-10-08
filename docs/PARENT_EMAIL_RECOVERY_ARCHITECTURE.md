@@ -110,7 +110,8 @@ Completion validates the project's password policy and confirmation, rechecks
 current eligibility under locks, updates the same user's Django password hash,
 consumes the bearer and revokes outstanding email bearers in one transaction.
 No automatic login follows. Old sessions fail Django's current session-auth hash
-comparison; the current reset browser must also log in afresh. Session rows need
+comparison; the reset owner must log in afresh. The UI rechecks and preserves an
+unrelated valid session, such as another teacher using the same browser. Session rows need
 not be globally scanned to make their previous authentication invalid.
 
 The existing initial-password endpoint also locks and freshly checks the global

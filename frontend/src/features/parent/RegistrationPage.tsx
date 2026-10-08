@@ -166,7 +166,10 @@ export function RegistrationPage() {
                   value={email}
                   error={emailError}
                   description={RECOVERY_EMAIL_DESCRIPTION}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (emailError) setEmailError(recoveryEmailError(event.target.value));
+                  }}
                 />
                 <TextField
                   label="معرف الطالب المسجل لدى المدرسة"

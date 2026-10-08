@@ -394,6 +394,14 @@ class Command(BaseCommand):
                     )
                     entry["absent_session_id"] = submitted.id
                 fixture["schools"].append(entry)
+                # Keep later recovery fixtures out of the saved attendance roster.
+                recovery_section = Section.objects.create(
+                    school=school,
+                    grade=grade,
+                    name="استرداد البريد",
+                    code="PARENT_EMAIL_RECOVERY",
+                    department=section.department,
+                )
                 recovery_mobile = f"+966551800{slot + (0, 4, 5)[index - 1]:03d}"
                 recovery_identifier = f"R{slot:03d}{index}180"
                 recovery_student = Student.objects.create(
@@ -407,7 +415,7 @@ class Command(BaseCommand):
                 )
                 StudentEnrollment.objects.create(
                     school=school, student=recovery_student, academic_year=year,
-                    grade=grade, section=section, enrolled_at=year.start_date,
+                    grade=grade, section=recovery_section, enrolled_at=year.start_date,
                 )
                 fixture["email_recovery"].append({
                     "mobile": recovery_mobile,

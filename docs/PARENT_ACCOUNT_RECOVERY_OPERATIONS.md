@@ -41,8 +41,10 @@ For central identity/mobile recovery, no approved policy currently exists. The
 separate verified-email password-only policy above is the subsequent Phase 1 approval.
 School intake and central review preparation are implemented. **Recovery execution
 is disabled.** Phase 1 public rollout has the separate email gates above. There is no approved original-account
-ownership proof, implemented independent number verification or personal recovery
-credential-delivery channel in the repository. An administrator cannot resolve
+ownership proof or implemented independent number verification for central
+recovery after all trusted credentials are lost. Its personal credential-delivery
+channel is not implemented; the approved verified-email password channel above
+does not enable it. An administrator cannot resolve
 these gaps by switching an environment flag, choosing a temporary password or
 recording two recommendations. No recovery SMS or OTP is available.
 
@@ -124,7 +126,9 @@ require a new intake; replacing evidence starts a new version's reviews.
 Recovery intake always targets the existing `User.id`. Other-school relationships,
 requests, employment and account history remain on that same user. School employees
 cannot transfer children or reset the global password. Team administration also
-denies reset if any guardian relationship exists, including suspended/revoked ones.
+denies reset if any guardian relationship exists, including suspended/revoked ones,
+or if a Phase 1 recovery-email credential is retained after the last relationship
+is purged.
 Admin credential writes and first-child activation serialize on the same global
 account row. Activation requires a current authenticated password/session hash;
 an earlier authenticated request cannot bypass a password reset that committed

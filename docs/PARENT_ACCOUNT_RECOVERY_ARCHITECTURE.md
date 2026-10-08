@@ -58,11 +58,14 @@ review stages, cross-school IDOR, ordinary platform RLS bypass, transaction race
 and exposure of evidence in logs. An account can be an employee and a parent in
 several schools. Every relationship status, including suspended and revoked, must
 protect that global account from school and platform-team administrative resets.
+Phase 1 extends this protection to retained recovery-email bindings even after
+the last guardian relationship has been physically purged.
 
 The release closes a separately reproduced platform-team reset bypass: adding an
 existing parent-only account to the team did not create a school membership, and
 the old reset guard considered only school memberships. The guard now performs an
-owned guardian lookup across **all** statuses. Ordinary non-guardian team resets
+owned guardian lookup across **all** statuses and, in Phase 1, an exact retained
+recovery-credential lookup. Ordinary never-parent team resets
 keep their existing behavior. Existing school/global account guards remain active.
 
 Existing-account activation locks the global `User` before accepting an
