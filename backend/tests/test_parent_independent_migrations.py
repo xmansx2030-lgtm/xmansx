@@ -35,6 +35,12 @@ PARENT_TABLES = {
     "parents_familypublicationacknowledgement",
     "parents_parentnotification",
 }
+RECOVERY_TABLES = {
+    "parents_globalaccountrecoverycase",
+    "parents_recoveryevidencereference",
+    "parents_recoveryreviewauthorization",
+    "parents_recoveryreviewdecision",
+}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -199,8 +205,8 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
             "AND relkind = 'r'"
         )
         tables = cursor.fetchall()
-        assert {name for name, _, _ in tables} == PARENT_TABLES
-        assert len(tables) == 14 and all(enabled and forced for _, enabled, forced in tables)
+        assert {name for name, _, _ in tables} == PARENT_TABLES | RECOVERY_TABLES
+        assert len(tables) == 18 and all(enabled and forced for _, enabled, forced in tables)
         cursor.execute(
             "SELECT tablename, policyname, cmd, qual, with_check, permissive, roles "
             "FROM pg_policies WHERE schemaname='public' AND tablename LIKE 'parents_%'"
@@ -241,11 +247,70 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
             _canonical(scope),
         )
         expected_policies[(table, "parent_delete")] = ("DELETE", _canonical(scope), None)
-    assert len(policies) == 56
-    assert {(row[0], row[1]) for row in policies} == set(expected_policies)
-    for table, name, command, qual, check, permissive, roles in policies:
+    legacy = [row for row in policies if row[1].startswith("parent_")]
+    assert len(legacy) == 56
+    assert {(row[0], row[1]) for row in legacy} == set(expected_policies)
+    for table, name, command, qual, check, permissive, roles in legacy:
         assert (command, _canonical(qual), _canonical(check)) == expected_policies[(table, name)]
         assert permissive == "PERMISSIVE" and roles == ["public"]
+
+    central = "xmansx_recovery_review_stage() IS NOT NULL"
+    intake = "xmansx_recovery_school_intake(school_id)"
+    purge = "xmansx_recovery_purge_allowed(school_id, student_id)"
+    case = "parents_globalaccountrecoverycase"
+    new = {
+        (case, "recovery_select"): (
+            "SELECT",
+            _canonical(f"{central} OR {intake} OR {purge}"),
+            None,
+        ),
+        (case, "recovery_insert"): (
+            "INSERT",
+            None,
+            _canonical(f"{intake} AND requested_by_id = {user} AND user_id <> {user}"),
+        ),
+        (case, "recovery_update"): (
+            "UPDATE",
+            _canonical(f"({central} AND school_id = {school}) OR {intake}"),
+            _canonical(f"({central} AND school_id = {school}) OR {intake}"),
+        ),
+        (case, "recovery_delete"): ("DELETE", _canonical(purge), None),
+        ("parents_globalmobilechangerequest", "recovery_central_source_select"): (
+            "SELECT",
+            _canonical(central),
+            None,
+        ),
+    }
+    for table in {"parents_recoveryevidencereference", "parents_recoveryreviewdecision"}:
+        purge_case = (
+            "EXISTS (SELECT 1 FROM parents_globalaccountrecoverycase c "  # noqa: S608
+            f"WHERE c.id = {table}.case_id "
+            "AND xmansx_recovery_purge_allowed(c.school_id, c.student_id))"
+        )
+        new[(table, "recovery_select")] = ("SELECT", _canonical(f"{central} OR {purge_case}"), None)
+        new[(table, "recovery_insert")] = (
+            "INSERT",
+            None,
+            _canonical(f"{central} AND school_id = {school}"),
+        )
+        new[(table, "recovery_update")] = (
+            "UPDATE",
+            _canonical(f"{central} AND school_id = {school}"),
+            _canonical(f"{central} AND school_id = {school}"),
+        )
+        new[(table, "recovery_delete")] = ("DELETE", _canonical(purge_case), None)
+    grant = "parents_recoveryreviewauthorization"
+    new[(grant, "recovery_select")] = ("SELECT", _canonical(f"reviewer_id = {user}"), None)
+    new[(grant, "recovery_insert")] = ("INSERT", None, "false")
+    new[(grant, "recovery_update")] = ("UPDATE", "false", None)
+    new[(grant, "recovery_delete")] = ("DELETE", "false", None)
+    additions = [row for row in policies if row[1].startswith("recovery_")]
+    assert len(additions) == 17 and len(policies) == 73
+    assert {(row[0], row[1]) for row in additions} == set(new)
+    for table, name, command, qual, check, permissive, roles in additions:
+        assert (command, _canonical(qual), _canonical(check)) == new[(table, name)]
+        assert permissive == "PERMISSIVE" and roles == ["public"]
+        assert "rls_bypass" not in (qual or "") + (check or "")
 
     required = {
         ("students_student", "parent_contact_guard"): "xmansx_parent_contact_guard",
@@ -273,10 +338,23 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
     }
     for table in exact_tables:
         required[(table, "parent_exact_identity")] = "xmansx_parent_exact_identity_guard"
+    for table, guard in (
+        ("parents_globalmobilechangerequest", "source"),
+        ("parents_globalaccountrecoverycase", "case"),
+        ("parents_recoveryevidencereference", "reference"),
+        ("parents_recoveryreviewdecision", "decision"),
+        ("parents_recoveryreviewauthorization", "authority"),
+    ):
+        required[(table, f"recovery_{guard}_guard")] = f"xmansx_recovery_{guard}_guard"
     for key, function in required.items():
         enabled, _, _, definition = triggers[key]
         assert enabled == "O" and f"EXECUTE FUNCTION {function}()" in definition
         assert "BEFORE" in definition and "FOR EACH ROW" in definition
+    enabled, _, _, definition = triggers[
+        ("parents_recoveryevidencereference", "recovery_reference_version")
+    ]
+    assert enabled == "O" and "AFTER INSERT OR UPDATE" in definition
+    assert "EXECUTE FUNCTION xmansx_recovery_reference_version()" in definition
     for model in apps.get_app_config("parents").get_models():
         for field in model._meta.fields:
             if not field.many_to_one or field.related_model is None:
@@ -288,4 +366,9 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
             name = f"same_school_{model._meta.db_table}_{field.column}"[:63]
             enabled, deferrable, deferred, definition = triggers[(model._meta.db_table, name)]
             assert enabled == "O" and deferrable and not deferred
-            assert "xmansx_enforce_same_school_fk" in definition
+            expected_function = (
+                "xmansx_recovery_same_case_school"
+                if field.target_field.get_internal_type() == "UUIDField"
+                else "xmansx_enforce_same_school_fk"
+            )
+            assert expected_function in definition

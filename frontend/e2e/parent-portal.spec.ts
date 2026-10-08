@@ -27,6 +27,20 @@ interface Fixture {
   expired_activation_url: string;
   employee: { id: number; mobile: string; student_id: number; student_name: string; identifier: string; membership_id: number; school_id: number; document_id: number };
   schools: FixtureSchool[];
+  acceptance?: {
+    parent_mobile: string;
+    switch_actor: { id: number; mobile: string; student_name: string; relation_id: number; membership_id: number };
+    children: Array<{
+      relation_id: number;
+      student_id: number;
+      student_name: string;
+      school_id: number;
+      not_started_date?: string;
+      file_publication_id?: number;
+      excuses?: Array<{ id: number; status: string }>;
+      correction_id?: number;
+    }>;
+  };
 }
 const fixturePath =
   process.env.PARENT_E2E_FIXTURE ??
@@ -35,12 +49,24 @@ if (!existsSync(fixturePath)) throw new Error("Run seed_parent_e2e on the isolat
 const fixture = JSON.parse(readFileSync(fixturePath, "utf-8")) as Fixture;
 const password = process.env.E2E_SEED_PASSWORD;
 const execFileAsync = promisify(execFile);
+const syntheticTLS = process.env.PARENT_E2E_SYNTHETIC_STAGING === "1";
+if (syntheticTLS && FRONTEND_URL !== "https://localhost:8445") {
+  throw new Error("Synthetic staging E2E requires exactly https://localhost:8445.");
+}
 if (!password) throw new Error("E2E_SEED_PASSWORD must explicitly match the synthetic seed command password.");
 if (fixture.schools.length !== 3 || !fixture.employee || !fixture.expired_activation_url) throw new Error("Recreate the expanded synthetic Parent E2E fixture before running.");
 
 async function signIn(context: APIRequestContext, mobile: string) {
   await context.get("/api/v1/auth/csrf/");
   expect((await post(context, "/auth/login/", { mobile, password })).status()).toBe(200);
+  if (syntheticTLS) {
+    const cookies = (await context.storageState()).cookies;
+    expect(cookies.find((cookie) => cookie.name === "csrftoken")?.secure).toBe(true);
+    const session = cookies.find((cookie) => cookie.name === "sessionid");
+    expect(session?.secure).toBe(true);
+    expect(session?.httpOnly).toBe(true);
+    expect(session?.sameSite).toBe("Lax");
+  }
 }
 async function registerOnPage(page: Page, school: FixtureSchool, mobile: string, identifier = school.identifier) {
   await page.goto(school.registration_path);
@@ -62,7 +88,7 @@ async function csrf(context: APIRequestContext) {
 async function post(context: APIRequestContext, path: string, data: unknown) {
   return context.post(`/api/v1${path}`, {
     data,
-    headers: { "X-CSRFToken": await csrf(context) },
+    headers: { "X-CSRFToken": await csrf(context), Origin: new URL(FRONTEND_URL).origin },
   });
 }
 test("real parent lifecycle across schools, attendance, requests and private publication access", async ({
@@ -81,6 +107,7 @@ test("real parent lifecycle across schools, attendance, requests and private pub
   async function staff(school: FixtureSchool) {
     const context = await playwright.request.newContext({
       baseURL: FRONTEND_URL,
+      ignoreHTTPSErrors: false,
     });
     contexts.push(context);
     await context.get("/api/v1/auth/csrf/");
@@ -99,6 +126,7 @@ test("real parent lifecycle across schools, attendance, requests and private pub
   const staffC = await staff(schoolC);
   const staffBrowser = await browser.newContext({
     storageState: await staffA.storageState(),
+    ignoreHTTPSErrors: false,
   });
   const staffPage = await staffBrowser.newPage();
   const consoleErrors: string[] = [];
@@ -497,8 +525,8 @@ test("real parent lifecycle across schools, attendance, requests and private pub
 
 test("existing employee activation keeps the same account, password and employment", async ({ page, playwright }) => {
   const school = fixture.schools[0]!;
-  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL });
-  const existing = await playwright.request.newContext({ baseURL: FRONTEND_URL });
+  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: false });
+  const existing = await playwright.request.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: false });
   try {
     await signIn(staff, school.staff_mobile);
     await signIn(existing, fixture.employee.mobile);
@@ -534,14 +562,14 @@ test("existing employee activation keeps the same account, password and employme
     await expect(page).toHaveURL(/\/workspace$/);
     await expect(page.getByRole("button", { name: "بوابة ولي الأمر", exact: true })).toBeVisible();
     // The original employee password still authenticates after linking.
-    const fresh = await playwright.request.newContext({ baseURL: FRONTEND_URL });
+    const fresh = await playwright.request.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: false });
     try { await signIn(fresh, fixture.employee.mobile); expect((await (await fresh.get("/api/v1/auth/me/")).json()).id).toBe(before.id); } finally { await fresh.dispose(); }
   } finally { await staff.dispose(); await existing.dispose(); }
 });
 
 test("rejected registration and expired activation expose no child data", async ({ page, playwright }) => {
   const school = fixture.schools[1]!;
-  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL });
+  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: false });
   try {
     await signIn(staff, school.staff_mobile);
     const receipt = await registerOnPage(page, school, fixture.rejected_mobile);
@@ -583,7 +611,7 @@ test("production service worker keeps private data unavailable after suspension 
   const relation = children.results[0]?.relation_id;
   if (!relation) throw new Error("Employee's activated synthetic relation is required.");
   const school = fixture.schools[0]!;
-  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL });
+  const staff = await playwright.request.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: false });
   try {
     await signIn(staff, school.staff_mobile);
     const publication = await post(staff, "/staff/parents/publications/", { student_id: fixture.employee.student_id, title: "خصوصية PWA الاصطناعية", body: "بيانات خاصة لا تعرض دون اتصال بعد التعليق", required_action: "", document_id: fixture.employee.document_id });
@@ -619,6 +647,18 @@ test("production service worker keeps private data unavailable after suspension 
 
 test("an actually expired server session during excuse submission never reports success", async ({ page }) => {
   const verificationCompose = resolve("..", "docker-compose.parent-verification.yml");
+  const releaseVerification = process.env.PARENT_E2E_RELEASE_VERIFICATION === "1";
+  const composeArgs = ["compose"];
+  if (syntheticTLS) {
+    composeArgs.push("--env-file", resolve("..", "artifacts", "parent-staging", ".env"));
+  }
+  composeArgs.push("-f", verificationCompose);
+  if (releaseVerification || syntheticTLS) {
+    composeArgs.push("-f", resolve("..", "docker-compose.parent-release-verification.yml"));
+  }
+  if (syntheticTLS) {
+    composeArgs.push("-f", resolve("..", "docker-compose.parent-staging.yml"));
+  }
   if (process.env.PARENT_VERIFICATION_LOCAL_ONLY !== "1" || !existsSync(verificationCompose)) throw new Error("Server-session expiry requires PARENT_VERIFICATION_LOCAL_ONLY=1 and the isolated verification Compose stack.");
   await signIn(page.request, fixture.parent_mobile);
   const children = await (await page.request.get("/api/v1/parent/children/")).json() as { results: Array<{ relation_id: number; school: { id: number }; status: string }> };
@@ -630,7 +670,7 @@ test("an actually expired server session during excuse submission never reports 
   await page.getByLabel("سبب العذر", { exact: true }).fill("عذر اصطناعي لاختبار انتهاء جلسة الخادم");
   // Expire the real session while the completed form remains open, before submission.
   // Docker/Django setup is separate from the product POST timeout; Windows runs measured around 45s.
-  const { stdout } = await execFileAsync("docker", ["compose", "-f", verificationCompose, "run", "--rm", "--no-deps", "--volume", `${dirname(fixturePath)}:/fixtures:ro`, "-e", "DJANGO_SETTINGS_MODULE=config.settings.local", "tests", "python", "manage.py", "seed_parent_e2e", "--password", password!, "--output", `/fixtures/${basename(fixturePath)}`, "--expire-session-for", fixture.parent_mobile], { cwd: resolve(".."), timeout: 60_000, encoding: "utf8" });
+  const { stdout } = await execFileAsync("docker", [...composeArgs, "run", "--rm", "--no-deps", "--volume", `${dirname(fixturePath)}:/fixtures:ro`, "-e", "DJANGO_SETTINGS_MODULE=config.settings.local", "tests", "python", "manage.py", "seed_parent_e2e", "--password", password!, "--output", `/fixtures/${basename(fixturePath)}`, "--expire-session-for", fixture.parent_mobile], { cwd: resolve(".."), timeout: 60_000, encoding: "utf8" });
   const expiredSessionCount = Number(stdout.match(/Expired (\d+) synthetic account sessions\./)?.[1]);
   expect(expiredSessionCount, "The guarded helper must delete a real synthetic session.").toBeGreaterThan(0);
   const responsePromise = page.waitForResponse((response) => response.url().includes(`/parent/children/${relation}/excuses/`) && response.request().method() === "POST");
@@ -639,4 +679,68 @@ test("an actually expired server session during excuse submission never reports 
   await expect(page.getByRole("heading", { name: "تسجيل الدخول", exact: true })).toBeVisible();
   await expect(page.getByText(/تم إرسال طلب العذر #/)).toHaveCount(0);
   expect((await page.request.get("/api/v1/parent/children/")).status()).toBe(403);
+});
+
+test("synthetic acceptance states and same-device account switching preserve isolation", async ({ page }) => {
+  const acceptance = fixture.acceptance;
+  if (!acceptance || acceptance.children.length !== 3 || !acceptance.switch_actor) {
+    throw new Error("Run the expanded seed_parent_staging fixture before release acceptance.");
+  }
+  await signIn(page.request, acceptance.parent_mobile);
+  await page.goto("/parent");
+  const owned = await (await page.request.get("/api/v1/parent/children/")).json() as { results: Array<{ relation_id: number }> };
+  expect(owned.results.map((child) => child.relation_id).sort()).toEqual(acceptance.children.map((child) => child.relation_id).sort());
+  const first = acceptance.children[0]!;
+  const second = acceptance.children[1]!;
+  const third = acceptance.children[2]!;
+  const firstDetailResponse = await page.request.get(`/api/v1/parent/children/${first.relation_id}/?date=${fixture.date}`);
+  expect(firstDetailResponse.status()).toBe(200);
+  const firstDetail = await firstDetailResponse.json() as { periods: Array<{ status: string; excused: boolean }>; morning: { counted_late_minutes: number }; today: { present_periods: number; absent_periods: number; excused_absent_periods: number } };
+  expect(firstDetail.periods.map((period) => period.status)).toEqual(["ABSENT", "PRESENT"]);
+  expect(firstDetail.periods[0]?.excused).toBe(true);
+  expect(firstDetail.today).toMatchObject({ present_periods: 1, absent_periods: 1, excused_absent_periods: 1 });
+  expect(firstDetail.morning.counted_late_minutes).toBe(7);
+  const secondDetail = await (await page.request.get(`/api/v1/parent/children/${second.relation_id}/?date=${fixture.date}`)).json() as { periods: Array<{ status: string }>; morning: { counted_late_minutes: number } };
+  expect(secondDetail.periods.map((period) => period.status)).toEqual(["ABSENT", "IN_PROGRESS"]);
+  expect(secondDetail.morning.counted_late_minutes).toBe(0);
+  const future = await (await page.request.get(`/api/v1/parent/children/${third.relation_id}/?date=${third.not_started_date}`)).json() as { periods: Array<{ status: string }>; morning: { arrival_time: string | null }; today: { absent_periods: number } };
+  expect(future.periods.every((period) => period.status === "NOT_STARTED")).toBe(true);
+  expect(future.periods).toHaveLength(2);
+  expect(future.morning.arrival_time).toBeNull();
+  expect(future.today.absent_periods).toBe(0);
+  const requests = await (await page.request.get("/api/v1/parent/requests/")).json() as { items: Array<{ id: number; type: string; status: string }> };
+  for (const expected of first.excuses ?? []) {
+    expect(requests.items.find((item) => item.type === "EXCUSE" && item.id === expected.id)?.status).toBe(expected.status);
+  }
+  expect(requests.items.find((item) => item.type === "CORRECTION" && item.id === first.correction_id)?.status).toBe("APPROVED");
+  expect(requests.items.find((item) => item.type === "CORRECTION" && item.id === second.correction_id)?.status).toBe("PENDING");
+  const publications = await page.request.get(`/api/v1/parent/children/${first.relation_id}/publications/`);
+  expect(publications.status()).toBe(200);
+  expect(await publications.text()).not.toContain("STAGING_INTERNAL_COUNSELOR_NOTE_MUST_NOT_LEAK");
+  const download = await page.request.get(`/api/v1/parent/children/${first.relation_id}/publications/${first.file_publication_id}/download/`);
+  expect(download.status()).toBe(200);
+  expect(download.headers()["cache-control"]).toContain("no-store");
+  expect((await download.body()).subarray(0, 5).toString()).toBe("%PDF-");
+  await page.goto(`/parent/children/${third.relation_id}`);
+  await expect(page.getByText("لم تسجل بصمة وصول", { exact: true })).toBeVisible();
+  await expect(page.getByText("غياب بصمة الوصول لا يعني غياب الطالب عن المدرسة.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "تسجيل الخروج", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول", exact: true })).toBeVisible();
+  expect((await page.request.get(`/api/v1/parent/children/${first.relation_id}/`)).status()).toBe(403);
+  await signIn(page.request, acceptance.switch_actor.mobile);
+  const switchedAccount = await (await page.request.get("/api/v1/auth/me/")).json() as { id: number; roles: string[] };
+  expect(switchedAccount.id).toBe(acceptance.switch_actor.id);
+  expect(switchedAccount.roles).toContain("TEACHER");
+  await page.goto("/parent");
+  await expect(page.getByRole("heading", { name: acceptance.switch_actor.student_name, exact: true })).toBeVisible();
+  expect((await page.request.get(`/api/v1/parent/children/${acceptance.switch_actor.relation_id}/`)).status()).toBe(200);
+  for (const child of acceptance.children) {
+    await expect(page.getByText(child.student_name, { exact: true })).toHaveCount(0);
+    expect((await page.request.get(`/api/v1/parent/children/${child.relation_id}/`)).status()).toBe(404);
+  }
+  const cacheUrls = await page.evaluate(async () => {
+    const keys = await caches.keys();
+    return (await Promise.all(keys.map(async (key) => (await (await caches.open(key)).keys()).map((request) => request.url)))).flat();
+  });
+  expect(cacheUrls.some((url) => url.includes("/api/v1/parent/") || url.includes("/download/"))).toBe(false);
 });

@@ -51,6 +51,75 @@ def owned_relation_index(user):
         )
 
 
+def relation_school_groups(index):
+    """Group an owned index without changing the API's original relation order."""
+    groups = {}
+    for item in index:
+        groups.setdefault(item["school_id"], []).append(item)
+    return groups.items()
+
+
+class ParentSchoolRead:
+    """Request-local projection checks inside one exact school RLS context."""
+
+    def __init__(self, user, school_id, owned_ids):
+        self.user = user
+        self.school_id = school_id
+        self.owned_ids = owned_ids
+        self.school_name = "المدرسة"
+
+    def current_relations(self):
+        from schools.models import School
+
+        relations = list(
+            GuardianStudentRelation.objects.filter(
+                id__in=self.owned_ids, user=self.user, school_id=self.school_id,
+                status=RelationStatus.ACTIVE,
+            ).select_related("school", "student").order_by("id")
+        )
+        school = (
+            relations[0].school if relations
+            else School.objects.filter(id=self.school_id).first()
+        )
+        if school is None:
+            return {}
+        self.school_name = school.name
+        if not relations or school.status != SchoolStatus.ACTIVE:
+            return {}
+        if get_school_access_mode(school) == BLOCKED:
+            return {}
+        return {
+            relation.pk: relation for relation in relations
+            if relation.student.school_id == self.school_id
+            and relation.student.merged_into_id is None
+            and (
+                not relation.contact_bound
+                or relation.contact_revision == relation.student.guardian_contact_revision
+            )
+        }
+
+
+@contextmanager
+def parent_school_read(user, school_id, relation_ids):
+    """Batch owned reads only; writes retain their existing per-relation transaction.
+
+    Prove ownership before choosing school context, even for a forged caller index.
+    Do not wrap siblings in one transaction: retaining their warning locks together
+    would introduce cross-guardian lock-order cycles in notification catch-up.
+    """
+    require_password_changed(user)
+    with tenant_context(user_id=user.id):
+        owned_ids = list(
+            GuardianStudentRelation.objects.filter(
+                id__in=relation_ids, user=user, school_id=school_id,
+            ).values_list("id", flat=True)
+        )
+    if not owned_ids:
+        raise not_found()
+    with tenant_context(school_id=school_id, user_id=user.id):
+        yield ParentSchoolRead(user, school_id, owned_ids)
+
+
 @contextmanager
 def parent_scope(user, relation_id: int, *, write: bool = False, lock: bool = False):
     require_password_changed(user)

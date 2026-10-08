@@ -411,6 +411,10 @@ class GlobalMobileChangeView(StaffContactView):
             student_id=student_id,
             school=request.school,
         )
+        if relation.user_id == request.user.id:
+            raise ApiError(
+                "RECOVERY_INTAKE_CONFLICT", "يلزم موظف مستقل لاستقبال الطلب.", status_code=409
+            )
         change = GlobalMobileChangeRequest.objects.create(
             user=relation.user,
             school=request.school,
@@ -421,6 +425,9 @@ class GlobalMobileChangeView(StaffContactView):
             reason=data["reason"],
             verification_note=data["verification_note"],
         )
+        from parents.recovery_services import open_case_from_source
+
+        open_case_from_source(change)
         record_event(
             "PARENT_GLOBAL_MOBILE_CHANGE_REQUESTED",
             school=request.school,

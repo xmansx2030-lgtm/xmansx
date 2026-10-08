@@ -218,7 +218,7 @@ def _run_scoped_purge(job) -> str:
         failed += len([i for i in batch if i not in found_ids])
         for student in students:
             try:
-                rows, ok, bad = purge_student(student)
+                rows, ok, bad = purge_student(student, actor=job.created_by, job_id=job.id)
                 deleted += 1
                 db_rows += rows
                 storage_ok += ok

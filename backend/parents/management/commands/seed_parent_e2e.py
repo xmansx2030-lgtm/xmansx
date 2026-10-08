@@ -70,6 +70,11 @@ class Command(BaseCommand):
         parser.add_argument("--password", required=True)
         parser.add_argument("--output", required=True)
         parser.add_argument(
+            "--enable-registration",
+            action="store_true",
+            help="Enable registration only in the three newly created synthetic schools.",
+        )
+        parser.add_argument(
             "--expire-session-for",
             help="Expire only an account recorded in this synthetic fixture.",
         )
@@ -166,6 +171,7 @@ class Command(BaseCommand):
             "rejected_mobile": f"+966551800{slot + 7:03d}",
             "employee": {"id": employee.id, "mobile": employee.mobile},
             "schools": [],
+            "registration_enabled": bool(options["enable_registration"]),
         }
         for index, letter in enumerate(("a", "b", "c"), 1):
             school = School.objects.create(
@@ -218,6 +224,9 @@ class Command(BaseCommand):
                 )
                 for role in ("SCHOOL_MANAGER", "TEACHER"):
                     SchoolMembershipRole.objects.create(membership=membership, role=role)
+                # The isolated expired-link fixture needs the registration service.
+                # Disable the newly created school's config before this transaction
+                # commits unless the caller explicitly requests browser acceptance.
                 registration = ParentRegistrationConfig.objects.create(school=school, enabled=True)
                 schedule = BellSchedule.objects.create(school=school, name="جدول اختبار الأسرة")
                 for sequence in (1, 2):
@@ -433,6 +442,9 @@ class Command(BaseCommand):
                         expires_at=timezone.now() - timedelta(seconds=1)
                     )
                     fixture["expired_activation_url"] = expired_decision["activation_url"]
+                if not options["enable_registration"]:
+                    registration.enabled = False
+                    registration.save(update_fields=["enabled", "updated_at"])
         output = Path(options["output"]).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(fixture, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,7 +1,7 @@
 """Narrow relation-scoped family DTOs and separate school review endpoints."""
 
 from django.db import transaction
-from django.db.models import Count, Prefetch
+from django.db.models import BooleanField, Case, Count, F, Prefetch, Q, Value, When
 from django.http import FileResponse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -23,7 +23,14 @@ from memberships.api_base import SchoolScopedAPIView
 from memberships.models import SchoolRole
 from parents import request_serializers as output
 from parents import request_services as services
-from parents.access import ParentAPIView, not_found, owned_relation_index, parent_scope
+from parents.access import (
+    ParentAPIView,
+    not_found,
+    owned_relation_index,
+    parent_school_read,
+    parent_scope,
+    relation_school_groups,
+)
 from parents.rate_limit import consume
 from parents.request_models import (
     AttendanceCorrectionRequest,
@@ -693,31 +700,64 @@ class ParentNotificationsView(ParentAPIView):
         limit = offset + size
         items = []
         count = 0
-        for index in owned_relation_index(request.user):
-            if relation_id is not None and index["id"] != relation_id:
-                continue
-            if index["status"] == "ACTIVE":
-                try:
-                    with parent_scope(request.user, index["id"]) as relation:
+        index = [
+            item for item in owned_relation_index(request.user)
+            if relation_id is None or item["id"] == relation_id
+        ]
+        for school_id, group in relation_school_groups(index):
+            try:
+                with parent_school_read(
+                    request.user, school_id, [item["id"] for item in group],
+                ) as scope:
+                    available = scope.current_relations()
+                    initial_active = {item["id"] for item in group if item["status"] == "ACTIVE"}
+                    for key, relation in available.items():
+                        if key not in initial_active:
+                            continue
                         services.sync_activity_notifications(relation)
-                        notices = ParentNotification.objects.filter(
-                            relation=relation, user=request.user
-                        ).order_by("-created_at", "-id")
-                        count += notices.count()
-                        items.extend(
-                            notification_row(obj, relation=relation) for obj in notices[:limit]
+                    current = scope.current_relations()
+                    current = {
+                        key: value for key, value in current.items() if key in initial_active
+                    }
+                    # Check withdrawal again in the page SQL, rather than trusting a
+                    # relation object loaded before another sibling's synchronization.
+                    active = Q(
+                        relation_id__in=current,
+                        relation__status="ACTIVE",
+                        relation__student__merged_into__isnull=True,
+                        relation__school__status="ACTIVE",
+                    ) & (
+                        Q(relation__contact_bound=False)
+                        | Q(
+                            relation__contact_revision=F(
+                                "relation__student__guardian_contact_revision"
+                            )
                         )
-                    continue
-                except ApiError as exc:
-                    if exc.status_code not in (403, 404):
-                        raise
-            # Relationship notices contain generic text only; suspended students stay hidden.
-            with tenant_context(school_id=index["school_id"], user_id=request.user.id):
-                notices = ParentNotification.objects.filter(
-                    relation_id=index["id"], user=request.user, kind="RELATION_STATUS"
-                ).order_by("-created_at", "-id")
-                count += notices.count()
-                items.extend(notification_row(obj) for obj in notices[:limit])
+                    )
+                    notices = (
+                        ParentNotification.objects.filter(
+                            relation_id__in=scope.owned_ids, user=request.user,
+                            relation__user_id=request.user.pk,
+                        )
+                        .filter(Q(kind="RELATION_STATUS") | active)
+                        .annotate(
+                            parent_relation_available=Case(
+                                When(active, then=Value(True)), default=Value(False),
+                                output_field=BooleanField(),
+                            )
+                        ).order_by("-created_at", "-id")
+                    )
+                    count += notices.count()
+                    items.extend(
+                        notification_row(
+                            obj,
+                            relation=current.get(obj.relation_id)
+                            if obj.parent_relation_available else None,
+                        ) for obj in notices[:limit]
+                    )
+            except ApiError as exc:
+                if exc.status_code not in (403, 404):
+                    raise
         return Response(_aggregate_page(request, items, count, page=page, size=size, offset=offset))
 
 

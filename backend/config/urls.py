@@ -43,6 +43,7 @@ urlpatterns = [
     path("api/v1/", include("student_actions.urls")),
     path("api/v1/", include("student_leaves.urls")),
     path("api/v1/", include("parents.urls")),
+    path("api/v1/", include("parents.recovery_urls")),
     path("api/v1/", include("documents.urls")),
     path("api/v1/", include("referrals.urls")),
     path("api/v1/", include("counseling.urls")),

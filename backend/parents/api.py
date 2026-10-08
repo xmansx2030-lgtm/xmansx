@@ -21,7 +21,13 @@ from memberships.models import SchoolRole
 from memberships.selectors import active_memberships_for_user, invited_memberships_for_user
 from parents import selectors, services
 from parents import serializers as output
-from parents.access import ParentAPIView, owned_relation_index, parent_scope
+from parents.access import (
+    ParentAPIView,
+    owned_relation_index,
+    parent_school_read,
+    parent_scope,
+    relation_school_groups,
+)
 from parents.models import (
     GuardianRegistrationRequest,
     GuardianStudentRelation,
@@ -141,22 +147,38 @@ class ChildrenView(ParentAPIView):
 
     @extend_schema(operation_id="parent_children_list", responses=output.ChildrenSerializer)
     def get(self, request):
-        rows = []
+        from parents.request_models import ParentNotification
+        from parents.request_services import sync_activity_notifications
+
+        rows = {}
         page = DefaultPagination()
         index_page = page.paginate_queryset(owned_relation_index(request.user), request, view=self)
-        for item in index_page:
-            if item["status"] == "ACTIVE":
-                try:
-                    with parent_scope(request.user, item["id"]) as relation:
-                        from parents.request_models import ParentNotification
-                        from parents.request_services import sync_activity_notifications
-
-                        detail = selectors.child_day(relation)
+        for school_id, group in relation_school_groups(index_page):
+            school_name = "المدرسة"
+            details = {}
+            inboxes = {}
+            try:
+                with parent_school_read(
+                    request.user, school_id, [item["id"] for item in group],
+                ) as scope:
+                    relations = scope.current_relations()
+                    for item in group:
+                        relation = relations.get(item["id"]) if item["status"] == "ACTIVE" else None
+                        if relation is None:
+                            continue
+                        details[relation.pk] = selectors.child_day(relation)
                         sync_activity_notifications(relation)
-                        inbox = ParentNotification.objects.filter(
-                            relation=relation,
-                            user=request.user,
-                        ).aggregate(
+                    # A sibling may be withdrawn while another child's facts are read.
+                    current = scope.current_relations()
+                    details = {
+                        relation_id: detail for relation_id, detail in details.items()
+                        if relation_id in current
+                    }
+                    school_name = scope.school_name
+                    inboxes = {
+                        row["relation_id"]: row for row in ParentNotification.objects.filter(
+                            relation_id__in=details, user=request.user,
+                        ).values("relation_id").annotate(
                             new_notifications=Count("id", filter=Q(read_at__isnull=True)),
                             required_actions=Count(
                                 "id",
@@ -166,38 +188,29 @@ class ChildrenView(ParentAPIView):
                                 ),
                             ),
                         )
-                        rows.append(
-                            {
-                                **detail["child"],
-                                "today": detail["today"],
-                                "morning": detail["morning"],
-                                **inbox,
-                            }
-                        )
-                    continue
-                except ApiError as exc:
-                    if exc.status_code not in {403, 404}:
-                        raise
-            with tenant_context(school_id=item["school_id"], user_id=request.user.id):
-                from schools.models import School
-
-                school_name = (
-                    School.objects.filter(id=item["school_id"])
-                    .values_list("name", flat=True)
-                    .first()
-                )
-            rows.append(
-                {
-                    "relation_id": item["id"],
-                    "school": {"id": item["school_id"], "name": school_name or "المدرسة"},
-                    "student": None,
-                    "status": item["status"] if item["status"] != "ACTIVE" else "UNAVAILABLE",
-                    "today": None,
-                    "new_notifications": 0,
-                    "required_actions": 0,
-                }
-            )
-        return page.get_paginated_response(rows)
+                    }
+            except ApiError as exc:
+                if exc.status_code not in {403, 404}:
+                    raise
+                details = {}
+            for item in group:
+                detail = details.get(item["id"])
+                if detail is not None:
+                    inbox = inboxes.get(item["id"], {})
+                    rows[item["id"]] = {
+                        **detail["child"], "today": detail["today"], "morning": detail["morning"],
+                        "new_notifications": inbox.get("new_notifications", 0),
+                        "required_actions": inbox.get("required_actions", 0),
+                    }
+                else:
+                    rows[item["id"]] = {
+                        "relation_id": item["id"],
+                        "school": {"id": item["school_id"], "name": school_name or "المدرسة"},
+                        "student": None,
+                        "status": item["status"] if item["status"] != "ACTIVE" else "UNAVAILABLE",
+                        "today": None, "new_notifications": 0, "required_actions": 0,
+                    }
+        return page.get_paginated_response([rows[item["id"]] for item in index_page])
 
 
 class ChildView(ParentAPIView):

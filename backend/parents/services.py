@@ -10,6 +10,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 
 from accounts.models import User
 from audit.services import record_event
@@ -555,13 +556,22 @@ def complete_activation(
         )
         _validate_activation(activation, item, student, activation.school)
         mobile = decrypt_value(item.mobile_encrypted)
-        existing = User.objects.filter(mobile=mobile).first()
+        existing = User.objects.select_for_update().filter(mobile=mobile).first()
         if existing:
             if (
                 user is None
                 or not user.is_authenticated
                 or user.id != existing.id
                 or not existing.is_active
+                or not constant_time_compare(
+                    user.get_session_auth_hash(), existing.get_session_auth_hash()
+                )
+                or (
+                    request is not None
+                    and not constant_time_compare(
+                        request.session.get("_auth_user_hash", ""), existing.get_session_auth_hash()
+                    )
+                )
             ):
                 raise ApiError(
                     "EXISTING_ACCOUNT_LOGIN_REQUIRED",

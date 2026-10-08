@@ -58,6 +58,9 @@ no provider integration and a NOSUPERUSER NOBYPASSRLS HTTP application role.
 Follow [the independent verification report](PARENT_PORTAL_INDEPENDENT_VERIFICATION.md)
 for the tested commands and release evidence. The older Stage F recipe below is
 historical evidence, not the new verification result.
+The next release uses [restricted synthetic Staging](PARENT_PORTAL_STAGING_READINESS.md)
+with separate HTTP/TLS projects and keys; follow that recipe for the expanded
+fixture and six browser acceptance scenarios.
 
 From `backend`: `.venv\Scripts\python.exe -m pytest --reuse-db -q -rs`,
 `.venv\Scripts\ruff.exe check .`, `manage.py check`,
@@ -75,7 +78,11 @@ blueprint tests. The exact executed full command and1184-test result are in
 The browser fixture command `manage.py seed_parent_e2e --password <local-test-password>
 --output ../artifacts/parent-e2e-fixture.json` requires DEBUG and a localhost database,
 creates fresh synthetic schools, configures no SMS integration and resets no
-existing schools. Start the local backend on8000 and run
+existing schools. Registration is disabled by default; add `--enable-registration`
+only for the three newly created synthetic schools when running registration E2E.
+For the expanded release fixture use `seed_parent_staging` with the same explicit
+flag and the isolated owner database documented in the Staging recipe.
+Start the local backend on8000 and run
 `npx playwright test --config playwright.parent.config.ts` from `frontend`.
 Use the same local test password via `E2E_SEED_PASSWORD`; reseed before rerunning
 the lifecycle because activation and decisions are intentionally single-use.

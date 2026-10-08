@@ -19,6 +19,18 @@ def register_purge_steps():
 
     steps = [
         (
+            "قرارات مراجعة استعادة الحساب",
+            lambda ids: models.RecoveryReviewDecision.objects.filter(case__student_id__in=ids),
+        ),
+        (
+            "مراجع استعادة الحساب",
+            lambda ids: models.RecoveryEvidenceReference.objects.filter(case__student_id__in=ids),
+        ),
+        (
+            "قضايا استعادة الحساب",
+            lambda ids: models.GlobalAccountRecoveryCase.objects.filter(student_id__in=ids),
+        ),
+        (
             "تنبيهات أولياء الأمور",
             lambda ids: models.ParentNotification.objects.filter(relation__student_id__in=ids),
         ),

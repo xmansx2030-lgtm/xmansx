@@ -164,6 +164,13 @@ class GlobalMobileChangeRequest(TimestampedModel):
     reason = models.CharField(max_length=300)
     status = models.CharField(max_length=20, default="PENDING")
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status="PENDING"), name="parent_global_change_intake_only"
+            )
+        ]
+
 
 class RecipientContactBlock(TimestampedModel):
     school = models.ForeignKey("schools.School", on_delete=models.CASCADE)
@@ -195,6 +202,12 @@ class RecipientContactBlock(TimestampedModel):
 
 # Request models are separated by responsibility, registered in this same app.
 # Imported after relation models to keep dependency contracts explicit.
+from parents.recovery_models import (  # noqa: E402,F401
+    GlobalAccountRecoveryCase,
+    RecoveryEvidenceReference,
+    RecoveryReviewAuthorization,
+    RecoveryReviewDecision,
+)
 from parents.request_models import (  # noqa: E402,F401
     AttendanceCorrectionRequest,
     FamilyPublication,

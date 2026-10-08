@@ -17,6 +17,7 @@ from django.db.models.deletion import ProtectedError
 from audit.models import AuditAction, AuditLog
 from audit.services import record_event
 from common.errors import ApiError
+from common.tenant_rls import tenant_context
 from memberships.models import SchoolMembership
 from platform_team.access import PlatformCapability, has_platform_capability
 from schools.models import School
@@ -158,19 +159,27 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
                     "user_id", flat=True
                 )
             )
-            storage_objects = _storage_objects(school.id, scoped_models)
+            from parents.recovery_purge import recovery_purge_scope
 
-            for scoped in scoped_models:
-                if scoped.model is AuditLog:
-                    deleted, _ = _delete_school_audit_logs(school.id)
-                else:
-                    deleted, _ = scoped.model._default_manager.filter(
-                        **{scoped.school_field.attname: school.id}
-                    ).delete()
+            # Recovery review metadata deliberately ignores ordinary platform RLS
+            # bypass. This exact deletion purpose is checked again by PostgreSQL.
+            with (
+                tenant_context(user_id=actor.id, bypass=True),
+                recovery_purge_scope(school_id=school.id, actor_id=actor.id),
+            ):
+                storage_objects = _storage_objects(school.id, scoped_models)
+
+                for scoped in scoped_models:
+                    if scoped.model is AuditLog:
+                        deleted, _ = _delete_school_audit_logs(school.id)
+                    else:
+                        deleted, _ = scoped.model._default_manager.filter(
+                            **{scoped.school_field.attname: school.id}
+                        ).delete()
+                    database_records_deleted += deleted
+
+                deleted, _ = school.delete()
                 database_records_deleted += deleted
-
-            deleted, _ = school.delete()
-            database_records_deleted += deleted
 
             User = get_user_model()
             orphan_ids = list(

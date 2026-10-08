@@ -226,6 +226,19 @@ def run_member_action(*, user_id: int, action: str, actor, request=None) -> dict
         event = AuditAction.PLATFORM_STAFF_REACTIVATED
         result = {"member": member_payload(membership), "temporary_password": None}
     elif action == "reset-password":
+        from common.tenant_rls import tenant_context
+        from parents.models import GuardianStudentRelation
+
+        with tenant_context(user_id=membership.user_id):
+            guardian_account = GuardianStudentRelation.objects.filter(
+                user_id=membership.user_id
+            ).exists()
+        if guardian_account:
+            raise ApiError(
+                "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
+                "هذا حساب ولي أمر عالمي؛ يلزم إجراء مستقل موثق للتحقق من ملكية الحساب.",
+                409,
+            )
         if membership.user.memberships.exists():
             raise ApiError(
                 "SCHOOL_ACCOUNT_NOT_ALLOWED",

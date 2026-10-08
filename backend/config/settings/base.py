@@ -340,6 +340,10 @@ SPECTACULAR_SETTINGS = {
         "ParentRequestStatusEnum": ["PENDING", "NEEDS_INFO", "APPROVED", "REJECTED", "CANCELLED"],
         "ParentExcuseTypeEnum": ["EXCUSE"],
         "ParentCorrectionTypeEnum": ["CORRECTION"],
+        "RecoveryOperationEnum": "parents.recovery_models.RecoveryOperation",
+        "RecoveryEvidenceKindEnum": "parents.recovery_models.RecoveryEvidenceKind",
+        "RecoveryReviewStageEnum": "parents.recovery_models.RecoveryReviewStage",
+        "RecoveryRecommendationEnum": "parents.recovery_models.RecoveryRecommendation",
     },
 }
 
