@@ -46,6 +46,9 @@ class TokenSerializer(serializers.Serializer):
 
 
 class ActivationSerializer(TokenSerializer):
+    current_password = serializers.CharField(
+        max_length=128, write_only=True, required=False, trim_whitespace=False
+    )
     new_password = serializers.CharField(
         max_length=128, write_only=True, required=False, trim_whitespace=False
     )
@@ -65,7 +68,7 @@ class RegistrationDecisionSerializer(serializers.Serializer):
     verification_note = serializers.CharField(max_length=600, required=False, allow_blank=True)
     decision_reason = serializers.CharField(max_length=300, required=False, allow_blank=True)
     contact_bound = serializers.BooleanField(default=True)
-    delivery = serializers.ChoiceField(choices=["SMS", "MANUAL"], default="SMS")
+    delivery = serializers.ChoiceField(choices=["EMAIL", "SMS", "MANUAL"], default="EMAIL")
 
 
 class RelationDecisionSerializer(serializers.Serializer):
@@ -115,6 +118,8 @@ class ActivationMetadataSerializer(serializers.Serializer):
     school_name = serializers.CharField()
     account_exists = serializers.BooleanField()
     requires_login = serializers.BooleanField()
+    verifies_email = serializers.BooleanField()
+    requires_current_password = serializers.BooleanField()
 
 
 class ParentAccountSerializer(serializers.Serializer):

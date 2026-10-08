@@ -305,7 +305,7 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
-CELERY_IMPORTS = ("parents.email_recovery_tasks",)
+CELERY_IMPORTS = ("parents.email_recovery_tasks", "parents.activation_email")
 CELERY_TASK_ROUTES = {
     "students.process_import_job": {"queue": "imports"},
     "staff.process_import_job": {"queue": "imports"},

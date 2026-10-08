@@ -1113,4 +1113,49 @@ describe("parent portal isolation and family workflows", () => {
       ).toBe(true),
     );
   });
+  it("email activation requires an explicit action and reauthentication without resetting an existing account", async () => {
+    window.history.replaceState({}, "", "/parent/activate#token=" + "e".repeat(48));
+    const { calls } = mockApi({
+      "/auth/me/": { body: STAFF_PARENT },
+      "/parent/activation/check/": { body: {
+        status: "VALID", school_name: "مدرسة البريد", account_exists: true,
+        requires_login: false, verifies_email: true, requires_current_password: true,
+      } },
+      "/parent/activation/": { body: STAFF_PARENT },
+      "/parent/children/": { body: { results: [CHILD], count: 1, next: null, previous: null } },
+    });
+    renderApp("/parent/activate");
+    const user = userEvent.setup();
+    const input = await screen.findByLabelText("كلمة المرور الحالية لتوثيق البريد");
+    expect(screen.getByText("مدرسة البريد")).toBeInTheDocument();
+    expect(screen.queryByLabelText("كلمة المرور الجديدة")).toBeNull();
+    expect(calls.some(call => call.url.endsWith("/parent/activation/"))).toBe(false);
+    await user.type(input, "Existing-Safe-Password!");
+    await user.click(screen.getByRole("button", { name: "ربط الابن بحسابي" }));
+    await waitFor(() => expect(calls.some(call => call.url.endsWith("/parent/activation/"))).toBe(true));
+    const body = JSON.parse(String(calls.find(call => call.url.endsWith("/parent/activation/"))?.init?.body));
+    expect(body.current_password).toBe("Existing-Safe-Password!");
+    expect(body.new_password).toBeUndefined();
+    expect(body.confirm_password).toBeUndefined();
+  });
+  it("school activation reissue defaults to email without exposing a bearer", async () => {
+    const manager = buildMe({ ...STAFF_PARENT, roles: ["SCHOOL_MANAGER"], memberships: [membership(1, 10, "مدرسة النور", ["SCHOOL_MANAGER"])] });
+    const { calls } = mockApi({
+      "/auth/me/": { body: manager },
+      "/staff/parents/registrations/91/activation/": { body: { delivery_status: "PENDING" } },
+      "/staff/parents/registrations/": { body: { results: [], count: 0, next: null, previous: null } },
+    });
+    renderApp("/parent-management");
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("إعادة تسليم التفعيل لطلب معتمد"));
+    expect(screen.getByLabelText("طريقة إعادة تسليم التفعيل")).toHaveValue("EMAIL");
+    await user.type(screen.getByLabelText("رقم طلب التسجيل المعتمد"), "91");
+    await user.type(screen.getByLabelText("توثيق التحقق الحديث من صاحب الصفة"), "تحقق حضوري موثق حديث");
+    await user.click(screen.getByRole("button", { name: "إصدار وتسليم تفعيل جديد" }));
+    await screen.findByText("بانتظار التسليم");
+    const request = calls.find(call => call.url.includes("/91/activation/"));
+    expect(JSON.parse(String(request?.init?.body)).delivery).toBe("EMAIL");
+    expect(screen.queryByLabelText("رابط التفعيل الجديد (يظهر مرة واحدة)")).toBeNull();
+  });
+
 });

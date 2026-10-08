@@ -9,10 +9,13 @@ Actual execution results and final SHA belong in
 ## Product boundary
 
 New parent registration requires a valid email on both frontend and backend.
-It has exactly two delivery purposes: `RECOVERY_EMAIL_VERIFICATION` and
-`PASSWORD_RESET`. It is not a school notification channel. Attendance, morning
+The recovery service has exactly two purposes: `RECOVERY_EMAIL_VERIFICATION` and
+`PASSWORD_RESET`. The owner's subsequent onboarding policy adds the separate
+`PARENT_ACCOUNT_ACTIVATION` sender, after school approval only. It is not a school
+notification channel. Attendance, morning
 arrival, excuses, warnings, counseling, billing and marketing never use this
-transport. Dreams/Msegat remain the absence and parent activation SMS providers.
+transport. Dreams/Msegat remain the absence SMS providers. Explicit legacy SMS
+activation remains compatible; email is now the default activation channel.
 
 Login stays mobile/password. `Student.guardian_mobile` remains a school contact.
 Neither a verified email nor a password reset changes `User.mobile`, transfers a
@@ -51,16 +54,33 @@ provider reference and error code. Raw tokens are never persisted in the databas
    Email/account/student existence is not disclosed by submission responses.
 2. Manager/vice-principal reviews the same school-scoped request and approves one
    child. School approval does not verify email or authorize a global credential.
-3. Existing SMS activation proves the existing authenticated account or creates a
-   new global account with a validated password. The approval and relation remain
-   recorded while email verification is pending.
-4. A newly created account enrolls the registration email as a pending candidate.
-   Only an explicit authenticated confirmation using the emailed bearer verifies
-   it. Until then, all parent data APIs and parent service scopes reject access.
-5. Existing accounts must sign in and personally enroll using their current
-   password. An attacker-supplied registration email is never automatically made
-   a recovery credential for an existing account. Existing verified email remains
-   unchanged when another school/child is linked.
+3. Default EMAIL approval queues numeric school/activation IDs only. The worker
+   generates a one-use bearer in memory, commits its hash-only claim, rechecks
+   approval/contact/subscription under locks, and sends one activation email with
+   the school name in the display sender, subject and content. The actual sender
+   address remains the configured verified Resend address.
+4. GET/preview never activates or verifies. Explicit CSRF-protected activation POST
+   creates the new account with a validated password, activates the exact approved
+   relation, consumes the bearer and verifies the registration recovery email in
+   one transaction. Child data becomes accessible only after successful commit;
+   no separate first verification email is needed for this default flow.
+5. Existing accounts must sign in; their first recovery email also requires their
+   current password. Linking cannot replace an already verified recovery address.
+   A conflicting verified address fails generically and rolls back the complete
+   activation. Staff workspace access remains unchanged.
+6. Explicit legacy SMS/MANUAL activation and existing-parent enrollment retain the
+   separate personal email-verification step. These compatibility paths never
+   bypass the parent data gate.
+
+`parents0009` adds delivery channel, immutable registration-email hash, UUID
+idempotency key and consumed-account binding to the existing activation. Database
+guards require the exact consumed EMAIL bearer/account to establish the first
+credential; no SECURITY DEFINER or broad RLS bypass is introduced. Expiry is the
+shorter of the configured activation and verification TTLs (24h by default).
+Consumed/revoked proofs and approved email bindings cannot be rewritten. Reissue
+revokes the preceding unused proof. Forward fix is required once EMAIL activation
+data exists; reversing0009 then is refused, including for a role unable to prove
+database-wide emptiness. Historical records remain legacy, unverified by migration.
 
 The parent shell checks credential readiness before mounting child pages. Pending
 state, failed/unknown delivery, resend and enrollment are visible in Arabic. Staff

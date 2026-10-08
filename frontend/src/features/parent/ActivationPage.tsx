@@ -66,6 +66,7 @@ export function ActivationPage() {
         token,
         metadata.data?.account_exists ? undefined : password,
         confirm,
+        metadata.data?.requires_current_password ? password : undefined,
       ),
     onSuccess: async (updated) => {
       await queryClient.cancelQueries();
@@ -116,6 +117,12 @@ export function ActivationPage() {
           <KeyRound aria-hidden />
         </span>
         <h1 className="text-2xl font-black">تفعيل بوابة ولي الأمر</h1>
+        {metadata.data?.verifies_email && (
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            وافقت المدرسة على طلبك. إكمال هذا الإجراء يفعّل الربط ويوثّق بريد
+            الاسترداد للحساب الجديد. لا يكفي فتح الرابط وحده.
+          </p>
+        )}
         {!token && (
           <Alert tone="warning" title="افتح رابط التفعيل الأصلي">
             الرابط صالح لمرة واحدة. اطلب رابطاً جديداً من المدرسة عند الحاجة.
@@ -191,6 +198,15 @@ export function ActivationPage() {
                       required
                     />
                   </>
+                )}
+                {!needsLogin && metadata.data.requires_current_password && (
+                  <PasswordInput
+                    label="كلمة المرور الحالية لتوثيق البريد"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 )}
                 {error && <Alert tone="danger" title={error} />}
                 {signIn.isError && <ErrorState error={signIn.error} />}

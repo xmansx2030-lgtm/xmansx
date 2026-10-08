@@ -10,7 +10,7 @@ import os
 import ssl
 from dataclasses import dataclass
 from datetime import datetime
-from email.utils import parseaddr
+from email.utils import formataddr, parseaddr
 from html import escape
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -24,6 +24,7 @@ from django.core.validators import validate_email
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 ALLOWED_PURPOSES = frozenset({"RECOVERY_EMAIL_VERIFICATION", "PASSWORD_RESET"})
+ACTIVATION_PURPOSE = "PARENT_ACCOUNT_ACTIVATION"
 MAX_RESPONSE_BYTES = 4096
 MAX_REQUEST_BYTES = 16 * 1024
 
@@ -46,7 +47,7 @@ def _delivery_id(value):
 
 
 def recovery_link(*, purpose, token):
-    if purpose not in ALLOWED_PURPOSES:
+    if purpose not in ALLOWED_PURPOSES | {ACTIVATION_PURPOSE}:
         raise ValueError("Unsupported recovery email purpose")
     if not isinstance(token, str) or not 32 <= len(token) <= 128:
         raise ValueError("Invalid recovery token")
@@ -60,11 +61,14 @@ def recovery_link(*, purpose, token):
         ))
     ):
         raise ValueError("Invalid recovery origin")
-    path = "/parent/verify-email" if purpose == "RECOVERY_EMAIL_VERIFICATION" else "/reset-password"
+    path = (
+        "/parent/activate" if purpose == ACTIVATION_PURPOSE else
+        "/parent/verify-email" if purpose == "RECOVERY_EMAIL_VERIFICATION" else "/reset-password"
+    )
     return f"{origin}{path}#token={quote(token, safe='')}"
 
 
-def _content(*, purpose, link, expires_at):
+def _content(*, purpose, link, expires_at, school_name=""):
     verification = purpose == "RECOVERY_EMAIL_VERIFICATION"
     subject = (
         "توثيق بريد الاسترداد — منصة المواظبة" if verification
@@ -75,6 +79,13 @@ def _content(*, purpose, link, expires_at):
         "طلبت توثيق هذا البريد لاستعادة كلمة المرور فقط. افتح الرابط وأكمل التحقق صراحةً."
         if verification else "وصلنا طلب لاستعادة كلمة مرور حسابك في منصة المواظبة."
     )
+    if purpose == ACTIVATION_PURPOSE:
+        subject = f"تفعيل بوابة ولي الأمر وتوثيق البريد — {school_name}"
+        heading = "تفعيل الحساب وتوثيق البريد"
+        explanation = (
+            f"وافقت {school_name} على طلب الربط. أكمل التفعيل وتوثيق بريدك "
+            "لتتمكن من متابعة أبنائك. إن كان لديك حساب، سجل الدخول إلى حسابك الحالي."
+        )
     expires = expires_at.isoformat()
     caution = "إذا لم تطلب هذه العملية، تجاهل الرسالة. لن تتغير بيانات حسابك بمجرد فتح الرابط."
     text = f"منصة المواظبة\n{explanation}\n{heading}: {link}\nينتهي الرابط: {expires}\n{caution}"
@@ -82,7 +93,7 @@ def _content(*, purpose, link, expires_at):
         '<html lang="ar" dir="rtl"><body style="font-family:Arial,sans-serif;'
         'background:#f5f7fa;padding:24px"><main style="max-width:560px;margin:auto;'
         'background:#fff;padding:24px;border-radius:12px"><h1>منصة المواظبة</h1>'
-        f"<h2>{heading}</h2><p>{explanation}</p>"
+        f"<h2>{escape(heading)}</h2><p>{escape(explanation)}</p>"
         f'<p><a href="{escape(link, quote=True)}" style="display:inline-block;'
         'background:#14532d;color:#fff;padding:14px 24px;text-decoration:none;'
         f'border-radius:8px">{heading}</a></p>'
@@ -106,7 +117,7 @@ def _valid_sender(value):
     return bool(address)
 
 
-def _send_resend(*, delivery_id, recipient, purpose, token, expires_at):
+def _send_resend(*, delivery_id, recipient, purpose, token, expires_at, school_name=""):
     key = getattr(settings, "RESEND_API_KEY", "")
     sender = getattr(settings, "RESEND_FROM_EMAIL", "")
     if (
@@ -120,7 +131,11 @@ def _send_resend(*, delivery_id, recipient, purpose, token, expires_at):
         if not 1 <= timeout <= 30:
             return EmailDeliveryResult("FAILED", error_code="RESEND_UNCONFIGURED")
         link = recovery_link(purpose=purpose, token=token)
-        subject, text, html = _content(purpose=purpose, link=link, expires_at=expires_at)
+        subject, text, html = _content(
+            purpose=purpose, link=link, expires_at=expires_at, school_name=school_name,
+        )
+        if purpose == ACTIVATION_PURPOSE:
+            sender = formataddr((f"{school_name} — منصة المواظبة", parseaddr(sender)[1]))
         body = json.dumps({
             "from": sender, "to": [recipient], "subject": subject, "html": html, "text": text,
         }, ensure_ascii=False).encode("utf-8")
@@ -185,7 +200,7 @@ def _synthetic_allowed(recipient):
     )
 
 
-def _send_synthetic(*, delivery_id, recipient, purpose, token, expires_at):
+def _send_synthetic(*, delivery_id, recipient, purpose, token, expires_at, school_name=""):
     if not _synthetic_allowed(recipient):
         return EmailDeliveryResult("FAILED", error_code="SYNTHETIC_ADAPTER_FORBIDDEN")
     root = Path(str(getattr(settings, "PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT", "")))
@@ -233,6 +248,25 @@ def send_recovery_email(*, delivery_id, recipient, purpose, token, expires_at: d
     """Accept only the two credential purposes; never fall back to SMTP/SMS."""
     if purpose not in ALLOWED_PURPOSES:
         raise ValueError("Unsupported recovery email purpose")
+    return _send_email(
+        delivery_id=delivery_id, recipient=recipient, purpose=purpose, token=token,
+        expires_at=expires_at,
+    )
+
+
+def send_activation_email(*, delivery_id, recipient, token, expires_at, school_name):
+    """School-approved activation only; no students, notices or school password reset."""
+    if not isinstance(school_name, str) or not school_name or len(school_name) > 250:
+        return EmailDeliveryResult("FAILED", error_code="INVALID_SCHOOL_NAME")
+    if "\r" in school_name or "\n" in school_name:
+        return EmailDeliveryResult("FAILED", error_code="INVALID_SCHOOL_NAME")
+    return _send_email(
+        delivery_id=delivery_id, recipient=recipient, purpose=ACTIVATION_PURPOSE,
+        token=token, expires_at=expires_at, school_name=school_name,
+    )
+
+
+def _send_email(*, delivery_id, recipient, purpose, token, expires_at, school_name=""):
     delivery_id = _delivery_id(delivery_id)
     try:
         validate_email(recipient)
@@ -244,6 +278,8 @@ def send_recovery_email(*, delivery_id, recipient, purpose, token, expires_at: d
         "delivery_id": delivery_id, "recipient": recipient, "purpose": purpose,
         "token": token, "expires_at": expires_at,
     }
+    if purpose == ACTIVATION_PURPOSE:
+        arguments["school_name"] = school_name
     adapter = getattr(settings, "PARENT_RECOVERY_EMAIL_ADAPTER", "resend")
     if adapter == "synthetic-file":
         return _send_synthetic(**arguments)

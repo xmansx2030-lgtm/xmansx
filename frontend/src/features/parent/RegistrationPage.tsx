@@ -101,7 +101,7 @@ export function RegistrationPage() {
             </p>
             <p className="my-4 text-sm leading-7 text-slate-600">
               قدّم طلب متابعة ابنك. تتحقق المدرسة من صفتك قبل اعتماد العلاقة
-              وإرسال التفعيل.
+              وإرسال رابط التفعيل وتوثيق البريد إلى بريدك الإلكتروني.
             </p>
             {!school.data.enabled && (
               <Alert tone="warning" title="التسجيل غير متاح حالياً">

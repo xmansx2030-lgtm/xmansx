@@ -8,7 +8,7 @@ import { dateTime } from "@/features/parent/shared";
 const labels: Record<ActivationDeliveryStatus, string> = {
   PENDING: "بانتظار التسليم",
   SENDING: "جارٍ التسليم",
-  SENT: "أرسل مزود SMS رسالة التفعيل",
+  SENT: "قبل مزود الإرسال رسالة التفعيل",
   FAILED: "تعذر إرسال رسالة التفعيل",
   UNKNOWN: "نتيجة إرسال التفعيل غير مؤكدة",
   MANUAL: "صدر رابط للتسليم الموثق",

@@ -298,9 +298,21 @@ def decide_registration(*, school, membership, request_id, data, request=None):
                 token_hash=token_hash(raw_token),
                 contact_revision=student.guardian_contact_revision,
                 expires_at=timezone.now()
-                + timedelta(seconds=settings.PARENT_ACTIVATION_TTL_SECONDS),
+                + timedelta(seconds=(
+                    min(
+                        settings.PARENT_ACTIVATION_TTL_SECONDS,
+                        settings.PARENT_RECOVERY_VERIFY_TTL_SECONDS,
+                    )
+                    if data["delivery"] == "EMAIL" else settings.PARENT_ACTIVATION_TTL_SECONDS
+                )),
                 delivery_status="MANUAL" if data["delivery"] == "MANUAL" else "PENDING",
+                delivery_channel=data["delivery"],
+                email_hash=item.email_hash if data["delivery"] == "EMAIL" else "",
             )
+            if data["delivery"] == "EMAIL":
+                from parents.activation_email import queue_activation_email
+
+                queue_activation_email(activation)
         else:
             if len(reason) < 3:
                 raise ApiError("REASON_REQUIRED", "أدخل سبب القرار.")
@@ -327,6 +339,8 @@ def decide_registration(*, school, membership, request_id, data, request=None):
         if data["delivery"] == "MANUAL":
             result["activation_url"] = url
             result["delivery_status"] = "MANUAL"
+        elif data["delivery"] == "EMAIL":
+            result["delivery_status"] = "PENDING"
         else:
             result["delivery_status"] = deliver_activation(
                 school=school,
@@ -461,16 +475,28 @@ def reissue_activation(*, school, membership, request_id, data, request=None):
             request=item, used_at__isnull=True, revoked_at__isnull=True
         ).update(revoked_at=timezone.now())
         token = secrets.token_urlsafe(32)
-        delivery = data.get("delivery", "SMS")
+        delivery = data.get("delivery", "EMAIL")
         activation = GuardianActivation.objects.create(
             school=school,
             student=student,
             request=item,
             token_hash=token_hash(token),
             contact_revision=student.guardian_contact_revision,
-            expires_at=timezone.now() + timedelta(seconds=settings.PARENT_ACTIVATION_TTL_SECONDS),
+            expires_at=timezone.now() + timedelta(seconds=(
+                min(
+                    settings.PARENT_ACTIVATION_TTL_SECONDS,
+                    settings.PARENT_RECOVERY_VERIFY_TTL_SECONDS,
+                )
+                if delivery == "EMAIL" else settings.PARENT_ACTIVATION_TTL_SECONDS
+            )),
             delivery_status="MANUAL" if delivery == "MANUAL" else "PENDING",
+            delivery_channel=delivery,
+            email_hash=item.email_hash if delivery == "EMAIL" else "",
         )
+        if delivery == "EMAIL":
+            from parents.activation_email import queue_activation_email
+
+            queue_activation_email(activation)
         record_event(
             "PARENT_ACTIVATION_REISSUED",
             school=school,
@@ -484,6 +510,8 @@ def reissue_activation(*, school, membership, request_id, data, request=None):
             "activation_url": portal_url(f"/parent/activate#token={quote(token)}"),
             "delivery_status": "MANUAL",
         }
+    if delivery == "EMAIL":
+        return {"delivery_status": "PENDING"}
     return {
         "delivery_status": deliver_activation(
             school=school, activation_id=activation.id, token=token
@@ -511,7 +539,7 @@ def activation_index(token):
     return index
 
 
-def _validate_activation(activation, item, student, school):
+def _validate_activation(activation, item, student, school, *, for_delivery=False):
     if (
         activation.used_at
         or activation.revoked_at
@@ -522,6 +550,16 @@ def _validate_activation(activation, item, student, school):
         or (item.contact_bound and activation.contact_revision != student.guardian_contact_revision)
         or school.status != SchoolStatus.ACTIVE
         or get_school_access_mode(school) != FULL
+        or (
+            activation.delivery_channel == "EMAIL"
+            and (
+                activation.email_hash != item.email_hash
+                or not activation.email_hash
+                or activation.delivery_status not in (
+                    {"PENDING"} if for_delivery else {"SENDING", "SENT", "UNKNOWN"}
+                )
+            )
+        )
     ):
         raise ApiError(
             "ACTIVATION_INVALID", "رابط التفعيل غير صالح أو انتهت صلاحيته.", status_code=409
@@ -539,6 +577,18 @@ def inspect_activation(token, *, user=None):
         existing = User.objects.filter(
             mobile=decrypt_value(activation.request.mobile_encrypted)
         ).first()
+        needs_email_proof = False
+        if (
+            existing and activation.delivery_channel == "EMAIL"
+            and user is not None and user.is_authenticated and user.id == existing.id
+        ):
+            from parents.email_recovery_models import AccountRecoveryEmail
+            from parents.email_recovery_services import email_scope
+
+            with email_scope(user_id=existing.id):
+                needs_email_proof = not AccountRecoveryEmail.objects.filter(
+                    user_id=existing.id, verified_at__isnull=False,
+                ).exists()
         return {
             "status": "VALID",
             "school_name": activation.school.name,
@@ -546,11 +596,14 @@ def inspect_activation(token, *, user=None):
             "requires_login": bool(
                 existing and (user is None or not user.is_authenticated or user.id != existing.id)
             ),
+            "verifies_email": activation.delivery_channel == "EMAIL",
+            "requires_current_password": needs_email_proof,
         }
 
 
 def complete_activation(
-    *, token, user=None, new_password=None, confirm_password=None, request=None
+    *, token, user=None, new_password=None, confirm_password=None,
+    current_password=None, request=None,
 ):
     index = activation_index(token)
     with tenant_context(school_id=index["school_id"]), transaction.atomic():
@@ -634,10 +687,18 @@ def complete_activation(
         relation.revoked_by = None
         relation.save()
         activation.used_at = timezone.now()
-        activation.save(update_fields=["used_at", "updated_at"])
+        activation.activated_user = account
+        activation.save(update_fields=["used_at", "activated_user", "updated_at"])
         item.status = RegistrationStatus.ACTIVATED
         item.save(update_fields=["status", "updated_at"])
-        if item.email_encrypted:
+        if activation.delivery_channel == "EMAIL":
+            from parents.activation_email import verify_activation_email
+
+            verify_activation_email(
+                account, activation, item, token, existing=existing is not None,
+                current_password=current_password,
+            )
+        elif item.email_encrypted:
             from parents.email_recovery_services import enroll_registration_email
 
             enroll_registration_email(

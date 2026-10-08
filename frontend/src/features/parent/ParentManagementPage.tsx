@@ -197,7 +197,7 @@ function Acknowledgements() {
 function ActivationReissue() {
   const [id, setId] = useState("");
   const [proof, setProof] = useState("");
-  const [delivery, setDelivery] = useState<"SMS" | "MANUAL">("SMS");
+  const [delivery, setDelivery] = useState<"EMAIL" | "SMS" | "MANUAL">("EMAIL");
   const action = useMutation({
     mutationFn: () => reissueActivation(Number(id), delivery, proof.trim()),
   });
@@ -228,10 +228,11 @@ function ActivationReissue() {
           label="طريقة إعادة تسليم التفعيل"
           value={delivery}
           onChange={(event) =>
-            setDelivery(event.target.value as "SMS" | "MANUAL")
+            setDelivery(event.target.value as "EMAIL" | "SMS" | "MANUAL")
           }
-        >
-          <option value="SMS">SMS عبر تكامل المدرسة</option>
+                >
+                  <option value="EMAIL">البريد الإلكتروني — التفعيل وتوثيق البريد</option>
+                  <option value="SMS">SMS عبر تكامل المدرسة (مسار سابق)</option>
           <option value="MANUAL">تسليم موثق بعد التحقق الحضوري</option>
         </SelectField>
         <TextareaField
@@ -354,7 +355,7 @@ function RegistrationReview({
   const [verification, setVerification] = useState("");
   const [reason, setReason] = useState("");
   const [bound, setBound] = useState(true);
-  const [delivery, setDelivery] = useState<"SMS" | "MANUAL">("SMS");
+  const [delivery, setDelivery] = useState<"EMAIL" | "SMS" | "MANUAL">("EMAIL");
   const [error, setError] = useState("");
   const detail = useQuery({
     queryKey: [...key, id],
@@ -474,10 +475,11 @@ function RegistrationReview({
                 label="تسليم التفعيل"
                 value={delivery}
                 onChange={(event) =>
-                  setDelivery(event.target.value as "SMS" | "MANUAL")
+                  setDelivery(event.target.value as "EMAIL" | "SMS" | "MANUAL")
                 }
               >
-                <option value="SMS">SMS عبر تكامل المدرسة</option>
+                <option value="EMAIL">البريد الإلكتروني — التفعيل وتوثيق البريد</option>
+          <option value="SMS">SMS عبر تكامل المدرسة (مسار سابق)</option>
                 <option value="MANUAL">تسليم موثق بعد التحقق الحضوري</option>
               </SelectField>
             </>

@@ -392,7 +392,7 @@ class StaffRegistrationDecisionView(ParentStaffView):
 
 
 class ActivationReissueSerializer(serializers.Serializer):
-    delivery = serializers.ChoiceField(choices=["SMS", "MANUAL"])
+    delivery = serializers.ChoiceField(choices=["EMAIL", "SMS", "MANUAL"], default="EMAIL")
     verification_note = serializers.CharField(min_length=10, max_length=600)
 
 

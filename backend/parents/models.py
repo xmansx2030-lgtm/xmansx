@@ -124,6 +124,13 @@ class GuardianActivation(TimestampedModel):
     used_at = models.DateTimeField(null=True, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     delivery_status = models.CharField(max_length=12, default="PENDING")
+    delivery_channel = models.CharField(max_length=10, default="SMS", db_default="SMS")
+    email_hash = models.CharField(max_length=64, blank=True, default="", db_default="")
+    delivery_key = models.UUIDField(default=uuid.uuid4, editable=False, null=True)
+    activated_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
     failure_code = models.CharField(max_length=60, blank=True)
     provider_reference = models.CharField(max_length=100, blank=True)
 

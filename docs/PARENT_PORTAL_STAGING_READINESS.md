@@ -12,6 +12,9 @@
 [معمارية استرداد البريد](PARENT_EMAIL_RECOVERY_ARCHITECTURE.md) و
 [إعداد Resend](RESEND_PARENT_RECOVERY_SETUP.md). تختبر البيئة الصناعية التوثيق
 واستعادة **كلمة المرور فقط** بمزود ملف خاص وهمي، دون مفتاح Resend ودون إرسال خارجي.
+تحديث رحلة التسجيل المعتمد لاحقاً: موافقة المدرسة → رسالة تفعيل باسم المدرسة
+إلى البريد → تأكيد صريح يجمع التفعيل وتوثيق البريد → إتاحة الأبناء. البريد هو
+الخيار الافتراضي؛ تبقى مسارات SMS/MANUAL السابقة متوافقة مع توثيق منفصل.
 تظل استعادة الهوية المركزية وتغيير `User.mobile` مغلقتين. النتائج المستقلة للتوسعة
 في [تحقق استرداد البريد](PARENT_EMAIL_RECOVERY_VERIFICATION.md).
 
@@ -63,10 +66,12 @@
 | `scripts/parent_staging_acceptance.py` | فحص Runtime حقيقي بدور التطبيق المقيد: Redis/RLS/Worker/Beat/المسار والتخزين |
 | `scripts/parent_staging_fixture_check.py` | تحقق Owner من المدارس الصناعية الجديدة وتعطيل التسجيل وغياب إعدادات/رسائل SMS |
 | `scripts/parent_staging_restore_drill.py` | نسخ/استعادة صناعية إلى قاعدة فارغة جديدة ومجلد خاص مستقل دون استبدال المصدر |
-| `scripts/parent_portal_verification_init.py` | تطبيق Migrations العادية، ومنها parents0007–0008، ثم منح دور التطبيق المقيد صلاحيات الجداول/Sequences الجديدة |
+| `scripts/parent_portal_verification_init.py` | تطبيق Migrations العادية، ومنها parents0007–0009، ثم منح دور التطبيق المقيد صلاحيات الجداول/Sequences الجديدة |
 | `infra/parent-staging-nginx.conf` | TLS محلي وProxy يثبت Forwarded-Proto، ومنع Cache لواجهات API |
 | `seed_parent_staging` | Fixture إضافي يستخدم الخدمات القائمة، مع ثلاث حالات بريد جديدة مستقلة للمتصفح |
 | `frontend/e2e/parent-email-mailbox.ts` | قراءة صندوق البريد الوهمي الخاص من العامل ضمن المشروع الصناعي المحدد فقط |
+| `docker-compose.parent-email-verification.yml` | إلغاء منافذ PostgreSQL/Redis في مشروع قبول البريد المستقل واستخدام صورة واجهة مستقلة |
+| `frontend/e2e/parent-email-activation.spec.ts` | رحلة التفعيل والتوثيق الذريين بعد الموافقة، ثم الاسترداد، على المقاسات الثلاثة |
 
 المواد المحلية في `artifacts/parent-staging/` متجاهلة بالكامل، بما فيها `.env`
 والشهادة والمفتاح وبيانات Fixture. قيم الأسرار لا تُطبع ولا تُثبت في Git.

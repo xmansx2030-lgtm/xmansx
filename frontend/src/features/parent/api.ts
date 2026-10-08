@@ -185,6 +185,8 @@ export interface RegistrationInput {
 export interface ActivationMetadata {
   school_name: string;
   requires_login: boolean;
+  verifies_email?: boolean;
+  requires_current_password?: boolean;
   account_exists: boolean;
   status: string;
 }
@@ -333,11 +335,13 @@ export const activateParent = (
   token: string,
   password?: string,
   confirm?: string,
+  currentPassword?: string,
 ) =>
   apiRequest<Me>("/parent/activation/", {
     method: "POST",
     body: {
       token,
+      ...(currentPassword ? { current_password: currentPassword } : {}),
       ...(password
         ? { new_password: password, confirm_password: confirm }
         : {}),
@@ -490,7 +494,7 @@ export const getRegistrationDetail = (id: number, signal?: AbortSignal) =>
   });
 export const reissueActivation = (
   id: number,
-  delivery: "SMS" | "MANUAL",
+  delivery: "EMAIL" | "SMS" | "MANUAL",
   verification_note: string,
 ) =>
   apiRequest<{
@@ -508,7 +512,7 @@ export const decideRegistration = (
     verification_note: string;
     decision_reason: string;
     contact_bound: boolean;
-    delivery: "SMS" | "MANUAL";
+    delivery: "EMAIL" | "SMS" | "MANUAL";
   },
 ) =>
   apiRequest<RegistrationDecisionResult>(

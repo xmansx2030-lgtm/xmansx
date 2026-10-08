@@ -12,10 +12,13 @@ The owner has approved the distinct email/password policy documented in
 guardian password, verify or replace a recovery address, or change the global login
 number. Central case execution below remains disabled.
 
-1. New applicants must provide a valid recovery email. School approval and the
-   existing SMS activation remain required. A new account must then explicitly
-   verify its email before reading child data. Provider acceptance alone is not
-   ownership verification.
+1. New applicants must provide a valid recovery email. School approval remains
+   required. Under the later approved onboarding policy, EMAIL is the default:
+   one school-branded activation email combines account activation and first email
+   verification through an explicit POST. Provider acceptance/GET preview alone
+   never proves ownership or grants child access. Explicit legacy SMS/MANUAL paths
+   still require separate email verification. Enable the email service and worker
+   before enabling new school registrations; staff cannot verify email themselves.
 2. Existing owners log in with their existing mobile/password. In the parent space,
    they personally enter their current password and recovery address, then verify
    the emailed link. Existing staff email is never automatically trusted. Staff

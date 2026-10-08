@@ -28,9 +28,10 @@ async function readSyntheticLink(recipient: string, purpose: string): Promise<st
     process.env.PARENT_E2E_SYNTHETIC_STAGING !== "1" ||
     process.env.PARENT_VERIFICATION_LOCAL_ONLY !== "1" ||
     FRONTEND_URL !== "https://localhost:8445" ||
-    project !== "xmansx-parent-release-clean-synthetic-staging" ||
+    !project ||
+    !["xmansx-parent-release-clean-synthetic-staging", "xmansx-parent-email-activation-synthetic-staging"].includes(project ?? "") ||
     !recipient.toLowerCase().endsWith(".invalid") ||
-    !["RECOVERY_EMAIL_VERIFICATION", "PASSWORD_RESET"].includes(purpose)
+    !["RECOVERY_EMAIL_VERIFICATION", "PASSWORD_RESET", "PARENT_ACCOUNT_ACTIVATION"].includes(purpose)
   ) throw new Error("Recovery browser tests require the isolated private synthetic mailbox.");
   const environment = resolve("..", "artifacts", "parent-staging", ".env");
   if (!existsSync(environment)) throw new Error("Synthetic staging materials are required.");
@@ -45,7 +46,7 @@ async function readSyntheticLink(recipient: string, purpose: string): Promise<st
     "assert not root.is_symlink() and root.resolve() == root",
     "assert stat.S_IMODE(root.stat().st_mode) == 0o700",
     "recipient, purpose = sys.argv[1:]",
-    "assert recipient.endswith('.invalid') and purpose in {'RECOVERY_EMAIL_VERIFICATION','PASSWORD_RESET'}",
+    "assert recipient.endswith('.invalid') and purpose in {'RECOVERY_EMAIL_VERIFICATION','PASSWORD_RESET','PARENT_ACCOUNT_ACTIVATION'}",
     "matched = []",
     "for path in root.glob('*.json'):",
     "    assert not path.is_symlink() and str(uuid.UUID(path.stem)) == path.stem",
@@ -69,7 +70,7 @@ async function readSyntheticLink(recipient: string, purpose: string): Promise<st
     const link = stdout.trim();
     if (link) {
       const parsed = new URL(link);
-      const path = purpose === "PASSWORD_RESET" ? "/reset-password" : "/parent/verify-email";
+      const path = purpose === "PARENT_ACCOUNT_ACTIVATION" ? "/parent/activate" : purpose === "PASSWORD_RESET" ? "/reset-password" : "/parent/verify-email";
       if (
         parsed.origin !== "https://localhost:8445" || parsed.pathname !== path ||
         parsed.search || !/^#token=[A-Za-z0-9_-]{32,128}$/.test(parsed.hash)
