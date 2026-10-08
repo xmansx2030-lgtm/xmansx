@@ -5,9 +5,15 @@
 
 ## 1. Executive Summary
 
-حالة التقرير: جارٍ استكمال Regression والتحقق من Checkout مثبت ونظيف.
-لا يصدر حكم PASS قبل إتمامها. نطاق العمل محلي فقط؛ لا push أو merge أو نشر،
-ولا SMS حقيقي أو مفاتيح إنتاجية أو بيانات مدارس حقيقية.
+الحكم: **PASS WITH ISSUES**؛ الإصدار المحلي اجتاز التحقق المستقل وأصبح مرشحاً
+لـStaging مقيد ببيانات صناعية بعد تجهيز متطلبات التشغيل. الإطلاق العام محجوب
+حتى اعتماد آلية استعادة الحساب العالمي الآمنة وتنفيذها. نطاق العمل محلي فقط؛
+لا push أو merge أو نشر، ولا SMS حقيقي أو مفاتيح إنتاجية أو بيانات مدارس حقيقية.
+
+من المصدر المثبت والنظيف: **1234 Backend و410 Frontend و5 Playwright نجحت،
+صفر فشل وصفر تجاوز في التشغيلات النهائية**. نجحت Typecheck وESLint وBuild/PWA
+وDjango/Ruff/Migration checks، مع PostgreSQL RLS حقيقي وPDF فعلي. إخفاقات
+الإثبات والتشخيص السابقة محفوظة ومصنفة أدناه؛ لا تختزل النتيجة إلى الأعداد وحدها.
 
 المراجعة أثبتت تجاوزين لإعادة تعيين كلمة مرور الحساب العالمي، وفجوة في ثبات هوية
 العلاقة في PostgreSQL، وتعطلين متزامنين للدمج مع نور، وتعطلاً عند إنشاء المستند
@@ -27,10 +33,55 @@
 - عند البداية: تنفيذ البوابة السابق غير مثبت؛ 63 ملفاً جديداً و41 معدلاً، وفق
   الجرد الذي طابق فحص Git. لم توجد تعديلات مستخدم غير مرتبطة تم حذفها أو استبدالها.
 - `package.json` و`package-lock.json` و`backend/pyproject.toml` لم تتغير عن Baseline.
-- الإصدار المثبت وCheckout النهائي: يستكملان أدناه بعد التحقق الفعلي.
+- Commit الكود المحلي: `8eb152648ad68253080ea22787a9ad25db6d4e51`،
+  بعنوان `feat(parents): secure parent portal and independently verify integration`.
+  بدأ Checkout مستقل نظيف من هذا Commit في
+  `C:\Users\manso\Desktop\projects\xmansx-parent-clean-20261008`.
+- Commit إصلاح أداة E2E: `e63563ceaa563349ef9ec6a108ff9cef0534e15b`،
+  بعنوان `test(parents): verify expired sessions with isolated setup budget`.
+  الفرق من Commit الأول ملف اختبار E2E واحد فقط؛ جميع ملفات Backend وFrontend/src
+  والاعتماديات وCompose والـInitializer وملفات الجذر متطابقة في Git.
+  اختبارات Backend/Frontend/Build الكاملة من Checkout الأول تخص نفس كود المنتج؛
+  E2E النهائي أعيد من Checkout نظيف من Commit الثاني:5passed/0failed/0skipped.
+- آخر SHA اختُبرت منه رحلات المتصفح هو Commit الثاني أعلاه. Commit إنهاء التقرير
+  بعنوان `docs(parents): finalize independent verification and local release evidence`
+  يحتوي هذا التقرير فقط؛ يُقرأ معرفه من Git، ولا يدعي التقرير إعادة Full Regression
+  بعد تغيير التوثيق وحده. Checkout إصدار التقرير النهائي يحافظ على كود المنتج
+  المطابق للـCommit الأول واختبار E2E المطابق للثاني؛ تم التحقق من فرق Git ونظافته.
 - Logs وبيانات Fixture الصناعية ولقطات الشاشة وملفات PDF الناتجة ملفات تشغيل
   متجاهلة؛ لا تدخل Commit. إعداد الاختبار وSeeder وCompose ملفات مصدر متتبعة.
 - تم فحص هوية Git العامة والمحلية قبل التثبيت؛ لا تغيير للهوية أو بيانات اعتماد Git.
+
+أثناء التحقق من Checkout ظهرت تعديلات متزامنة خارج البوابة في التقارير والطباعة
+وواجهة المستندات وQR، ثم ملفات Backend واختباراتها المرتبطة. بقيت في مساحة
+المستخدم الأصلية وخارج Commits هذه المراجعة؛ اختبارات الإصدار تستخدم Checkout
+منفصلاً من المصدر المثبت، لا هذه التعديلات. لذلك لا تعني نظافة Checkout الإصدار
+أن مساحة المستخدم الأصلية نظيفة؛ الجرد النهائي للاستثناءات يسجل أدناه.
+
+عند إنهاء التقرير، استُثنيت16 ملفاً متزامناً غير مرتبط بالبوابة ولم تُمس أو تُثبت:
+
+```text
+backend/documents/services/snapshots.py
+backend/student_warnings/api/views.py
+backend/tests/test_documents.py
+backend/tests/test_school_reports.py
+docs/GENERATED_DOCUMENTS.md
+docs/PRINTING_AUDIT_REPORT.md
+frontend/src/features/attendance/SectionQrPage.tsx
+frontend/src/features/attendance/attendance.test.tsx
+frontend/src/features/documents/StudentDocumentsTab.tsx
+frontend/src/features/documents/api.ts
+frontend/src/features/documents/documents.test.tsx
+frontend/src/features/reports/ReportsPage.tsx
+frontend/src/features/reports/api.ts
+frontend/src/features/reports/reports-print.test.tsx
+frontend/src/hooks/usePrintShortcut.ts
+frontend/src/styles/index.css
+```
+
+هذه لقطة لحالة مساحة المستخدم، وليست ملفات ضمن الإصدار المختبَر أو دليلاً على
+سلامة التغييرات المتزامنة. تثبيت التقرير مقيد بمساره وحده؛ لا reset أو حذف أو
+إدراج تلقائي لملفات المستخدم في Commit.
 
 المرجع التاريخي A–F يظل كما هو؛ تصحيح سياسة Reset الحالية موثق في
 [حماية التواصل](PARENT_PORTAL_CONTACT_SECURITY.md) و[التشغيل](PARENT_PORTAL_OPERATIONS.md).
@@ -197,6 +248,17 @@ API أو زر أو نموذج أو صلاحية تأكيد خروج. تبقى إ
 الإنذار الصادر والمستند المسموح والنشر العائلي فقط يظهر، وAcknowledgement صريح
 ومنـفصل عن قراءة التنبيه. ملاحظات المرشد الداخلية والملفات غير المنشورة محجوبة.
 
+| السيناريو الحرج | دليل مستقل |
+| --- | --- |
+| A: حساب موظف سابق يربط ابناً | Playwright يحفظ User.id وكلمة المرور والوظيفة؛ اختبارات حماية الحساب HTTP |
+| B: رفض التسجيل | Playwright وAPI: لا علاقة مفعلة ولا بيانات طفل |
+| C: التعليق أثناء فتح الصفحة | رحلة أساسية مع Polling فعلي وإزالة البيانات؛ فحص توقف طلبات الطفل بعد السحب |
+| D: انتهاء الجلسة والنموذج مفتوح | حذف جلسة فعلية مثبت بعدد موجب، ثم POST403 وتوجيه الدخول دون نجاح وهمي |
+| E: مستند بعد السحب | رفض PDF موجود فعلاً وCache/PWA Offline، لا الاكتفاء بمعرف غير موجود |
+| F: نور مقابل المراجعة والتفعيل | اتصالات PostgreSQL مستقلة وأربعة ترتيبات سباق؛ رفض القرار/الرمز القديم |
+| G: غياب مع ولي أمر غير مسجل | Suites SMS الحالية وخمس Parent SMS regressions؛ أهلية دون حساب/علاقة |
+| H: استئذان/تأكيد خروج |403 من المسارات الموجودة، مع استمرار11 Student-leaves regressions |
+
 ## 10. Frontend Review
 
 أصلح شرط الحساب الخطأ في التفعيل باستعمال `requires_login` حتى مع جلسة حالية.
@@ -205,7 +267,25 @@ API أو زر أو نموذج أو صلاحية تأكيد خروج. تبقى إ
 انتهاء الجلسة يمسح Auth/Query Cache ويوجه الدخول، دون نجاح وهمي لطلب عذر فشل.
 التعليق المؤكد يزيل الطفل وقوائم الطلبات والتنبيهات ويوقف Polling. انتهت الرحلات الخمس كلها ناجحة، بما فيها جلستان مختلفتان لحساب الموظف وربط الحساب نفسه ورفض المستند بعد التعليق.
 
-الفشل الأول لبيئة المتصفح كان اختيار config.settings.local مع Role مقيد، بينما ContextRLS ظلFalse؛ أصلح Harness بملف إعداد متتبع محلي صارم config.settings.parent_verification. لا تعديل Authentication/RLS policy. انتظار SW غير المتزامن في waitForFunction انتهى قبل التفعيل؛ استبدل باستطلاع expect.poll ينتظر state=activated ثم Navigation. Session-expiry يؤخر POST حتى يحذف Helper جلسات Fixture الصناعية فعلياً، مع إيقاف مؤقت لتوقيت المتصفح أثناء بدء Docker كي لا يحجب TimeoutClient نتيجة403؛ خدمة الخادم والمصادقة غير Mock.
+الفشل الأول لبيئة المتصفح كان اختيار config.settings.local مع Role مقيد، بينما ContextRLS ظلFalse؛ أصلح Harness بملف إعداد متتبع محلي صارم config.settings.parent_verification. لا تعديل Authentication/RLS policy. انتظار SW غير المتزامن في waitForFunction انتهى قبل التفعيل؛ استبدل باستطلاع expect.poll ينتظر state=activated ثم Navigation.
+
+في أول Checkout مثبت توقف Helper المتزامن داخل اعتراض POST عند30s مرتين؛
+تشغيله خارج المتصفح نجح في12–15s، بما فيه حذف جلسة نشطة ثم رفض API403. لا يثبت
+ذلك سبب Timeout الداخلي أو ضغط Backend. محاولة ضبط الساعة واجهت سباق
+`Cannot fast-forward to the past`، وتجميدها قبل تحميل التطبيق عطل إشعارات
+TanStack التي تستخدم `setTimeout(0)`؛ أزيل هذا النهج من سيناريو انتهاء الجلسة.
+التصحيح النهائي لأداة الاختبار: بعد فتح النموذج وتعبئته، ينهي Helper غير متزامن
+الجلسة الفعلية، ويثبت عدد الجلسات المحذوفة أكبر من الصفر؛ بعدها يرسل النموذج
+POST حقيقياً ويثبت403 والتوجيه للدخول دون نجاح وهمي. لا Clock أو Auth/Response
+Mock في هذا السيناريو. بعد قياس Helper45.514s وExit0 في تشغيل كامل، أصبح حد
+تهيئة Docker المستقل60s **قبل** الطلب؛ مهلة API الأصلية15s وحد حالة الاختبار90s
+والتحقق من403 وعدد الجلسات المحذوفة لم تخفف. تهيئة Docker خارج طلب POST؛ لا ادعاء
+بأن Clock كان يوقف `AbortSignal.timeout` الأصلي.
+
+التشغيل التشخيصي التالي اجتاز الرحلات الخمس؛ Helper22.219s وExit0، و13 ملاحظة
+PostgreSQL متداخلة لم ترصد حظرًا مستمراً. هذه ملاحظات دورية وليست إثباتاً لعدم
+وجود انتظار قصير؛ لم تعِد إنتاج فترة45s السابقة ولا تفسر سببها. زيادة حد التهيئة
+لا تُقدَّم كإصلاح لأداء المنتج أو معالجة Deadlock غير مثبت.
 
 PWA يبقي API على NetworkOnly ولا يضيف Cache دائم لبيانات الأبناء. اختبار المتصفح
 النهائي يجب أن يستخدم `npm run build` ثم Preview مع Service Worker فعلي، وليس
@@ -249,8 +329,10 @@ Docker snapshot Postgres105.5MiB/Redis6.121MiB. لا Celery Worker/Beat في ا�
 السلسلة الكاملة: students0007–0008، parents0001–0005. الجديد في المراجعة0008 يثبت
 `db_default=1` لاستمرار INSERT التطبيق القديم؛0005 يمنع تغير هوية العلاقة.
 0007 السابق لم يُعدّل لإخفاء الخطأ. Historical0006 INSERT أثبت NOT NULL قبل الإصلاح
-ثم نجح واحتفظ بحارس UPDATE بعده. Migrations وRLS/Constraints/Indexes تعاد في قاعدة
-معزولة؛ Existing Data وCatalog results تستكمل في سجل الاختبارات النهائي.
+ثم نجح واحتفظ بحارس UPDATE بعده. الاختبارات المستقلة تستخدم MigrationExecutor
+للرجوع إلى مخطط Baseline كاملاً، وإنشاء طالب مشفر وقيد وتحضير معتمد وحسابات، ثم
+ترقية المخطط والتحقق من بقاء البيانات. فحص Catalog يؤكد14 Parent FORCE-RLS tables
+و56 policies والـTriggers والقيود الدقيقة؛ التنفيذ في قاعدة صناعية معزولة.
 
 تسلسل الإصدار: إيقاف Writers الطلاب أثناء0007→0008، تطبيق **كامل** السلسلة ثم
 فحص الدور والـCatalog والمهاجرات قبل إتاحتها. رجوع التطبيق يحتفظ بالأعمدة والجداول
@@ -273,12 +355,19 @@ OpenAPI أعيد من CheckoutBaseline منفصل:15warnings(13unique)/520errors
 ParentRequestStatus/EXCUSE/CORRECTION وتمت معالجتها بأسماء مستقرة فقط. لا إخفاء
 أو تغيير عشرات APIs القديمة. يوجد46 Parent/Staff-parent paths و51 عملية بردود
 مكتوبة، بما فيها Binary. النتيجة النهائية بعد التصحيح:15warnings(13unique)/520errors(97unique)، مطابقة Baseline؛ Whole Schema
-لا يعد نظيفاً حتى لو انحسرت التحذيرات إلى Baseline.
+لا يعد نظيفاً حتى لو انحسرت التحذيرات إلى Baseline. توليد Checkout المثبت أعاد
+الأعداد نفسها؛ مقارنة110 سطور تشخيص فريدة بالـBaseline بعد تجاهل أرقام أسطر المصدر
+وجدت صفراً مضافاً وصفراً محذوفاً، وليس تطابق الأعداد وحده. أعيد عد46 paths/51 operations
+من YAML الناتج، وكل عملية لها استجابة نجاح، واختبارات العقود تتحقق من أنواعها.
 
 ## 13. Automated Tests
 
-بيئة المراجعة الجديدة: Windows/PowerShell، Docker image `sha256:3f6a6282c9dc6fb453db569d0fbe1b6221b4e9e35b94a1b19e616ba1452a1351`، LinuxPython3.13.16/Django5.2.18/
-Pytest9.1.1/WeasyPrint70، PostgreSQL18 وRedis8 منفصلان، Node26.7.0/npm11.19.0/Playwright Chromium من بيئة العمل. Python Dependencies ضمن نطاقات المستودع؛ لم يضاف Package. اختلاف Patch
+بيئة المراجعة الجديدة: Windows/PowerShell، صورة Docker الأولى
+`sha256:3f6a6282c9dc6fb453db569d0fbe1b6221b4e9e35b94a1b19e616ba1452a1351`؛
+أعيد البناء من Checkout المثبت بالصورة
+`sha256:a54cc13e333179e446b75d46d5ca07f0fd2fdbf2fc41b69ce2400c1898129a52`.
+LinuxPython3.13.16/Django5.2.18/Pytest9.1.1/WeasyPrint70، PostgreSQL18.6 وRedis8.0.6
+منفصلان، Node26.7.0/npm11.19.0 وPlaywright1.62.1/Chromium. Python Dependencies ضمن نطاقات المستودع؛ لم يضاف Package. اختلاف Patch
 عن بيئة التقرير السابق صريح. الاختبارات الصناعية تستخدم `test_parent_verification`،
 وHTTP يستخدم `parent_verification` وRole مقيداً، ولا قواعد التطبيق السابق.
 
@@ -296,10 +385,49 @@ Pytest9.1.1/WeasyPrint70، PostgreSQL18 وRedis8 منفصلان، Node26.7.0/npm
 | Backend كامل،PDF/RLS/SMS/Leaves/Gate |1234 |0 |0 |439.76s |
 | Production/PWA Playwright كامل |5 |0 |0 |134.69s wall |
 | تقوية اختبار Gate السابق للمسار الصحيح |1 |0 |0 |13.25s |
+| Checkout المثبت: Backend كامل،PDF/RLS/SMS/Leaves/Gate |1234 |0 |0 |603.46s |
+| Checkout المثبت: Frontend كامل،43files |410 |0 |0 |183.62s (195.57s wall) |
+| Checkout المثبت: أول Playwright،مهلة بدء Helper Docker |4 |1 |0 |168.98s wall |
+| Checkout المثبت: إعادة D وحده،مهلة Helper30s |0 |1 |0 |64.60s wall |
+| تشخيص D: سباق pauseAt قبل Helper |0 |1 |0 |30.28s wall |
+| تشخيص D: Clock يجمد Bootstrap؛محاولة أزيلت |0 |1 |0 |118.01s wall |
+| D بعد فصل تهيئة Helper عن POST،قبل Commit الاختبار |1 |0 |0 |27.0s (31.80s wall) |
+| قبل Commit الاختبار: Full5 بحد تهيئة30s؛Helper45.514s/Exit0 بعد المهلة |4 |1 |0 |169.01s wall |
+| تشخيص Full5 بحد تهيئة60s مستقل؛Helper22.219s/Exit0 |5 |0 |0 |184.41s wall |
+| Checkout نهائي نظيف من e63563c،Fixture جديد2eb415a9 |5 |0 |0 |3.5min (219.23s wall) |
 
-Migrations/Telemetry/Operations31passed/0failed/0skipped في46.74s، بما فيها ترقية بيانات Baseline فعلية وفحص56policy و14table وTriggers والقيود الدقيقة. FullBackend:1234passed/0failed/0skipped في439.76s؛ يتضمن PDF فعلياً وكل الاختبارات السابقة و50 حالة Backend مستقلة جديدة. HarfBuzz-Subset deprecation warning واحد لا يفشل الاختبارات. Playwright الكامل:5passed/0failed/0skipped،2.2min (134.69s wall) على Production Preview/ServiceWorker فعلي ودور HTTP مقيد. Checkout المثبت يستكمل قبل الحكم.
+Migrations/Telemetry/Operations31passed/0failed/0skipped في46.74s، بما فيها ترقية بيانات Baseline فعلية وفحص56policy و14table وTriggers والقيود الدقيقة. FullBackend:1234passed/0failed/0skipped في439.76s؛ أعيد من Checkout المثبت:1234passed/0failed/0skipped في603.46s، Exit0. يتضمن PDF فعلياً وكل الاختبارات السابقة و50 حالة Backend مستقلة جديدة واختبار Gate المقوى. HarfBuzz-Subset deprecation warning واحد لا يفشل الاختبارات. Playwright الأول الكامل:5passed/0failed/0skipped،2.2min (134.69s wall) على Production Preview/ServiceWorker فعلي ودور HTTP مقيد؛ الإعادة النهائية من Commit الثاني النظيف نجحت5passed/0failed/0skipped في3.5min (219.227148s wall)، Exit0.
 Frontend Typecheck0/51.07s، ESLint0/52.16s، Build/PWA0 في55.33s؛121 Precache asset. DjangoCheck0 وMigrationCheck0 (No changes detected) وRuff0 وdiffCheck0؛ showmigrations يؤكد كامل0001–0005 وstudents0007–0008.
 مصادر Evidence: `tmp/independent-*.log`؛ ملفات محلية متجاهلة، ليست اعتماداً على F.
+
+من Checkout الكود المثبت، بدأ `git status --porcelain` فارغاً دون node_modules أو
+Fixture سابق. `npm ci` نجح في52.19s؛ ثم43 files/410 tests نجحت في183.62s
+(195.57s wall)، Typecheck0/37.23s، فحص TypeScript المستقل لـE2E0/16.39s،
+ESLint0/119.71s، Production/PWA Build0/75.62s و121 Precache entry.
+DjangoCheck0/22.25s، MigrationCheck0/29.41s، ShowMigrations0/40.77s،
+SchemaGenerateValidate0/44.03s؛ هذه مدد أوامر Docker الكلية أثناء التشغيل المتزامن.
+Ruff0.16.3 للـBackend والـInitializer نجح. HTTP mount هو Checkout النظيف نفسه،
+`DATABASE_RLS_ENFORCED=True` والدور `parent_verify_app` فعلياً
+`rolsuper=False, rolbypassrls=False`؛ ليس فحص إعداد مكتوب فقط.
+
+الإعادة النهائية للمتصفح بدأت وانتهت بـ`git status --porcelain` فارغ وSHA
+`e63563ceaa563349ef9ec6a108ff9cef0534e15b`، بعد Seed جديد في12.29s. نجحت D في28.3s
+بإبطال جلسة حقيقية ثم POST403 وتوجيه الدخول وعدم إعلان نجاح. فحص TypeScript
+المستقل النهائي لـE2E نجح في20.80s، وLint الملف النهائي في25.84s، Exit0 كليهما.
+رحلة المنتج تحقق غياب Page errors وOverflow في المقاسات الثلاث ولوحة المفاتيح
+وعلاقات ARIA الأساسية. لقطات Desktop1366×900/Tablet768×1024/Mobile390×844 الجديدة
+فُحصت بصرياً؛ ليست مصادقة شاملة على قارئات الشاشة أو الأجهزة الفعلية. Preview
+وأدوات التشخيص التابعة للمراجعة أوقفت بعد الاختبار؛ Stack الصناعي بقي محلياً.
+
+أدلة التشغيل النهائي المحددة، كلها محلية متجاهلة:
+
+```text
+tmp/independent-clean-full-backend.log
+tmp/independent-clean-frontend-playwright-final-b.log
+tmp/independent-clean-frontend-e2e-final-b-typecheck.log
+tmp/independent-clean-frontend-e2e-final-b-lint.log
+tmp/independent-clean-frontend-final-b-summary.json
+```
 
 Recipe قابلة للإعادة من أي Checkout كامل، PowerShell، دون `.env` إنتاجي:
 
@@ -308,17 +436,28 @@ docker compose -f docker-compose.parent-verification.yml config --quiet
 docker compose -f docker-compose.parent-verification.yml up -d postgres redis
 docker compose -f docker-compose.parent-verification.yml build tests
 docker compose -f docker-compose.parent-verification.yml run --rm tests python /workspace/scripts/parent_portal_verification_init.py
-docker compose -f docker-compose.parent-verification.yml run --rm tests
+docker compose -f docker-compose.parent-verification.yml run --rm -e GENERATED_DOCUMENTS_ROOT=/tmp/parent-verification/full-private tests
 docker compose -f docker-compose.parent-verification.yml run --rm tests python manage.py check
 docker compose -f docker-compose.parent-verification.yml run --rm tests python manage.py makemigrations --check --dry-run
 docker compose -f docker-compose.parent-verification.yml run --rm tests python manage.py showmigrations parents students
+docker compose -f docker-compose.parent-verification.yml run --rm tests python manage.py spectacular --file /tmp/parent-verification-schema.yaml --validate
+$ruffCheck = "import subprocess, sys; subprocess.run([sys.executable, '-m', 'pip', 'install', 'ruff==0.16.3'], check=True); subprocess.run([sys.executable, '-m', 'ruff', 'check', '--no-cache', '.', '/workspace/scripts/parent_portal_verification_init.py'], check=True)"
+docker compose -f docker-compose.parent-verification.yml run --rm --no-deps tests python -c $ruffCheck
 ```
 
 Compose يحوي بيانات اعتماد **علنية للاختبار فقط**، ويتجاهل إعدادات إنتاج المضيف،
 ويمتنع Initializer عن قاعدة غير مطابقة للاسم/الدور/Host/Local Flag المحددين.
 كامل جذر Checkout يركب Read-only في `/workspace`، WorkingDir `/workspace/backend`؛
 لذلك `render.scalable.yaml` موجود من المصدر المتتبع دون Absolute mount خاص سابق.
-تشترك حاويات Seed/HTTP في Volume تخزين خاص محلي. لا Worker أو SMS Provider.
+تشترك حاويات Seed/HTTP في Volume تخزين خاص محلي. الاختبار الكامل يستخدم
+`GENERATED_DOCUMENTS_ROOT` داخل حاوية الاختبار وخارج ذلك Volume، لفصل تخزين
+قاعدة الاختبار عن ملفات Fixture الخاصة بخادم HTTP؛ هذا يطابق الأمر المنفذ فعلياً
+ويتيح تكرار الاختبار بعد رحلة المتصفح. لا Worker أو SMS Provider.
+
+الصورة تثبت Extras الاختبار فقط، ولا تحوي Ruff من Extras التطوير. استدعاء Ruff
+مباشرة أثناء تدقيق الوصفة فشل قبل بدء الفحص (`executable file not found`)، لا
+بسبب الكود؛ الوصفة أعلاه تثبت إصدار الفحص0.16.3 مؤقتاً داخل الحاوية المحذوفة،
+وهو ضمن نطاق Dev المعلن أصلاً. لا تغيير لاعتماديات المنتج أو صورة التشغيل.
 
 ```powershell
 # Create ignored runtime directories, not missing source/configuration.
@@ -339,6 +478,8 @@ $env:PARENT_E2E_PREVIEW = '1'
 $env:PARENT_VERIFICATION_LOCAL_ONLY = '1'
 npx playwright install chromium
 npx playwright test --config playwright.parent.config.ts
+npx tsc --ignoreConfig --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --types node --skipLibCheck e2e/parent-portal.spec.ts playwright.parent.config.ts
+npx eslint e2e/parent-portal.spec.ts
 ```
 
 أوقف التنفيذ عند Exit Code غير صفري؛ لا تعتمد آخر أمر في سلسلة بعد فشل سابق.
@@ -363,6 +504,7 @@ Seeder ينشئ مدارس جديدة صناعية ويحتاج DEBUG/المضي
 |UI02 |Medium |جلسة منتهية أثناء POST تبقي Auth Cache وتوجيه خاطئ |
 |UI03 |Low |حساب خاطئ يعرض إجراء ربط بدلاً من دخول صاحب الحساب |
 |QA01 |Medium للإثبات |اختبار الحارس404 لا يثبت403؛Harness skips/password fallback |
+|QA02 |Medium للإثبات |اقتران Docker/Clock بمهلة POST في D؛Timeout وسباق Clock وتوقف Bootstrap فعلي |
 |SCHEMA01 |Low |ثلاثة Enum naming warnings جديدة؛لا تغير Runtime |
 |SEC05 |High عند تشغيل Sentry |تسرب رمز تفعيل/Receipt/جوال/هوية/إثبات في Exception Locals؛SDK scrubber proof دون Network |
 |OPS01 |Public-launch blocker |لا استعادة حساب عالمية آمنة معتمدة |
@@ -382,6 +524,10 @@ AUD01: `students/services/manual.py`؛ إثبات Revision محدد دون overw
 SEC04: `parents/services.py`؛ رفض الهوية القديمة دون حساب جديد أو تغير حساب موجود.
 UI01–03: `ActivationPage.tsx`, `ChildPage.tsx`؛ اختبارات فشل/نجاح مع Negative Control.
 QA01: Seeder/Playwright واختبار Gate الفعلي؛ لا تعديل Attendance/SMS/Gate Runtime.
+QA02: `frontend/e2e/parent-portal.spec.ts`؛ فصل إنهاء الجلسة الفعلي عن إرسال الطلب،
+إزالة Clock من D، واستعمال Exec غير متزامن مع إثبات حذف جلسة واحدة على الأقل.
+مهلة تهيئة Docker60s مستقلة بعد قياس45s؛ تبقى مهلة API15s والحالة90s والرد
+الحقيقي403 وفحص عدم النجاح الوهمي والعزل الصناعي، دون تخفيف تزامن اختبارات SQL.
 SEC05: `operations/error_tracking.py`؛ تنقيح خاص بأحداث البوابة يمحو Frame Locals ونص الاستثناء والحقول الحساسة/Fragments، مع بقاء نوع الاستثناء وسطر Stack وRequestID/ErrorCode. أربعة اختبارات SDK فعلية دون Transport، وNegative Control يبقي تشخيص Attendance.
 SCHEMA01: أسماء ثلاثة Enums في `config/settings/base.py` فقط.
 
@@ -431,9 +577,26 @@ download denials، Queue latency/provider outcomes، استهلاك DB/Redis/Sto
 
 ## 18. Final Decision
 
-لم يصدر الحكم النهائي بعد: يلزم إتمام Full Regression وPWA E2E وCheckout مثبت
-ونظيف وإضافة النتائج الفعلية هنا. حدود الاستعادة والاختبارات الإنتاجية تبقى مهما
-نجحت الاختبارات المحلية.
+**PASS WITH ISSUES**.
+
+بوابة ولي الأمر في الإصدار المحلي المثبت اجتازت Full Regression والتحقق الفعلي
+من الحساب والتفعيل والعلاقات متعددة المدارس وRLS والملفات والحضور والأعذار
+والتصحيح والإرشاد المنشور وتغييرات نور وSMS والاستئذان الإداري والحارس. المشكلات
+العالية المثبتة في نطاق المراجعة أصلحت باختبارات إثبات وإعادة؛ لم يبق كشف بيانات
+طلاب أو استيلاء على حساب مثبت وغير معالج في هذا النطاق.
+
+الإصدار مرشح للانتقال إلى **Staging صناعي مقيد** بعد متطلبات القسم17؛ هذا ليس
+تصريح نشر ولا إثباتاً لبيئة التشغيل الفعلية. **الإطلاق العام محجوب** بسبب عدم
+وجود استعادة عالمية آمنة معتمدة عند فقدان وسيلة إثبات الحساب. يبقى تغيير الجوال
+العالمي معطلاً، وتبقى تشخيصات OpenAPI القديمة وقياسات السعة والتعافي والمتصفحات
+المستهدفة وSMS Smoke المصرح به عملاً تشغيلياً صريحاً. تأخير Docker السابق في
+تهيئة الاختبار لم يُفسر بصورة قاطعة؛ لا يُقدم نجاح الإعادة كإصلاح أداء إنتاجي.
+
+كود المنتج اختُبر بالكامل من `8eb152648ad68253080ea22787a9ad25db6d4e51`،
+واختبار المتصفح النهائي من `e63563ceaa563349ef9ec6a108ff9cef0534e15b`؛ فرق هذين
+الـCommit هو اختبار E2E فقط. Commit التوثيق الختامي لا يغير المصدر المختبَر؛
+Checkout نظيف وإعداد اختبار متتبع ووصفة إعادة التنفيذ متاحة. لا push أو merge
+أو نشر إنتاج أو SMS حقيقي، وتغييرات المستخدم المتزامنة محفوظة خارج الإصدار.
 
 ## Appendix — Legacy Change Inventory
 
