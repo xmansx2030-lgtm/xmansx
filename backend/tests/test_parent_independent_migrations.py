@@ -41,6 +41,10 @@ RECOVERY_TABLES = {
     "parents_recoveryreviewauthorization",
     "parents_recoveryreviewdecision",
 }
+EMAIL_RECOVERY_TABLES = {
+    "parents_accountrecoveryemail",
+    "parents_accountrecoveryemaildelivery",
+}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -205,8 +209,10 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
             "AND relkind = 'r'"
         )
         tables = cursor.fetchall()
-        assert {name for name, _, _ in tables} == PARENT_TABLES | RECOVERY_TABLES
-        assert len(tables) == 18 and all(enabled and forced for _, enabled, forced in tables)
+        assert {name for name, _, _ in tables} == (
+            PARENT_TABLES | RECOVERY_TABLES | EMAIL_RECOVERY_TABLES
+        )
+        assert len(tables) == 20 and all(enabled and forced for _, enabled, forced in tables)
         cursor.execute(
             "SELECT tablename, policyname, cmd, qual, with_check, permissive, roles "
             "FROM pg_policies WHERE schemaname='public' AND tablename LIKE 'parents_%'"
@@ -304,8 +310,18 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
     new[(grant, "recovery_insert")] = ("INSERT", None, "false")
     new[(grant, "recovery_update")] = ("UPDATE", "false", None)
     new[(grant, "recovery_delete")] = ("DELETE", "false", None)
-    additions = [row for row in policies if row[1].startswith("recovery_")]
-    assert len(additions) == 17 and len(policies) == 73
+    additions = [
+        row for row in policies
+        if row[1].startswith("recovery_") and not row[1].startswith("recovery_email_")
+    ]
+    assert len(additions) == 17 and len(policies) == 79
+    email_policies = [row for row in policies if row[0] in EMAIL_RECOVERY_TABLES]
+    assert len(email_policies) == 6
+    assert {(row[0], row[2]) for row in email_policies} == {
+        (table, command) for table in EMAIL_RECOVERY_TABLES
+        for command in ("SELECT", "INSERT", "UPDATE")
+    }
+    assert all(row[5] == "PERMISSIVE" and row[6] == ["public"] for row in email_policies)
     assert {(row[0], row[1]) for row in additions} == set(new)
     for table, name, command, qual, check, permissive, roles in additions:
         assert (command, _canonical(qual), _canonical(check)) == new[(table, name)]

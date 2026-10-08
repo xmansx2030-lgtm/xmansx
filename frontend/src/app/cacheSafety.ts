@@ -8,9 +8,12 @@ function isPrivateRequest(request: Request): boolean {
 }
 
 /** Remove sensitive responses left by any older or misconfigured service worker version. */
-export async function purgeSensitiveBrowserCaches(): Promise<void> {
+export async function purgeSensitiveBrowserCaches(
+  { preserveAttendanceDrafts = false }: { preserveAttendanceDrafts?: boolean } = {},
+): Promise<void> {
   // Includes logout, login and school switching, even without CacheStorage support.
-  clearAttendanceDrafts();
+  // Verifying recovery email does not change the owner or school of a teacher draft.
+  if (!preserveAttendanceDrafts) clearAttendanceDrafts();
   if (!("caches" in globalThis)) return;
 
   const cacheNames = await globalThis.caches.keys();

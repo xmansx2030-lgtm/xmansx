@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { FRONTEND_URL } from "./compose";
+import { completeRecoveryEmail, emailForMobile } from "./parent-email-mailbox";
 
 interface FixtureSchool {
   id: number;
@@ -72,6 +73,7 @@ async function registerOnPage(page: Page, school: FixtureSchool, mobile: string,
   await page.goto(school.registration_path);
   await page.getByLabel("اسم ولي الأمر", { exact: true }).fill("ولي اختبار الأسرة");
   await page.getByLabel("رقم الجوال", { exact: true }).fill(mobile);
+  await page.getByLabel("البريد الإلكتروني", { exact: true }).fill(emailForMobile(mobile));
   await page.getByLabel("معرف الطالب المسجل لدى المدرسة").fill(identifier);
   await page.getByRole("button", { name: "تقديم طلب تسجيل", exact: true }).click();
   await expect(page.getByText("تم استلام طلبك، وستقوم المدرسة بمراجعته.")).toBeVisible();
@@ -178,6 +180,7 @@ test("real parent lifecycle across schools, attendance, requests and private pub
     await page
       .getByRole("button", { name: "إنشاء الحساب وتفعيل العلاقة" })
       .click();
+    await completeRecoveryEmail(page, fixture.parent_mobile, password!);
     await expect(page.getByTestId("parent-shell")).toBeVisible();
     const meFirst = (await (
       await page.request.get("/api/v1/auth/me/")
@@ -547,6 +550,7 @@ test("existing employee activation keeps the same account, password and employme
     await page.getByLabel("كلمة المرور الحالية", { exact: true }).fill(password!);
     await page.getByRole("button", { name: "الدخول واستكمال التفعيل" }).click();
     await page.getByRole("button", { name: "ربط الابن بحسابي" }).click();
+    await completeRecoveryEmail(page, fixture.employee.mobile, password!);
     await expect(page.getByRole("heading", { name: fixture.employee.student_name, exact: true })).toBeVisible();
     const after = await (await page.request.get("/api/v1/auth/me/")).json() as typeof before;
     expect(after.id).toBe(before.id);

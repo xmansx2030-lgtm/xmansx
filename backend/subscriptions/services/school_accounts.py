@@ -184,12 +184,9 @@ def update_manager(
     if mobile is not None:
         normalized = normalize_mobile(mobile)
         if user.mobile != normalized:
-            from common.tenant_rls import tenant_context
-            from parents.models import GuardianStudentRelation
+            from parents.credential_protection import has_guardian_credentials
 
-            with tenant_context(user_id=user.pk):
-                parent_account = GuardianStudentRelation.objects.filter(user=user).exists()
-            if parent_account:
+            if has_guardian_credentials(user.pk):
                 raise ApiError(
                     "GUARDIAN_MOBILE_REVIEW_REQUIRED",
                     "رقم دخول ولي الأمر حساب عالمي؛ سجل طلب تغيير موثق للمراجعة الآمنة.",
@@ -224,11 +221,11 @@ def reset_manager_password(
 ) -> dict:
     user = User.objects.select_for_update().get(id=membership.user_id)
     from common.tenant_rls import tenant_context
-    from parents.models import GuardianStudentRelation
+    from parents.credential_protection import has_guardian_credentials
 
     with tenant_context(user_id=user.pk):
-        guardian_account = GuardianStudentRelation.objects.filter(user=user).exists()
         shared_account = user.memberships.exclude(id=membership.id).exists()
+    guardian_account = has_guardian_credentials(user.pk)
     if guardian_account:
         raise ApiError(
             "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",

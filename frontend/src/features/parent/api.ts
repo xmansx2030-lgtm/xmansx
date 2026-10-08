@@ -178,6 +178,7 @@ export interface RegistrationMetadata {
 export interface RegistrationInput {
   name: string;
   mobile: string;
+  email: string;
   student_identifier: string;
   relationship_type: string;
 }

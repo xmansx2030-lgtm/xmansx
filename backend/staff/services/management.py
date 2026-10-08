@@ -250,7 +250,7 @@ def reset_teacher_password(*, membership: SchoolMembership, actor, request=None)
         )
     user = User.objects.select_for_update().get(id=membership.user_id)
     from common.tenant_rls import tenant_context
-    from parents.models import GuardianStudentRelation
+    from parents.credential_protection import has_guardian_credentials
 
     # Subject-only link discovery exposes no other school's student records.
     with tenant_context(user_id=user.pk):
@@ -260,7 +260,7 @@ def reset_teacher_password(*, membership: SchoolMembership, actor, request=None)
             .exclude(status__in=[MembershipStatus.LEFT, MembershipStatus.DECLINED])
             .exists()
         )
-        has_guardian_links = GuardianStudentRelation.objects.filter(user=user).exists()
+    has_guardian_links = has_guardian_credentials(user.pk)
     if has_guardian_links:
         raise ApiError(
             "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",

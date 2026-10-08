@@ -30,10 +30,15 @@ def lock_parent_school(school_id: int) -> None:
 
 class ParentAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    requires_verified_email = True
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         require_password_changed(request.user)
+        if self.requires_verified_email:
+            from parents.email_recovery_services import require_verified_recovery_email
+
+            require_verified_recovery_email(request.user)
 
 
 def owned_relation_index(user):
@@ -108,6 +113,9 @@ def parent_school_read(user, school_id, relation_ids):
     would introduce cross-guardian lock-order cycles in notification catch-up.
     """
     require_password_changed(user)
+    from parents.email_recovery_services import require_verified_recovery_email
+
+    require_verified_recovery_email(user)
     with tenant_context(user_id=user.id):
         owned_ids = list(
             GuardianStudentRelation.objects.filter(
@@ -123,6 +131,9 @@ def parent_school_read(user, school_id, relation_ids):
 @contextmanager
 def parent_scope(user, relation_id: int, *, write: bool = False, lock: bool = False):
     require_password_changed(user)
+    from parents.email_recovery_services import require_verified_recovery_email
+
+    require_verified_recovery_email(user)
     with tenant_context(user_id=user.id):
         index = (
             GuardianStudentRelation.objects.filter(id=relation_id, user=user)

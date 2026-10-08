@@ -313,7 +313,7 @@ def _application_role():
 def test_existing_employee_activates_three_schools_under_real_rls_without_identity_takeover(
     make_school, make_user, make_membership
 ):
-    owner = make_user("0550089021")
+    owner = make_user("0550089021", recovery_email_verified=True)
     wrong_owner = make_user("0550089022")
     original_hash = owner.password
     fixtures = []
@@ -354,6 +354,7 @@ def test_existing_employee_activates_three_schools_under_real_rls_without_identi
                 {
                     "name": "ولي صاحب الحساب الحالي",
                     "mobile": owner.mobile,
+                    "email": "existing-owner-registration@parent.invalid",
                     "student_identifier": decrypt_national_id(student.national_id_encrypted),
                     "relationship_type": "أب",
                 },

@@ -7,9 +7,17 @@ import {
   NotebookPen,
   UserRound,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { ApiError } from "@/api/client";
+import { purgeSensitiveBrowserCaches } from "@/app/cacheSafety";
 import { Button } from "@/components/Button";
+import { ErrorState } from "@/components/ErrorState";
+import { PageSkeleton } from "@/components/Skeleton";
 import { useLogout, useMe } from "@/features/auth/useMe";
+import { parentKey } from "@/features/parent/api";
+import { recoveryEmailKey, useRecoveryEmailStatus } from "@/features/parent/recoveryEmail";
 import { SpaceSwitchButton } from "@/features/parent/SpaceSwitchButton";
 
 const links = [
@@ -23,6 +31,41 @@ export function ParentShell() {
   const me = useMe();
   const logout = useLogout();
   const navigate = useNavigate();
+  const recovery = useRecoveryEmailStatus();
+  const queryClient = useQueryClient();
+  const withheld = recovery.isError || (recovery.isSuccess && !recovery.data.verified);
+  useEffect(() => {
+    if (withheld) {
+      void queryClient.cancelQueries({ queryKey: parentKey(me.data?.id) }).then(() => {
+        queryClient.removeQueries({ queryKey: parentKey(me.data?.id) });
+      });
+      void purgeSensitiveBrowserCaches({ preserveAttendanceDrafts: true });
+    }
+  }, [withheld, me.data?.id, queryClient]);
+  useEffect(() => {
+    let redirecting = false;
+    return queryClient.getQueryCache().subscribe(({ query }) => {
+      if (redirecting || query.queryKey[0] !== "parent" || query.queryKey[1] !== me.data?.id) return;
+      const error = query.state.error;
+      if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
+        redirecting = true;
+        void queryClient.cancelQueries({ queryKey: parentKey(me.data?.id) }).then(() => {
+          queryClient.removeQueries({ queryKey: parentKey(me.data?.id) });
+        });
+        queryClient.removeQueries({ queryKey: recoveryEmailKey(me.data?.id) });
+        void purgeSensitiveBrowserCaches({ preserveAttendanceDrafts: true });
+        navigate("/parent/recovery-email", { replace: true });
+      }
+    });
+  }, [me.data?.id, navigate, queryClient]);
+  if (recovery.isPending) return <div className="p-5"><PageSkeleton label="جارٍ التحقق من متطلبات بوابة ولي الأمر" /></div>;
+  if (recovery.isError) {
+    if (recovery.error instanceof ApiError && recovery.error.code === "EMAIL_VERIFICATION_REQUIRED") {
+      return <Navigate to="/parent/recovery-email" replace />;
+    }
+    return <main className="mx-auto max-w-lg space-y-4 p-5"><ErrorState error={recovery.error} /><Button variant="secondary" onClick={() => void recovery.refetch()}>إعادة المحاولة</Button><Button variant="ghost" onClick={() => void logout().then(() => navigate("/login", { replace: true }))}>تسجيل الخروج</Button></main>;
+  }
+  if (!recovery.data.verified) return <Navigate to="/parent/recovery-email" replace />;
   return (
     <div className="min-h-dvh bg-[#f4f8f6]" data-testid="parent-shell">
       <a href="#parent-content" className="skip-link">

@@ -40,7 +40,7 @@ def family_env(make_school, make_user, make_membership, settings, tmp_path):
     teacher = make_membership(make_user("0551700001"), school, ["TEACHER"])
     vice = make_membership(make_user("0551700002"), school, ["VICE_PRINCIPAL"])
     env = build_env(school=school, teacher_membership=teacher, vice_membership=vice, prefix="37100")
-    user = make_user("0551700003", first_name="ولي الأمر")
+    user = make_user("0551700003", first_name="ولي الأمر", recovery_email_verified=True)
     relation = GuardianStudentRelation.objects.create(
         school=school,
         student=env["students"][0],
@@ -236,7 +236,7 @@ def test_correction_cannot_target_draft_or_present_student(family_env):
 def test_other_parent_cannot_list_or_submit_or_download(family_env, make_user):
     env = family_env
     other = Client()
-    other.force_login(make_user("0551700099"))
+    other.force_login(make_user("0551700099", recovery_email_verified=True))
     request_id = submit(env).json()["id"]
     assert other.get(f"{env['prefix']}/excuses/").status_code == 404
     assert (

@@ -25,7 +25,7 @@ family_env = family_env
 
 
 def _workload(make_school, make_user):
-    owner = make_user("0550079001")
+    owner = make_user("0550079001", recovery_email_verified=True)
     approver = make_user("0550079002")
     relations = []
     environments = []

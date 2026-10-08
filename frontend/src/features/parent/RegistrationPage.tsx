@@ -12,6 +12,7 @@ import { TextField } from "@/components/TextField";
 import { PageSkeleton } from "@/components/Skeleton";
 import { toCanonicalMobile, toLatinDigits } from "@/features/auth/mobile";
 import { withReturnTo } from "@/features/auth/returnTo";
+import { normalizeRecoveryEmail, recoveryEmailError, RECOVERY_EMAIL_DESCRIPTION } from "@/features/parent/recoveryEmail";
 import {
   getRegistration,
   getRegistrationStatus,
@@ -27,6 +28,8 @@ export function RegistrationPage() {
   });
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [relationship, setRelationship] = useState("FATHER");
   const [error, setError] = useState("");
@@ -39,6 +42,7 @@ export function RegistrationPage() {
       return registerParent(schoolToken, {
         name: name.trim(),
         mobile: toCanonicalMobile(mobile) ?? "",
+        email: normalizeRecoveryEmail(email),
         student_identifier: toLatinDigits(identifier.trim()),
         relationship_type: relationship,
       });
@@ -47,6 +51,7 @@ export function RegistrationPage() {
       setReceipt(result.receipt_token);
       setName("");
       setMobile("");
+      setEmail("");
       setIdentifier("");
     },
   });
@@ -71,6 +76,9 @@ export function RegistrationPage() {
   function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    const invalidEmail = recoveryEmailError(email);
+    setEmailError(invalidEmail);
+    if (invalidEmail) return;
     if (!name.trim() || !identifier.trim() || !toCanonicalMobile(mobile)) {
       setError("أكمل الاسم ومعرف الطالب وأدخل رقم جوال سعودي صحيحاً.");
       return;
@@ -146,6 +154,19 @@ export function RegistrationPage() {
                   onChange={(e) => setMobile(toLatinDigits(e.target.value))}
                   maxLength={20}
                   description="تُقبل الأرقام العربية والصيغ 05 أو +966."
+                />
+                <TextField
+                  label="البريد الإلكتروني"
+                  type="email"
+                  inputMode="email"
+                  dir="ltr"
+                  autoComplete="email"
+                  required
+                  maxLength={254}
+                  value={email}
+                  error={emailError}
+                  description={RECOVERY_EMAIL_DESCRIPTION}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
                 <TextField
                   label="معرف الطالب المسجل لدى المدرسة"

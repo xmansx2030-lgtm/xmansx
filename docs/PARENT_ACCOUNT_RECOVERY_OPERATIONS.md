@@ -4,11 +4,43 @@ Date: 2026-10-08. Read the [architecture](PARENT_ACCOUNT_RECOVERY_ARCHITECTURE.m
 and [release report](PARENT_PORTAL_RELEASE_READINESS_REPORT.md) before enabling any
 public parent onboarding.
 
-## Current status
+## Phase 1 update: personal verified-email password recovery
 
-The project owner confirmed that no approved recovery policy currently exists.
+The owner has approved the distinct email/password policy documented in
+[email recovery architecture](PARENT_EMAIL_RECOVERY_ARCHITECTURE.md) and
+[Resend setup](RESEND_PARENT_RECOVERY_SETUP.md). School staff still cannot reset a
+guardian password, verify or replace a recovery address, or change the global login
+number. Central case execution below remains disabled.
+
+1. New applicants must provide a valid recovery email. School approval and the
+   existing SMS activation remain required. A new account must then explicitly
+   verify its email before reading child data. Provider acceptance alone is not
+   ownership verification.
+2. Existing owners log in with their existing mobile/password. In the parent space,
+   they personally enter their current password and recovery address, then verify
+   the emailed link. Existing staff email is never automatically trusted. Staff
+   workspace access remains available while parent email verification is pending.
+3. An eligible owner who forgets the password enters the **login mobile** on the
+   forgot-password page. The response is generic. A verified-email bearer lets the
+   owner personally choose a new password, expires in 15 minutes by default, is
+   single use, and invalidates existing password-derived sessions. There is no
+   automatic login, new account, number change or relationship reactivation.
+4. Platform/non-teacher privileged accounts are excluded from email-only recovery.
+   An owner without a verified address and without the password still lacks an
+   approved recovery route. Record the unresolved case under the review-only
+   process below; do not create a duplicate account or let an employee select a
+   password. A verified email cannot recover or replace the global mobile number.
+5. Before public rollout, configure a verified Resend sender and least-privilege
+   sending key, explicitly authorize a designated-address smoke test, and define
+   the existing-parent enrollment rollout. Synthetic staging uses `.invalid`
+   addresses and a private fake mailbox; it never calls Resend or sends SMS.
+
+## Central review foundation: current status
+
+For central identity/mobile recovery, no approved policy currently exists. The
+separate verified-email password-only policy above is the subsequent Phase 1 approval.
 School intake and central review preparation are implemented. **Recovery execution
-is disabled and public launch is blocked.** There is no approved original-account
+is disabled.** Phase 1 public rollout has the separate email gates above. There is no approved original-account
 ownership proof, implemented independent number verification or personal recovery
 credential-delivery channel in the repository. An administrator cannot resolve
 these gaps by switching an environment flag, choosing a temporary password or
@@ -121,8 +153,9 @@ relationship separately.
 - Test successful recovery, concurrent execution, exactly-once behavior, transaction
   rollback, session revocation and actual approved integrations before opening it.
 
-Until these prerequisites exist, keep execution unavailable and public registration
-closed. Restricted staging uses only synthetic identities and default-disabled
+Until these central prerequisites exist, keep central execution unavailable.
+Phase 1 public registration stays closed until its Resend delivery and existing-parent
+rollout gates are satisfied. Restricted staging uses only synthetic identities and default-disabled
 school registration. See the [staging runbook](PARENT_PORTAL_STAGING_READINESS.md).
 
 ## Evidence handling, monitoring and rollback

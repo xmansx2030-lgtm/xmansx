@@ -16,6 +16,7 @@ def main():
         "GENERATED_DOCUMENTS_ROOT": "private",
         "DATABASE_BACKUP_ROOT": "backups",
         "BACKUP_STORAGE_LOCATION": "repository",
+        "PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT": "email-outbox",
     }
     approved_paths = []
     for setting, name in roots.items():
@@ -32,7 +33,7 @@ def main():
         if any(path.is_symlink() or not path.resolve().is_relative_to(root) for path in paths):
             raise RuntimeError("Refusing a storage path outside its isolated volume")
         approved_paths.extend(paths)
-    # Validate all three mounts and their contents before changing any metadata.
+    # Validate every mount and its contents before changing any metadata.
     for path in approved_paths:
         os.chown(path, 65534, 65534, follow_symlinks=False)
         path.chmod(0o700 if path.is_dir() else 0o600)

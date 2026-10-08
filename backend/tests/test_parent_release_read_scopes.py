@@ -24,7 +24,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 
 def _family(make_school, make_user):
-    owner = make_user("0550078501")
+    owner = make_user("0550078501", recovery_email_verified=True)
     other = make_user("0550078502")
     approver = make_user("0550078503")
     envs = [setup_attendance_env(make_school(), students_count=2) for _ in range(3)]
@@ -293,7 +293,10 @@ def test_two_guardians_with_opposite_sibling_order_do_not_deadlock(
     env = setup_attendance_env(school, students_count=2)
     approver = make_user("0550078600")
     vice = make_membership(approver, school, ["VICE_PRINCIPAL"])
-    owners = [make_user("0550078601"), make_user("0550078602")]
+    owners = [
+        make_user("0550078601", recovery_email_verified=True),
+        make_user("0550078602", recovery_email_verified=True),
+    ]
     own_relations = []
     for owner, students in zip(
         owners, [env["students"], list(reversed(env["students"]))], strict=True,

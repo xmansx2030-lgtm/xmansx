@@ -40,6 +40,9 @@ def main():
     assert settings.SESSION_COOKIE_SECURE is True
     assert settings.CSRF_COOKIE_SECURE is True
     assert settings.SELF_REGISTRATION_ENABLED is False
+    assert settings.PARENT_RECOVERY_EMAIL_ENABLED is True
+    assert settings.PARENT_RECOVERY_EMAIL_ADAPTER == "synthetic-file"
+    assert not settings.RESEND_API_KEY
     assert settings.ALLOWED_HOSTS == ["localhost"]
     assert settings.CSRF_TRUSTED_ORIGINS == ["https://localhost:8445"]
     with connection.cursor() as cursor:
@@ -84,6 +87,7 @@ def main():
         "private": Path(settings.GENERATED_DOCUMENTS_ROOT),
         "backups": Path(settings.DATABASE_BACKUP_ROOT),
         "repository": Path(repository.location),
+        "email-outbox": Path(settings.PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT),
     }
     for name, root in roots.items():
         expected_root = Path("/var/lib/xmansx-parent-staging") / name
@@ -108,6 +112,7 @@ def main():
                 "forced_rls_tables": forced_tables,
                 "https_secure_cookies": True,
                 "public_school_self_registration": False,
+                "recovery_email_provider": "synthetic-file; no external sending",
                 "external_default_route": False,
                 "redis_policy": "noeviction",
                 "redis_logical_databases": redis_roles,

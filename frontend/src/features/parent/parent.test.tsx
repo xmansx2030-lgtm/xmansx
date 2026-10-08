@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/app/queryClient";
-import { buildMe, membership, mockApi, UNAUTHENTICATED } from "@/test/mockApi";
+import { buildMe, membership, mockApi as baseMockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
 import { parentKey, type ChildDetail } from "@/features/parent/api";
 import { todayDate } from "@/features/parent/shared";
@@ -11,6 +11,14 @@ vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
 }));
 const DATE = todayDate();
+// Existing child workflows exercise accounts whose recovery email is already verified.
+// Pending enrollment and its access denial have separate focused tests.
+function mockApi(routes: Parameters<typeof baseMockApi>[0]) {
+  return baseMockApi({
+    "/parent/recovery-email/": { body: { verified: true, verification_required: false, email_masked: "p***@example.invalid", pending_email_masked: "", delivery_status: null, enabled: true } },
+    ...routes,
+  });
+}
 const PARENT = buildMe({
   id: 201,
   name: "محمد ولي الأمر",
@@ -671,6 +679,7 @@ describe("parent portal isolation and family workflows", () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("اسم ولي الأمر"), "محمد الأب");
     await user.type(screen.getByLabelText("رقم الجوال"), "٠٥٥١٢٣٤٥٦٧");
+    await user.type(screen.getByLabelText("البريد الإلكتروني"), "Parent@Example.invalid");
     await user.type(
       screen.getByLabelText("معرف الطالب المسجل لدى المدرسة"),
       "١٠١٢٣٤٥٦٧٨",
@@ -688,6 +697,7 @@ describe("parent portal isolation and family workflows", () => {
       ),
     );
     expect(body.mobile).toBe("+966551234567");
+    expect(body.email).toBe("parent@example.invalid");
     expect(body.student_identifier).toBe("1012345678");
     expect(screen.queryByText("أحمد محمد")).toBeNull();
   });

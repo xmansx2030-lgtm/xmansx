@@ -143,7 +143,7 @@ class Command(BaseCommand):
                 for slot in range(10, 990, 10)
                 if not User.objects.filter(
                     mobile__in=[
-                        f"+966551800{slot + offset:03d}" for offset in (1, 2, 3, 6, 7, 8, 9)
+                        f"+966551800{slot + offset:03d}" for offset in range(10)
                     ]
                 ).exists()
             ),
@@ -171,6 +171,7 @@ class Command(BaseCommand):
             "rejected_mobile": f"+966551800{slot + 7:03d}",
             "employee": {"id": employee.id, "mobile": employee.mobile},
             "schools": [],
+            "email_recovery": [],
             "registration_enabled": bool(options["enable_registration"]),
         }
         for index, letter in enumerate(("a", "b", "c"), 1):
@@ -393,6 +394,31 @@ class Command(BaseCommand):
                     )
                     entry["absent_session_id"] = submitted.id
                 fixture["schools"].append(entry)
+                recovery_mobile = f"+966551800{slot + (0, 4, 5)[index - 1]:03d}"
+                recovery_identifier = f"E{slot:03d}{index}180"
+                recovery_student = Student.objects.create(
+                    school=school,
+                    full_name=f"طالب استرداد البريد الصناعي {index}",
+                    national_id_encrypted=encrypt_national_id(recovery_identifier),
+                    national_id_lookup_hash=national_id_lookup_hash(recovery_identifier),
+                    national_id_masked=mask_national_id(recovery_identifier),
+                    guardian_name="ولي استرداد البريد الصناعي",
+                    guardian_mobile=recovery_mobile,
+                )
+                StudentEnrollment.objects.create(
+                    school=school, student=recovery_student, academic_year=year,
+                    grade=grade, section=section, enrolled_at=year.start_date,
+                )
+                fixture["email_recovery"].append({
+                    "mobile": recovery_mobile,
+                    "email": f"recovery-{run}-{index}@parent.invalid",
+                    "student_id": recovery_student.id,
+                    "student_name": recovery_student.full_name,
+                    "identifier": recovery_identifier,
+                    "school_id": school.id,
+                    "registration_path": entry["registration_path"],
+                    "staff_mobile": user.mobile,
+                })
                 if index == 3:
                     expired_mobile = f"+966551800{slot + 6:03d}"
                     expired_identifier = f"X{slot:03d}3180"
@@ -418,6 +444,7 @@ class Command(BaseCommand):
                         data={
                             "name": "ولي رابط اختبار منتهي",
                             "mobile": expired_mobile,
+                            "email": f"expired-{run}@parent.invalid",
                             "student_identifier": expired_identifier,
                             "relationship_type": "GUARDIAN",
                         },

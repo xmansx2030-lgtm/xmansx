@@ -59,6 +59,7 @@ def test_concurrent_duplicate_registration_creates_one_pending_request(portal_en
     data = {
         "name": "ولي أمر موثق",
         "mobile": env["student"].guardian_mobile,
+        "email": "concurrent-registration@parent.invalid",
         "student_identifier": decrypt_national_id(env["student"].national_id_encrypted),
         "relationship_type": "أب",
     }

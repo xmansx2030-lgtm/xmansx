@@ -62,7 +62,7 @@ def _fixtures(make_school, make_user):
     students = [envs[i % 3]["students"][i // 3] for i in range(10)]
     owners, relations, clients = {}, {}, {}
     for size in (1, 5, 10):
-        owners[size] = make_user(f"05500781{size:02d}")
+        owners[size] = make_user(f"05500781{size:02d}", recovery_email_verified=True)
         relations[size] = [
             GuardianStudentRelation.objects.create(
                 school_id=student.school_id, student=student, user=owners[size],
@@ -171,7 +171,9 @@ def test_twenty_distinct_users_concurrently_poll_twice(make_school, make_user):
     school = make_school("مدرسة عشرين مستخدماً صناعياً")
     env = setup_attendance_env(school, students_count=1)
     approver = make_user("0550078300")
-    owners = [make_user(f"05500783{i + 1:02d}") for i in range(20)]
+    owners = [
+        make_user(f"05500783{i + 1:02d}", recovery_email_verified=True) for i in range(20)
+    ]
     relations = [GuardianStudentRelation.objects.create(
         school=school, student=env["students"][0], user=owner, status="ACTIVE",
         contact_bound=False, approved_by=approver, approved_at=timezone.now(),

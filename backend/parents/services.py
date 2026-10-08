@@ -82,7 +82,13 @@ def registration_config(token):
 
 def submit_registration(*, school, data, user=None, request=None):
     from accounts.mobile import mask_mobile
+    from parents.email_recovery_services import (
+        mask_recovery_email,
+        normalize_email,
+        recovery_email_hash,
+    )
 
+    email = normalize_email(data.get("email", ""))
     receipt = secrets.token_urlsafe(32)
     with tenant_context(school_id=school.id), transaction.atomic():
         lock_parent_school(school.id)
@@ -95,6 +101,9 @@ def submit_registration(*, school, data, user=None, request=None):
                     mobile_encrypted=encrypt_value(data["mobile"]),
                     mobile_hash=mobile_hash(data["mobile"]),
                     mobile_masked=mask_mobile(data["mobile"]),
+                    email_encrypted=encrypt_value(email),
+                    email_hash=recovery_email_hash(email),
+                    email_masked=mask_recovery_email(email),
                     identifier_encrypted=encrypt_value(data["student_identifier"]),
                     identifier_hash=national_id_lookup_hash(data["student_identifier"]),
                     relationship_type=data["relationship_type"],
@@ -143,6 +152,7 @@ def registration_payload(item):
         "id": item.id,
         "name": item.name,
         "mobile_masked": item.mobile_masked,
+        "email_masked": item.email_masked,
         "relationship_type": item.relationship_type,
         "status": item.status,
         "student_id": item.student_id,
@@ -627,6 +637,12 @@ def complete_activation(
         activation.save(update_fields=["used_at", "updated_at"])
         item.status = RegistrationStatus.ACTIVATED
         item.save(update_fields=["status", "updated_at"])
+        if item.email_encrypted:
+            from parents.email_recovery_services import enroll_registration_email
+
+            enroll_registration_email(
+                account, decrypt_value(item.email_encrypted), new_account=existing is None
+            )
         record_event(
             "PARENT_RELATION_ACTIVATED",
             school=activation.school,

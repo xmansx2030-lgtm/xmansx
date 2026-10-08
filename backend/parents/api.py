@@ -245,6 +245,7 @@ class ParentStaffView(SchoolScopedAPIView):
 
 
 class ParentPasswordView(ParentAPIView):
+    requires_verified_email = False
     serializer_class = PasswordChangeSerializer
 
     @extend_schema(request=PasswordChangeSerializer, responses=ResponseSerializer)

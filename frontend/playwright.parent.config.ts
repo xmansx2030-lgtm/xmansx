@@ -29,7 +29,7 @@ const localSPKI = localCertificate
   : undefined;
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "parent-portal.spec.ts",
+  testMatch: ["parent-portal.spec.ts", "parent-email-recovery.spec.ts"],
   workers: 1,
   timeout: 90_000,
   reporter: [["list"]],

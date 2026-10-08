@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Building2, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/client";
@@ -22,6 +22,7 @@ const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATS
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const passwordRecovered = (useLocation().state as { parentPasswordRecovered?: boolean } | null)?.parentPasswordRecovered === true;
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const me = useMe();
@@ -121,8 +122,10 @@ export function LoginPage() {
           {apiError && (
             <Alert tone="danger" title="تعذر تسجيل الدخول" className="mb-4">{apiError.message}</Alert>
           )}
+          {passwordRecovered && <Alert tone="success" title="تم تغيير كلمة المرور" className="mb-4" live>سجل الدخول برقم الجوال نفسه وكلمة المرور الجديدة.</Alert>}
 
           <Button type="submit" size="lg" fullWidth className="mt-1" loading={loginMutation.isPending} loadingLabel="جارٍ الدخول...">تسجيل الدخول</Button>
+          <Link to="/forgot-password" className="mt-3 inline-flex min-h-11 items-center font-bold text-teal-800 hover:text-teal-950">نسيت كلمة المرور؟</Link>
           <div className="mt-5 flex flex-col items-center gap-2 border-t border-slate-100 pt-5 text-sm">
             <Link to="/register" className="inline-flex min-h-11 items-center gap-2 font-black text-teal-800 hover:text-teal-950">مدرستك غير مسجلة؟ أنشئها الآن <ArrowRight aria-hidden size={16} /></Link>
             <Link to="/" className="inline-flex min-h-11 items-center text-slate-500 hover:text-slate-800">العودة إلى الصفحة الرئيسية</Link>

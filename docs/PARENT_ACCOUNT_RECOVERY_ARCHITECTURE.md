@@ -2,18 +2,42 @@
 
 Date: 2026-10-08. Applies to the release derived from `d8f8de6d4365e518cff269d438c25715c31a4a7e`.
 
-## Decision and launch gate
+## Phase 1 update: verified-email password recovery
 
-Recovery execution is **disabled in code**, including after two independent reviews.
+The owner subsequently approved a narrowly scoped Phase 1 policy: mandatory recovery
+email for new guardian registration, explicit email ownership verification after
+school approval and SMS activation, and personal password recovery through that
+verified address. The implementation is described in
+[email recovery architecture](PARENT_EMAIL_RECOVERY_ARCHITECTURE.md). It uses a
+separate global credential tied to the existing `User.id`, never `User.email` as an
+implicitly trusted source, and never changes `User.mobile`. Teacher/parent accounts
+retain their staff workspace; platform and non-teacher privileged accounts remain
+ineligible for email-only password recovery.
+
+This approval does **not** authorize central identity-case execution, a global
+number change, or recovery after all trusted credentials are lost. The review-only
+state machine and its two-reviewer controls below remain unchanged and closed.
+Historical statements below about the missing recovery channel describe that
+central foundation before this extension. The new email channel must not be used
+to bypass it. Public rollout still requires Resend domain/sender/key configuration,
+an explicitly authorized delivery smoke test, and enrollment of existing parents.
+No live Resend delivery is performed by the automated tests.
+
+## Central identity-case decision and launch gate
+
+Central identity-case execution is **disabled in code**, including after two independent reviews.
 There is no setting that enables it, no recovery OTP, no credential mutation service,
-and no recovery SMS. Public onboarding remains blocked until an approved, implemented
-method proves the original account owner and, when changing login number, the new
-number. Two reviewers and opaque evidence references do not provide that proof.
+and no recovery SMS. This central operation remains blocked until an approved,
+implemented method proves the original account owner and, when changing login
+number, the new number. Two reviewers and opaque evidence references do not provide
+that proof. The later approved Phase 1 email/password scope has its own public
+rollout gates above; it does not require enabling central number recovery.
 
 The existing database contains a global `accounts.User`, school memberships and
 guardian relationships. It does not contain a previously verified, independent
-identity binding sufficient to recover an account after both password and number
-are lost. Noor contact details, a child's identifier and a school employee's claim
+identity binding sufficient for central recovery after all trusted credentials
+are lost. A verified recovery email can now recover only the password of an
+eligible account, retaining its login number. Noor contact details, a child's identifier and a school employee's claim
 cannot supply that missing binding. No approved identity provider or carrier
 verification integration was found in the repository. The project owner also
 confirmed during this review that no approved recovery policy currently exists.

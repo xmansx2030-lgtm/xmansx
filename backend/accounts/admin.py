@@ -31,13 +31,11 @@ class UserAdmin(DjangoUserAdmin):
     )
 
     def _has_guardian_relations(self, obj):
-        from common.tenant_rls import tenant_context
-        from parents.models import GuardianStudentRelation
+        from parents.credential_protection import has_guardian_credentials
 
         if obj is None:
             return False
-        with tenant_context(user_id=obj.pk):
-            return GuardianStudentRelation.objects.filter(user=obj).exists()
+        return has_guardian_credentials(obj.pk)
 
     def get_readonly_fields(self, request, obj=None):
         fields = list(super().get_readonly_fields(request, obj))

@@ -60,6 +60,7 @@ def register(env, *, mobile=None, identifier=None):
         {
             "name": "ولي أمر موثق",
             "mobile": mobile or env["student"].guardian_mobile,
+            "email": "registration@parent.invalid",
             "student_identifier": identifier
             or decrypt_national_id(env["student"].national_id_encrypted),
             "relationship_type": "أب",
@@ -99,7 +100,11 @@ def activate(env):
         },
     )
     assert response.status_code == 200, response.content
-    return GuardianStudentRelation.objects.get(student=env["student"]), token, receipt
+    relation = GuardianStudentRelation.objects.get(student=env["student"])
+    from tests.parent_email_helpers import provision_verified_recovery_email
+
+    provision_verified_recovery_email(relation.user)
+    return relation, token, receipt
 
 
 def make_session(env, *, status="SUBMITTED", sequence=3, absent=True):
@@ -434,7 +439,7 @@ def test_parent_history_bounded_and_foreign_relation_indistinguishable(portal_en
     env = portal_env
     relation, _, _ = activate(env)
     stranger = Client()
-    stranger.force_login(make_user("0551900088"))
+    stranger.force_login(make_user("0551900088", recovery_email_verified=True))
     assert stranger.get(f"/api/v1/parent/children/{relation.id}/").status_code == 404
     assert stranger.get("/api/v1/parent/children/9999999/").status_code == 404
     assert (

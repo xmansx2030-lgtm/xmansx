@@ -29,6 +29,8 @@ _PARENT_SENSITIVE_KEYS = {
     "new_password", "confirm_password", "current_password",
     "account_password_fingerprint", "account_mobile_fingerprint", "source_mobile_hash",
     "note_encrypted", "reference_id", "note", "reason",
+    "email", "email_encrypted", "email_hash", "pending_email", "recipient", "html", "text",
+    "resend_api_key", "api_key", "recovery_url", "verification_url", "token_hash",
 }
 _PARENT_BEARER_FRAGMENT = re.compile(
     r"#(?:token|receipt_token|activation_token)=[^\s\"'<>]+", re.IGNORECASE
@@ -47,7 +49,10 @@ def _parent_context(event, frames):
     request_data = event.get("request")
     request_url = (request_data.get("url") or "") if isinstance(request_data, dict) else ""
     if urlsplit(request_url).path.startswith(
-        ("/api/v1/parent/", "/api/v1/staff/parents/", "/api/v1/identity-review/parent-recovery/")
+        (
+            "/api/v1/parent/", "/api/v1/staff/parents/",
+            "/api/v1/identity-review/parent-recovery/", "/api/v1/auth/parent-password-recovery/",
+        )
     ):
         return True
     for frame in frames:

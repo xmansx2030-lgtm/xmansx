@@ -9,9 +9,11 @@
 """
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
-from django.db import IntegrityError
+from django.contrib.auth import HASH_SESSION_KEY, authenticate, login, logout
+from django.contrib.auth.hashers import check_password
+from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.utils.crypto import constant_time_compare
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import status
@@ -30,6 +32,7 @@ from accounts.api.serializers import (
     serialize_membership,
 )
 from accounts.mobile import mask_mobile
+from accounts.models import User
 from audit.models import AuditAction
 from audit.services import client_ip, record_event
 from common.errors import ApiError
@@ -332,7 +335,7 @@ class ChangeInitialPasswordView(APIView):
     """تغيير كلمة المرور المؤقتة — عالمي (يخص User، ليس مدرسة).
 
     ملاحظة أمنية: مدير المدرسة لا يستطيع إعادة تعيين كلمة مرور مستخدم موجود —
-    لأنها تؤثر على دخوله لكل مدارسه. لا يوجد Password Reset عام في هذه المرحلة.
+    لأنها تؤثر على دخوله لكل مدارسه. الاسترداد بالبريد مسار مستقل محدود الصلاحيات.
     """
 
     permission_classes = [IsAuthenticated]
@@ -347,7 +350,8 @@ class ChangeInitialPasswordView(APIView):
         new_password = str(request.data.get("new_password", ""))
         confirm = str(request.data.get("confirm_password", ""))
 
-        if not user.check_password(current):
+        # Preliminary UX validation must not upgrade/write a stale password hash.
+        if not check_password(current, user.password):
             raise ApiError(
                 "INVALID_CURRENT_PASSWORD", "كلمة المرور الحالية غير صحيحة.", status_code=400
             )
@@ -357,17 +361,41 @@ class ChangeInitialPasswordView(APIView):
             raise ApiError("VALIDATION_ERROR", "كلمة المرور الجديدة مطابقة للحالية.")
         _validate_new_password(user, new_password)
 
-        user.set_password(new_password)
-        user.must_change_password = False
-        user.save(update_fields=["password", "must_change_password"])
+        authenticated_password = user.password
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=user.pk)
+            if (
+                not user.is_active
+                or not constant_time_compare(user.password, authenticated_password)
+                or not constant_time_compare(
+                    user.get_session_auth_hash(), request.session.get(HASH_SESSION_KEY, "")
+                )
+            ):
+                raise ApiError(
+                    "SESSION_CREDENTIALS_CHANGED",
+                    "تغيرت بيانات الدخول؛ سجل الدخول مجدداً.",
+                    status_code=403,
+                )
+            if not user.must_change_password:
+                raise ApiError(
+                    "VALIDATION_ERROR",
+                    "لا توجد كلمة مرور مؤقتة بحاجة إلى تغيير.",
+                    status_code=409,
+                )
+            if not user.check_password(current):
+                raise ApiError("INVALID_CURRENT_PASSWORD", "كلمة المرور الحالية غير صحيحة.")
+            _validate_new_password(user, new_password)
+            user.set_password(new_password)
+            user.must_change_password = False
+            user.save(update_fields=["password", "must_change_password"])
+            record_event(AuditAction.INITIAL_PASSWORD_CHANGED, request=request, actor=user)
 
-        # يحافظ على الجلسة الحالية مع تدوير آمن بعد تغيير الـ hash
+        # يحافظ على الجلسة الحالية مع تدوير آمن بعد نجاح المعاملة.
         from django.contrib.auth import update_session_auth_hash
 
         update_session_auth_hash(request, user)
         request.session.cycle_key()
 
-        record_event(AuditAction.INITIAL_PASSWORD_CHANGED, request=request, actor=user)
         memberships = list(active_memberships_for_user(user))
         active = _resolve_active_membership(request, memberships)
         invitations = invited_memberships_for_user(user)

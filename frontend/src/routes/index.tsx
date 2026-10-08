@@ -24,6 +24,18 @@ export const routes = [
       { path: "/", element: <PublicRootPage /> },
       { path: "/register", element: <RegisterSchoolPage /> },
       { path: "/login", element: <LoginPage /> },
+      {
+        path: "/forgot-password",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).ForgotParentPasswordPage }),
+      },
+      {
+        path: "/reset-password",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).ResetParentPasswordPage }),
+      },
+      {
+        path: "/parent/verify-email",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).VerifyRecoveryEmailPage }),
+      },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },
       {
         path: "/parent/register/:schoolToken",
@@ -42,6 +54,10 @@ export const routes = [
       {
         element: <RequireAuth />,
         children: [
+          {
+            path: "/parent/recovery-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).RecoveryEmailPage }),
+          },
           {
             path: "parent",
             lazy: async () => ({ Component: (await import("@/features/parent/ParentShell")).ParentShell }),

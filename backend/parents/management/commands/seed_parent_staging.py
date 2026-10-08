@@ -40,12 +40,24 @@ from parents.request_services import (
     submit_correction,
     submit_excuse,
 )
-from parents.security import token_hash
+from parents.security import encrypt_value, token_hash
 from parents.services import complete_activation, decide_registration, submit_registration
 from referrals.models import StudentReferral
 from schools.models import School
 from student_warnings.models import StudentWarning
 from students.models import Section, Student, StudentEnrollment
+
+
+def _verified_synthetic_email(user):
+    """Explicit owner fixture proof for prebuilt request states, never a backfill."""
+    from parents.email_recovery_models import AccountRecoveryEmail
+    from parents.email_recovery_services import recovery_email_hash
+
+    email = f"state-fixture-{user.pk}@parent.invalid"
+    AccountRecoveryEmail.objects.create(
+        user=user, current_email_encrypted=encrypt_value(email),
+        current_email_hash=recovery_email_hash(email), verified_at=timezone.now(),
+    )
 
 
 class Command(BaseCommand):
@@ -84,6 +96,7 @@ class Command(BaseCommand):
             password=options["password"],
             first_name="ولي حالات القبول الصناعية",
         )
+        _verified_synthetic_email(snapshot_parent)
         today = date.fromisoformat(fixture["date"])
         fixture["acceptance"] = {"parent_mobile": snapshot_parent.mobile, "children": []}
         for index, school_data in enumerate(fixture["schools"], 1):
@@ -143,6 +156,7 @@ class Command(BaseCommand):
                     data={
                         "name": snapshot_parent.first_name,
                         "mobile": snapshot_parent.mobile,
+                        "email": f"state-fixture-{snapshot_parent.pk}@parent.invalid",
                         "student_identifier": identifier,
                         "relationship_type": "GUARDIAN",
                     },
@@ -360,6 +374,7 @@ class Command(BaseCommand):
                         data={
                             "name": switch_user.first_name,
                             "mobile": switch_user.mobile,
+                            "email": f"state-fixture-{switch_user.pk}@parent.invalid",
                             "student_identifier": switch_identifier,
                             "relationship_type": "GUARDIAN",
                         },
@@ -384,6 +399,7 @@ class Command(BaseCommand):
                         "token"
                     ][0]
                     complete_activation(token=switch_token, user=switch_user)
+                    _verified_synthetic_email(switch_user)
                     switch_relation = GuardianStudentRelation.objects.get(
                         school=school, student=switch_student, user=switch_user
                     )

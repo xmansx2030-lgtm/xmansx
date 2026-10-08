@@ -15,6 +15,11 @@ x-staging-environment: &staging-environment
   DJANGO_ADMIN_ENABLED: "false"
   SELF_REGISTRATION_ENABLED: "false"
   PARENT_PORTAL_BASE_URL: https://localhost:8445
+  PARENT_RECOVERY_EMAIL_ENABLED: "true"
+  PARENT_RECOVERY_EMAIL_ADAPTER: synthetic-file
+  PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT: /var/lib/xmansx-parent-staging/email-outbox
+  RESEND_API_KEY: ""
+  RESEND_FROM_EMAIL: ""
   REDIS_URL: redis://redis:6379/0
   CACHE_REDIS_URL: redis://redis:6379/0
   SECURITY_REDIS_URL: redis://redis:6379/1
@@ -52,6 +57,7 @@ services:
       - verification_private:/var/lib/xmansx-parent-staging/private
       - verification_backups:/var/lib/xmansx-parent-staging/backups
       - verification_repository:/var/lib/xmansx-parent-staging/repository
+      - recovery_email_outbox:/var/lib/xmansx-parent-staging/email-outbox
     environment:
       # Pass --env-file artifacts/parent-staging/.env to Compose. These random
       # keys belong only to this project's independent PostgreSQL/private volumes.
@@ -61,6 +67,9 @@ services:
       PARENT_PORTAL_BASE_URL: https://localhost:8445
       PARENT_STAGING_LOCAL_ONLY: "1"
       SELF_REGISTRATION_ENABLED: "false"
+      PARENT_RECOVERY_EMAIL_ADAPTER: synthetic-file
+      PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT: /var/lib/xmansx-parent-staging/email-outbox
+      RESEND_API_KEY: ""
       GENERATED_DOCUMENTS_ROOT: /var/lib/xmansx-parent-staging/private
       DATABASE_BACKUP_ROOT: /var/lib/xmansx-parent-staging/backups
       BACKUP_STORAGE_LOCATION: /var/lib/xmansx-parent-staging/repository
@@ -75,11 +84,13 @@ services:
       GENERATED_DOCUMENTS_ROOT: /var/lib/xmansx-parent-staging/private
       DATABASE_BACKUP_ROOT: /var/lib/xmansx-parent-staging/backups
       BACKUP_STORAGE_LOCATION: /var/lib/xmansx-parent-staging/repository
+      PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT: /var/lib/xmansx-parent-staging/email-outbox
     volumes:
       - ./:/workspace:ro
       - verification_private:/var/lib/xmansx-parent-staging/private
       - verification_backups:/var/lib/xmansx-parent-staging/backups
       - verification_repository:/var/lib/xmansx-parent-staging/repository
+      - recovery_email_outbox:/var/lib/xmansx-parent-staging/email-outbox
     command: python /workspace/scripts/parent_staging_storage.py
     networks: [synthetic-staging]
     restart: "no"
@@ -97,6 +108,7 @@ services:
       - verification_private:/var/lib/xmansx-parent-staging/private
       - verification_backups:/var/lib/xmansx-parent-staging/backups
       - verification_repository:/var/lib/xmansx-parent-staging/repository
+      - recovery_email_outbox:/var/lib/xmansx-parent-staging/email-outbox
     tmpfs:
       - /tmp:uid=65534,gid=65534,mode=0700
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 1 --timeout 60 --access-logfile - --access-logformat '%(m)s %(s)s %(D)s' --error-logfile -
@@ -119,6 +131,7 @@ services:
       - verification_private:/var/lib/xmansx-parent-staging/private
       - verification_backups:/var/lib/xmansx-parent-staging/backups
       - verification_repository:/var/lib/xmansx-parent-staging/repository
+      - recovery_email_outbox:/var/lib/xmansx-parent-staging/email-outbox
     tmpfs:
       - /tmp:uid=65534,gid=65534,mode=0700
     command: celery -A config worker --loglevel INFO --concurrency 1 --queues celery,imports,maintenance
@@ -168,5 +181,6 @@ networks:
     internal: true
 
 volumes:
+  recovery_email_outbox:
   verification_backups:
   verification_repository:

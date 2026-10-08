@@ -42,3 +42,8 @@ SECURE_HSTS_SECONDS = 0
 # Private volumes remain restrictive after new uploads, not just initialization.
 FILE_UPLOAD_PERMISSIONS = 0o600
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o700
+
+# Local synthetic delivery never connects to Resend or another mail transport.
+PARENT_STAGING_LOCAL_ONLY = True
+if RESEND_API_KEY or PARENT_RECOVERY_EMAIL_ADAPTER != "synthetic-file":
+    raise ImproperlyConfigured("Synthetic staging requires its private fake recovery mailbox")

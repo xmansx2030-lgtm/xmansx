@@ -77,6 +77,9 @@ class GuardianRegistrationRequest(TimestampedModel):
     mobile_encrypted = models.TextField()
     mobile_hash = models.CharField(max_length=64)
     mobile_masked = models.CharField(max_length=20)
+    email_encrypted = models.TextField(blank=True, default="", db_default="")
+    email_hash = models.CharField(max_length=64, blank=True, default="", db_default="")
+    email_masked = models.CharField(max_length=254, blank=True, default="", db_default="")
     identifier_encrypted = models.TextField()
     identifier_hash = models.CharField(max_length=64)
     receipt_hash = models.CharField(max_length=64, unique=True)
@@ -202,6 +205,10 @@ class RecipientContactBlock(TimestampedModel):
 
 # Request models are separated by responsibility, registered in this same app.
 # Imported after relation models to keep dependency contracts explicit.
+from parents.email_recovery_models import (  # noqa: E402,F401
+    AccountRecoveryEmail,
+    AccountRecoveryEmailDelivery,
+)
 from parents.recovery_models import (  # noqa: E402,F401
     GlobalAccountRecoveryCase,
     RecoveryEvidenceReference,

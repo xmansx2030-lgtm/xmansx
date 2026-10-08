@@ -8,8 +8,25 @@ from common.security.identifiers import normalize_student_identifier
 class RegistrationSerializer(serializers.Serializer):
     name = serializers.CharField(min_length=3, max_length=150)
     mobile = serializers.CharField(max_length=24)
+    email = serializers.EmailField(
+        max_length=254,
+        write_only=True,
+        error_messages={
+            "required": "البريد الإلكتروني مطلوب.",
+            "blank": "البريد الإلكتروني مطلوب.",
+            "invalid": "صيغة البريد الإلكتروني غير صحيحة.",
+        },
+    )
     student_identifier = serializers.CharField(max_length=30, write_only=True)
     relationship_type = serializers.CharField(max_length=60, default="ولي أمر")
+
+    def validate_email(self, value):
+        from parents.email_recovery_services import normalize_email
+
+        try:
+            return normalize_email(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
 
     def validate_mobile(self, value):
         try:
@@ -216,6 +233,7 @@ class ParentHistorySerializer(serializers.Serializer):
 
 
 class RegistrationRowSerializer(serializers.Serializer):
+    email_masked = serializers.CharField()
     id = serializers.IntegerField()
     name = serializers.CharField()
     mobile_masked = serializers.CharField()

@@ -32,4 +32,18 @@ describe("PWA private cache safety", () => {
     expect(window.localStorage.getItem("attendance-draft:v1:1:10:5")).toBeNull();
     expect(window.localStorage.getItem("unrelated-preference")).toBe("keep");
   });
+
+  it("can purge private responses while preserving same-account teacher drafts for email verification", async () => {
+    const draftKey = "attendance-draft:v1:1:10:5";
+    window.localStorage.setItem(draftKey, "teacher draft");
+    const privateRequest = new Request("https://app.example.test/api/v1/parent/children/1/");
+    const deleteRequest = vi.fn().mockResolvedValue(true);
+    vi.stubGlobal("caches", {
+      keys: vi.fn().mockResolvedValue(["legacy-runtime-cache"]),
+      open: vi.fn().mockResolvedValue({ keys: vi.fn().mockResolvedValue([privateRequest]), delete: deleteRequest }),
+    });
+    await purgeSensitiveBrowserCaches({ preserveAttendanceDrafts: true });
+    expect(deleteRequest).toHaveBeenCalledExactlyOnceWith(privateRequest);
+    expect(window.localStorage.getItem(draftKey)).toBe("teacher draft");
+  });
 });

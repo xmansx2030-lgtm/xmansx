@@ -589,9 +589,10 @@ export function ParentAccountPage() {
           </div>
         </dl>
         <p className="mt-4 text-sm leading-7 text-slate-600">
-          لتغيير جوال الدخول، اطلب من المدرسة إجراء مراجعة موثقة. تغيير رقم
-          التواصل المدرسي لا يغير رقم حسابك.
+          تغيير جوال الدخول غير متاح في هذا الإصدار. تغيير رقم التواصل
+          المدرسي لا يغير رقم حسابك.
         </p>
+        <Link to="/parent/recovery-email" className="mt-3 inline-flex min-h-11 items-center font-bold text-teal-800">إدارة بريد استرداد كلمة المرور</Link>
       </section>
       <PasswordChange />
       <section className={surface}>
