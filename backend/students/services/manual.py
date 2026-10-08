@@ -12,6 +12,7 @@ from common.security.identifiers import (
     mask_national_id,
     national_id_lookup_hash,
 )
+from parents.contact_security import contact_write_context, require_contact_verification
 from students.models import EnrollmentStatus, Student, StudentEnrollment
 
 
@@ -95,7 +96,13 @@ def update_student(
     *, school, student_id: int, academic_year, section, data: dict, actor, request=None
 ) -> Student:
     """تصحيح بيانات طالب يدويًا مع حفظ الهوية مشفرة وتاريخ القيد."""
+    from parents.access import lock_parent_school
+
+    lock_parent_school(school.id)
     student = Student.objects.select_for_update().get(id=student_id, school=school)
+    previous_mobile = student.guardian_mobile
+    previous_revision = student.guardian_contact_revision
+    require_contact_verification(student, data)
     changed_fields: list[str] = []
 
     national_id = data.get("national_id")
@@ -136,7 +143,23 @@ def update_student(
 
     try:
         if changed_fields:
-            student.save()
+            with contact_write_context(
+                source="MANUAL",
+                actor=actor,
+                reason=data.get("contact_change_reason", ""),
+                previous_mobile=previous_mobile,
+                current_mobile=student.guardian_mobile,
+            ):
+                student.save()
+            student.refresh_from_db(fields=["guardian_contact_revision"])
+            if student.guardian_contact_revision != previous_revision:
+                from parents.models import GuardianContactReview
+
+                GuardianContactReview.objects.filter(
+                    school=school,
+                    student=student,
+                    current_revision=student.guardian_contact_revision,
+                ).update(verification_note=data.get("contact_verification_note", ""))
     except IntegrityError as exc:
         raise ApiError(
             "STUDENT_ALREADY_EXISTS",

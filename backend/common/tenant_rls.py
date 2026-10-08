@@ -9,6 +9,19 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from django.db import connection
+from psycopg.pq import TransactionStatus
+
+
+def can_restore_tenant_context() -> bool:
+    """Preserve the original SQL error when PostgreSQL has aborted the transaction."""
+    if connection.needs_rollback:
+        return False
+    raw = connection.connection
+    return not (
+        connection.vendor == "postgresql"
+        and raw is not None
+        and raw.info.transaction_status == TransactionStatus.INERROR
+    )
 
 
 def _settings() -> tuple[str, str, str]:
@@ -55,8 +68,9 @@ def tenant_context(
     try:
         yield
     finally:
-        set_tenant_context(
-            school_id=int(previous_school) if previous_school else None,
-            user_id=int(previous_user) if previous_user else None,
-            bypass=previous_bypass == "on",
-        )
+        if can_restore_tenant_context():
+            set_tenant_context(
+                school_id=int(previous_school) if previous_school else None,
+                user_id=int(previous_user) if previous_user else None,
+                bypass=previous_bypass == "on",
+            )

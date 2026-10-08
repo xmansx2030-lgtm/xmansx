@@ -30,6 +30,7 @@ export interface Invitation {
 }
 
 export interface Me {
+  has_parent_portal?: boolean;
   id: number;
   mobile: string;
   name: string;

@@ -182,6 +182,14 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
                 )
                 .values_list("id", flat=True)
             )
+            # A global employee account may still follow children at another school.
+            from parents.models import GuardianStudentRelation
+
+            guardian_user_ids = set(
+                GuardianStudentRelation.objects.filter(user_id__in=orphan_ids)
+                .values_list("user_id", flat=True)
+            )
+            orphan_ids = [user_id for user_id in orphan_ids if user_id not in guardian_user_ids]
             if orphan_ids:
                 User.objects.filter(id__in=orphan_ids).delete()
                 deleted_user_accounts = len(orphan_ids)

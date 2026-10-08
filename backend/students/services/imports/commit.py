@@ -20,6 +20,7 @@ from academics.services.import_calendar import can_prepare_ministry_year
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
+from parents.contact_security import contact_write_context
 from schools.models import School
 from students.models import (
     EnrollmentStatus,
@@ -59,7 +60,7 @@ def commit_import(
 ) -> StudentImportJob:
     """غلاف: كتابات الفشل/تحديث المعاينة تثبت داخل الـ transaction،
     والخطأ يرفع بعد خروجها بنجاح — لا rollback لتلك الكتابات."""
-    with transaction.atomic():
+    with transaction.atomic(), contact_write_context(source="NOOR_IMPORT", actor=actor):
         job, deferred_error = _commit_locked(
             job_id=job_id,
             actor=actor,
@@ -279,7 +280,8 @@ def _commit_locked(
             created_students += 1
             continue
 
-        student = Student.objects.get(id=row["matched_student_id"])
+        student = Student.objects.select_for_update().get(id=row["matched_student_id"])
+        previous_mobile = student.guardian_mobile
         changes = row.get("changes") or {}
         if changes:
             if "full_name" in changes:
@@ -290,7 +292,11 @@ def _commit_locked(
                 student.guardian_mobile = row["guardian_mobile"]
             if "student_number" in changes:
                 student.student_number = row["student_number"]
-            student.save()
+            with contact_write_context(
+                source="NOOR_IMPORT", actor=actor, previous_mobile=previous_mobile,
+                current_mobile=student.guardian_mobile,
+            ):
+                student.save()
             updated_students += 1
             record_event(
                 AuditAction.STUDENT_UPDATED, request=request, actor=actor,

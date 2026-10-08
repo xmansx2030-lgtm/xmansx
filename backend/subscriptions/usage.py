@@ -40,6 +40,7 @@ def storage_used_bytes(school) -> int:
     """مرفقات الأعذار (حجم مخزّن) + المستندات المولدة — لا أصول النظام المشتركة (بند 72)."""
     from documents.models import GeneratedDocument
     from excuses.models import AbsenceExcuseAttachment
+    from parents.models import ParentExcuseAttachment
 
     attachments = (
         AbsenceExcuseAttachment.objects.filter(school=school).aggregate(
@@ -53,7 +54,11 @@ def storage_used_bytes(school) -> int:
         ]
         or 0
     )
-    return int(attachments) + int(documents)
+    parent_attachments = (
+        ParentExcuseAttachment.objects.filter(school=school).aggregate(total=Sum("size_bytes"))["total"]
+        or 0
+    )
+    return int(attachments) + int(documents) + int(parent_attachments)
 
 
 def _entry(used: int, limit: int | None) -> dict:

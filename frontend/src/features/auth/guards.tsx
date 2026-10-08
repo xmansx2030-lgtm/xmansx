@@ -40,6 +40,7 @@ export function RequireActiveSchool() {
   if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
 
   if (me.data.active_school === null) {
+    if (me.data.has_parent_portal && me.data.memberships.length === 0) return <Navigate to="/parent" replace />;
     if (me.data.memberships.length > 0 || me.data.invitations.length > 0) {
       return <Navigate to="/select-school" replace />;
     }

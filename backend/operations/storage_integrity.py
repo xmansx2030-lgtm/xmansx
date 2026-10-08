@@ -16,8 +16,11 @@ from operations.models import BackupRun, BackupStatus, BackupType
 
 
 def _records():
+    from parents.models import ParentExcuseAttachment
+
     yield "excuse_attachment", AbsenceExcuseAttachment, "file"
     yield "generated_document", GeneratedDocument, "file"
+    yield "parent_excuse_attachment", ParentExcuseAttachment, "file"
 
 
 def _storage_checksum(storage, name: str) -> str:

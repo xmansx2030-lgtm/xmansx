@@ -13,9 +13,10 @@ interface TabsProps<T extends string> {
   onChange: (value: T) => void;
   label: string;
   className?: string;
+  idPrefix?: string;
 }
 
-export function Tabs<T extends string>({ value, items, onChange, label, className = "" }: TabsProps<T>) {
+export function Tabs<T extends string>({ value, items, onChange, label, className = "", idPrefix }: TabsProps<T>) {
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const enabled = items.map((item, itemIndex) => ({ item, itemIndex })).filter(({ item }) => !item.disabled);
     const current = enabled.findIndex(({ itemIndex }) => itemIndex === index);
@@ -42,6 +43,8 @@ export function Tabs<T extends string>({ value, items, onChange, label, classNam
             key={item.value}
             type="button"
             role="tab"
+            id={idPrefix ? `${idPrefix}-tab-${item.value}` : undefined}
+            aria-controls={idPrefix ? `${idPrefix}-panel-${item.value}` : undefined}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             disabled={item.disabled}

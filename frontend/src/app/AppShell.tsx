@@ -12,6 +12,7 @@ import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels, studentPluralLabel } from "@/utils/roles";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
+import { SpaceSwitchButton } from "@/features/parent/SpaceSwitchButton";
 
 type Role = SchoolRole;
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -28,6 +29,7 @@ interface NavigationItem {
 const MANAGER_VP: Role[] = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 const MANAGER_VP_COUNSELOR: Role[] = [...MANAGER_VP, "COUNSELOR"];
 const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
+  "/parent-management",
   "/dashboard",
   "/reports",
   "/warnings",
@@ -39,6 +41,7 @@ const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/academic-calendar",
 ]);
 const MANAGER_PRIMARY_PATHS = new Set([
+  "/parent-management",
   "/dashboard",
   "/reports",
   "/students",
@@ -63,6 +66,7 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/reports", label: "التقارير", roles: MANAGER_VP_COUNSELOR, icon: FileSpreadsheet, group: "overview" },
   { to: "/workspace", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
   { to: "/students", label: "الطلاب", roles: MANAGER_VP_COUNSELOR, icon: GraduationCap, group: "students" },
+  { to: "/parent-management", label: "إدارة أولياء الأمور", roles: MANAGER_VP_COUNSELOR, icon: HeartHandshake, group: "students" },
   { to: "/warnings", label: "الإنذارات", roles: MANAGER_VP, icon: BellRing, group: "students" },
   { to: "/excuses", label: "الأعذار", roles: MANAGER_VP_COUNSELOR, icon: BookOpenCheck, group: "students" },
   { to: "/referrals", label: "الإحالات", roles: MANAGER_VP_COUNSELOR, icon: Send, group: "students" },
@@ -243,6 +247,7 @@ export function AppShell() {
                 <span aria-current="page" className="truncate font-bold text-slate-700">{currentLabel}</span>
               </nav>
             </div>
+            {me.data?.has_parent_portal && <SpaceSwitchButton destination="/parent">بوابة ولي الأمر</SpaceSwitchButton>}
             <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#dce8e4] bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
               {mobileMenuOpen ? <X aria-hidden size={20} /> : <Menu aria-hidden size={20} />}
             </button>

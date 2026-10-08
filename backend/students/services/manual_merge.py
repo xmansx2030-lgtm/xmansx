@@ -13,6 +13,8 @@ from attendance.models import AttendanceMark, DailyAttendanceSummary
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
+from parents.access import lock_parent_school
+from parents.models import GuardianStudentRelation
 from students.management.commands.audit_student_reconciliation import audit_group
 from students.models import (
     EnrollmentStatus,
@@ -29,6 +31,8 @@ MOVABLE_RELATIONS = {
     "attendance.DailyAttendanceSummary",
     "attendance.AttendanceMark",
 }
+# These reviews remain attached to archived sources; they grant no access and move nowhere.
+RETAINED_SOURCE_RELATIONS = {"parents.GuardianContactReview"}
 
 
 def _error(code, message, *, status_code=400):
@@ -69,6 +73,11 @@ def build_manual_merge_plan(*, school, ids):
     sources = [by_id[item] for item in ids[1:]]
     blockers = []
     warnings = []
+    if GuardianStudentRelation.objects.filter(student__in=sources).exists():
+        blockers.append(
+            "توجد علاقات أولياء أمور في السجلات المصدر؛ راجعها وألغها صراحة قبل الدمج. "
+            "لا تنقل العلاقات أو تمنح وصولًا إلى السجل المعتمد تلقائيًا."
+        )
     if any(row.status != StudentStatus.ACTIVE or row.merged_into_id for row in students):
         blockers.append("يجب أن تكون جميع السجلات نشطة وغير مدمجة سابقًا.")
     if len({_normal_name(row.full_name) for row in students}) != 1:
@@ -85,7 +94,7 @@ def build_manual_merge_plan(*, school, ids):
 
     report = audit_group(ids, school_id=school.pk)
     for relation in report["relations"]:
-        if relation["model"] not in MOVABLE_RELATIONS and any(
+        if relation["model"] not in MOVABLE_RELATIONS | RETAINED_SOURCE_RELATIONS and any(
             relation["counts"].get(source.pk, 0) for source in sources
         ):
             blockers.append(
@@ -285,6 +294,8 @@ def build_manual_merge_plan(*, school, ids):
                     "merged_into_id",
                     "full_name",
                     "guardian_name",
+                    "guardian_mobile",
+                    "guardian_contact_revision",
                     "student_number",
                     "national_id_lookup_hash",
                 ),
@@ -429,6 +440,9 @@ def apply_manual_merge(*, school, actor, request, token):
         or not all(isinstance(item, int) and item > 0 for item in ids)
     ):
         _error("MERGE_PREVIEW_EXPIRED", "المعاينة غير صالحة؛ أعد المحاولة.", status_code=409)
+    # Imports hold the school before enrollment/student locks. Acquire it first
+    # so a concurrent Noor commit cannot form the opposite lock cycle.
+    lock_parent_school(school.pk)
     list(Student.objects.select_for_update().filter(school=school, pk__in=ids).order_by("pk"))
     list(StudentEnrollment.objects.select_for_update().filter(student_id__in=ids))
     list(DailyAttendanceSummary.objects.select_for_update().filter(student_id__in=ids))

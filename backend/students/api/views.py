@@ -124,6 +124,9 @@ class StudentPatchSerializer(serializers.Serializer):
         max_length=30, required=False, allow_blank=True
     )
     section_id = serializers.IntegerField(min_value=1, required=False)
+    contact_change_reason = serializers.CharField(max_length=300, required=False)
+    contact_identity_verified = serializers.BooleanField(required=False)
+    contact_verification_note = serializers.CharField(max_length=600, required=False)
 
     def validate_full_name(self, value):
         value = value.strip()

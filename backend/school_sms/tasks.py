@@ -10,6 +10,7 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from common.tenant_rls import tenant_context
+from parents.contact_security import recipient_blocked
 from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsIntegration
 from school_sms.providers import SmsProviderError, send_sms
 from school_sms.security import decrypt_secret, recipient_hash
@@ -68,6 +69,10 @@ def send_absence_notice(notice_id: int) -> str:
             or integration.provider != notice.provider
             or recipient_issue(summary.student.guardian_mobile)
             or recipient_hash(summary.student.guardian_mobile) != notice.recipient_hash
+            or recipient_blocked(
+                school=notice.school, student_id=notice.student_id,
+                mobile=summary.student.guardian_mobile,
+            )
             or not notice.school.is_operational
         ):
             notice.status = AbsenceSmsStatus.FAILED

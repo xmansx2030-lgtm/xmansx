@@ -64,4 +64,15 @@ describe("apiRequest", () => {
       expect.objectContaining({ credentials: "include" }),
     );
   });
+  it("uploads multipart files with session credentials and CSRF without forcing JSON headers", async () => {
+    document.cookie = "csrftoken=upload-token";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 7 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const body = new FormData(); body.append("file", new File(["report"], "report.pdf", { type: "application/pdf" }));
+    await apiRequest("/parent/children/11/excuses/1/attachments/", { method: "POST", body });
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.body).toBe(body);
+    expect(init.credentials).toBe("include");
+    expect(init.headers).toEqual({ "X-CSRFToken": "upload-token" });
+  });
 });

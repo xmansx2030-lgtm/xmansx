@@ -62,7 +62,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
   const headers: Record<string, string> = {};
-  if (body !== undefined) {
+  const isMultipart = body instanceof FormData;
+  if (body !== undefined && !isMultipart) {
     headers["Content-Type"] = "application/json";
   }
   if (method !== "GET") {
@@ -79,7 +80,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       method,
       credentials: "include",
       headers: Object.keys(headers).length > 0 ? headers : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isMultipart ? body : body !== undefined ? JSON.stringify(body) : undefined,
       signal: combinedSignal,
     });
   } catch (error) {

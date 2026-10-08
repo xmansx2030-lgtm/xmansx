@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "counseling",
     "school_dashboard",
     "school_sms",
+    "parents",
     "subscriptions",
     "platform_team",
     "audit",
@@ -97,6 +98,12 @@ ASGI_APPLICATION = "config.asgi.application"
 # ---- Database: PostgreSQL فقط (لا SQLite — نعتمد constraints/locking/RLS لاحقًا) ----
 DATABASES = {"default": postgres_database(production=False)}
 DATABASE_RLS_ENFORCED = False
+
+# Activation URL is constructed from trusted deployment configuration, never Host.
+PARENT_PORTAL_BASE_URL = env_str("PARENT_PORTAL_BASE_URL", "http://localhost:5173")
+PARENT_ACTIVATION_TTL_SECONDS = env_int("PARENT_ACTIVATION_TTL_SECONDS", 48 * 60 * 60)
+PARENT_REGISTRATION_IP_LIMIT = env_int("PARENT_REGISTRATION_IP_LIMIT", 60)
+PARENT_REGISTRATION_MOBILE_LIMIT = env_int("PARENT_REGISTRATION_MOBILE_LIMIT", 10)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -329,6 +336,11 @@ SPECTACULAR_SETTINGS = {
     # الإنتاج: الوثائق للمستخدمين المصادقين فقط — local.py يفتحها للتطوير
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    "ENUM_NAME_OVERRIDES": {
+        "ParentRequestStatusEnum": ["PENDING", "NEEDS_INFO", "APPROVED", "REJECTED", "CANCELLED"],
+        "ParentExcuseTypeEnum": ["EXCUSE"],
+        "ParentCorrectionTypeEnum": ["CORRECTION"],
+    },
 }
 
 # ---- CORS: مغلق افتراضيًا؛ local.py يسمح لـ Vite dev فقط ----

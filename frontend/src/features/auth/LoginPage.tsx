@@ -11,20 +11,14 @@ import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { TextField } from "@/components/TextField";
 import { toCanonicalMobile, toLatinDigits } from "@/features/auth/mobile";
-import { safeReturnTo, withReturnTo } from "@/features/auth/returnTo";
+import { safeReturnTo } from "@/features/auth/returnTo";
+import { authenticatedDestination } from "@/features/auth/destination";
 import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
 import type { Me } from "@/types/auth";
 
 const WHATSAPP_MESSAGE =
   "السلام عليكم، أحتاج التواصل معكم بخصوص منصة المواظبة XMANSX.";
 const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
-
-function authenticatedDestination(me: Me, returnTo: string | null) {
-  if (me.must_change_password) return "/change-password";
-  if (me.is_platform_admin) return "/platform";
-  if (me.active_school) return returnTo ?? "/workspace";
-  return withReturnTo("/select-school", returnTo);
-}
 
 export function LoginPage() {
   const navigate = useNavigate();

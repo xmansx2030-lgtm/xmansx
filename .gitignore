@@ -41,6 +41,10 @@ frontend/dev-dist/
 frontend/vite-*.log
 
 # ---- Testing artifacts ----
+artifacts/parent-e2e-fixture.json
+artifacts/parent-portal-mobile.png
+artifacts/parent-portal-desktop.png
+artifacts/parent-portal-tablet.png
 frontend/coverage/
 playwright-report/
 test-results/

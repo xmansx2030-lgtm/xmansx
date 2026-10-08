@@ -4,6 +4,7 @@
 المطابقة: hash الهوية أولًا، ثم student_number — الاسم وحده لا يطابق أبدًا.
 """
 
+from parents.contact_security import normalized_contact
 from students.models import EnrollmentStatus, Student, StudentEnrollment, StudentStatus
 from students.services.imports.normalization import normalize_text
 
@@ -149,7 +150,9 @@ def categorize_rows(school, academic_year, normalized_rows: list[dict]) -> dict:
             changes["full_name"] = {"from": student.full_name, "to": row["full_name"]}
         if row["guardian_name"] and student.guardian_name != row["guardian_name"]:
             changes["guardian_name"] = {"from": student.guardian_name, "to": row["guardian_name"]}
-        if row["guardian_mobile"] and student.guardian_mobile != row["guardian_mobile"]:
+        if row["guardian_mobile"] and (
+            normalized_contact(student.guardian_mobile) != row["guardian_mobile"]
+        ):
             changes["guardian_mobile"] = {"changed": True}  # لا أرقام في الـ metadata
         if row["student_number"] and student.student_number != row["student_number"]:
             changes["student_number"] = {"changed": True}

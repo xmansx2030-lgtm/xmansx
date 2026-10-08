@@ -103,9 +103,13 @@ def build_me_payload(
     invitations=(),
 ) -> dict:
     """الاستجابة الموحدة لـ /me وlogin وswitch — لا حقول حساسة (hash/permissions داخلية)."""
+    from parents.models import GuardianStudentRelation
     from platform_team.access import get_platform_access
 
     platform_access = get_platform_access(user)
+    # Auth views already establish this user's RLS context (including activation).
+    # This is one owned existence lookup, without redundant context round trips.
+    has_parent_portal = GuardianStudentRelation.objects.filter(user=user).exists()
     return {
         "id": user.id,
         "mobile": user.mobile,
@@ -116,6 +120,7 @@ def build_me_payload(
         "platform_role_label": platform_access["role_label"],
         "platform_capabilities": platform_access["capabilities"],
         "must_change_password": user.must_change_password,
+        "has_parent_portal": has_parent_portal,
         "active_school": (
             serialize_school(active_membership.school) if active_membership else None
         ),

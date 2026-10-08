@@ -8,6 +8,7 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { ME_QUERY_KEY, useLogout, useMe } from "@/features/auth/useMe";
+import { authenticatedDestination } from "@/features/auth/destination";
 
 const WHATSAPP_MESSAGE =
   "السلام عليكم، أحتاج مساعدة في تغيير كلمة المرور المؤقتة لمنصة المواظبة XMANSX.";
@@ -28,14 +29,7 @@ export function ChangeInitialPasswordPage() {
     mutationFn: () => changeInitialPassword(current, next, confirm),
     onSuccess: (updated) => {
       queryClient.setQueryData(ME_QUERY_KEY, updated);
-      navigate(
-        updated.is_platform_admin
-          ? "/platform"
-          : updated.active_school
-            ? "/workspace"
-            : "/select-school",
-        { replace: true },
-      );
+      navigate(authenticatedDestination(updated), { replace: true });
     },
   });
   const logoutMutation = useMutation({
@@ -44,7 +38,7 @@ export function ChangeInitialPasswordPage() {
   });
 
   if (me.isSuccess && !me.data.must_change_password) {
-    return <Navigate to={me.data.is_platform_admin ? "/platform" : "/workspace"} replace />;
+    return <Navigate to={authenticatedDestination(me.data)} replace />;
   }
   if (me.isError) return <Navigate to="/login" replace />;
 

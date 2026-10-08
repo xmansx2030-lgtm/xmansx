@@ -184,6 +184,17 @@ def update_manager(
     if mobile is not None:
         normalized = normalize_mobile(mobile)
         if user.mobile != normalized:
+            from common.tenant_rls import tenant_context
+            from parents.models import GuardianStudentRelation
+
+            with tenant_context(user_id=user.pk):
+                parent_account = GuardianStudentRelation.objects.filter(user=user).exists()
+            if parent_account:
+                raise ApiError(
+                    "GUARDIAN_MOBILE_REVIEW_REQUIRED",
+                    "رقم دخول ولي الأمر حساب عالمي؛ سجل طلب تغيير موثق للمراجعة الآمنة.",
+                    409,
+                )
             if User.objects.exclude(id=user.id).filter(mobile=normalized).exists():
                 raise ApiError("MOBILE_ALREADY_EXISTS", "رقم الجوال مرتبط بحساب آخر.", 409)
             user.mobile = normalized
@@ -212,7 +223,18 @@ def reset_manager_password(
     confirm_shared_account_impact: bool = False,
 ) -> dict:
     user = User.objects.select_for_update().get(id=membership.user_id)
-    shared_account = user.memberships.exclude(id=membership.id).exists()
+    from common.tenant_rls import tenant_context
+    from parents.models import GuardianStudentRelation
+
+    with tenant_context(user_id=user.pk):
+        guardian_account = GuardianStudentRelation.objects.filter(user=user).exists()
+        shared_account = user.memberships.exclude(id=membership.id).exists()
+    if guardian_account:
+        raise ApiError(
+            "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
+            "هذا حساب ولي أمر عالمي؛ يلزم إجراء مستقل موثق للتحقق من ملكية الحساب.",
+            409,
+        )
     if shared_account and not confirm_shared_account_impact:
         raise ApiError(
             "SHARED_ACCOUNT_CONFIRMATION_REQUIRED",
