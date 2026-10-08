@@ -85,7 +85,25 @@ Nginx وحده يرتبط أيضاً بجسر ingress حتى ينشر Docker م�
 تحوي تعديلات المستخدم المتزامنة. تتطلب الأوامر Docker Compose يدعم !override
 و!reset، وDocker Desktop Linux containers.
 
+نفذ جميع أوامر Compose وNode التالية داخل جلسة PowerShell فرعية جديدة
+`pwsh -NoProfile` من Checkout نفسه. تُمسح متغيرات المفاتيح الثلاثة من هذه
+العملية فقط، مع guard يمنع أولوية مفتاح موروث على env-file المولد. عند الخروج
+من الجلسة الفرعية تبقى بيئة العملية الأصلية وقيمها محفوظة؛ لا `setx` أو تغيير
+بيئة المستخدم. لا تعِد إدخال قيم إنتاج في الجلسة الصناعية.
+
 ```powershell
+pwsh -NoProfile
+```
+
+ثم داخل الجلسة الفرعية نفسها:
+
+```powershell
+$cryptoVariables = @('DJANGO_SECRET_KEY', 'FIELD_ENCRYPTION_KEYS', 'NATIONAL_ID_HMAC_KEY')
+foreach ($name in $cryptoVariables) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+if (@($cryptoVariables | Where-Object { [Environment]::GetEnvironmentVariable($_, 'Process') }).Count) { throw 'Inherited crypto must not override isolated materials' }
+$verificationProject = 'xmansx-parent-release-verification'
+$stagingProject = 'xmansx-parent-synthetic-staging'
+$env:COMPOSE_PROJECT_NAME = $verificationProject
 $verificationFiles = @('-f', 'docker-compose.parent-verification.yml', '-f', 'docker-compose.parent-release-verification.yml')
 docker compose @verificationFiles config --quiet
 docker compose @verificationFiles up -d postgres redis
@@ -94,6 +112,7 @@ docker compose @verificationFiles run --rm --no-deps tests python /workspace/scr
 New-Item -ItemType Directory -Force artifacts/parent-staging | Out-Null
 $materialRoot = (Resolve-Path artifacts/parent-staging).Path
 docker compose @verificationFiles run --rm --no-deps --volume "${materialRoot}:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
+$env:COMPOSE_PROJECT_NAME = $stagingProject
 $stagingFiles = @('--env-file', 'artifacts/parent-staging/.env', '-f', 'docker-compose.parent-verification.yml', '-f', 'docker-compose.parent-release-verification.yml', '-f', 'docker-compose.parent-staging.yml')
 docker compose @stagingFiles config --quiet
 docker compose @stagingFiles up -d postgres redis
@@ -104,7 +123,7 @@ docker compose @stagingFiles build staging-frontend
 docker compose @stagingFiles up -d staging-app staging-worker staging-beat staging-frontend
 # Wait for the real Beat schedule to produce its heartbeat; do not write a fake one.
 docker compose @stagingFiles exec -T staging-app python /workspace/scripts/parent_staging_acceptance.py
-curl.exe --insecure --fail https://localhost:8445/api/v1/readiness/
+curl.exe --cacert artifacts/parent-staging/localhost.crt --fail https://localhost:8445/api/v1/readiness/
 ```
 
 كلمة المرور المذكورة قيمة صناعية عامة فقط. أمر البذر الأخير يبقي التسجيل معطلاً.
@@ -168,6 +187,7 @@ DEBUG/RLS/كوكيز/Origins، وعدم وجود SMS integration. تحقق من 
 
 ```powershell
 $env:E2E_BASE_URL = 'https://localhost:8445'
+$env:COMPOSE_PROJECT_NAME = $stagingProject
 $env:PARENT_E2E_PREVIEW = '1'
 $env:PARENT_E2E_EXTERNAL_PREVIEW = '1'
 $env:PARENT_E2E_SYNTHETIC_STAGING = '1'
@@ -180,6 +200,9 @@ npm ci
 npx playwright test --config playwright.parent.config.ts
 ```
 
+عد إلى جذر Checkout قبل أوامر إغلاق التسجيل وDR اللاحقة؛ لا تُنهِ الجلسة
+الفرعية قبل إكمالهما حتى تبقى حواجز المفاتيح واسم مشروع Compose نفسها.
+
 قبول الشهادة الذاتية محدود إلى localhost8445 في Test harness، ولا يغير إعدادات
 منتج المتصفح. لتثبيت Service Worker يقبل Chromium فقط SHA256 SPKI للشهادة
 الصناعية المولدة ذات SAN localhost؛ لا `--ignore-certificate-errors` عام ولا
@@ -187,6 +210,13 @@ npx playwright test --config playwright.parent.config.ts
 الشهادة المولدة عبر `NODE_EXTRA_CA_CERTS` إلى الثقة الافتراضية لهذه العملية؛ Browser وAPI كلاهما
 يستخدمان `ignoreHTTPSErrors=false`. يرفض Test harness مسار شهادة canonical آخر.
 يعين المتغير في عملية الاختبار قبل تشغيل Node، دون setx أو تعديل trust/env للمستخدم.
+
+اسم المشروع يجب أن يطابق مشروع Compose الذي يحمل Fixture نفسه. عند اختيار
+`-p` مخصص عيّن الاسم نفسه في `COMPOSE_PROJECT_NAME` قبل تشغيل Node، لأن helper
+انتهاء الجلسة ينفذ Compose كعملية فرعية. اسم إثبات Checkout المثبت72cedc1 كان
+`xmansx-parent-release-clean-synthetic-staging`؛ لا تستخدم اسم المشروع السابق
+مع مفاتيح أو قاعدة المشروع الجديد. بعد كل الفحوص وإغلاق التسجيل، اخرج من
+جلسة PowerShell الفرعية لإزالة أعلام الاختبار والثقة المحلية واستعادة بيئة الأب.
 لا تغيّر
 مهلة API الأصلية ولا تعتمد على Mock للمصادقة. سيناريو
 انتهاء الجلسة يحذف جلسة صناعية فعلية عبر أمر محمي قبل POST، ويطلب count>0.
@@ -201,6 +231,14 @@ npx playwright test --config playwright.parent.config.ts
 ## 7. Migrations والنسخ الاحتياطي والتخزين
 
 اعرض Migrations parents/students، ثم `check` و`makemigrations --check --dry-run`.
+
+يشمل فحص الأدوات إعداد backend الأمني صراحة من جذر Checkout، وليس defaults
+أضيق لمجلد scripts:
+
+```powershell
+$stagingScripts = rg --files scripts -g 'parent_staging*.py'
+ruff check --config backend/pyproject.toml --no-cache @stagingScripts
+```
 اعتماد جديدة من نفس SHA قبل تشغيل Worker/التطبيق. لا تنفذ rollback إلى Backend
 قديم يزيل منع Password reset العالمي. استخدم Forward fix أو rollback واجهة
 متوافق يحتفظ بحواجز الحسابات وRLS وTriggers وجداول العلاقات.
@@ -223,6 +261,20 @@ ORDER BY status;
 ويمتلكه مستخدم التطبيق65534. nginx يخدم dist فقط؛ لا Alias أو Mount للملفات الخاصة.
 صنّف نسخة البيانات والمفاتيح الصناعية والشهادة مستقلة عن الإنتاج.
 
+وجهات Volumes الدائمة في overlay هي
+`/var/lib/xmansx-parent-staging/{private,backups,repository}`؛ tmpfs مخصص لملفات
+العملية المؤقتة فقط. يستبدل overlay قائمة mounts في tests صراحة، ويضبط جذور
+Django للحاوية المالكة والتطبيق والعامل إلى الوجهات نفسها. أدوات Runtime/DR
+تقرأ إعدادات Django الفعلية، وترفض مساراً مختلفاً أو مجلداً ليس mount مستقلاً.
+storage-init يرفض المسارات البديلة والروابط الرمزية قبل تعديل الملكية.
+
+عند تحديث بيئة صناعية سابقة احتفظ بأسماء Volumes وPostgreSQL والمفاتيح نفسها؛
+أعد تركيب Volumes الموجودة عند الوجهات الجديدة، ولا تنقل أو تحذف محتوياتها.
+مفاتيح FileField والـlocal backup references نسبية، فلا تتطلب إعادة كتابة قاعدة
+البيانات لتغيير نقطة mount. تحقق مسبقاً من المخزون وChecksums ومن غياب مسارات
+مطلقة في سجلات البيئة المستهدفة، ثم أعد فحص التنزيل/الاستعادة. لا تنفذ
+`down --volumes` أو توليد مفاتيح جديدة فوق البيانات السابقة.
+
 للاختبار اللاحق استخدم أوامر النسخ الموجودة في [BACKUP_RESTORE](BACKUP_RESTORE.md):
 `create_database_backup` و`verify_storage_integrity` و`backup_private_objects`.
 استعد إلى قاعدة جديدة فارغة داخل المشروع الصناعي وأسماء ملفات مستقلة، ثم
@@ -238,7 +290,7 @@ ORDER BY status;
 قبل اكتماله، بينما يُقارن عدد سجلاته. قيم الحسابات وdigests لا تُطبع.
 
 ```powershell
-docker compose @stagingFiles run --rm --no-deps --user 65534:65534 -e PARENT_STAGING_LOCAL_ONLY=1 -e DJANGO_SETTINGS_MODULE=config.settings.local -e DATABASE_BACKUP_ROOT=/tmp/parent-verification/backups -e BACKUP_ENVIRONMENT=synthetic-staging tests python /workspace/scripts/parent_staging_restore_drill.py
+docker compose @stagingFiles run --rm --no-deps --user 65534:65534 -e PARENT_STAGING_LOCAL_ONLY=1 -e DJANGO_SETTINGS_MODULE=config.settings.local -e BACKUP_ENVIRONMENT=synthetic-staging tests python /workspace/scripts/parent_staging_restore_drill.py
 ```
 
 `parent_staging_schema_refresh.py` ليس مسار rollback تشغيلياً. يستعمل فقط أثناء
@@ -289,6 +341,13 @@ Dreams أوMsegat ونطاق **رسالة تفعيل واحدة ورسالة غ�
 
 هذه نتائج تنفيذ مستقلة في مشروع Docker الصناعي؛ لا تشير إلى بيئة منشورة أو
 وصول SMS خارجي. السجلات وFixtures والأسرار والصور تحت مسارات متجاهلة.
+
+الجدول أدناه سجل التنفيذ الأول قبل تحسين وجهات التخزين الدائم إلى `/var/lib`.
+إثبات72cedc1 النظيف نجح لاحقاً بست رحلات متصفح واستعادة منفصلة، ثم كشف Ruff
+بإعداد backend تسع مخالفات في الأدوات الجديدة أغفلها فحص إعداد الجذر الأضيق.
+صُححت imports/UTC/السطر ومسارات التخزين بلا ignore/noqa؛ فحوص runtime/DR/browser
+للإصدار التالي تُسجل في تقرير الإصدار من Checkout مثبت جديد، ولا تُنسب نتائج
+المصدر السابق تلقائياً إلى المسارات الجديدة.
 بيئة التشغيل المفحوصة: Python3.13.16/Django5.2.18/PostgreSQL18.6/Redis8.0.6/
 nginx1.27.5، مع Frontend Linux Node24. صورة Backend:
 `sha256:52133aa572da2a9778f0d4f6eb5b77267ef15d4eeabdb0d6e6cb5eb300ca547a`؛

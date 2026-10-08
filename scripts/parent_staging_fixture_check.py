@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import django
+from django.db import transaction
 
 
 def main():
@@ -34,7 +35,6 @@ def main():
         )
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
     django.setup()
-    from django.db import transaction
     from memberships.models import SchoolMembership, SchoolMembershipRole
     from parents.models import GuardianStudentRelation, ParentRegistrationConfig
     from school_sms.models import AbsenceSmsNotice, SchoolSmsIntegration

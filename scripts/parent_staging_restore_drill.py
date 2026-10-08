@@ -13,6 +13,9 @@ from uuid import uuid4
 
 import django
 import psycopg
+from django.conf import settings
+from django.db import connection
+from django.test import override_settings
 from psycopg import sql
 
 
@@ -65,9 +68,6 @@ def main():
     os.umask(0o077)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
     django.setup()
-    from django.conf import settings
-    from django.db import connection
-    from django.test import override_settings
     from operations.backups import create_database_backup, restore_database_backup
     from operations.storage_integrity import (
         backup_private_objects,
@@ -84,9 +84,19 @@ def main():
     assert SchoolSmsIntegration.objects.count() == 0
     assert settings.BACKUP_REMOTE_ENABLED is False
     assert settings.BACKUP_REQUIRE_REMOTE is False
+    roots = {
+        "private": Path(settings.GENERATED_DOCUMENTS_ROOT),
+        "backups": Path(settings.DATABASE_BACKUP_ROOT),
+        "repository": Path(settings.BACKUP_STORAGE_LOCATION),
+    }
+    for name, root in roots.items():
+        expected_root = Path("/var/lib/xmansx-parent-staging") / name
+        assert root == expected_root and root.resolve() == expected_root
+        assert root.is_dir() and not root.is_symlink() and root.is_mount()
     target_name = f"parent_staging_restore_{uuid4().hex[:12]}"
-    object_copy = Path("/tmp/parent-verification/backups") / target_name
-    private_target = Path("/tmp/parent-verification/repository") / target_name
+    object_copy = roots["backups"] / target_name
+    private_target = roots["repository"] / target_name
+    assert not object_copy.exists() and not private_target.exists()
     object_run, object_manifest = backup_private_objects(object_copy)
     assert object_run.metadata["objects"] > 0
     backup = create_database_backup(local_only=True)

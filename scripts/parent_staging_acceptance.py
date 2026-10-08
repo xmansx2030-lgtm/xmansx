@@ -14,6 +14,8 @@ from urllib.parse import urlsplit
 
 import django
 import redis
+from django.conf import settings
+from django.db import connection
 
 
 def main():
@@ -29,8 +31,6 @@ def main():
     django.setup()
     from common.health import _check_database, _check_redis
     from common.redis_services import configured_redis_urls
-    from django.conf import settings
-    from django.db import connection
     from operations.health import check_beat, check_worker
 
     assert settings.DEBUG is False
@@ -75,9 +75,15 @@ def main():
         }
     finally:
         client.close()
-    for name in ("private", "backups", "repository"):
-        root = Path("/tmp/parent-verification") / name
-        assert root.is_dir() and not root.is_symlink()
+    roots = {
+        "private": Path(settings.GENERATED_DOCUMENTS_ROOT),
+        "backups": Path(settings.DATABASE_BACKUP_ROOT),
+        "repository": Path(settings.BACKUP_STORAGE_LOCATION),
+    }
+    for name, root in roots.items():
+        expected_root = Path("/var/lib/xmansx-parent-staging") / name
+        assert root == expected_root and root.resolve() == expected_root
+        assert root.is_dir() and not root.is_symlink() and root.is_mount()
         for path in [root, *root.rglob("*")]:
             assert not path.is_symlink() and path.resolve().is_relative_to(root)
             metadata = path.stat()

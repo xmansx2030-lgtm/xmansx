@@ -8,7 +8,7 @@ unreadable by accidental key rotation.
 import argparse
 import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from cryptography import x509
@@ -39,7 +39,7 @@ def main():
         raise RuntimeError("Existing staging keys must be retained; choose a fresh isolated stack")
     key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost synthetic staging")])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     certificate = (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -57,7 +57,9 @@ def main():
         "FIELD_ENCRYPTION_KEYS": Fernet.generate_key().decode("ascii"),
         "NATIONAL_ID_HMAC_KEY": secrets.token_urlsafe(48),
     }
-    targets[0].write_text("".join(f"{key}={value}\n" for key, value in values.items()), encoding="utf-8")
+    targets[0].write_text(
+        "".join(f"{key}={value}\n" for key, value in values.items()), encoding="utf-8"
+    )
     targets[1].write_bytes(
         key.private_bytes(
             serialization.Encoding.PEM,
