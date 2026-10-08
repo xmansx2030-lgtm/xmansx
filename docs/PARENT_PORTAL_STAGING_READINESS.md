@@ -274,11 +274,46 @@ npm run test -- --maxWorkers=2
 npm run typecheck
 npm run lint
 npm run build
-npx playwright test --config playwright.parent.config.ts
+npx playwright test --config playwright.parent.config.ts --grep "verified recovery email lifecycle"
+if ($LASTEXITCODE -ne 0) { throw 'Email recovery browser group failed; investigate before continuing' }
+$browserGroupWindow = [System.Diagnostics.Stopwatch]::StartNew()
+Set-Location ..
 ```
 
-عد إلى جذر Checkout قبل أوامر إغلاق التسجيل وDR اللاحقة؛ لا تُنهِ الجلسة
-الفرعية قبل إكمالهما حتى تبقى حواجز المفاتيح واسم مشروع Compose نفسها.
+مجموعة البريد أعلاه تشمل ثلاث رحلات فقط. حد تسجيل الدخول القائم في التطبيق
+هو20 محاولة لكل عنوان IP خلال300 ثانية، ولم يتغير لهذه الميزة. قد تتجاوز
+رحلات البريد والرحلات الست السابقة الحد عند تشغيلها جميعاً في runner واحد،
+لأن سياقات المتصفح وطلبات API المحلية تشترك في عنوان المصدر. لا تعطل الحد
+ولا ترفعه، ولا تمسح Redis لتجاوز النافذة، ولا تستخدم skip أو تخفف assertions.
+
+قبل المجموعة الثانية اترك **300 ثانية على الأقل بعد انتهاء المجموعة الأولى**
+تنقضي طبيعياً. استخدم الوقت في تحقق مستقل، مثل Runtime/DR أو مراجعة السجلات،
+دون طلبات تسجيل دخول جديدة إلى مشروع TLS. الـStopwatch يقيس المدة دون الاعتماد
+على تغير ساعة النظام. أغلق أي محاولات دخول موازية إلى البيئة الصناعية؛ لا
+تشغل فحوص حمل ثقيلة أثناء قياس المتصفح. الفحوص المستقلة لا تحتاج إعادة إنشاء
+Fixture أو إعادة تشغيل خدمات الأمن، ولا تغير قواعد الأهلية أو العدادات.
+
+يمكن تنفيذ فحص Runtime الصناعي من جذر Checkout خلال النافذة، ثم DR الموثق
+في القسم7. بعد انقضاء النافذة، نفذ المجموعة السابقة كاملة بهذا الأمر:
+
+```powershell
+docker compose @stagingFiles exec -T staging-app python /workspace/scripts/parent_staging_acceptance.py
+$remainingWindowSeconds = [Math]::Ceiling(300 - $browserGroupWindow.Elapsed.TotalSeconds)
+if ($remainingWindowSeconds -gt 0) { throw "Browser login window still active: complete independent verification and retry this block after at least $remainingWindowSeconds seconds" }
+Set-Location frontend
+npx playwright test --config playwright.parent.config.ts --grep-invert "verified recovery email lifecycle"
+if ($LASTEXITCODE -ne 0) { throw 'Existing parent browser group failed; investigate before acceptance' }
+Set-Location ..
+```
+
+يسجل التقرير نتائج **3 اختبارات البريد** و**6 اختبارات البوابة السابقة** بصورة
+منفصلة، مع أعداد النجاح والفشل والتجاوز والمدة لكل مجموعة والفاصل الزمني.
+هذه أوامر قبول قابلة لإعادة التنفيذ وليست نتائج ناجحة معلنة. إذا فشلت مجموعة،
+احتفظ بأدلتها وحدد السبب وأصلحه قبل تشغيل قبول جديد ببيانات Fixture جديدة؛
+لا تعتبر المجموعات الأخرى تعويضاً عن الفشل.
+
+تبقى الجلسة في جذر Checkout قبل أوامر إغلاق التسجيل وDR اللاحقة؛ لا تُنهِ
+الجلسة الفرعية قبل إكمالهما حتى تبقى حواجز المفاتيح واسم مشروع Compose نفسها.
 
 قبول الشهادة الذاتية محدود إلى localhost8445 في Test harness، ولا يغير إعدادات
 منتج المتصفح. لتثبيت Service Worker يقبل Chromium فقط SHA256 SPKI للشهادة
