@@ -80,7 +80,10 @@ shorter of the configured activation and verification TTLs (24h by default).
 Consumed/revoked proofs and approved email bindings cannot be rewritten. Reissue
 revokes the preceding unused proof. Forward fix is required once EMAIL activation
 data exists; reversing0009 then is refused, including for a role unable to prove
-database-wide emptiness. Historical records remain legacy, unverified by migration.
+database-wide emptiness. Reverse takes ACCESS EXCLUSIVE on the activation table
+before the emptiness check, in the same atomic migration transaction; an in-flight
+EMAIL insertion cannot commit between that check and removal of the guard.
+Historical records remain legacy, unverified by migration.
 
 The parent shell checks credential readiness before mounting child pages. Pending
 state, failed/unknown delivery, resend and enrollment are visible in Arabic. Staff

@@ -105,7 +105,9 @@ def forward(apps, schema_editor):
 
 def backward(apps, schema_editor):
     # A restricted migration role must not mistake invisible rows for an empty DB.
+    # Serialize the emptiness check with in-flight/new activation writers.
     schema_editor.execute(r"""
+LOCK TABLE public.parents_guardianactivation IN ACCESS EXCLUSIVE MODE;
 DO $$ BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=current_user AND (rolsuper OR rolbypassrls))
     OR EXISTS (SELECT 1 FROM public.parents_guardianactivation WHERE delivery_channel='EMAIL') THEN
