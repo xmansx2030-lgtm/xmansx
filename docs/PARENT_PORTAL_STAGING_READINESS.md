@@ -1,17 +1,27 @@
 # بوابة ولي الأمر — جاهزية Staging صناعي مقيد
 
-تاريخ العمل: 2026-10-08. أساس المصدر: `d8f8de6d4365e518cff269d438c25715c31a4a7e`.
+تاريخ العمل: 2026-10-08. أساس توسعة البريد:
+`010961953e63e91040428de3f5849d6ecd863f69`، على فرع
+`feature/parent-email-recovery-20261008`.
 هذه الوثيقة تصف بيئة محلية مستقلة قابلة لإعادة الاختبار. لا تثبت وجود Staging
-خارجي، ولا تسمح بإطلاق عام أو إرسال SMS. نتائج التشغيل النهائية في
-[تقرير جاهزية الإصدار](PARENT_PORTAL_RELEASE_READINESS_REPORT.md).
+خارجي، ولا تسمح بإطلاق عام أو إرسال SMS أو بريد خارجي. سجل الإصدار السابق في
+[تقرير جاهزية الإصدار](PARENT_PORTAL_RELEASE_READINESS_REPORT.md)، ونتائج توسعة
+البريد الفعلية والـSHA المثبت في [تحقق استرداد البريد](PARENT_EMAIL_RECOVERY_VERIFICATION.md).
+
+توسعة البريد للإصدار الأول موثقة في
+[معمارية استرداد البريد](PARENT_EMAIL_RECOVERY_ARCHITECTURE.md) و
+[إعداد Resend](RESEND_PARENT_RECOVERY_SETUP.md). تختبر البيئة الصناعية التوثيق
+واستعادة **كلمة المرور فقط** بمزود ملف خاص وهمي، دون مفتاح Resend ودون إرسال خارجي.
+تظل استعادة الهوية المركزية وتغيير `User.mobile` مغلقتين. النتائج المستقلة للتوسعة
+في [تحقق استرداد البريد](PARENT_EMAIL_RECOVERY_VERIFICATION.md).
 
 ## 1. حدود البيئة وقرارات التشغيل
 
 - لا توجد في الأدلة المتاحة بيئة Staging خارجية مستقلة مصرح باستخدامها.
 - لا DNS أو موارد مدفوعة أو مفاتيح إنتاج أو نسخ قواعد مدارس حقيقية.
-- مشروع الاختبارات HTTP: `xmansx-parent-release-verification`، PostgreSQL5545،
+- مشروع الاختبارات HTTP: `xmansx-parent-release-clean-verification`، PostgreSQL5545،
   Redis6400، API8012، وواجهة الاختبار5175؛ جميع المنافذ مربوطة بـ127.0.0.1.
-- مشروع القبول HTTPS مستقل: `xmansx-parent-synthetic-staging`، الأصل الوحيد
+- مشروع القبول HTTPS مستقل: `xmansx-parent-release-clean-synthetic-staging`، الأصل الوحيد
   `https://localhost:8445`. له PostgreSQL وRedis وتخزين خاص منفصل كلياً عن HTTP.
   لا يُنشر منفذ قاعدة البيانات أو Redis أو Gunicorn في مشروع HTTPS.
 - قاعدة البيئة الصناعية تحمل اسم `parent_verification` في كل مشروع مستقل؛
@@ -23,10 +33,22 @@
   ومعطل افتراضياً. `--enable-registration` يفتح تسجيل الأهل في المدارس الثلاث
   الجديدة التابعة لتشغيل Fixture المحدد فقط؛ لا يفتح تسجيل مدارس عامة أو يغير
   مدرسة موجودة.
-- استعادة الحساب النهائية وتغيير رقم الدخول لا تُفعّل بإعداد Staging؛ يلزم
-  اعتماد سياسة إثبات الهوية المستقلة المشار إليها في وثائق الاستعادة.
-  أكد صاحب المشروع عدم وجود سياسة استعادة معتمدة حالياً. لذلك يظل التنفيذ
-  النهائي مغلقاً، والإطلاق العام محجوباً، حتى استيفاء الاعتماد والأدلة والأدوار.
+- استعادة الهوية المركزية وتغيير رقم الدخول مغلقتان وفق نطاق الإصدار الأول
+  المعتمد. لا يعيد مسار البريد تفعيلهما؛ عدم وجود سياسة تحقق مركزي لا يمنع
+  الإصدار الأول بذاته ما دامت هاتان العمليتان معطلتين. فقدان جميع وسائل إثبات
+  الحساب لا يُحل باختراع تغيير إداري أو حساب مكرر. أي توسعة مستقبلية لتغيير
+  الجوال تحتاج سياسة مستقلة وأدلة وأدواراً معتمدة قبل تفعيلها.
+- استعادة كلمة المرور بالبريد الموثق مسار مستقل أقره صاحب المشروع لاحقاً. في هذه
+  البيئة: `PARENT_RECOVERY_EMAIL_ENABLED=true`،
+  `PARENT_RECOVERY_EMAIL_ADAPTER=synthetic-file`،
+  `PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT=/var/lib/xmansx-parent-staging/email-outbox`،
+  ومفتاح وعنوان Resend فارغان. لا يعمل هذا البديل خارج profile الصناعي المحلي
+  المعتمد. يتطلب التشغيل الخارجي مزود Resend الفعلي ونطاقاً ومرسلاً موثقين وتصريح
+  اختبار وصول البريد. لا تعني رسالة `SUBMITTED_TO_PROVIDER` وصولاً إلى صندوق بريد.
+- Volume صندوق البريد الوهمي مستقل وإضافي، بصلاحيات دليل700 وملفات600 ومستخدم65534.
+  يحتوي روابط اختبار صناعية سرية؛ لا يضاف إلى Git أو سجلات القبول. أداة Playwright
+  تقرأه من العامل المقيد وتحتفظ بالرابط في ذاكرة الاختبار. لا توجد رموز خام في DB
+  أو وسيطات Celery. لا يُستخدم هذا الصندوق في بيئة عامة.
 
 ## 2. الملفات المتتبعة اللازمة
 
@@ -41,9 +63,10 @@
 | `scripts/parent_staging_acceptance.py` | فحص Runtime حقيقي بدور التطبيق المقيد: Redis/RLS/Worker/Beat/المسار والتخزين |
 | `scripts/parent_staging_fixture_check.py` | تحقق Owner من المدارس الصناعية الجديدة وتعطيل التسجيل وغياب إعدادات/رسائل SMS |
 | `scripts/parent_staging_restore_drill.py` | نسخ/استعادة صناعية إلى قاعدة فارغة جديدة ومجلد خاص مستقل دون استبدال المصدر |
-| `scripts/parent_staging_schema_refresh.py` | أداة QA محلية فقط، ترفض الرجوع لأي Migration غير0006 أو عند وجود أي سجل استعادة |
+| `scripts/parent_portal_verification_init.py` | تطبيق Migrations العادية، ومنها parents0007–0008، ثم منح دور التطبيق المقيد صلاحيات الجداول/Sequences الجديدة |
 | `infra/parent-staging-nginx.conf` | TLS محلي وProxy يثبت Forwarded-Proto، ومنع Cache لواجهات API |
-| `seed_parent_staging` | Fixture إضافي يستخدم خدمات الموافقة/التفعيل/الأعذار/التصحيح القائمة |
+| `seed_parent_staging` | Fixture إضافي يستخدم الخدمات القائمة، مع ثلاث حالات بريد جديدة مستقلة للمتصفح |
+| `frontend/e2e/parent-email-mailbox.ts` | قراءة صندوق البريد الوهمي الخاص من العامل ضمن المشروع الصناعي المحدد فقط |
 
 المواد المحلية في `artifacts/parent-staging/` متجاهلة بالكامل، بما فيها `.env`
 والشهادة والمفتاح وبيانات Fixture. قيم الأسرار لا تُطبع ولا تُثبت في Git.
@@ -104,10 +127,10 @@ pwsh -NoProfile
 
 ```powershell
 $cryptoVariables = @('DJANGO_SECRET_KEY', 'FIELD_ENCRYPTION_KEYS', 'NATIONAL_ID_HMAC_KEY')
-foreach ($name in $cryptoVariables) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
-if (@($cryptoVariables | Where-Object { [Environment]::GetEnvironmentVariable($_, 'Process') }).Count) { throw 'Inherited crypto must not override isolated materials' }
-$verificationProject = 'xmansx-parent-release-verification'
-$stagingProject = 'xmansx-parent-synthetic-staging'
+foreach ($name in $cryptoVariables) { Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue }
+if (@($cryptoVariables | Where-Object { Test-Path -LiteralPath "Env:$_" }).Count) { throw 'Inherited crypto must not override isolated materials' }
+$verificationProject = 'xmansx-parent-release-clean-verification'
+$stagingProject = 'xmansx-parent-release-clean-synthetic-staging'
 $env:COMPOSE_PROJECT_NAME = $verificationProject
 $verificationFiles = @('-f', 'docker-compose.parent-verification.yml', '-f', 'docker-compose.parent-release-verification.yml')
 docker compose @verificationFiles config --quiet
@@ -116,10 +139,19 @@ docker compose @verificationFiles build tests
 docker compose @verificationFiles run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
 New-Item -ItemType Directory -Force artifacts/parent-staging | Out-Null
 $materialRoot = (Resolve-Path artifacts/parent-staging).Path
-docker compose @verificationFiles run --rm --no-deps --volume "${materialRoot}:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
+$materialFiles = @('.env', 'localhost.key', 'localhost.crt')
+$existingMaterials = @($materialFiles | Where-Object { Test-Path -LiteralPath (Join-Path $materialRoot $_) })
+if ($existingMaterials.Count -eq 0) {
+    $existingStageVolumes = @(docker volume ls --filter "label=com.docker.compose.project=$stagingProject" --format '{{.Name}}')
+    if ($existingStageVolumes.Count) { throw 'Existing staging volumes require their original matching materials; do not generate replacement keys' }
+    docker compose @verificationFiles run --rm --no-deps --volume "${materialRoot}:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
+} elseif ($existingMaterials.Count -ne 3) {
+    throw 'Incomplete staging materials: restore the original matching materials; do not regenerate keys'
+}
 $env:COMPOSE_PROJECT_NAME = $stagingProject
 $stagingFiles = @('--env-file', 'artifacts/parent-staging/.env', '-f', 'docker-compose.parent-verification.yml', '-f', 'docker-compose.parent-release-verification.yml', '-f', 'docker-compose.parent-staging.yml')
 docker compose @stagingFiles config --quiet
+docker compose @stagingFiles stop staging-app staging-worker staging-beat staging-frontend
 docker compose @stagingFiles up -d postgres redis
 docker compose @stagingFiles run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
 docker compose @stagingFiles run --rm --no-deps --volume "${materialRoot}:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_staging --password Parent-Staging-Local-2026! --output /fixtures/fixture.json
@@ -132,6 +164,12 @@ curl.exe --cacert artifacts/parent-staging/localhost.crt --fail https://localhos
 ```
 
 كلمة المرور المذكورة قيمة صناعية عامة فقط. أمر البذر الأخير يبقي التسجيل معطلاً.
+استخدم `Remove-Item Env:` في العملية الفرعية كما هو موثق؛ بعض إصدارات
+PowerShell/.NET تترك مدخلاً فارغاً بعد `SetEnvironmentVariable(..., $null, 'Process')`.
+المدخل الفارغ قد يسبق env-file في Compose ويمنع تحميل المفاتيح الصناعية الصحيحة.
+يفحص guard غياب أسماء المتغيرات نفسها، ولا يطبع قيمة أي سر. أمر stop أعلاه
+مقصور على الخدمات الأربع للمشروع الصناعي المحدد؛ PostgreSQL وRedis والـVolumes
+والمواد السابقة تبقى محفوظة، ويصلح للتشغيل الجديد الذي لا يملك هذه الحاويات أيضاً.
 لرحلة قبول التسجيل استخدم **تشغيلاً جديداً** إلى ملف Fixture جديد وأضف صراحة
 `--enable-registration`. لا تُعدل بيانات مدرسة خارج slugs الخاصة بالتشغيل.
 
@@ -150,9 +188,27 @@ docker compose @stagingFiles run --rm --no-deps --volume "${materialRoot}:/fixtu
 التهيئة تحقق اسم البيئة/القاعدة/المستخدم/المضيف، وتُطبق Migrations قبل منح دور
 التطبيق صلاحيات الجدول/Sequence. لا يكتمل إطلاق التطبيق قبل storage-init.
 
+في البيئة الموجودة احتفظ بالمشروعين أعلاه وبجميع Volumes والمفاتيح والشهادة
+والملفات الخاصة. لا تعد تشغيل مولد المواد على مجلد موجود، ولا تستخدم أسماء
+مشروعات جديدة مع البيانات القديمة. توسعة البريد تضيف Volume مستقلاً واحداً
+`recovery_email_outbox`؛ لا تستبدل Volumes التخزين أو PostgreSQL السابقة.
+عند تحديث المصدر إلى Checkout المثبت الجديد، أوقف خدمات التطبيق والعامل وBeat
+الصناعية التابعة لهذا المشروع أثناء الترقية، وأعد بناء صورة backend، ثم نفذ
+`parent_portal_verification_init.py` العادي وstorage-init، وأعد بناء frontend
+وتشغيل الخدمات من المصدر نفسه. لا تعدّل مشروع المستخدم أو حاوياته.
+
 لا تشغل اختبارات الأداء أو pytest الثقيلة أثناء قياس زمن المتصفح. صورة Backend
 تُعاد من Checkout المراد اختباره. الكود Mount read-only؛ ملفات الجذر مثل
 `render.scalable.yaml` موجودة داخل `/workspace` دون ملف محلي غير متتبع.
+
+اختبارات backend الكاملة تشغّل على قاعدة pytest المعزولة في مشروع التحقق
+المنفصل، قبل قياس المتصفح؛ لا تشغّلها على قاعدة التطبيق الصناعي الأصلية:
+
+```powershell
+$env:COMPOSE_PROJECT_NAME = $verificationProject
+docker compose @verificationFiles run --rm --no-deps tests pytest --create-db --reuse-db -q -rs -o cache_dir=/tmp/parent-email-regression-pytest-cache
+$env:COMPOSE_PROJECT_NAME = $stagingProject
+```
 
 ## 5. بيانات Fixture الصناعية
 
@@ -163,6 +219,16 @@ docker compose @stagingFiles run --rm --no-deps --volume "${materialRoot}:/fixtu
 التي يعلقها سيناريو PWA. المعرفات مثل `S<run><index>` و`W<run>` صناعية وغير صالحة كهوية وطنية.
 الأرقام صيغ تجريبية توافق Validator الحالي؛ لا تُستخدم مع مزود SMS ولا نفترض
 أن نطاقها محجوز لدى شركة اتصالات. لا تدخل أي رقم أو هوية شخص فعلي.
+
+حقل Fixture الجديد `email_recovery` يحتوي ثلاث حالات مستقلة، حالة لكل مقاس
+Desktop1366x900 وTablet768x1024 وMobile390x844. كل حالة لها جوال وبريد`.invalid`
+وطالب جديد في إحدى المدارس الثلاث ومسار تسجيل ومدير؛ لا يُنشأ حساب صاحبها
+مسبقاً، حتى تختبر الرحلة التسجيل والتفعيل والتوثيق والاسترداد الحقيقيين محلياً.
+حسابات قبول الحالات وتبديل الحساب الصناعي القديمة تُجهز باعتماد بريد صناعي
+صريح داخل Seeder المحلي فقط حتى تبقى رحلات المواظبة مستقلة؛ لا يثبت هذا
+التهيئة امتلاك بريد حقيقي، ولا يستخدم في ترحيل حسابات الإنتاج. ولي التسجيل
+الجديد والمعلم في رحلة الربط الأولى يكملان التوثيق من رسالة العامل الوهمية
+وPOST الصريح قبل عرض بيانات الأبناء.
 
 | الحالة الصناعية | موضعها |
 | --- | --- |
@@ -179,6 +245,7 @@ docker compose @stagingFiles run --rm --no-deps --volume "${materialRoot}:/fixtu
 | إنذار وPDF خاص منشور | ابن قبولA |
 | ملاحظة مرشد داخلية مع sentinel + نص أسري منفصل | ملف إرشاد ابن قبولA |
 | رابط تفعيل منتهٍ | طالب أساسي إضافي فيC |
+| تسجيل/تفعيل/توثيق/استرداد كامل جديد | ثلاث حالات `email_recovery`، واحدة لكل مدرسة ومقاس شاشة |
 
 الـPDF الصناعي الصغير لا يثبت محرك WeasyPrint؛ الاختبارات الكاملة تنفذ المحرك
 الفعلي مستقلاً. إنشاء Fixture ليس إثبات نجاح واجهة المستخدم؛ نتيجة Playwright
@@ -202,6 +269,11 @@ $env:NODE_EXTRA_CA_CERTS = (Resolve-Path artifacts/parent-staging/localhost.crt)
 $env:E2E_SEED_PASSWORD = 'Parent-Staging-Local-2026!'
 Set-Location frontend
 npm ci
+npx tsc --ignoreConfig --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --strict --esModuleInterop --skipLibCheck --types node playwright.parent.config.ts e2e/parent-portal.spec.ts e2e/parent-email-recovery.spec.ts e2e/parent-email-mailbox.ts
+npm run test -- --maxWorkers=2
+npm run typecheck
+npm run lint
+npm run build
 npx playwright test --config playwright.parent.config.ts
 ```
 
@@ -216,35 +288,60 @@ npx playwright test --config playwright.parent.config.ts
 يستخدمان `ignoreHTTPSErrors=false`. يرفض Test harness مسار شهادة canonical آخر.
 يعين المتغير في عملية الاختبار قبل تشغيل Node، دون setx أو تعديل trust/env للمستخدم.
 
-اسم المشروع يجب أن يطابق مشروع Compose الذي يحمل Fixture نفسه. عند اختيار
-`-p` مخصص عيّن الاسم نفسه في `COMPOSE_PROJECT_NAME` قبل تشغيل Node، لأن helper
-انتهاء الجلسة ينفذ Compose كعملية فرعية. اسم إثبات Checkout المثبت72cedc1 كان
-`xmansx-parent-release-clean-synthetic-staging`؛ لا تستخدم اسم المشروع السابق
+اسم المشروع يجب أن يطابق مشروع Compose الذي يحمل Fixture نفسه. رحلة البريد
+مقيدة تحديداً إلى `xmansx-parent-release-clean-synthetic-staging`، وهو الاسم في
+الأوامر أعلاه؛ لا تختَر اسماً بديلاً لهذا القبول. عيّن الاسم نفسه في
+`COMPOSE_PROJECT_NAME` قبل تشغيل Node، لأن helper
+انتهاء الجلسة ينفذ Compose كعملية فرعية. لا تستخدم اسم المشروع السابق
 مع مفاتيح أو قاعدة المشروع الجديد. بعد كل الفحوص وإغلاق التسجيل، اخرج من
 جلسة PowerShell الفرعية لإزالة أعلام الاختبار والثقة المحلية واستعادة بيئة الأب.
 لا تغيّر
 مهلة API الأصلية ولا تعتمد على Mock للمصادقة. سيناريو
 انتهاء الجلسة يحذف جلسة صناعية فعلية عبر أمر محمي قبل POST، ويطلب count>0.
-للمشروع HTTP استخدم الأصل5175 و`PARENT_E2E_RELEASE_VERIFICATION=1` مع Preview
-وبذر يحمل `--enable-registration`؛ لا تخلط أعلام TLS في ذلك التشغيل.
+مشروع HTTP مستقل لفحوص backend/API؛ قبول البريد بالمتصفح يقرأ الصندوق الخاص
+بمشروع HTTPS المحدد، ولذلك لا تشغل مجموعة التسع رحلات بأصل HTTP5175 أو بمشروع
+مختلف. لا تخلط مفاتيح أو أعلام TLS مع مشروع الاختبارات الآخر.
 
 الرحلات تشمل التسجيل/QR/موافقة/رفض/تفعيل حساب قائم وجديد، ثلاث مدارس، حالات
 الحضور/الدقائق الصباحية، عذر/تصحيح، IDOR، تعليق علاقة، ملف مسحوب، انتهاء جلسة،
 وتبديل حسابين على الجهاز مع عدم وجود بيانات APIs/ملفات خاصة في CacheStorage.
 وظائف الحارس والاستئذان الإداري تثبت باختبارات الانحدار؛ لا يوجد طلب خروج للأهل.
 
+`playwright.parent.config.ts` يطابق الملفين `parent-portal.spec.ts` و
+`parent-email-recovery.spec.ts`: ست رحلات سابقة محفوظة وثلاث رحلات بريد مستقلة،
+أي **9 اختبارات متوقعة**. الرحلات الجديدة تثبت رفض البريد الفارغ، حفظ موافقة
+المدرسة، منع بيانات الأبناء حتى التوثيق، GET/check غير مستهلكين، استرداداً عبر
+الجوال إلى البريد الموثق، بطلان الكلمة القديمة والجلسات وإعادة استعمال الرابط،
+وبقاء User.id والعلاقات. هذا تعداد للاختبارات المكتوبة، وليس إعلان PASS؛ سجّل
+نتيجة التنفيذ الفعلية لكل تشغيل في تقرير تحقق توسعة البريد. لا تشغّل Vitest
+أو pytest الثقيلة بالتزامن مع قياس المتصفح، واجعل Vitest محدوداً بـ`--maxWorkers=2`
+لحماية موارد المضيف؛ لا يغيّر ذلك assertions أو timeouts أو skips.
+
 ## 7. Migrations والنسخ الاحتياطي والتخزين
 
 اعرض Migrations parents/students، ثم `check` و`makemigrations --check --dry-run`.
+
+توسعة البريد تضيف `parents0007` للنماذج والحقول والسياسات والحواجز، ثم
+`parents0008` لحماية الجوال عندما تبقى وسيلة استرداد للحساب حتى بعد إزالة
+علاقات المدرسة. طبّق Leaf migrations العادية بترتيب dependencies من الكود
+المثبت، دون `--fake` أو إعادة إنشاء القاعدة أو حذف أي سجل. أداة التهيئة
+المتتبعة تشغّل `migrate` ثم تعيد منح صلاحيات الجداول وSequences للدور المقيد.
+
+```powershell
+docker compose @stagingFiles run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
+docker compose @stagingFiles run --rm --no-deps tests python manage.py showmigrations parents students
+docker compose @stagingFiles run --rm --no-deps tests python manage.py check
+docker compose @stagingFiles run --rm --no-deps tests python manage.py makemigrations --check --dry-run
+```
 
 يشمل فحص الأدوات إعداد backend الأمني صراحة من جذر Checkout، وليس defaults
 أضيق لمجلد scripts:
 
 ```powershell
-$stagingScripts = rg --files scripts -g 'parent_staging*.py'
-ruff check --config backend/pyproject.toml --no-cache @stagingScripts
+$verificationScripts = rg --files scripts -g 'parent_*.py'
+ruff check --config backend/pyproject.toml --no-cache @verificationScripts
 ```
-اعتماد جديدة من نفس SHA قبل تشغيل Worker/التطبيق. لا تنفذ rollback إلى Backend
+راجع الحواجز الجديدة من نفس SHA قبل تشغيل Worker/التطبيق. لا تنفذ rollback إلى Backend
 قديم يزيل منع Password reset العالمي. استخدم Forward fix أو rollback واجهة
 متوافق يحتفظ بحواجز الحسابات وRLS وTriggers وجداول العلاقات.
 
@@ -267,11 +364,15 @@ ORDER BY status;
 صنّف نسخة البيانات والمفاتيح الصناعية والشهادة مستقلة عن الإنتاج.
 
 وجهات Volumes الدائمة في overlay هي
-`/var/lib/xmansx-parent-staging/{private,backups,repository}`؛ tmpfs مخصص لملفات
+`/var/lib/xmansx-parent-staging/{private,backups,repository,email-outbox}`؛ tmpfs مخصص لملفات
 العملية المؤقتة فقط. يستبدل overlay قائمة mounts في tests صراحة، ويضبط جذور
 Django للحاوية المالكة والتطبيق والعامل إلى الوجهات نفسها. أدوات Runtime/DR
 تقرأ إعدادات Django الفعلية، وترفض مساراً مختلفاً أو مجلداً ليس mount مستقلاً.
 storage-init يرفض المسارات البديلة والروابط الرمزية قبل تعديل الملكية.
+الصندوق الرابع صناعي فقط، لا يخدمه Nginx ولا يدخل في مخزون ملفات الطلاب أو
+النسخ الخاصة المصرح بها؛ يحتفظ بملفات الرسائل الصناعية محلياً بصلاحيات700/600.
+بيانات اعتماد الاسترداد المشفرة وبصماتها ضمن قاعدة البيانات تدخل النسخ العادية
+وتحتاج المفاتيح المطابقة، دون رموز خام. لا تعِد أي بريد قديم تلقائياً بعد DR.
 
 عند تحديث بيئة صناعية سابقة احتفظ بأسماء Volumes وPostgreSQL والمفاتيح نفسها؛
 أعد تركيب Volumes الموجودة عند الوجهات الجديدة، ولا تنقل أو تحذف محتوياتها.
@@ -298,10 +399,11 @@ storage-init يرفض المسارات البديلة والروابط الرم�
 docker compose @stagingFiles run --rm --no-deps --user 65534:65534 -e PARENT_STAGING_LOCAL_ONLY=1 -e DJANGO_SETTINGS_MODULE=config.settings.local -e BACKUP_ENVIRONMENT=synthetic-staging tests python /workspace/scripts/parent_staging_restore_drill.py
 ```
 
-`parent_staging_schema_refresh.py` ليس مسار rollback تشغيلياً. يستعمل فقط أثناء
-QA لهذه القاعدة الصناعية عندما تكون **الجداول الأربعة الجديدة فارغة تماماً**،
-ويثبت أن خطة الرجوع0006→0005 لا تشمل Migration آخر قبل السماح بها. بيانات
-استعادة موجودة تمنع استخدامه. استخدم Forward fix للبيئات التي تحمل أي بيانات.
+`parent_staging_schema_refresh.py` أداة QA تاريخية للتجربة0006 فقط، وليست مسار
+ترقية توسعة البريد أو rollback تشغيلياً. لا تستخدمها مع Leaf0007/0008؛ استخدم
+التهيئة العادية أعلاه وForward fix يحفظ البيانات والسياسات. لا تنفذ رجوعاً
+إلى backend قديم يفتقد حواجز كلمة المرور أو حماية الجوال المرتبطة بوسيلة
+الاسترداد، ولا تحذف جداول أو علاقات لإنجاح الترقية.
 
 ## 8. الأداء والمراقبة
 
@@ -336,13 +438,25 @@ Dreams أوMsegat ونطاق **رسالة تفعيل واحدة ورسالة غ�
 
 ## 10. ما يجب حسمه قبل بيئة منشورة
 
-اعتماد مصدر إثبات ملكية الحساب الأصلي والتحقق من الرقم الجديد دون OTP متخيل،
-ومراجعين مستقلين وأدوارهم؛ نطاق HTTPS رسمي ومفاتيح خاصة مستقلة ودور RLS
-مقيد؛ تخزين خاص ونسخ/استعادة مثبتان؛ Monitoring وتخطيط سعة Redis/PG/Worker؛
-متصفحات/أجهزة فعلية وخطة تعطيل تسجيل المدارس؛ ثم تصريح نشر Staging واضح.
+يلزم نطاق HTTPS رسمي ومفاتيح خاصة مستقلة ودور RLS مقيد؛ تخزين خاص ونسخ/استعادة
+مثبتان؛ Monitoring وتخطيط سعة Redis/PG/Worker؛ متصفحات/أجهزة فعلية وخطة تعطيل
+تسجيل المدارس؛ ثم تصريح نشر Staging واضح. لمسار البريد: إعداد Resend الفعلي
+بمفتاح إرسال مقيد ونطاق ومرسل موثقين، وتعطيل تتبع/إعادة كتابة الروابط، ثم
+تصريح واختبار وصول Inbox كامل. اعتمد أيضاً خطة استكمال بريد أولياء الأمور
+السابقين بكلمة المرور الحالية ودون تعطيل مساحة الموظف أو اعتماد User.email
+القديم تلقائياً. لا تفتح التسجيل العام قبل هذه المتطلبات وقبول الإصدار الفعلي.
+تظل استعادة الهوية المركزية وتغيير الجوال خارج الإصدار الأول ومغلقتين؛ لا يطلب
+هذا الإصدار سياسة تغيير جوال لإطلاق استرداد كلمة المرور بالبريد الموثق، ولا
+يدّعي معالجة فقدان جميع وسائل الإثبات.
 لا تفترض جاهزية عامة لمجرد نجاح هذه البيئة المحلية أو ربط origin في ملف env.
 
 ## 11. الأدلة المحلية المنفذة
+
+هذه الفقرة أرشيف **الإصدار السابق قبل توسعة البريد**. أعداد الست رحلات و81
+جدولاً ونتائج الصور/DR أدناه لا تثبت الإصدار الجديد0007/0008 ولا رحلة Resend.
+نتائج التوسعة النهائية تُسجل حصراً في
+[تحقق استرداد البريد](PARENT_EMAIL_RECOVERY_VERIFICATION.md) بعد التنفيذ الفعلي
+من Checkout نظيف؛ لا تنسب نتائج المصدر السابق إلى التسع رحلات الجديدة.
 
 هذه نتائج تنفيذ مستقلة في مشروع Docker الصناعي؛ لا تشير إلى بيئة منشورة أو
 وصول SMS خارجي. السجلات وFixtures والأسرار والصور تحت مسارات متجاهلة.

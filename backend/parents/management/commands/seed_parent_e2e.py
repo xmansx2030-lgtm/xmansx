@@ -395,7 +395,7 @@ class Command(BaseCommand):
                     entry["absent_session_id"] = submitted.id
                 fixture["schools"].append(entry)
                 recovery_mobile = f"+966551800{slot + (0, 4, 5)[index - 1]:03d}"
-                recovery_identifier = f"E{slot:03d}{index}180"
+                recovery_identifier = f"R{slot:03d}{index}180"
                 recovery_student = Student.objects.create(
                     school=school,
                     full_name=f"طالب استرداد البريد الصناعي {index}",
