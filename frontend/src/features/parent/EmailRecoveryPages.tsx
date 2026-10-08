@@ -370,8 +370,10 @@ export function ResetParentPasswordPage() {
         </>
       )}
       {complete.isSuccess && sessionUnavailable && <Alert tone="warning" title="تعذر التحقق من جلسة المتصفح">تم حفظ كلمة المرور. سجل الدخول مجدداً للمتابعة.</Alert>}
-      <Link to="/login" className="inline-flex min-h-11 items-center font-bold text-teal-800">تسجيل الدخول</Link>
-      {!complete.isSuccess && <Link to="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-bold text-teal-800">طلب رابط استعادة جديد</Link>}
+      <div className="flex flex-wrap items-center gap-3">
+        <Link to="/login" className="inline-flex min-h-11 items-center font-bold text-teal-800">تسجيل الدخول</Link>
+        {!complete.isSuccess && <Link to="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-bold text-teal-800">طلب رابط استعادة جديد</Link>}
+      </div>
     </RecoveryLayout>
   );
 }
