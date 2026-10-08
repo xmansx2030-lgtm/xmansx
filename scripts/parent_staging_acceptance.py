@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 import django
 import redis
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage, storages
 from django.db import connection
 
 
@@ -75,10 +76,13 @@ def main():
         }
     finally:
         client.close()
+    assert settings.STORAGES["backups"]["BACKEND"] == "django.core.files.storage.FileSystemStorage"
+    repository = storages["backups"]
+    assert isinstance(repository, FileSystemStorage)
     roots = {
         "private": Path(settings.GENERATED_DOCUMENTS_ROOT),
         "backups": Path(settings.DATABASE_BACKUP_ROOT),
-        "repository": Path(settings.BACKUP_STORAGE_LOCATION),
+        "repository": Path(repository.location),
     }
     for name, root in roots.items():
         expected_root = Path("/var/lib/xmansx-parent-staging") / name
