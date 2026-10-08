@@ -353,6 +353,11 @@ backend/frontend/scripts/infra وCompose والإعدادات مع12a1050 يثب
 
 A يعني ملفاً جديداً، وM ملفاً موجوداً عُدّل؛70 مساراً فقط، دون الأدلة المتجاهلة.
 
+تحديث بعد تسليم هذا الإصدار: نُفذ قبول Resend خارجي مصرح به باستخدام
+`mail.mowadhabah.com` ورسالتين إلى حساب المستخدم، مع نجاح الرحلة الأمنية ووصول
+الرسالتين إلى Spam. هذا تحديث تشغيلي مستقل، ولا يغير أعداد الانحدار أعلاه.
+راجع [سجل القبول الفعلي](RESEND_PARENT_RECOVERY_SMOKE_20261008.md) للحدود والعوائق.
+
 ```text
 A	backend/parents/credential_protection.py
 A	backend/parents/email_recovery_api.py
