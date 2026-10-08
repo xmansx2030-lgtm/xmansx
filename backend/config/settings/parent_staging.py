@@ -24,6 +24,7 @@ if (
     or CSRF_TRUSTED_ORIGINS != ["https://localhost:8445"]
     or CORS_ALLOWED_ORIGINS
     or DJANGO_ADMIN_ENABLED
+    or SELF_REGISTRATION_ENABLED
     or not SECURE_SSL_REDIRECT
     or SENTRY_DSN
     or R2_ENABLED

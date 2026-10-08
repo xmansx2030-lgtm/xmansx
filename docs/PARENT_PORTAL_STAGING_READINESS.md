@@ -17,8 +17,12 @@
 - قاعدة البيئة الصناعية تحمل اسم `parent_verification` في كل مشروع مستقل؛
   تشابه الاسم لا يعني اشتراك Volume أو Docker network. يعاد استخدام الاسم
   المقيد حتى تظل حواجز الأوامر الصناعية دقيقة.
-- التسجيل المدرسي معطل افتراضياً. `--enable-registration` يفتح المدارس الثلاث
-  الجديدة التابعة لتشغيل Fixture المحدد فقط؛ لا يغير مدرسة موجودة.
+- التسجيل الذاتي العام لإنشاء مدارس جديدة مغلق دائماً في Staging عبر
+  `SELF_REGISTRATION_ENABLED=false`. يرفض profile التشغيل إذا بقي العلم مفعلاً.
+- تسجيل أولياء الأمور لكل مدرسة منفصل عبر `ParentRegistrationConfig.enabled`،
+  ومعطل افتراضياً. `--enable-registration` يفتح تسجيل الأهل في المدارس الثلاث
+  الجديدة التابعة لتشغيل Fixture المحدد فقط؛ لا يفتح تسجيل مدارس عامة أو يغير
+  مدرسة موجودة.
 - استعادة الحساب النهائية وتغيير رقم الدخول لا تُفعّل بإعداد Staging؛ يلزم
   اعتماد سياسة إثبات الهوية المستقلة المشار إليها في وثائق الاستعادة.
   أكد صاحب المشروع عدم وجود سياسة استعادة معتمدة حالياً. لذلك يظل التنفيذ
@@ -49,7 +53,8 @@
 
 `parent_staging` يستورد إعدادات الإنتاج الحالية: DEBUG=False، RLS مفعّل،
 Secure/HttpOnly session cookie، SameSite=Lax، Secure CSRF، HTTPS redirect،
-AllowedHosts=localhost، وCSRF Trusted Origins=الأصل8445 فقط. Django Admin معطل.
+AllowedHosts=localhost، وCSRF Trusted Origins=الأصل8445 فقط. Django Admin معطل،
+وSELF_REGISTRATION_ENABLED=False في التطبيق والعامل وBeat وحاوية tests.
 HSTS المحلي صفر حتى لا تُترك سياسة دائمة لشهادة اختبار ذاتية التوقيع؛ TLS
 والكوكيز الآمنة باقية. لا تستخدم هذا الاستثناء في بيئة منشورة.
 
@@ -393,3 +398,13 @@ SUSPENDED_CONTACT_REVIEW مع student=null. أضيف في Fixture معلم/اب�
 overflow. الاختبار يثبت keyboard tabs وaria-selected/tabpanel، وغياب browser
 page errors، وسحب البيانات بعد التعليق وانتهاء الجلسة وتبديل الحساب. هذه أدلة
 Chromium محلي، ولا تثبت كل قارئات الشاشة أو أجهزة PWA الفعلية في البيئة المنشورة.
+
+للتحقق من منع التسجيل الذاتي العام استخدم سياق HTTP مجهولاً جديداً من الأصل
+المحلي، مع التحقق العادي من شهادة localhost المولدة: GET إلى
+`/api/v1/auth/csrf/`، ثم POST JSON فارغ إلى `/api/v1/auth/register-school/` مع
+Cookie و`X-CSRFToken` وOrigin الصحيح. النتيجة المطلوبة503 وكود
+`SELF_REGISTRATION_UNAVAILABLE`، قبل Validation، لا مجرد403 بسبب CSRF.
+يقارن مسؤول Owner أعداد `schools_school` و`accounts_user` و`django_session`
+قبل/بعد الطلب، ويثبت تطابقها وبقاء كل school slug بادئاً بـ`parent-e2e-`.
+فتح تسجيل الأهل الثلاثة الصريح لا يغيّر هذا العلم العام؛ أعد إثبات المنع
+أثناء القبول وبعد إغلاق تسجيل الأهل. لا تنفذ طلب إنشاء ببيانات حقيقية.

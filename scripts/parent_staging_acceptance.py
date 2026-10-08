@@ -39,6 +39,7 @@ def main():
     assert settings.SECURE_SSL_REDIRECT is True
     assert settings.SESSION_COOKIE_SECURE is True
     assert settings.CSRF_COOKIE_SECURE is True
+    assert settings.SELF_REGISTRATION_ENABLED is False
     assert settings.ALLOWED_HOSTS == ["localhost"]
     assert settings.CSRF_TRUSTED_ORIGINS == ["https://localhost:8445"]
     with connection.cursor() as cursor:
@@ -106,6 +107,7 @@ def main():
                 "database_role": "NOSUPERUSER NOBYPASSRLS",
                 "forced_rls_tables": forced_tables,
                 "https_secure_cookies": True,
+                "public_school_self_registration": False,
                 "external_default_route": False,
                 "redis_policy": "noeviction",
                 "redis_logical_databases": redis_roles,
