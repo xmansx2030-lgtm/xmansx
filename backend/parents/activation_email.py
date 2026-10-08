@@ -69,7 +69,7 @@ def locked_activation(school_id, activation_id):
         student = Student.objects.select_for_update().get(id=index["student_id"])
         item = GuardianRegistrationRequest.objects.select_for_update().get(id=index["request_id"])
         activation = (
-            GuardianActivation.objects.select_for_update()
+            GuardianActivation.objects.select_for_update(of=("self",))
             .select_related("school")
             .get(
                 id=activation_id,

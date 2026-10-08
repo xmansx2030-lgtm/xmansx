@@ -13,7 +13,11 @@ from django.utils import timezone
 from accounts.models import User
 from common.tenant_rls import clear_tenant_context, tenant_context
 from parents import services
-from parents.activation_email import prepare_activation_email, send_parent_activation_email
+from parents.activation_email import (
+    locked_activation,
+    prepare_activation_email,
+    send_parent_activation_email,
+)
 from parents.email_recovery_models import AccountRecoveryEmail, AccountRecoveryEmailDelivery
 from parents.email_recovery_provider import EmailDeliveryResult, _content, recovery_link
 from parents.email_recovery_services import email_scope, recovery_email_hash
@@ -385,3 +389,41 @@ def test_reissue_defaults_to_email_and_invalidates_the_previous_bearer(activatio
     assert complete(env, token).status_code == 409
     new_token, _ = send({**env, "activation": newest})
     assert complete(env, new_token).status_code == 200
+
+
+def test_two_children_delivery_locks_do_not_upgrade_the_shared_school_lock(activation_env):
+    env = activation_env
+    other = env["students"][1]
+    other.guardian_mobile = "+966551900004"
+    other.save(update_fields=["guardian_mobile"])
+    second_env = {**env, "student": other}
+    item, _ = register(second_env)
+    approve(second_env, item, delivery="EMAIL")
+    second = GuardianActivation.objects.get(request=item)
+    barrier = Barrier(2)
+
+    def worker(activation_id):
+        connections.close_all()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"SET ROLE {quoted_role}")
+            with locked_activation(env["school"].id, activation_id) as locked:
+                assert locked is not None
+                # Both distinct child deliveries must hold their locks together.
+                # A joined FOR UPDATE on School would serialize them here and
+                # deadlock when both first acquire the school's KEY SHARE lock.
+                barrier.wait(timeout=10)
+                return locked[0].id
+        finally:
+            clear_tenant_context()
+            with connection.cursor() as cursor:
+                cursor.execute("RESET ROLE")
+            connections.close_all()
+
+    with restricted_role():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT current_user")
+            quoted_role = connection.ops.quote_name(cursor.fetchone()[0])
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(executor.map(worker, [env["activation"].id, second.id]))
+    assert set(outcomes) == {env["activation"].id, second.id}
