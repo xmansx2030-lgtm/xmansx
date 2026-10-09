@@ -27,6 +27,24 @@ function me(role = "COUNSELOR") {
   });
 }
 describe("counselor family integration", () => {
+  it("keeps the case available but blocks embedded family publications when the portal is disabled", async () => {
+    const features = { PARENT_PORTAL: false, ABSENCE_SMS: true, BIOMETRIC_DEVICES: true };
+    const { calls } = mockApi({
+      "/auth/me/": { body: { ...me(), school_features: features } },
+      "/school/features/": { body: { school_id: 10, features } },
+      "/counselor/cases/7/": { body: studentCase },
+    });
+    renderApp("/counselor/cases/7?tab=family");
+    const notice = await screen.findByRole("region", { name: "بوابة ولي الأمر تتطلب اشتراكًا" });
+    expect(notice).toBeVisible();
+    expect(screen.queryByLabelText("عنوان الرسالة للأسرة")).toBeNull();
+    expect(screen.getByRole("tab", { name: /متابعة الأسرة.*يلزم اشتراك/ })).toBeVisible();
+    expect(calls.some(call => call.url.includes("/staff/parents/publications/"))).toBe(false);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "نظرة عامة", exact: true }));
+    expect(notice).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "نظرة عامة", exact: true })).toHaveAttribute("aria-selected", "true");
+  });
+
   beforeEach(() => { queryClient.clear(); document.cookie = "csrftoken=test-token"; });
   it("publishes from the case with fixed student identity and refreshes its timeline", async () => {
     let published = false;

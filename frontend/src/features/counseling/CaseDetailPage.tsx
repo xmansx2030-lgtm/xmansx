@@ -20,6 +20,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { useSchoolFeatures } from "@/features/platform/schoolFeatures";
 import { PublicationEditor } from "@/features/parent/PublicationEditor";
 import {
   ACTIVITY_TYPES,
@@ -107,6 +108,7 @@ export function CaseDetailPage() {
   const schoolId = useActiveSchoolId();
   const schoolType = useActiveSchoolType();
   const me = useMe();
+  const familyEnabled = useSchoolFeatures()?.PARENT_PORTAL !== false;
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const requestedTab = params.get("tab");
@@ -220,7 +222,7 @@ export function CaseDetailPage() {
         actions={<><Link to="/counselor" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-bold text-white transition hover:bg-white/10">العودة للوحة</Link><Link to={`/students/${data.student_id}/attendance`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><BookOpenCheck aria-hidden size={17} /> ملف {studentLabel(schoolType, true)}</Link></>}
       />
 
-      <Button variant="secondary" onClick={() => setTab("family")}>متابعة ولي الأمر</Button>
+      <Button variant="secondary" className={familyEnabled ? "" : "text-slate-400"} onClick={() => setTab("family")}>متابعة ولي الأمر{!familyEnabled && <span className="mr-2 text-xs">يلزم اشتراك</span>}</Button>
 
       {error != null && <ErrorState error={error} />}
 
@@ -250,12 +252,15 @@ export function CaseDetailPage() {
             tabIndex={tab === value ? 0 : -1}
             onClick={() => setTab(value)}
             className={`min-h-10 shrink-0 snap-start whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition ${
-              tab === value
+              value === "family" && !familyEnabled
+                ? "bg-slate-50 text-slate-400"
+                : tab === value
                 ? "bg-slate-950 text-white shadow-sm"
                 : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
             }`}
           >
             {value === "requests" ? `طلبات ${roleGenitivePluralLabel("TEACHER", schoolType)}` : label}
+            {value === "family" && !familyEnabled && <span className="mr-2 text-xs">يلزم اشتراك</span>}
           </button>
         ))}
       </div>

@@ -17,6 +17,7 @@ import {
   publishFamilyContent,
   revokeFamilyPublication,
 } from "@/features/parent/api";
+import { FeatureSubscriptionNotice, useSchoolFeatures } from "@/features/platform/schoolFeatures";
 import { dateTime, fieldGrid, surface } from "@/features/parent/shared";
 
 const familyPollInterval = adaptivePollingInterval(POLLING.counselorDashboard);
@@ -26,15 +27,24 @@ interface CaseFamilyContext {
   student_name: string;
 }
 
-export function PublicationEditor({
-  counselorOnly,
-  caseContext,
-  canPublish = true,
-}: {
+interface PublicationEditorProps {
   counselorOnly: boolean;
   caseContext?: CaseFamilyContext;
   canPublish?: boolean;
-}) {
+}
+
+export function PublicationEditor(props: PublicationEditorProps) {
+  const features = useSchoolFeatures();
+  return features?.PARENT_PORTAL === false
+    ? <FeatureSubscriptionNotice feature="PARENT_PORTAL" />
+    : <PublicationEditorContent {...props} />;
+}
+
+function PublicationEditorContent({
+  counselorOnly,
+  caseContext,
+  canPublish = true,
+}: PublicationEditorProps) {
   const me = useMe();
   const schoolId = me.data?.active_school?.id ?? 0;
   const key = schoolScopedKey(schoolId, "parents", "publications");
