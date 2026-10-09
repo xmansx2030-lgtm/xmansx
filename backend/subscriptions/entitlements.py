@@ -92,7 +92,10 @@ def has_entitlement(school, key: str) -> bool:
 
 def school_feature_access(school) -> dict:
     """One public, tenant-scoped projection of platform-controlled feature access."""
-    entitlements = get_school_entitlements(school)
+    entitlements = (
+        {} if all(key in school.feature_access for key in MANAGED_FEATURES)
+        else get_school_entitlements(school)
+    )
     return {
         key: (
             school.feature_access[key] is True
