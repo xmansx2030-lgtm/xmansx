@@ -498,4 +498,10 @@ def test_representative_restore_fixture_manifest(tmp_path, monkeypatch):
             "counselor_cases": 1,
             "devices": 1,
         }
-        assert len(manifest["subscription"]["entitlements"]) == 13
+        entitlements = manifest["subscription"]["entitlements"]
+        assert len(entitlements) == 15
+        assert {item["key"] for item in entitlements} >= {"ABSENCE_SMS", "PARENT_PORTAL"}
+        assert all(
+            item["is_enabled"] for item in entitlements
+            if item["key"] in {"ABSENCE_SMS", "PARENT_PORTAL"}
+        )
