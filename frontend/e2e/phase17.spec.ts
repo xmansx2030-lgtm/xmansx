@@ -14,6 +14,12 @@ interface Meta {
   phase17_students: string[];
 }
 
+interface AttentionResponse {
+  total: number;
+  counts: Record<string, number>;
+  items: unknown[];
+}
+
 function meta(): Meta {
   return JSON.parse(readFileSync(resolve(FIXTURES, "meta.json"), "utf-8")) as Meta;
 }
@@ -267,7 +273,24 @@ test("vice principal workspaces and detail views stay usable on a phone", async 
   await expect(page.getByText("محطة عمل الوكيل")).toBeVisible();
   await expect(page.getByTestId("school-today-status-card")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("attention-section")).toBeVisible();
-  await expect(page.locator('[data-testid^="attention-count-"]').first()).toBeVisible({ timeout: 20_000 });
+  // The compact VP panel omits zero categories. Validate every displayed count
+  // against the real scoped API, including the legitimately empty seed state.
+  const attention = await page.evaluate(async () => {
+    const response = await fetch("/api/v1/dashboard/attention/", { credentials: "include" });
+    if (!response.ok) throw new Error(`Attention request failed: ${response.status}`);
+    return await response.json() as AttentionResponse;
+  });
+  const positiveCounts = Object.entries(attention.counts).filter(([, count]) => count > 0);
+  await expect(page.locator('[data-testid^="attention-count-"]')).toHaveCount(positiveCounts.length);
+  for (const [key, count] of positiveCounts) {
+    await expect(page.getByTestId(`attention-count-${key}`).locator("strong")).toHaveText(String(count));
+  }
+  if (attention.total === 0) {
+    expect(attention.items).toEqual([]);
+    await expect(page.getByTestId("attention-empty")).toContainText("لا يوجد ما يحتاج متابعة الآن.");
+  } else {
+    await expect(page.getByTestId("attention-items")).toBeVisible();
+  }
   await screenshot(page, testInfo, "vice-principal-phone-dashboard-responsive.png");
 
   await page.goto("/students");
