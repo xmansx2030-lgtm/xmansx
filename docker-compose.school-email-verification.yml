@@ -1,0 +1,15 @@
+# Overlay for docker-compose.parent-verification.yml; isolated, test values only.
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:5546:5432"
+  redis:
+    ports: !override
+      - "127.0.0.1:6401:6379"
+    command: redis-server --maxmemory-policy noeviction
+  tests:
+    image: xmansx-backend:parent-release-verification
+  app:
+    image: xmansx-backend:parent-release-verification
+    ports: !override
+      - "127.0.0.1:8013:8000"

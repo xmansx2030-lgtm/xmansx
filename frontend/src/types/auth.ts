@@ -40,6 +40,10 @@ export interface Me {
   platform_role_label?: string;
   platform_capabilities?: PlatformCapability[];
   must_change_password: boolean;
+  requires_initial_email?: boolean;
+  school_recovery_email_enabled?: boolean;
+  school_email_completion_required?: boolean;
+  school_email_verification_pending?: boolean;
   active_school: SchoolSummary | null;
   roles: SchoolRole[];
   capabilities?: SchoolCapability[];

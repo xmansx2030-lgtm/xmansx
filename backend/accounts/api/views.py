@@ -155,6 +155,7 @@ class SchoolSelfRegistrationView(APIView):
                     school_type=data["school_type"],
                     manager_name=data["manager_name"],
                     manager_mobile=mobile,
+                    manager_email=data["manager_email"],
                     manager_password=data["password"],
                     plan_id=plan.id,
                     subscription_mode="ACTIVE" if plan.price_amount == 0 else "TRIAL",
@@ -385,9 +386,20 @@ class ChangeInitialPasswordView(APIView):
             if not user.check_password(current):
                 raise ApiError("INVALID_CURRENT_PASSWORD", "كلمة المرور الحالية غير صحيحة.")
             _validate_new_password(user, new_password)
+            from accounts.contact_email import initial_contact_email
+
+            contact_email = initial_contact_email(user, request.data)
             user.set_password(new_password)
             user.must_change_password = False
-            user.save(update_fields=["password", "must_change_password"])
+            user.email = contact_email
+            user.save(update_fields=["password", "must_change_password", "email"])
+            if contact_email:
+                from subscriptions.email_services import queue_initial_manager_details
+
+                queue_initial_manager_details(user)
+                from parents.email_recovery_services import enroll_school_contact
+
+                enroll_school_contact(user)
             record_event(AuditAction.INITIAL_PASSWORD_CHANGED, request=request, actor=user)
 
         # يحافظ على الجلسة الحالية مع تدوير آمن بعد نجاح المعاملة.

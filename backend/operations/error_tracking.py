@@ -19,6 +19,9 @@ _SENSITIVE_KEYS = {
     "national_id",
     "bridge_secret",
     "device_secret",
+    "email",
+    "manager_email",
+    "recipient",
 }
 
 _PARENT_SENSITIVE_KEYS = {
@@ -52,6 +55,7 @@ def _parent_context(event, frames):
         (
             "/api/v1/parent/", "/api/v1/staff/parents/",
             "/api/v1/identity-review/parent-recovery/", "/api/v1/auth/parent-password-recovery/",
+            "/api/v1/auth/register-school/", "/api/v1/auth/change-initial-password/",
         )
     ):
         return True

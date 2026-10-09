@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigation } from "react-router-dom";
 
 import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
+import { SchoolEmailVerificationNotice } from "@/features/auth/SchoolEmailVerificationNotice";
 import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels, studentPluralLabel } from "@/utils/roles";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
@@ -180,6 +181,7 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
       </span>
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm font-bold ${mobile ? "text-slate-900" : "text-white"}`} data-testid={mobile ? "user-name-mobile" : "user-name"}>{me.data.name}</p>
+        {me.data.school_recovery_email_enabled && <Link to="/account/recovery-email" className={`inline-flex min-h-9 items-center text-xs font-bold ${mobile ? "text-teal-800" : "text-teal-200"}`}>بريد استرداد الحساب</Link>}
         <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles, me.data.active_school?.school_type)}</p>
       </div>
       <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-2 ${mobile ? "text-slate-600 hover:bg-red-50 hover:text-red-700" : "text-slate-300 hover:bg-red-500/10 hover:text-red-200"}`}>
@@ -266,7 +268,9 @@ export function AppShell() {
           </div>
         )}
 
-        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8"><Outlet /></main>
+        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8">
+          <SchoolEmailVerificationNotice /><Outlet />
+        </main>
       </div>
     </div>
   );
