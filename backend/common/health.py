@@ -12,7 +12,7 @@ import redis
 from django.conf import settings
 from django.db import connection
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -24,6 +24,7 @@ logger = logging.getLogger("xmansx.health")
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
+@throttle_classes([])
 def health(request: Request) -> Response:
     return Response({"status": "ok"})
 
@@ -80,6 +81,7 @@ def _check_redis() -> bool:
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
+@throttle_classes([])
 def readiness(request: Request) -> Response:
     checks = {
         "database": "ok" if _check_database() else "error",

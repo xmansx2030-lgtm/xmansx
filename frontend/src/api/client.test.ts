@@ -35,6 +35,16 @@ describe("apiRequest", () => {
     await expect(apiRequest<{ status: string }>("/health/")).resolves.toEqual({ status: "ok" });
   });
 
+  it("passes Retry-After to the polling and retry policies", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ code: "RATE_LIMITED", message: "حاول لاحقاً", details: {} }),
+      { status: 429, headers: { "Retry-After": "30" } },
+    )));
+    const error = await apiRequest("/reports/absence/").catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).retryAfterMs).toBe(30_000);
+  });
+
   it("maps network failures to a NETWORK_ERROR ApiError with Arabic message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     const error = await apiRequest("/health/").catch((e: unknown) => e);

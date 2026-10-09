@@ -4,11 +4,15 @@
 production.py يعيد فرض المتغيرات الحساسة كمتغيرات إلزامية بلا defaults.
 """
 
+import math
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 from beat_schedule import build_beat_schedule
 from config.database import postgres_database
 from config.env import env_bool, env_float, env_int, env_list, env_str
+from config.redis import cache_options
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -176,11 +180,13 @@ CACHES = {
         "BACKEND": "common.cache.ResilientRedisCache",
         "LOCATION": CACHE_REDIS_URL,
         "KEY_PREFIX": "xmansx",
+        "OPTIONS": cache_options("cache"),
     },
     "security": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": SECURITY_REDIS_URL,
         "KEY_PREFIX": "xmansx-security",
+        "OPTIONS": cache_options("security"),
     },
 }
 
@@ -204,6 +210,18 @@ SELF_REGISTRATION_RATE_LIMIT_MOBILE = (
 PDF_RENDER_CONCURRENCY = env_int("PDF_RENDER_CONCURRENCY", 4)
 ATTENDANCE_CURRENT_PERIOD_CACHE_TTL = env_int("ATTENDANCE_CURRENT_PERIOD_CACHE_TTL", 10)
 ATTENDANCE_MONITORING_CACHE_TTL = env_int("ATTENDANCE_MONITORING_CACHE_TTL", 5)
+DASHBOARD_CACHE_WAIT_SECONDS = env_float("DASHBOARD_CACHE_WAIT_SECONDS", 5.0)
+DASHBOARD_CACHE_LEASE_SECONDS = env_int("DASHBOARD_CACHE_LEASE_SECONDS", 30)
+API_RATE_LIMIT_ENABLED = env_bool("API_RATE_LIMIT_ENABLED", True)
+API_USER_REQUESTS_PER_MINUTE = env_int("API_USER_REQUESTS_PER_MINUTE", 240)
+API_USER_EXPORTS_PER_MINUTE = env_int("API_USER_EXPORTS_PER_MINUTE", 12)
+if (
+    not math.isfinite(DASHBOARD_CACHE_WAIT_SECONDS)
+    or DASHBOARD_CACHE_WAIT_SECONDS <= 0
+    or DASHBOARD_CACHE_LEASE_SECONDS <= 0
+    or min(API_USER_REQUESTS_PER_MINUTE, API_USER_EXPORTS_PER_MINUTE) <= 0
+):
+    raise ImproperlyConfigured("Cache wait/lease and account request budgets must be positive")
 
 # ---- تشفير المعرفات الحساسة (ADR-009) ----
 # مفاتيح تطوير فقط — production.py يفرضها من البيئة ويفشل بدونها
@@ -303,6 +321,24 @@ if R2_BACKUP_ENABLED:
 CELERY_RESULT_EXPIRES = env_int("CELERY_RESULT_EXPIRES", 60 * 60)
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_POOL_LIMIT = env_int("CELERY_BROKER_POOL_LIMIT", 4)
+CELERY_BROKER_CONNECTION_TIMEOUT = 5
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "max_connections": env_int("CELERY_BROKER_MAX_CONNECTIONS", 16),
+    "socket_connect_timeout": 3,
+    "socket_timeout": 5,
+    "retry_on_timeout": False,
+    "health_check_interval": 30,
+}
+CELERY_REDIS_MAX_CONNECTIONS = env_int("CELERY_RESULT_MAX_CONNECTIONS", 8)
+CELERY_REDIS_SOCKET_CONNECT_TIMEOUT = 3
+CELERY_REDIS_SOCKET_TIMEOUT = 5
+if min(
+    CELERY_BROKER_POOL_LIMIT,
+    CELERY_BROKER_TRANSPORT_OPTIONS["max_connections"],
+    CELERY_REDIS_MAX_CONNECTIONS,
+) < 1:
+    raise ImproperlyConfigured("Celery Redis connection limits must be positive")
 CELERY_TIMEZONE = TIME_ZONE
 # Fair scheduling prevents one large school's imports from reserving a whole
 # worker's future task capacity. Jobs are idempotent and acknowledged on finish.
@@ -312,6 +348,7 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_IMPORTS = ("parents.email_recovery_tasks", "parents.activation_email")
 CELERY_TASK_ROUTES = {
     "students.process_import_job": {"queue": "imports"},
+    "students.commit_import_job": {"queue": "imports"},
     "staff.process_import_job": {"queue": "imports"},
     "students.run_purge_job": {"queue": "maintenance"},
     "operations.scheduled_database_backup": {"queue": "maintenance"},
@@ -337,6 +374,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": ["common.throttling.AccountPressureThrottle"],
     # آمن افتراضيًا: كل endpoint مغلق ما لم يصرح بعكس ذلك (health تصرح بـ AllowAny)
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "common.errors.api_exception_handler",

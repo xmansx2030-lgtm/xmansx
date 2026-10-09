@@ -21,7 +21,7 @@ from referrals.models import (
     ReferralStatus,
     StudentReferral,
 )
-from students.models import Grade, Section, Student
+from students.models import Grade, Section, Student, StudentEnrollment
 
 TODAY = date.today()
 TZ = ZoneInfo("Asia/Riyadh")
@@ -272,7 +272,130 @@ def test_teacher_cannot_access_school_reports(role_client):
     client, _, _ = role_client(["TEACHER"])
     for path in ("absence", "lateness", "referrals"):
         assert client.get(f"/api/v1/reports/{path}/?preset=TODAY").status_code == 403
+        assert client.get(f"/api/v1/reports/{path}/?preset=TODAY&_export_all=1").status_code == 403
         assert client.get(f"/api/v1/reports/{path}/export.xlsx?preset=TODAY").status_code == 403
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("kind", ["absence", "lateness", "referrals"])
+def test_print_snapshot_returns_all_151_filtered_results_above_page_cap(report_env, kind):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+    env = report_env
+    school = env["school"]
+    year = AcademicYear.objects.get(school=school)
+    grade = Grade.objects.create(school=school, name="الثاني", code="G2", sequence=2)
+    section = Section.objects.create(school=school, grade=grade, name="ب", code="B")
+    students = Student.objects.bulk_create(
+        [
+            Student(
+                school=school,
+                full_name=f"طالب طباعة {i:03d}",
+                national_id_encrypted="synthetic",
+                national_id_lookup_hash=f"{1000 + i:064x}",
+                national_id_masked="******0000",
+            )
+            for i in range(152)
+        ]
+    )
+    placements = [section] * 151 + [env["section"]]
+    StudentEnrollment.objects.bulk_create(
+        [
+            StudentEnrollment(
+                school=school,
+                student=student,
+                academic_year=year,
+                grade=placement.grade,
+                section=placement,
+                enrolled_at=TODAY,
+            )
+            for student, placement in zip(students, placements, strict=True)
+        ]
+    )
+    DailyAttendanceSummary.objects.bulk_create(
+        [
+            DailyAttendanceSummary(
+                school=school,
+                student=student,
+                academic_year=year,
+                section=placement,
+                attendance_date=TODAY,
+                expected_periods=7,
+                submitted_periods=7,
+                absent_periods=7,
+                present_periods=0,
+                unexcused_absent_periods=7,
+                completeness_status=DailyCompleteness.COMPLETE,
+                absence_status=DailyAbsenceStatus.FULL,
+                calculated_at=timezone.now(),
+            )
+            for student, placement in zip(students, placements, strict=True)
+        ]
+    )
+    filters = {
+        "absence": "absence_type=FULL&excuse_type=UNEXCUSED",
+        "lateness": "min_occurrences=1&min_minutes=10",
+        "referrals": "priority=HIGH&status=PENDING_VICE&source_type=SCHOOL_MANAGER",
+    }[kind]
+    if kind == "lateness":
+        SchoolArrival.objects.bulk_create(
+            [
+                SchoolArrival(
+                    school=school,
+                    student=student,
+                    attendance_date=TODAY,
+                    first_arrival_at=datetime.combine(TODAY, datetime.min.time(), TZ),
+                    raw_late_minutes=15,
+                    counted_late_minutes=10,
+                    status=ArrivalStatus.LATE,
+                    source=ArrivalSource.MANUAL,
+                )
+                for student in students
+            ]
+        )
+    if kind == "referrals":
+        manager = SchoolMembership.objects.get(school=school, roles__role="SCHOOL_MANAGER")
+        vice = SchoolMembership.objects.get(school=school, roles__role="VICE_PRINCIPAL")
+        StudentReferral.objects.bulk_create(
+            [
+                StudentReferral(
+                    school=school,
+                    student=student,
+                    source_type="SCHOOL_MANAGER",
+                    category=ReferralCategory.ATTENDANCE,
+                    reason_code=ReferralReason.REPEATED_ABSENCE,
+                    description="بيانات اختبار الطباعة",
+                    created_by_membership=manager,
+                    assigned_vice_membership=vice,
+                    priority=ReferralPriority.HIGH,
+                )
+                for student in students
+            ]
+        )
+    url = (
+        f"/api/v1/reports/{kind}/?from_date={TODAY}&to_date={TODAY}"
+        f"&grade={grade.id}&section={section.id}&{filters}&page=2&page_size=25"
+    )
+    for client in (env["manager"], env["vice"]):
+        with CaptureQueriesContext(connection) as queries:
+            screen = client.get(url)
+        assert screen.status_code == 200
+        assert screen.json()["count"] == 151
+        assert len(screen.json()["results"]) == 25
+        assert any("LIMIT 25 OFFSET 25" in query["sql"] for query in queries)
+        full = client.get(url + "&_export_all=1")
+        assert full.status_code == 200
+        data = full.json()
+        assert data["count"] == len(data["results"]) == data["page_size"] == 151
+        assert data["page"] == 1
+        ids = {
+            row["student"]["id"] if kind == "referrals" else row["student_id"]
+            for row in data["results"]
+        }
+        assert ids == {student.id for student in students[:151]}
+        own = client.get(url + f"&_export_all=1&student={students[150].id}")
+        assert own.status_code == 200
+        assert own.json()["count"] == len(own.json()["results"]) == 1
 
 
 @pytest.fixture(params=[["COUNSELOR"], ["COUNSELOR", "TEACHER"]])

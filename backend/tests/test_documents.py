@@ -698,14 +698,26 @@ def test_attendance_report_lists_warnings_and_actions(env):
     from student_actions.services import create_student_action
 
     student = env["students"][0]
-    make_warning(env, student)
-    create_student_action(
-        school=env["school"], membership=env["vice"], student=student,
-        action_type=StudentActionType.PARENT_CONTACT, notes="اتصال",
+    warning = make_warning(env, student)
+    StudentWarning.objects.filter(id=warning.id).update(
+        issued_at=datetime.combine(DAY, time(9), UTC)
+    )
+    action = create_student_action(
+        school=env["school"],
+        membership=env["vice"],
+        student=student,
+        action_type=StudentActionType.PARENT_CONTACT,
+        notes="اتصال",
+    )
+    type(action).objects.filter(id=action.id).update(
+        performed_at=datetime.combine(DAY, time(9), UTC)
     )
     snapshot = snapshot_service.attendance_report_snapshot(
-        school=env["school"], student=student, membership=env["vice"],
-        from_date=DAY, to_date=DAY2,
+        school=env["school"],
+        student=student,
+        membership=env["vice"],
+        from_date=DAY,
+        to_date=DAY2,
     )
     assert len(snapshot["warnings"]) == 1
     assert snapshot["warnings"][0]["level_label"] == "الإنذار الثاني"
@@ -714,6 +726,155 @@ def test_attendance_report_lists_warnings_and_actions(env):
 
 
 # ---------------------------------------------------------------- PDF
+
+
+def test_attendance_report_filters_every_table_by_local_date_and_student(env):
+    from student_actions.models import StudentAction, StudentActionType
+
+    student = env["students"][0]
+    start = datetime.combine(DAY - timedelta(days=1), time(21), UTC)
+    end = datetime.combine(DAY2, time(21), UTC)
+    for level, stamp, warning_type in (
+        (
+            WarningLevel.LEVEL_1,
+            start - timedelta(seconds=1),
+            WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE,
+        ),
+        (WarningLevel.LEVEL_2, start, WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE),
+        (
+            WarningLevel.LEVEL_3,
+            end - timedelta(seconds=1),
+            WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE,
+        ),
+        (WarningLevel.LEVEL_1, end, WarningRuleType.MORNING_LATE_OCCURRENCES),
+    ):
+        warning = make_warning(env, student, level=level, warning_type=warning_type)
+        StudentWarning.objects.filter(id=warning.id).update(issued_at=stamp)
+    foreign = make_warning(env, env["students"][1])
+    StudentWarning.objects.filter(id=foreign.id).update(issued_at=start)
+    actions = [
+        StudentAction(
+            school=env["school"],
+            student=student,
+            action_type=StudentActionType.PARENT_CONTACT,
+            performed_by_membership=env["vice"],
+            performed_at=start + timedelta(minutes=i),
+            notes=f"included-{i}",
+        )
+        for i in range(40)
+    ]
+    actions.extend(
+        [
+            StudentAction(
+                school=env["school"],
+                student=student,
+                action_type=StudentActionType.PARENT_CONTACT,
+                performed_by_membership=env["vice"],
+                performed_at=stamp,
+                notes="excluded",
+            )
+            for stamp in (start - timedelta(seconds=1), end)
+        ]
+    )
+    actions.append(
+        StudentAction(
+            school=env["school"],
+            student=env["students"][1],
+            action_type=StudentActionType.PARENT_CONTACT,
+            performed_by_membership=env["vice"],
+            performed_at=start,
+            notes="foreign",
+        )
+    )
+    StudentAction.objects.bulk_create(actions)
+    with dj_timezone.override("Asia/Riyadh"):
+        snapshot = snapshot_service.attendance_report_snapshot(
+            school=env["school"],
+            student=student,
+            membership=env["vice"],
+            from_date=DAY,
+            to_date=DAY2,
+        )
+    assert [w["issued_at"] for w in snapshot["warnings"]] == [DAY.isoformat(), DAY2.isoformat()]
+    assert len(snapshot["actions"]) == 40
+    assert snapshot["actions"][0]["notes"] == "included-0"
+    assert snapshot["actions"][-1]["notes"] == "included-39"
+    assert all(a["performed_at"] == DAY.isoformat() for a in snapshot["actions"])
+
+
+@pytest.mark.parametrize("kind", ["absence", "morning"])
+def test_detailed_reports_include_all_366_dates_and_no_out_of_range_rows(env, kind):
+    student = env["students"][0]
+    start = date(2026, 1, 1)
+    days = [start + timedelta(days=i) for i in range(-1, 367)]
+    if kind == "absence":
+        DailyAttendanceSummary.objects.bulk_create(
+            [
+                DailyAttendanceSummary(
+                    school=env["school"],
+                    student=student,
+                    section=env["section"],
+                    academic_year=env["year"],
+                    attendance_date=day,
+                    absence_status=DailyAbsenceStatus.FULL,
+                    expected_periods=7,
+                    submitted_periods=7,
+                    absent_periods=7,
+                    unexcused_absent_periods=7,
+                    present_periods=0,
+                    completeness_status=DailyCompleteness.COMPLETE,
+                    calculated_at=dj_timezone.now(),
+                )
+                for day in days
+            ]
+        )
+        builder = snapshot_service.absence_report_snapshot
+    else:
+        SchoolArrival.objects.bulk_create(
+            [
+                SchoolArrival(
+                    school=env["school"],
+                    student=student,
+                    attendance_date=day,
+                    first_arrival_at=datetime.combine(day, time(7, 30), UTC),
+                    raw_late_minutes=8,
+                    counted_late_minutes=3,
+                    status=ArrivalStatus.LATE,
+                    source=ArrivalSource.BIOMETRIC,
+                )
+                for day in days
+            ]
+        )
+        builder = snapshot_service.morning_late_snapshot
+    snapshot = builder(
+        school=env["school"],
+        student=student,
+        membership=env["vice"],
+        from_date=start,
+        to_date=start + timedelta(days=365),
+    )
+    assert len(snapshot["rows"]) == 366
+    assert snapshot["rows"][0]["date"] == start.isoformat()
+    assert snapshot["rows"][-1]["date"] == (start + timedelta(days=365)).isoformat()
+    assert snapshot["truncated"] is False
+    if kind == "absence":
+        assert snapshot["totals"]["full_absence_days"] == 366
+        assert snapshot["totals"]["absent_periods"] == 366 * 7
+    else:
+        assert snapshot["totals"]["occurrences"] == 366
+        assert snapshot["totals"]["counted_late_minutes"] == 366 * 3
+
+
+def test_warning_print_date_and_default_report_range_use_local_day(env, monkeypatch):
+    warning = make_warning(env, env["students"][0])
+    warning.issued_at = datetime.combine(DAY - timedelta(days=1), time(21), UTC)
+    with dj_timezone.override("Asia/Riyadh"):
+        snapshot = snapshot_service.warning_snapshot(
+            school=env["school"], warning=warning, membership=env["vice"], title="اختبار التاريخ"
+        )
+        assert snapshot["warning"]["issued_at"] == DAY.isoformat()
+    monkeypatch.setattr(dj_timezone, "localdate", lambda: DAY2)
+    assert snapshot_service.default_range(env["school"]) == (env["year"].start_date, DAY2)
 
 
 @requires_pdf

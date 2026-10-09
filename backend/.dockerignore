@@ -8,6 +8,10 @@ __pycache__/
 htmlcov/
 staticfiles/
 mediafiles/
+privatefiles/
+local_storage/
+phase19-data.json
+*.log
 .env
 .env.*
 *.egg-info/

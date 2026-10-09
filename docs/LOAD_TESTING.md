@@ -3,6 +3,9 @@
 Phase 19 uses Locust against an isolated Compose project. It never targets production and the
 generator creates synthetic schools, users, students, history, devices, and attendance data.
 
+For the owner's 100-school / 2,000-user target, use the separate
+[October capacity environment and results](CAPACITY_HARDENING_2026_10_08.md).
+
 ## Reproduce
 
 1. Start an isolated Compose project with unique host ports and the
@@ -32,7 +35,8 @@ The application now staggers browser polling, backs off after failures, stops
 polling in hidden tabs, coalesces school-scoped live attendance reads, uses
 bounded native PostgreSQL pools, and separates cache, security, and Celery Key
 Value roles in `render.scalable.yaml`. Nginx also compresses API and static text
-responses and reuses upstream HTTP/1.1 connections.
+responses and used HTTP/1.1 upstream requests. Actual upstream TCP reuse was
+added and verified on 2026-10-08; the earlier configuration had no keepalive pool.
 
 A partial local rebaseline was completed against one production-image backend
 replica (two Gunicorn processes x four threads, native pool `1..4`) with local

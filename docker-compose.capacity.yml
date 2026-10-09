@@ -1,0 +1,116 @@
+# Disposable local capacity verification. Never use a production database or URL.
+name: xmansx-capacity-check
+
+x-runtime-env: &runtime-env
+  DJANGO_SETTINGS_MODULE: config.settings.production
+  DJANGO_SECRET_KEY: capacity-disposable-only-20261008-secret-never-for-production-0123456789
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,frontend
+  DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:58085
+  DJANGO_SECURE_SSL_REDIRECT: "false"
+  DJANGO_HSTS_SECONDS: "0"
+  FIELD_ENCRYPTION_KEYS: lBWikOx1S1n4CMQf9jJzE9EDFS3ueHCzXNYto625q6A=
+  NATIONAL_ID_HMAC_KEY: capacity-disposable-hmac-20261008-never-for-production
+  POSTGRES_DB: capacity_synthetic
+  POSTGRES_USER: capacity_app
+  POSTGRES_PASSWORD: capacity-disposable-app
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  REDIS_URL: redis://cache:6379/0
+  CACHE_REDIS_URL: redis://cache:6379/0
+  SECURITY_REDIS_URL: redis://security:6379/0
+  CELERY_BROKER_URL: redis://broker:6379/0
+  CELERY_RESULT_BACKEND: redis://broker:6379/1
+  DATABASE_POOL_ENABLED: "true"
+  DATABASE_POOL_MIN_SIZE: "1"
+  DATABASE_POOL_MAX_SIZE: "4"
+  DATABASE_POOL_MAX_WAITING: "16"
+  GUNICORN_WORKERS: "2"
+  GUNICORN_THREADS: "4"
+  PDF_RENDER_CONCURRENCY: "2"
+  API_RATE_LIMIT_ENABLED: "true"
+  R2_ENABLED: "false"
+  BACKUP_REMOTE_ENABLED: "false"
+  BACKUP_REQUIRE_REMOTE: "false"
+  BACKUP_SCHEDULE_ENABLED: "false"
+  MINISTRY_CALENDAR_ENABLED: "false"
+  MEDIA_ROOT: /tmp/capacity-media
+  GENERATED_DOCUMENTS_ROOT: /tmp/capacity-documents
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    cpus: 2.0
+    mem_limit: 2g
+    environment:
+      POSTGRES_DB: capacity_synthetic
+      POSTGRES_USER: capacity_owner
+      POSTGRES_PASSWORD: capacity-disposable-owner
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U capacity_owner -d capacity_synthetic"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  cache:
+    image: redis:8.0-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    mem_limit: 384m
+  security:
+    image: redis:8.0-alpine
+    command: redis-server --maxmemory 64mb --maxmemory-policy noeviction --save "" --appendonly no
+    mem_limit: 128m
+  broker:
+    image: redis:8.0-alpine
+    command: redis-server --maxmemory 64mb --maxmemory-policy noeviction --save "" --appendonly no
+    mem_limit: 128m
+  backend:
+    image: xmansx-backend:capacity-20261008
+    command: gunicorn config.wsgi:application --config config/gunicorn.conf.py
+    cpus: 1.0
+    mem_limit: 512m
+    deploy:
+      replicas: 4
+    environment: *runtime-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cache:
+        condition: service_started
+      security:
+        condition: service_started
+      broker:
+        condition: service_started
+  frontend:
+    image: xmansx-frontend:capacity-20261008
+    mem_limit: 128m
+    environment:
+      PORT: "8080"
+      BACKEND_HOSTPORT: backend:8000
+      PUBLIC_SCHEME: http
+      API_MAX_INFLIGHT: "128"
+    ports:
+      - "127.0.0.1:58085:8080"
+  tools:
+    image: xmansx-backend:capacity-20261008
+    profiles: [tools]
+    environment:
+      <<: *runtime-env
+      POSTGRES_USER: capacity_owner
+      POSTGRES_PASSWORD: capacity-disposable-owner
+      DATABASE_POOL_ENABLED: "false"
+      PHASE19_SYNTHETIC_DATA_ALLOWED: "true"
+    volumes:
+      - ./phase19-results/capacity:/results
+  load:
+    image: locustio/locust:2.40.2
+    profiles: [load]
+    entrypoint: locust
+    environment:
+      CAPACITY_DATA_FILE: /results/data.json
+    volumes:
+      - ./phase19-results/capacity:/results
+      - ./loadtests:/loadtests:ro
+
+volumes:
+  pgdata:

@@ -11,6 +11,19 @@ logger = logging.getLogger("xmansx.cache")
 _FAILURE_LOG_INTERVAL_SECONDS = 60
 _failure_log_lock = Lock()
 _last_failure_log_at = 0.0
+_retry_cache_at = 0.0
+_CACHE_RETRY_SECONDS = 2.0
+
+
+def delete_if_value(backend, key, expected) -> bool:
+    """Release only our Redis lease; an expired owner's successor is untouched."""
+    client = backend._cache
+    redis_key = backend.make_and_validate_key(key)
+    return bool(client.get_client(redis_key, write=True).eval(
+        "if redis.call('GET', KEYS[1]) == ARGV[1] then "
+        "return redis.call('DEL', KEYS[1]) else return 0 end",
+        1, redis_key, client._serializer.dumps(expected),
+    ))
 
 
 def _log_cache_unavailable() -> None:
@@ -28,11 +41,27 @@ class ResilientRedisCache(RedisCache):
     """Fail open for performance caches while readiness still reports Redis outages."""
 
     def _fallback(self, operation, default, *args, **kwargs):
+        global _retry_cache_at
+        if not self.is_available():
+            return default
         try:
             return operation(*args, **kwargs)
         except (RedisError, OSError, TimeoutError):
+            _retry_cache_at = time.monotonic() + _CACHE_RETRY_SECONDS
             _log_cache_unavailable()
             return default
+
+    def is_available(self) -> bool:
+        return time.monotonic() >= _retry_cache_at
+
+    def delete_if_value(self, key, expected) -> bool:
+        return self._fallback(delete_if_value, False, self, key, expected)
+
+    def incr(self, key, delta=1, version=None):
+        value = self._fallback(super().incr, None, key, delta, version)
+        if value is None:
+            raise ValueError("Performance cache is unavailable")
+        return value
 
     def get(self, key, default=None, version=None):
         return self._fallback(super().get, default, key, default, version)

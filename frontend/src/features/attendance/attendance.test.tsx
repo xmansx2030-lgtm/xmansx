@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import QRCode from "qrcode";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -451,11 +452,45 @@ describe("attendance", () => {
     await user.click(screen.getByTestId("print-qr"));
     expect(window.print).toHaveBeenCalledOnce();
 
+    await user.type(search, "2");
+    expect(screen.queryByTestId("qr-print-sheet")).not.toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: "p", ctrlKey: true })).toBe(false);
+    expect(window.print).toHaveBeenCalledOnce();
+    await user.clear(search);
+    await waitFor(() => expect(screen.getByTestId("print-qr")).toBeEnabled());
+
     await user.click(screen.getByTestId("rotate-qr"));
     await waitFor(() => {
       expect(calls.some((c) => c.url.includes("/sections/3/qr/") && c.init?.method === "POST")).toBe(
         true,
       );
     });
+  });
+
+  it("waits for the selected QR canvas before allowing print and honors the grade filter", async () => {
+    let finishDrawing: (() => void) | undefined;
+    vi.mocked(QRCode.toCanvas).mockImplementationOnce(() => new Promise<HTMLCanvasElement>((resolve) => {
+      finishDrawing = () => resolve(document.createElement("canvas"));
+    }));
+    vi.stubGlobal("print", vi.fn());
+    mockApi({
+      "/auth/me/": { body: managerMe() },
+      "/school/settings/": { body: { school: { name: "ثانوية الأندلس" }, education_stage: "SECONDARY" } },
+      "/attendance/sections/": { body: [...SECTIONS, { id: 5, name: "1", grade_name: "الثاني الثانوي", students_count: 1 }] },
+      "/sections/3/qr/": { body: { section_id: 3, section_name: "1", grade_name: "الأول الثانوي", url_path: "/qr/test-ready" } },
+    });
+    renderApp("/attendance/qr");
+    await userEvent.click(await screen.findByTestId("qr-section-3"));
+    await screen.findByTestId("qr-canvas");
+    expect(screen.getByTestId("print-qr")).toBeDisabled();
+    fireEvent.keyDown(document, { key: "p", ctrlKey: true });
+    expect(window.print).not.toHaveBeenCalled();
+    await act(async () => { finishDrawing!(); });
+    await waitFor(() => expect(screen.getByTestId("print-qr")).toBeEnabled());
+    fireEvent.keyDown(document, { key: "p", ctrlKey: true });
+    expect(window.print).toHaveBeenCalledOnce();
+    await userEvent.selectOptions(screen.getByLabelText("تصفية حسب الصف"), "الثاني الثانوي");
+    expect(screen.queryByTestId("qr-print-sheet")).not.toBeInTheDocument();
+    expect(screen.getByTestId("qr-section-5")).toBeInTheDocument();
   });
 });

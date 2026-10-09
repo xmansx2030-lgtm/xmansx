@@ -36,7 +36,7 @@ services:
     branch: main
     region: frankfurt
     plan: 1c-2g
-    numInstances: 2
+    numInstances: 4
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     dockerCommand: gunicorn config.wsgi:application --config config/gunicorn.conf.py
@@ -150,6 +150,8 @@ services:
         value: "1"
       - key: DATABASE_POOL_MAX_SIZE
         value: "4"
+      - key: DATABASE_POOL_MAX_WAITING
+        value: "16"
       - key: DATABASE_POOL_TIMEOUT_SECONDS
         value: "5"
       - key: DATABASE_POOL_MAX_IDLE_SECONDS
@@ -247,6 +249,8 @@ services:
         value: "1"
       - key: DATABASE_POOL_MAX_SIZE
         value: "2"
+      - key: DATABASE_POOL_MAX_WAITING
+        value: "8"
       - key: DATABASE_POOL_TIMEOUT_SECONDS
         value: "10"
       - key: DATABASE_POOL_MAX_IDLE_SECONDS
@@ -355,11 +359,13 @@ services:
           property: hostport
       - key: PUBLIC_SCHEME
         value: https
+      - key: API_MAX_INFLIGHT
+        value: "128"
 
 databases:
   - name: xmansx-scalable-postgres
     region: frankfurt
-    plan: 1c-2g
+    plan: 2c-4g
     postgresMajorVersion: "18"
     databaseName: xmansx
     user: xmansx
