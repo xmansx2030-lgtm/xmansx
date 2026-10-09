@@ -38,7 +38,10 @@ GENERIC_RECEIPT = "تم استلام طلبك، وستقوم المدرسة بم
 @contextmanager
 def bearer_context(kind: str, digest: str):
     # Names are constants selected by code, never SQL supplied by the caller.
-    names = {"activation": "app.parent_activation_hash", "receipt": "app.parent_receipt_hash"}
+    names = {
+        "activation": "app.parent_activation_hash", "receipt": "app.parent_receipt_hash",
+        "family": "app.parent_family_invitation_hash",
+    }
     name = names[kind]
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_setting(%s, true)", [name])
@@ -539,9 +542,12 @@ def activation_index(token):
     return index
 
 
-def _validate_activation(activation, item, student, school, *, for_delivery=False):
+def _validate_activation(
+    activation, item, student, school, *, for_delivery=False, allow_family=False,
+):
     if (
-        activation.used_at
+        (not allow_family and hasattr(activation, "family_child"))
+        or activation.used_at
         or activation.revoked_at
         or activation.expires_at <= timezone.now()
         or item.status != RegistrationStatus.APPROVED
@@ -601,6 +607,87 @@ def inspect_activation(token, *, user=None):
         }
 
 
+def activation_account(*, item, user, new_password, confirm_password, request):
+    mobile = decrypt_value(item.mobile_encrypted)
+    existing = User.objects.select_for_update().filter(mobile=mobile).first()
+    if existing:
+        if (
+            user is None
+            or not user.is_authenticated
+            or user.id != existing.id
+            or not existing.is_active
+            or not constant_time_compare(
+                user.get_session_auth_hash(), existing.get_session_auth_hash()
+            )
+            or (
+                request is not None
+                and not constant_time_compare(
+                    request.session.get("_auth_user_hash", ""), existing.get_session_auth_hash()
+                )
+            )
+        ):
+            raise ApiError(
+                "EXISTING_ACCOUNT_LOGIN_REQUIRED",
+                "سجّل الدخول إلى حسابك الحالي لإتمام الربط.",
+                status_code=403,
+            )
+        from accounts.api.views import require_password_changed
+
+        require_password_changed(existing)
+        account = existing
+    else:
+        if not new_password or new_password != confirm_password:
+            raise ApiError("VALIDATION_ERROR", "أدخل كلمة مرور وتأكيداً مطابقاً.")
+        account = User(mobile=mobile, first_name=item.name)
+        try:
+            validate_password(new_password, user=account)
+        except ValidationError as exc:
+            raise ApiError(
+                "VALIDATION_ERROR",
+                "كلمة المرور لا تستوفي متطلبات الأمان.",
+                details={"new_password": exc.messages},
+            ) from exc
+        account.set_password(new_password)
+        try:
+            with transaction.atomic():
+                account.save()
+        except IntegrityError as exc:
+            raise ApiError(
+                "EXISTING_ACCOUNT_LOGIN_REQUIRED",
+                "سجّل الدخول إلى حسابك الحالي.",
+                status_code=409,
+            ) from exc
+    return account, existing
+
+
+def apply_activation_relation(*, account, item, activation, student):
+    relation, _ = GuardianStudentRelation.objects.select_for_update().get_or_create(
+        school=activation.school,
+        student=student,
+        user=account,
+    )
+    relation.status = RelationStatus.ACTIVE
+    relation.relationship_type = item.relationship_type
+    relation.approved_by = item.approved_by
+    relation.approved_at = item.approved_at
+    relation.approval_revision += 1
+    relation.contact_bound = item.contact_bound
+    relation.contact_revision = student.guardian_contact_revision
+    relation.approved_contact_hash = item.approved_contact_hash
+    relation.verification_note = item.verification_note
+    relation.suspended_at = None
+    relation.suspension_reason = ""
+    relation.revoked_at = None
+    relation.revoked_by = None
+    relation.save()
+    activation.used_at = timezone.now()
+    activation.activated_user = account
+    activation.save(update_fields=["used_at", "activated_user", "updated_at"])
+    item.status = RegistrationStatus.ACTIVATED
+    item.save(update_fields=["status", "updated_at"])
+    return relation
+
+
 def complete_activation(
     *, token, user=None, new_password=None, confirm_password=None,
     current_password=None, request=None,
@@ -618,79 +705,13 @@ def complete_activation(
             .get(id=index["id"])
         )
         _validate_activation(activation, item, student, activation.school)
-        mobile = decrypt_value(item.mobile_encrypted)
-        existing = User.objects.select_for_update().filter(mobile=mobile).first()
-        if existing:
-            if (
-                user is None
-                or not user.is_authenticated
-                or user.id != existing.id
-                or not existing.is_active
-                or not constant_time_compare(
-                    user.get_session_auth_hash(), existing.get_session_auth_hash()
-                )
-                or (
-                    request is not None
-                    and not constant_time_compare(
-                        request.session.get("_auth_user_hash", ""), existing.get_session_auth_hash()
-                    )
-                )
-            ):
-                raise ApiError(
-                    "EXISTING_ACCOUNT_LOGIN_REQUIRED",
-                    "سجّل الدخول إلى حسابك الحالي لإتمام الربط.",
-                    status_code=403,
-                )
-            from accounts.api.views import require_password_changed
-
-            require_password_changed(existing)
-            account = existing
-        else:
-            if not new_password or new_password != confirm_password:
-                raise ApiError("VALIDATION_ERROR", "أدخل كلمة مرور وتأكيداً مطابقاً.")
-            account = User(mobile=mobile, first_name=item.name)
-            try:
-                validate_password(new_password, user=account)
-            except ValidationError as exc:
-                raise ApiError(
-                    "VALIDATION_ERROR",
-                    "كلمة المرور لا تستوفي متطلبات الأمان.",
-                    details={"new_password": exc.messages},
-                ) from exc
-            account.set_password(new_password)
-            try:
-                with transaction.atomic():
-                    account.save()
-            except IntegrityError as exc:
-                raise ApiError(
-                    "EXISTING_ACCOUNT_LOGIN_REQUIRED",
-                    "سجّل الدخول إلى حسابك الحالي.",
-                    status_code=409,
-                ) from exc
-        relation, _ = GuardianStudentRelation.objects.select_for_update().get_or_create(
-            school=activation.school,
-            student=student,
-            user=account,
+        account, existing = activation_account(
+            item=item, user=user, new_password=new_password,
+            confirm_password=confirm_password, request=request,
         )
-        relation.status = RelationStatus.ACTIVE
-        relation.relationship_type = item.relationship_type
-        relation.approved_by = item.approved_by
-        relation.approved_at = item.approved_at
-        relation.approval_revision += 1
-        relation.contact_bound = item.contact_bound
-        relation.contact_revision = student.guardian_contact_revision
-        relation.approved_contact_hash = item.approved_contact_hash
-        relation.verification_note = item.verification_note
-        relation.suspended_at = None
-        relation.suspension_reason = ""
-        relation.revoked_at = None
-        relation.revoked_by = None
-        relation.save()
-        activation.used_at = timezone.now()
-        activation.activated_user = account
-        activation.save(update_fields=["used_at", "activated_user", "updated_at"])
-        item.status = RegistrationStatus.ACTIVATED
-        item.save(update_fields=["status", "updated_at"])
+        relation = apply_activation_relation(
+            account=account, item=item, activation=activation, student=student,
+        )
         if activation.delivery_channel == "EMAIL":
             from parents.activation_email import verify_activation_email
 

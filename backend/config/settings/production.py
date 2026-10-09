@@ -144,6 +144,13 @@ if PARENT_RECOVERY_EMAIL_ADAPTER != "resend" and (
     or os.environ.get("PARENT_STAGING_LOCAL_ONLY") != "1"
 ):
     raise ImproperlyConfigured("Production recovery email must use Resend")
+if PARENT_FAMILY_INVITATION_SMS_ADAPTER != "provider" and (
+    os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings.parent_staging"
+    or os.environ.get("PARENT_STAGING_LOCAL_ONLY") != "1"
+):
+    raise ImproperlyConfigured("Production family invitations must use the school SMS provider")
+if not 300 <= PARENT_FAMILY_INVITATION_TTL_SECONDS <= 172800:
+    raise ImproperlyConfigured("Family invitation TTL must be between 300 and 172800 seconds")
 if not 300 <= PARENT_RECOVERY_VERIFY_TTL_SECONDS <= 86400:
     raise ImproperlyConfigured("Recovery verification TTL must be between 300 and 86400 seconds")
 if not 60 <= PARENT_RECOVERY_RESET_TTL_SECONDS <= 900:

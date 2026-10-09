@@ -47,3 +47,8 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o700
 PARENT_STAGING_LOCAL_ONLY = True
 if RESEND_API_KEY or PARENT_RECOVERY_EMAIL_ADAPTER != "synthetic-file":
     raise ImproperlyConfigured("Synthetic staging requires its private fake recovery mailbox")
+if (
+    PARENT_FAMILY_INVITATION_SMS_ENABLED
+    and PARENT_FAMILY_INVITATION_SMS_ADAPTER != "synthetic-file"
+):
+    raise ImproperlyConfigured("Synthetic staging refuses external invitation SMS")

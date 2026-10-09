@@ -1,8 +1,12 @@
 from django.urls import include, path
 
 from parents import api
+from parents import family_invitation_api as family
 
 urlpatterns = [
+    path("staff/parents/families/", family.StaffFamiliesView.as_view()),
+    path("parent/family-invitation/check/", family.FamilyInvitationCheckView.as_view()),
+    path("parent/family-invitation/activate/", family.FamilyInvitationActivationView.as_view()),
     path("parent/registration/<uuid:token>/", api.RegistrationView.as_view()),
     path("parent/registration/status/", api.ReceiptView.as_view()),
     path("parent/activation/check/", api.ActivationCheckView.as_view()),

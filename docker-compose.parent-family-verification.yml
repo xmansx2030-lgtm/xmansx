@@ -1,0 +1,13 @@
+# Add only to the loopback synthetic staging stack. No external SMS/email route.
+services:
+  staging-app:
+    environment:
+      PARENT_FAMILY_INVITATION_SMS_ENABLED: "true"
+      PARENT_FAMILY_INVITATION_SMS_ADAPTER: synthetic-file
+  staging-worker:
+    environment:
+      PARENT_FAMILY_INVITATION_SMS_ENABLED: "true"
+      PARENT_FAMILY_INVITATION_SMS_ADAPTER: synthetic-file
+  staging-frontend:
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro

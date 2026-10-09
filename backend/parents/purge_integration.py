@@ -19,6 +19,12 @@ def register_purge_steps():
 
     steps = [
         (
+            "دعوات الأسرة",
+            lambda ids: models.GuardianFamilyInvitation.objects.filter(
+                children__student_id__in=ids
+            ).distinct(),
+        ),
+        (
             "قرارات مراجعة استعادة الحساب",
             lambda ids: models.RecoveryReviewDecision.objects.filter(case__student_id__in=ids),
         ),

@@ -46,6 +46,10 @@ export const routes = [
         lazy: async () => ({ Component: (await import("@/features/parent/ActivationPage")).ActivationPage }),
       },
       {
+        path: "/parent/invitation",
+        lazy: async () => ({ Component: (await import("@/features/parent/FamilyInvitationPage")).FamilyInvitationPage }),
+      },
+      {
         path: "/qr/:token",
         lazy: async () => ({
           Component: (await import("@/features/attendance/QrScanPage")).QrScanPage,

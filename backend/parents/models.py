@@ -216,6 +216,10 @@ from parents.email_recovery_models import (  # noqa: E402,F401
     AccountRecoveryEmail,
     AccountRecoveryEmailDelivery,
 )
+from parents.family_invitation_models import (  # noqa: E402,F401
+    GuardianFamilyInvitation,
+    GuardianFamilyInvitationChild,
+)
 from parents.recovery_models import (  # noqa: E402,F401
     GlobalAccountRecoveryCase,
     RecoveryEvidenceReference,

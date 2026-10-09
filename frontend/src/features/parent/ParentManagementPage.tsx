@@ -48,6 +48,7 @@ import {
   ActivationDeliveryResult,
 } from "@/features/parent/ActivationDelivery";
 import { ParentSettingsTab } from "@/features/parent/ParentSettingsTab";
+import { FamilyInvitationsTab } from "@/features/parent/FamilyInvitationsTab";
 import {
   dateTime,
   fieldGrid,
@@ -57,6 +58,7 @@ import {
 } from "@/features/parent/shared";
 
 type Tab =
+  | "families"
   | "registrations"
   | "relations"
   | "requests"
@@ -65,6 +67,7 @@ type Tab =
   | "publications"
   | "settings";
 const tabLabels: Record<Tab, string> = {
+  families: "الأسر والدعوات",
   registrations: "طلبات التسجيل",
   relations: "العلاقات",
   requests: "طلبات الأسرة",
@@ -117,6 +120,7 @@ export function ParentManagementPage() {
         ))}
       </nav>
       {tab === "registrations" && <Registrations />}
+      {tab === "families" && <FamilyInvitationsTab />}
       {tab === "relations" && <Relations />}
       {tab === "requests" && <StaffRequests />}
       {tab === "contacts" && <Contacts />}

@@ -117,3 +117,10 @@ Direct SQL contact reviews may lack keyed
 contact hashes because the application secret is not installed in PostgreSQL;
 atomic revision/suspension remains enforced. No parent electronic leave or gate
 authority exists. No real SMS or production deployment was performed in local tests.
+# دعوة أسرة من بيانات الطلاب
+
+تدعم إدارة أولياء الأمور الآن تبويب **الأسر والدعوات** للمدير والوكيل:
+مراجعة الأبناء المقترحين واعتمادهم ثم SMS واحد للأسرة، مع تمييز حالة الدعوة.
+تجميع الرقم لا يمنح وصولاً تلقائياً؛ البريد الموثق والحساب الحالي لهما ضوابطهما
+المستقلة. إعداد الدعوات مغلق افتراضياً. تفاصيل التشغيل والأمان والقبول في
+[دليل الدعوات](PARENT_FAMILY_INVITATIONS_VERIFICATION.md).

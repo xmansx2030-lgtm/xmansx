@@ -45,6 +45,10 @@ EMAIL_RECOVERY_TABLES = {
     "parents_accountrecoveryemail",
     "parents_accountrecoveryemaildelivery",
 }
+FAMILY_INVITATION_TABLES = {
+    "parents_guardianfamilyinvitation",
+    "parents_guardianfamilyinvitationchild",
+}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -210,9 +214,9 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
         )
         tables = cursor.fetchall()
         assert {name for name, _, _ in tables} == (
-            PARENT_TABLES | RECOVERY_TABLES | EMAIL_RECOVERY_TABLES
+            PARENT_TABLES | RECOVERY_TABLES | EMAIL_RECOVERY_TABLES | FAMILY_INVITATION_TABLES
         )
-        assert len(tables) == 20 and all(enabled and forced for _, enabled, forced in tables)
+        assert len(tables) == 22 and all(enabled and forced for _, enabled, forced in tables)
         cursor.execute(
             "SELECT tablename, policyname, cmd, qual, with_check, permissive, roles "
             "FROM pg_policies WHERE schemaname='public' AND tablename LIKE 'parents_%'"
@@ -314,7 +318,27 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
         row for row in policies
         if row[1].startswith("recovery_") and not row[1].startswith("recovery_email_")
     ]
-    assert len(additions) == 17 and len(policies) == 79
+    assert len(additions) == 17 and len(policies) == 87
+    family_policies = [row for row in policies if row[0] in FAMILY_INVITATION_TABLES]
+    assert len(family_policies) == 8
+    expected_family = {}
+    for table in FAMILY_INVITATION_TABLES:
+        select = scope
+        if table == "parents_guardianfamilyinvitation":
+            select += (
+                " OR token_hash = NULLIF("
+                "current_setting('app.parent_family_invitation_hash', true), '')"
+            )
+        expected_family[(table, "family_select")] = ("SELECT", _canonical(select), None)
+        expected_family[(table, "family_insert")] = ("INSERT", None, _canonical(scope))
+        expected_family[(table, "family_update")] = (
+            "UPDATE", _canonical(scope), _canonical(scope),
+        )
+        expected_family[(table, "family_delete")] = ("DELETE", _canonical(scope), None)
+    assert {(row[0], row[1]) for row in family_policies} == set(expected_family)
+    for table, name, command, qual, check, permissive, roles in family_policies:
+        assert (command, _canonical(qual), _canonical(check)) == expected_family[(table, name)]
+        assert permissive == "PERMISSIVE" and roles == ["public"]
     email_policies = [row for row in policies if row[0] in EMAIL_RECOVERY_TABLES]
     assert len(email_policies) == 6
     assert {(row[0], row[2]) for row in email_policies} == {
@@ -329,6 +353,12 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
         assert "rls_bypass" not in (qual or "") + (check or "")
 
     required = {
+        ("parents_guardianfamilyinvitation", "parent_family_guard"):
+            "xmansx_parent_family_guard",
+        ("parents_guardianfamilyinvitationchild", "parent_family_child_guard"):
+            "xmansx_parent_family_child_guard",
+        ("parents_guardianactivation", "parent_family_activation_guard"):
+            "xmansx_parent_family_activation_guard",
         ("students_student", "parent_contact_guard"): "xmansx_parent_contact_guard",
         ("accounts_user", "parent_global_mobile_guard"): "xmansx_parent_global_mobile_guard",
         (
@@ -379,7 +409,20 @@ def test_migrated_parent_catalog_has_exact_forced_policies_and_all_identity_guar
                 candidate.name == "school" for candidate in field.related_model._meta.fields
             ):
                 continue
-            name = f"same_school_{model._meta.db_table}_{field.column}"[:63]
+            if model._meta.db_table == "parents_guardianfamilyinvitationchild":
+                if field.column == "invitation_id":
+                    # The UUID binding is checked BEFORE the write against the exact
+                    # family, approval, activation and school by the family guard.
+                    definition = triggers[(model._meta.db_table, "parent_family_child_guard")][3]
+                    assert "BEFORE" in definition and "FOR EACH ROW" in definition
+                    assert all(
+                        operation in definition for operation in ("INSERT", "UPDATE", "DELETE")
+                    )
+                    assert "xmansx_parent_family_child_guard()" in definition
+                    continue
+                name = f"family_same_school_{field.column}"
+            else:
+                name = f"same_school_{model._meta.db_table}_{field.column}"[:63]
             enabled, deferrable, deferred, definition = triggers[(model._meta.db_table, name)]
             assert enabled == "O" and deferrable and not deferred
             expected_function = (
