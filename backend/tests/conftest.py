@@ -44,7 +44,8 @@ def make_school(db):
     def _make(name: str = "", status: str = SchoolStatus.ACTIVE) -> School:
         n = next(counter)
         return School.objects.create(
-            name=name or f"مدرسة {n}", slug=f"school-{n}", status=status
+            name=name or f"مدرسة {n}", slug=f"school-{n}", status=status,
+            feature_access={},  # Legacy-school fixtures retain their original contract.
         )
 
     return _make

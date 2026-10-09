@@ -269,6 +269,9 @@ def current_roster_version(*, school) -> str:
 
 
 def approve_job(*, job: DeviceRosterSyncJob, membership) -> DeviceRosterSyncJob:
+    from subscriptions.entitlements import require_feature
+
+    require_feature(job.school, "BIOMETRIC_DEVICES")
     if job.status != DeviceRosterSyncStatus.READY_FOR_REVIEW:
         raise ValueError("DEVICE_ROSTER_SYNC_NOT_READY")
     if current_roster_version(school=job.school) != job.roster_version:

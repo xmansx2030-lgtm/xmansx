@@ -147,6 +147,7 @@ class MobileChangePageOutput(serializers.Serializer):
 
 
 class StaffContactView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
     write_roles = read_roles
 

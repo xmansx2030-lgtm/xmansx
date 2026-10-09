@@ -12,10 +12,12 @@ from attendance.models import AttendanceMark, AttendanceSession
 from attendance.services.sessions import correct_student_attendance
 from audit.services import record_event
 from common.errors import ApiError
+from counseling.models import CaseEventType
 from documents.models import DocumentStatus, GeneratedDocument
 from excuses.services.excuses import _validate_targets, create_excuse
 from excuses.validators import validate_excuse_attachment
 from memberships.models import SchoolRole
+from parents.counseling_integration import record_family_case_event
 from parents.request_models import (
     AttendanceCorrectionRequest,
     FamilyPublication,
@@ -473,6 +475,7 @@ def publish_family(
         _audit(
             "FAMILY_CONTENT_PUBLISHED", obj, membership.user, request, has_document=bool(document)
         )
+        record_family_case_event(obj, CaseEventType.FAMILY_CONTENT_PUBLISHED, membership=membership)
         from parents.models import GuardianStudentRelation
 
         for relation in GuardianStudentRelation.objects.filter(
@@ -544,6 +547,9 @@ def revoke_publication(*, publication, membership, reason, request=None):
             updated_at=publication.revoked_at,
         )
         _audit("FAMILY_CONTENT_REVOKED", publication, membership.user, request)
+        record_family_case_event(
+            publication, CaseEventType.FAMILY_CONTENT_REVOKED, membership=membership
+        )
     return publication
 
 

@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 
+ARG NODE_BASE_IMAGE=node:24-alpine
+ARG NGINX_BASE_IMAGE=nginx:1.27-alpine
+
 # ---------- Development ----------
-FROM node:24-alpine AS dev
+FROM ${NODE_BASE_IMAGE} AS dev
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -10,7 +13,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # ---------- Build ----------
-FROM node:24-alpine AS build
+FROM ${NODE_BASE_IMAGE} AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -18,7 +21,7 @@ COPY . .
 RUN npm run build
 
 # ---------- Production (static via nginx, /api proxied to backend) ----------
-FROM nginx:1.27-alpine AS prod
+FROM ${NGINX_BASE_IMAGE} AS prod
 ENV PORT=80 \
     BACKEND_HOSTPORT=backend:8000 \
     PUBLIC_SCHEME=http \

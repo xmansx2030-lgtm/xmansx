@@ -45,7 +45,15 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.sha }}
 
+      - name: Configure Docker Hub cache before release builder
+        run: bash .github/scripts/configure-docker-mirror.sh
+
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.XMAN_CI_BUILDKIT_IMAGE }}
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - uses: docker/login-action@v3
         with:
@@ -62,6 +70,9 @@ jobs:
           push: true
           provenance: true
           sbom: true
+          build-args: |
+            PYTHON_BASE_IMAGE=${{ env.XMAN_CI_PYTHON_IMAGE }}
+            BUILDKIT_SYNTAX=${{ env.XMAN_CI_DOCKERFILE_IMAGE }}
           tags: ghcr.io/${{ steps.release.outputs.repository }}/backend:${{ steps.release.outputs.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
@@ -75,6 +86,10 @@ jobs:
           push: true
           provenance: true
           sbom: true
+          build-args: |
+            NODE_BASE_IMAGE=${{ env.XMAN_CI_NODE_IMAGE }}
+            NGINX_BASE_IMAGE=${{ env.XMAN_CI_NGINX_IMAGE }}
+            BUILDKIT_SYNTAX=${{ env.XMAN_CI_DOCKERFILE_IMAGE }}
           tags: ghcr.io/${{ steps.release.outputs.repository }}/frontend:${{ steps.release.outputs.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend

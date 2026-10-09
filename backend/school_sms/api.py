@@ -61,6 +61,7 @@ def _date_or_today(request: Request) -> date:
 
 
 class SchoolSmsIntegrationView(SchoolScopedAPIView):
+    feature_key = "ABSENCE_SMS"
     read_roles = (SchoolRole.SCHOOL_MANAGER,)
     write_roles = (SchoolRole.SCHOOL_MANAGER,)
 
@@ -78,6 +79,7 @@ class SchoolSmsIntegrationView(SchoolScopedAPIView):
 
 
 class AbsenceSmsPreviewView(SchoolScopedAPIView):
+    feature_key = "ABSENCE_SMS"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
 
     def get(self, request: Request) -> Response:
@@ -91,6 +93,7 @@ class AbsenceSmsPreviewView(SchoolScopedAPIView):
 
 
 class AbsenceSmsSendView(SchoolScopedAPIView):
+    feature_key = "ABSENCE_SMS"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
     write_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
 
@@ -108,6 +111,7 @@ class AbsenceSmsSendView(SchoolScopedAPIView):
 
 
 class StudentSmsHistoryView(SchoolScopedAPIView):
+    feature_key = "ABSENCE_SMS"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
 
     def get(self, request: Request, student_id: int) -> Response:

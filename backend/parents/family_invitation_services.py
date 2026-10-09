@@ -8,8 +8,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Case, CharField, Count, F, Func, Value, When
-from django.db.models.functions import Cast, Concat
+from django.db.models import Case, CharField, Count, F, Func, Q, Value, When
+from django.db.models.functions import Cast, Concat, Replace
 from django.utils import timezone
 
 from accounts.mobile import mask_mobile
@@ -87,6 +87,10 @@ def _child_token(token, activation_id):
 
 
 def _valid_locked(invitation, children, school):
+    from subscriptions.entitlements import has_entitlement
+
+    if not has_entitlement(school, "PARENT_PORTAL"):
+        raise invalid()
     if (
         invitation.consumed_at
         or invitation.revoked_at
@@ -158,8 +162,55 @@ def invitation_row(invitation, *, current_student_ids=None):
 
 def families_page(school, page, request):
     base = _students(school)
+    search = normalize_text(request.query_params.get("search", ""))
+    if len(search) > 150:
+        raise ApiError("VALIDATION_ERROR", "اكتب بحثاً لا يتجاوز 150 حرفاً.", status_code=400)
+    matching = base
+    if search:
+        # Match contacts first, then retrieve the whole family before pagination.
+        # Filtering the child rows themselves would silently omit siblings.
+        def name_key(expression):
+            for source, target in [("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي")]:
+                expression = Replace(expression, Value(source), Value(target))
+            return Func(
+                expression,
+                Value("[ـً-ٟ]"),
+                Value(""),
+                Value("g"),
+                function="regexp_replace",
+                output_field=CharField(),
+            )
+
+        needle = re.sub("[ـً-ٟ]", "", search.translate(str.maketrans("أإآى", "اااي")))
+        matching = base.annotate(
+            guardian_search=name_key(F("guardian_name")), child_search=name_key(F("full_name"))
+        )
+        guardian_match, child_match = Q(), Q()
+        for word in needle.split():
+            guardian_match &= Q(guardian_search__icontains=word)
+            child_match &= Q(child_search__icontains=word)
+        predicate = guardian_match | child_match
+        digits = search.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789"))
+        digits = re.sub(r"[\s()+-]", "", digits)
+        if digits.isascii() and digits.isdigit():
+            if digits.startswith("00966"):
+                digits = digits[2:]
+            elif digits.startswith("05"):
+                digits = "966" + digits[1:]
+            predicate |= Q(mobile_key__contains=digits)
+        # A school may have reviewed a different guardian name for the invitation.
+        invitation_matches = GuardianFamilyInvitation.objects.filter(school=school).annotate(
+            reviewed_search=name_key(F("name"))
+        )
+        for word in needle.split():
+            invitation_matches = invitation_matches.filter(reviewed_search__icontains=word)
+        predicate |= Q(id__in=invitation_matches.values("children__student_id"))
+        matching = matching.filter(predicate)
+        base_groups = base.filter(family_key__in=matching.order_by().values("family_key"))
+    else:
+        base_groups = base
     groups = (
-        base.order_by()
+        base_groups.order_by()
         .values("family_key")
         .annotate(child_count=Count("id"))
         .order_by("family_key")
@@ -231,6 +282,9 @@ def families_page(school, page, request):
 
 def create_invitation(*, school, membership, data, request=None):
     _require_staff(school, membership)
+    from subscriptions.entitlements import require_feature
+
+    require_feature(school, "PARENT_PORTAL")
     if not settings.PARENT_FAMILY_INVITATION_SMS_ENABLED:
         raise ApiError(
             "INVITATION_SMS_DISABLED", "إرسال دعوات الأسرة غير مفعل تشغيلياً.", status_code=503

@@ -7,6 +7,7 @@ from django.test import Client
 
 from accounts.models import User
 from common.tenant_rls import tenant_context
+from memberships.middleware import ACTIVE_SCHOOL_SESSION_KEY
 from memberships.models import SchoolRole
 from parents.email_recovery_models import AccountRecoveryEmail, AccountRecoveryEmailDelivery
 from platform_team.models import PlatformStaffMembership
@@ -160,3 +161,33 @@ def test_real_rls_owner_status_cannot_be_satisfied_by_another_account(
         assert data["school_email_completion_required"] is True
         assert data["school_email_verification_pending"] is False
         assert not AccountRecoveryEmail.objects.filter(user=foreign).exists()
+
+
+@pytest.mark.parametrize("verified", [False, True])
+def test_real_rls_active_school_keeps_owned_email_state(old_school_account, verified):
+    user, membership, client = old_school_account
+    if verified:
+        verify(user, client)
+    else:
+        result = client.post(EMAIL_PATH, {
+            "email": "personal@example.invalid", "current_password": PASSWORD,
+        }, content_type="application/json")
+        assert result.status_code == 200, result.content
+    session = client.session
+    session[ACTIVE_SCHOOL_SESSION_KEY] = membership.school_id
+    session.save()
+
+    with restricted_role():
+        data = flags(client)
+        assert data["active_school"]["id"] == membership.school_id
+        assert data["school_email_completion_required"] is False
+        assert data["school_email_verification_pending"] is (not verified)
+        status = client.get(EMAIL_PATH)
+        assert status.status_code == 200, status.content
+        assert status.json()["verified"] is verified
+        switched = client.post("/api/v1/session/active-school/", {
+            "school_id": membership.school_id,
+        }, content_type="application/json")
+        assert switched.status_code == 200, switched.content
+        assert switched.json()["school_email_completion_required"] is False
+        assert switched.json()["school_email_verification_pending"] is (not verified)

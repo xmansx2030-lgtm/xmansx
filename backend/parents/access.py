@@ -12,6 +12,7 @@ from common.tenant_rls import tenant_context
 from parents.models import GuardianStudentRelation, RelationStatus
 from schools.models import SchoolStatus
 from subscriptions.access import BLOCKED, FULL, get_school_access_mode
+from subscriptions.entitlements import has_entitlement, require_feature
 
 
 def not_found():
@@ -92,6 +93,8 @@ class ParentSchoolRead:
         if not relations or school.status != SchoolStatus.ACTIVE:
             return {}
         if get_school_access_mode(school) == BLOCKED:
+            return {}
+        if not has_entitlement(school, "PARENT_PORTAL"):
             return {}
         return {
             relation.pk: relation for relation in relations
@@ -174,6 +177,7 @@ def parent_scope(user, relation_id: int, *, write: bool = False, lock: bool = Fa
             raise not_found()
         if relation.school.status != SchoolStatus.ACTIVE:
             raise ApiError("SCHOOL_SUSPENDED", "المدرسة غير متاحة حالياً.", status_code=403)
+        require_feature(relation.school, "PARENT_PORTAL")
         mode = get_school_access_mode(relation.school)
         if mode == BLOCKED:
             raise ApiError("SCHOOL_SUSPENDED", "المدرسة غير متاحة حالياً.", status_code=403)

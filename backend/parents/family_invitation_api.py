@@ -110,6 +110,7 @@ class InvitationBatchOutput(serializers.Serializer):
 
 
 class StaffFamiliesView(PrivateResponseMixin, SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
 
     @extend_schema(responses=FamiliesOutput)

@@ -273,6 +273,10 @@ test("vice principal workspaces and detail views stay usable on a phone", async 
     { width: 360, height: 800 },
     { width: 390, height: 844 },
   ]) {
+    // Full reloads across every workspace are an artificial request burst.
+    // Space the two synthetic visits across the real account-limit window;
+    // retain production throttles and exercise every route in both viewports.
+    if (viewport.width === 390) await page.waitForTimeout(60_000);
     await page.setViewportSize(viewport);
     for (const path of vicePrincipalRoutes) {
       await page.goto(path);

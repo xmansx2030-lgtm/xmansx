@@ -42,7 +42,7 @@ from platform_team.access import PlatformCapability
 from schools.models import School, SchoolStatus, SchoolType
 from students.models import Student, StudentStatus
 from subscriptions.access import effective_status, live_subscription, subscription_state
-from subscriptions.entitlements import get_school_entitlements
+from subscriptions.entitlements import get_school_entitlements, school_feature_access
 from subscriptions.models import (
     NUMERIC_ENTITLEMENTS,
     PlanDurationUnit,
@@ -559,6 +559,7 @@ class SchoolDetailView(PlatformAPIView):
                 "subscription": subscription_state(school),
                 "usage": row["usage"],
                 "entitlements": get_school_entitlements(school),
+                "feature_access": school_feature_access(school),
             }
         )
 

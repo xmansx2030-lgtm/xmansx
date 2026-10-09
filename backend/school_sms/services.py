@@ -115,6 +115,9 @@ def render_absence_message(*, school, summary) -> str:
 
 
 def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
+    from subscriptions.entitlements import require_feature
+
+    require_feature(school, "ABSENCE_SMS")
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
     rows = list(candidate_absences(school=school, attendance_date=attendance_date))
     blocked_ids = blocked_student_ids(school=school, students=[row.student for row in rows])
@@ -203,6 +206,9 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
 
 def queue_absence_sms(*, school, actor, attendance_date: date,
                       student_ids: list[int], request=None) -> dict:
+    from subscriptions.entitlements import require_feature
+
+    require_feature(school, "ABSENCE_SMS")
     if (
         not student_ids or len(student_ids) > MAX_SEND_BATCH
         or len(set(student_ids)) != len(student_ids)

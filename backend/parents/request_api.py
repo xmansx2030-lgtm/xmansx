@@ -15,7 +15,7 @@ from audit.services import record_event
 from common.errors import ApiError
 from common.pagination import DefaultPagination
 from common.tenant_rls import tenant_context
-from counseling.models import CounselorCase
+from counseling.models import CaseEventType, CounselorCase
 from documents.models import GeneratedDocument
 from documents.services.generation import open_for_download
 from excuses.models import ExcuseReasonType
@@ -31,6 +31,7 @@ from parents.access import (
     parent_scope,
     relation_school_groups,
 )
+from parents.counseling_integration import attach_family_action_progress, record_family_case_event
 from parents.rate_limit import consume
 from parents.request_models import (
     AttendanceCorrectionRequest,
@@ -454,6 +455,25 @@ def publication_row(obj, acknowledged_at=None, *, staff=False):
         else None,
     }
     if staff:
+        progress = getattr(obj, "family_action_progress", None)
+        if progress is None:
+            attach_family_action_progress([obj], obj.school_id)
+            progress = obj.family_action_progress
+        row.update(
+            {
+                "student_name": obj.student.full_name,
+                "case_id": obj.case_id,
+                "action_count": progress.get("action_count", 0),
+                "completed_action_count": progress.get("completed_action_count", 0),
+                "action_completed_at": _iso(progress.get("action_completed_at")),
+                "action_overdue": bool(
+                    not obj.revoked_at
+                    and obj.due_at
+                    and obj.due_at < timezone.now()
+                    and progress.get("completed_action_count", 0) < progress.get("action_count", 0)
+                ),
+            }
+        )
         acknowledgements = getattr(obj, "staff_acknowledgements", None)
         if acknowledgements is None:
             acknowledgements = list(
@@ -539,6 +559,7 @@ class ParentPublicationAcknowledgeView(FamilyRequestAPIView):
                 defaults={"acknowledged_at": timezone.now()},
             )
             if created:
+                record_family_case_event(obj, CaseEventType.FAMILY_CONTENT_ACKNOWLEDGED)
                 record_event(
                     "FAMILY_PUBLICATION_ACKNOWLEDGED",
                     school=relation.school,
@@ -842,8 +863,13 @@ class ParentNotificationReadView(FamilyRequestAPIView):
                                 )
                         if not obj.requires_action:
                             raise ApiError("VALIDATION_ERROR", "لا يتطلب هذا التنبيه إجراءً.")
+                        first_completion = obj.action_completed_at is None
                         obj.action_completed_at = obj.action_completed_at or timezone.now()
                         obj.save(update_fields=["action_completed_at", "updated_at"])
+                        if obj.kind == "FAMILY_PUBLICATION" and first_completion:
+                            record_family_case_event(
+                                publication, CaseEventType.FAMILY_ACTION_COMPLETED
+                            )
                 else:
                     if index["status"] != "ACTIVE" and obj.kind != "RELATION_STATUS":
                         raise not_found()
@@ -883,6 +909,7 @@ class ParentNotificationCompleteView(ParentNotificationReadView):
 
 
 class StaffRequestsView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
 
     @extend_schema(
@@ -919,6 +946,7 @@ class StaffRequestsView(SchoolScopedAPIView):
 
 
 class StaffExcuseDetailView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
     model = ParentExcuseRequest
 
@@ -948,6 +976,7 @@ class StaffCorrectionDetailView(StaffExcuseDetailView):
 
 
 class StaffExcuseDecisionView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
     model = ParentExcuseRequest
 
@@ -971,6 +1000,7 @@ class StaffCorrectionDecisionView(StaffExcuseDecisionView):
 
 
 class StaffAttachmentDownloadView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
 
     @extend_schema(
@@ -1001,6 +1031,7 @@ class StaffAttachmentDownloadView(SchoolScopedAPIView):
 
 
 class StaffPublicationsView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = (*REVIEW_ROLES, SchoolRole.COUNSELOR)
 
     @extend_schema(
@@ -1010,7 +1041,7 @@ class StaffPublicationsView(SchoolScopedAPIView):
     def get(self, request):
         items = (
             FamilyPublication.objects.filter(school=request.school)
-            .select_related("document__warning")
+            .select_related("document__warning", "student")
             .annotate(ack_count=Count("acknowledgements"))
             .prefetch_related(
                 Prefetch(
@@ -1030,7 +1061,18 @@ class StaffPublicationsView(SchoolScopedAPIView):
             if not case_id.isdigit() or int(case_id) < 1:
                 raise ApiError("VALIDATION_ERROR", "معرف الحالة غير صحيح.")
             items = items.filter(case_id=int(case_id))
-        return _paged(items, request, lambda obj: publication_row(obj, staff=True))
+        _pagination_window(request)
+        paginator = DefaultPagination()
+        page_items = paginator.paginate_queryset(items, request)
+        attach_family_action_progress(page_items, request.school.id)
+        return Response(
+            {
+                "count": paginator.page.paginator.count,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+                "items": [publication_row(obj, staff=True) for obj in page_items],
+            }
+        )
 
     @extend_schema(
         request=PublicationSerializer, responses={201: output.StaffPublicationOutputSerializer}
@@ -1068,6 +1110,7 @@ class StaffPublicationsView(SchoolScopedAPIView):
 
 
 class StaffPublicationRevokeView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = (*REVIEW_ROLES, SchoolRole.COUNSELOR)
 
     @extend_schema(request=ReasonSerializer, responses=output.StaffPublicationOutputSerializer)
@@ -1083,6 +1126,7 @@ class StaffPublicationRevokeView(SchoolScopedAPIView):
 
 
 class StaffAcknowledgementsView(SchoolScopedAPIView):
+    feature_key = "PARENT_PORTAL"
     read_roles = write_roles = REVIEW_ROLES
 
     @extend_schema(

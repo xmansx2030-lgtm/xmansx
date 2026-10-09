@@ -43,6 +43,8 @@ class EntitlementKey(models.TextChoices):
 
     ATTENDANCE = "ATTENDANCE", "الحضور"
     BIOMETRIC_DEVICES = "BIOMETRIC_DEVICES", "أجهزة البصمة"
+    ABSENCE_SMS = "ABSENCE_SMS", "رسائل الغياب"
+    PARENT_PORTAL = "PARENT_PORTAL", "بوابة ولي الأمر"
     ROSTER_SYNC = "ROSTER_SYNC", "مزامنة القوائم"
     EXCUSES = "EXCUSES", "الأعذار"
     WARNINGS = "WARNINGS", "الإنذارات"

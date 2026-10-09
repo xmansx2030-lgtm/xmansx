@@ -14,6 +14,8 @@ import { roleLabels, studentPluralLabel } from "@/utils/roles";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { SpaceSwitchButton } from "@/features/parent/SpaceSwitchButton";
+import { Modal } from "@/components/Modal";
+import { FeatureSubscriptionNotice, SchoolFeatureBoundary, featureForPath, useSchoolFeatures, type SchoolFeature } from "@/features/platform/schoolFeatures";
 
 type Role = SchoolRole;
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -105,17 +107,25 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void }) {
+function NavigationLinks({ items, schoolType, onNavigate, onLocked }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void; onLocked: (feature: SchoolFeature) => void }) {
+  const features = useSchoolFeatures();
   const groups = (Object.keys(GROUP_LABELS) as NavigationGroup[]).filter((group) =>
     items.some((item) => item.group === group),
   );
 
-  return groups.map((group) => (
+  return <>{groups.map((group) => (
     <div key={group} className="mb-6 last:mb-0">
       <p className="mb-2 px-3 text-[10px] font-bold tracking-wide text-teal-100/45">{group === "students" ? `${studentPluralLabel(schoolType)} والمتابعة` : GROUP_LABELS[group]}</p>
       <div className="space-y-1">
         {items.filter((item) => item.group === group).map((item) => {
           const Icon = item.icon;
+          const feature = featureForPath(item.to);
+          if (feature && features?.[feature] === false) {
+            return <button key={item.to} type="button" aria-disabled="true" aria-label={`${item.label} — يلزم اشتراك`} onClick={() => onLocked(feature)} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-[13px] text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400">
+              <Icon aria-hidden size={18} className="shrink-0 text-slate-500" />
+              <span className="min-w-0"><span className="block">{item.label}</span><span className="mt-0.5 block text-[10px] text-amber-200/70">يلزم اشتراك</span></span>
+            </button>;
+          }
           return (
             <NavLink
               key={item.to}
@@ -135,10 +145,10 @@ function NavigationLinks({ items, schoolType, onNavigate }: { items: NavigationI
         })}
       </div>
     </div>
-  ));
+  ))}</>;
 }
 
-function AdditionalNavigation({ items, schoolType, onNavigate }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void }) {
+function AdditionalNavigation({ items, schoolType, onNavigate, onLocked }: { items: NavigationItem[]; schoolType?: "BOYS" | "GIRLS"; onNavigate?: () => void; onLocked: (feature: SchoolFeature) => void }) {
   if (items.length === 0) return null;
   const discoverablePaths = ["/warnings", "/excuses", "/referrals", "/attendance/analytics"];
   const preferredItems = discoverablePaths
@@ -165,7 +175,7 @@ function AdditionalNavigation({ items, schoolType, onNavigate }: { items: Naviga
         <ChevronDown aria-hidden size={17} className="transition-transform group-open:rotate-180" />
       </summary>
       <div className="border-t border-white/10 px-1 pt-4">
-        <NavigationLinks items={items} schoolType={schoolType} onNavigate={onNavigate} />
+        <NavigationLinks items={items} schoolType={schoolType} onNavigate={onNavigate} onLocked={onLocked} />
       </div>
     </details>
   );
@@ -200,6 +210,8 @@ export function AppShell() {
   const me = useMe();
   const doLogout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lockedFeature, setLockedFeature] = useState<SchoolFeature | null>(null);
+  const showFeatureNotice = (feature: SchoolFeature) => { setMobileMenuOpen(false); setLockedFeature(feature); };
   const schoolType = me.data?.active_school?.school_type;
   const isManager = me.isSuccess && me.data.roles.includes("SCHOOL_MANAGER");
   const isVicePrincipalOnly = me.isSuccess && me.data.roles.includes("VICE_PRINCIPAL") && !isManager;
@@ -230,8 +242,8 @@ export function AppShell() {
       <aside className="hidden h-dvh w-70 shrink-0 flex-col overflow-hidden bg-[#102b28] lg:sticky lg:top-0 lg:flex">
         <div className="border-b border-white/[0.08] p-5"><Brand /></div>
         <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto px-3 py-5">
-          <NavigationLinks items={primaryItems} schoolType={schoolType} />
-          <AdditionalNavigation items={additionalItems} schoolType={schoolType} />
+          <NavigationLinks items={primaryItems} schoolType={schoolType} onLocked={showFeatureNotice} />
+          <AdditionalNavigation items={additionalItems} schoolType={schoolType} onLocked={showFeatureNotice} />
         </nav>
         <UserPanel onLogout={handleLogout} />
       </aside>
@@ -260,8 +272,8 @@ export function AppShell() {
           <div className="fixed inset-0 z-30 bg-[#0b211f]/50 pt-[65px] backdrop-blur-sm lg:hidden" onClick={() => setMobileMenuOpen(false)}>
             <nav ref={drawerRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="التنقل الرئيسي" tabIndex={-1} className="ms-auto flex max-h-[calc(100dvh-65px)] w-[min(88vw,22rem)] flex-col overflow-hidden border-s border-white/10 bg-[#102b28] shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex-1 overflow-y-auto px-4 py-5">
-                <NavigationLinks items={primaryItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
-                <AdditionalNavigation items={additionalItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} />
+                <NavigationLinks items={primaryItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} onLocked={showFeatureNotice} />
+                <AdditionalNavigation items={additionalItems} schoolType={schoolType} onNavigate={() => setMobileMenuOpen(false)} onLocked={showFeatureNotice} />
               </div>
               <div className="bg-[#fbfdfc]"><UserPanel onLogout={handleLogout} mobile /></div>
             </nav>
@@ -269,9 +281,10 @@ export function AppShell() {
         )}
 
         <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8">
-          <SchoolEmailVerificationNotice /><Outlet />
+          <SchoolEmailVerificationNotice /><SchoolFeatureBoundary><Outlet /></SchoolFeatureBoundary>
         </main>
       </div>
+      {lockedFeature && <Modal title="ميزة تتطلب اشتراكًا" onClose={() => setLockedFeature(null)}><FeatureSubscriptionNotice feature={lockedFeature} /></Modal>}
     </div>
   );
 }

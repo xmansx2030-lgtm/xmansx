@@ -127,6 +127,7 @@ def _bridge_payload(bridge) -> dict:
 
 
 class BridgesView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -153,6 +154,7 @@ class BridgesView(SchoolScopedAPIView):
 
 
 class BridgeRotateView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -206,6 +208,7 @@ def _apply_device_fields(device, data: dict) -> None:
 
 
 class DevicesView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -255,6 +258,7 @@ class DevicesView(SchoolScopedAPIView):
 
 
 class DeviceDetailView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -296,6 +300,7 @@ class DeviceDetailView(SchoolScopedAPIView):
 class DeviceTestView(SchoolScopedAPIView):
     """يطلب اختبار اتصال — الجسر يلتقطه في مزامنته التالية ويعيد النتيجة."""
 
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -333,6 +338,7 @@ def _identity_payload(identity) -> dict:
 
 
 class IdentitiesView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -393,6 +399,7 @@ def _roster_item_payload(item) -> dict:
 
 
 class DeviceRosterAnalyzeView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -434,6 +441,7 @@ class DeviceRosterAnalyzeView(SchoolScopedAPIView):
 
 
 class DeviceRosterJobView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
     write_roles = MANAGER_ONLY
 
@@ -448,6 +456,7 @@ class DeviceRosterJobView(SchoolScopedAPIView):
 
 
 class DeviceRosterItemsView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = (SchoolRole.SCHOOL_MANAGER, SchoolRole.VICE_PRINCIPAL)
     write_roles = MANAGER_ONLY
 
@@ -462,6 +471,7 @@ class DeviceRosterItemsView(SchoolScopedAPIView):
 
 
 class DeviceRosterApproveView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -487,6 +497,7 @@ class DeviceRosterApproveView(SchoolScopedAPIView):
 
 
 class DeviceRosterRetryView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -514,6 +525,7 @@ class DeviceRosterRetryView(SchoolScopedAPIView):
 
 
 class IdentityMapView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 
@@ -548,6 +560,7 @@ class IdentityMapView(SchoolScopedAPIView):
 
 
 class IdentityUnmapView(SchoolScopedAPIView):
+    feature_key = "BIOMETRIC_DEVICES"
     read_roles = MANAGER_ONLY
     write_roles = MANAGER_ONLY
 

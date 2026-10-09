@@ -44,6 +44,7 @@ export interface Me {
   school_recovery_email_enabled?: boolean;
   school_email_completion_required?: boolean;
   school_email_verification_pending?: boolean;
+  school_features?: import("@/types/schoolFeatures").SchoolFeatures | null;
   active_school: SchoolSummary | null;
   roles: SchoolRole[];
   capabilities?: SchoolCapability[];

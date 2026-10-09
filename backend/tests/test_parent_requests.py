@@ -1,6 +1,7 @@
 """Family review, protected files, isolation, and existing business contracts."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier, Event
 
 import pytest
@@ -72,6 +73,262 @@ def family_env(make_school, make_user, make_membership, settings, tmp_path):
 
 def post(client, url, payload=None):
     return client.post(url, payload or {}, content_type="application/json")
+
+
+@pytest.fixture
+def counselor_family_env(family_env, make_user, make_membership):
+    from counseling.models import CounselorCase
+    from referrals.models import StudentReferral
+
+    env = family_env
+    counselor = make_membership(make_user("0551700181"), env["school"], ["COUNSELOR"])
+    referral = StudentReferral.objects.create(
+        school=env["school"],
+        student=env["relation"].student,
+        source_type="VICE_PRINCIPAL",
+        category="ATTENDANCE",
+        reason_code="REPEATED_ABSENCE",
+        created_by_membership=env["vice"],
+        assigned_vice_membership=env["vice"],
+        assigned_counselor_membership=counselor,
+        status="REFERRED",
+    )
+    case = CounselorCase.objects.create(
+        school=env["school"],
+        student=env["relation"].student,
+        primary_referral=referral,
+        assigned_counselor_membership=counselor,
+        opened_by_membership=counselor,
+        opened_at=timezone.now(),
+        last_activity_at=timezone.now(),
+        summary="PRIVATE_CASE_SUMMARY",
+    )
+    client = Client()
+    client.force_login(counselor.user)
+    state = client.session
+    state["active_school_id"] = env["school"].id
+    state.save()
+    return {**env, "case": case, "counselor": counselor, "counselor_client": client}
+
+
+@pytest.mark.parametrize("restricted", [False, True])
+def test_counselor_family_roundtrip_updates_case_without_duplicate_events(
+    counselor_family_env, restricted
+):
+    from contextlib import nullcontext
+
+    from counseling.models import CaseEventType
+    from tests.test_parent_email_credential_boundary import restricted_role
+
+    env = counselor_family_env
+    case = env["case"]
+    original_activity = case.last_activity_at
+    with restricted_role() if restricted else nullcontext():
+        response = post(
+            env["counselor_client"],
+            "/api/v1/staff/parents/publications/",
+            {
+                "student_id": case.student_id,
+                "case_id": case.id,
+                "title": "توصية الأسرة",
+                "body": "نص مصرح فقط",
+                "required_action": "متابعة النوم",
+                "due_at": (timezone.now() - timedelta(days=1)).isoformat(),
+            },
+        )
+        assert response.status_code == 201
+        publication_id = response.json()["id"]
+        assert response.json()["student_name"] == case.student.full_name
+        assert response.json()["case_id"] == case.id
+        assert response.json()["action_count"] == 1
+        assert response.json()["completed_action_count"] == 0
+        assert response.json()["action_overdue"] is True
+        dashboard = env["counselor_client"].get("/api/v1/counselor/dashboard/").json()
+        assert dashboard["family_pending_actions"] == dashboard["family_overdue_actions"] == 1
+        parent_items = env["client"].get(f"{env['prefix']}/publications/").json()["items"]
+        assert "PRIVATE_CASE_SUMMARY" not in str(parent_items)
+        assert "case_id" not in parent_items[0]
+        assert "completed_action_count" not in parent_items[0]
+        for _ in range(2):
+            assert (
+                post(
+                    env["client"], f"{env['prefix']}/publications/{publication_id}/acknowledge/"
+                ).status_code
+                == 200
+            )
+        row = (
+            env["counselor_client"]
+            .get(f"/api/v1/staff/parents/publications/?case_id={case.id}")
+            .json()["items"][0]
+        )
+        assert row["ack_count"] == 1
+        assert row["completed_action_count"] == 0  # Reading does not complete the task.
+        with tenant_context(school_id=env["school"].id, user_id=env["user"].id):
+            notice = ParentNotification.objects.get(dedup_key=f"publication:{publication_id}")
+        for _ in range(2):
+            assert (
+                post(
+                    env["client"], f"/api/v1/parent/notifications/{notice.id}/complete-action/"
+                ).status_code
+                == 200
+            )
+        row = (
+            env["counselor_client"]
+            .get(f"/api/v1/staff/parents/publications/?case_id={case.id}")
+            .json()["items"][0]
+        )
+        assert row["completed_action_count"] == row["action_count"] == 1
+        assert row["action_completed_at"] is not None
+        assert row["action_overdue"] is False
+        assert (
+            env["counselor_client"]
+            .get("/api/v1/counselor/dashboard/")
+            .json()["family_pending_actions"]
+            == 0
+        )
+        timeline = (
+            env["counselor_client"].get(f"/api/v1/counselor/cases/{case.id}/timeline/").json()
+        )
+        assert [item["event_type"] for item in reversed(timeline)] == [
+            CaseEventType.FAMILY_CONTENT_PUBLISHED,
+            CaseEventType.FAMILY_CONTENT_ACKNOWLEDGED,
+            CaseEventType.FAMILY_ACTION_COMPLETED,
+        ]
+        assert all(
+            item["metadata"] == {"publication_id": publication_id, "title": "توصية الأسرة"}
+            for item in timeline
+        )
+        for _ in range(2):
+            assert (
+                post(
+                    env["counselor_client"],
+                    f"/api/v1/staff/parents/publications/{publication_id}/revoke/",
+                    {"reason": "تحديث توصية"},
+                ).status_code
+                == 200
+            )
+        assert env["client"].get(f"{env['prefix']}/publications/").json()["items"] == []
+        timeline = (
+            env["counselor_client"].get(f"/api/v1/counselor/cases/{case.id}/timeline/").json()
+        )
+        assert len(timeline) == 4
+        assert timeline[0]["event_type"] == CaseEventType.FAMILY_CONTENT_REVOKED
+    case.refresh_from_db()
+    assert case.last_activity_at > original_activity
+    assert case.status == "OPEN"
+
+
+def test_counselor_family_counts_multiple_guardians_and_ignores_inactive_links(
+    counselor_family_env,
+    make_user,
+    django_assert_num_queries,
+):
+    from counseling.models import CounselorCase
+    from parents.counseling_integration import attach_family_action_progress, family_action_kpis
+
+    env = counselor_family_env
+    second = GuardianStudentRelation.objects.create(
+        school=env["school"],
+        student=env["relation"].student,
+        user=make_user("0551700182", recovery_email_verified=True),
+        status="ACTIVE",
+        contact_bound=False,
+        approved_by=env["vice"].user,
+        approved_at=timezone.now(),
+    )
+    obj = request_services.publish_family(
+        school=env["school"],
+        membership=env["counselor"],
+        student=env["relation"].student,
+        case=env["case"],
+        title="لوليي الأمر",
+        body="نص",
+        required_action="متابعة",
+        due_at=timezone.now() - timedelta(days=1),
+    )
+    ParentNotification.objects.filter(
+        relation=env["relation"], dedup_key=f"publication:{obj.id}"
+    ).update(action_completed_at=timezone.now())
+    informational = request_services.publish_family(
+        school=env["school"], membership=env["counselor"], student=env["relation"].student,
+        case=env["case"], title="معلومة للأسرة", body="نص دون إجراء",
+    )
+    with django_assert_num_queries(1):
+        attach_family_action_progress([obj, informational], env["school"].id)
+    assert informational.family_action_progress == {}
+    assert obj.family_action_progress["action_count"] == 2
+    assert obj.family_action_progress["completed_action_count"] == 1
+    cases = CounselorCase.objects.filter(id=env["case"].id)
+    assert family_action_kpis(school=env["school"], cases=cases) == {
+        "family_pending_actions": 1,
+        "family_overdue_actions": 1,
+    }
+    second.status = "REVOKED"
+    second.save(update_fields=["status"])
+    attach_family_action_progress([obj], env["school"].id)
+    assert obj.family_action_progress["action_count"] == 1
+    assert family_action_kpis(school=env["school"], cases=cases)["family_pending_actions"] == 0
+    second.status = "ACTIVE"
+    second.save(update_fields=["status"])
+    env["case"].status = "CLOSED"
+    env["case"].closure_reason = "IMPROVED"
+    env["case"].closed_at = timezone.now()
+    env["case"].save(update_fields=["status", "closure_reason", "closed_at"])
+    assert family_action_kpis(school=env["school"], cases=cases)["family_pending_actions"] == 0
+    env["case"].status = "OPEN"
+    env["case"].save(update_fields=["status"])
+    request_services.revoke_publication(publication=obj, membership=env["counselor"], reason="سحب")
+    assert family_action_kpis(school=env["school"], cases=cases)["family_pending_actions"] == 0
+
+
+def test_counselor_family_filters_and_kpis_do_not_widen_assignment_scope(
+    counselor_family_env,
+    make_user,
+    make_membership,
+):
+    from counseling.models import CounselorCase
+
+    env = counselor_family_env
+    colleague = make_membership(make_user("0551700183"), env["school"], ["COUNSELOR"])
+    request_services.publish_family(
+        school=env["school"],
+        membership=env["counselor"],
+        student=env["relation"].student,
+        case=env["case"],
+        title="توصية خاصة",
+        body="نص",
+        required_action="متابعة",
+    )
+    CounselorCase.objects.filter(id=env["case"].id).update(assigned_counselor_membership=colleague)
+    assert (
+        env["counselor_client"]
+        .get(f"/api/v1/staff/parents/publications/?case_id={env['case'].id}")
+        .json()["items"]
+        == []
+    )
+    assert (
+        env["counselor_client"].get("/api/v1/counselor/dashboard/").json()["family_pending_actions"]
+        == 0
+    )
+    query = {
+        "search": env["relation"].student.full_name,
+        "counselor": colleague.id,
+        "school_id": env["school"].id,
+    }
+    assert env["counselor_client"].get("/api/v1/counselor/cases/", query).json()["results"] == []
+    assert (
+        post(
+            env["counselor_client"],
+            "/api/v1/staff/parents/publications/",
+            {
+                "student_id": env["case"].student_id,
+                "case_id": env["case"].id,
+                "title": "نشر ممنوع",
+                "body": "نص",
+            },
+        ).status_code
+        == 403
+    )
 
 
 def submit(env):

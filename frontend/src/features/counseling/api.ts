@@ -140,6 +140,8 @@ export interface DashboardKpis {
   waiting_teacher_response: number;
   due_activities: number;
   closed_this_month: number;
+  family_pending_actions: number;
+  family_overdue_actions: number;
 }
 
 export interface CaseRow {
@@ -293,7 +295,7 @@ export const getCounselorDashboard = (signal?: AbortSignal) =>
   apiRequest<DashboardKpis>(`${base}/dashboard/`, { signal });
 
 export const getCases = (
-  params: { status?: string; category?: string; sort?: string; page?: number },
+  params: { status?: string; category?: string; sort?: string; page?: number; search?: string },
   signal?: AbortSignal,
 ) => {
   const query = new URLSearchParams();
@@ -301,6 +303,7 @@ export const getCases = (
   if (params.category) query.set("category", params.category);
   if (params.sort) query.set("sort", params.sort);
   if (params.page) query.set("page", String(params.page));
+  if (params.search) query.set("search", params.search);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<Paginated<CaseRow>>(`${base}/cases/${suffix}`, { signal });
 };

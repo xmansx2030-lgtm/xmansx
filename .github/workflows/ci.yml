@@ -12,23 +12,6 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_DB: xmansx
-          POSTGRES_USER: xmansx
-          POSTGRES_PASSWORD: xmansx-ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U xmansx -d xmansx"
-          --health-interval 5s --health-timeout 3s --health-retries 10
-      redis:
-        image: redis:8.0-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       DJANGO_SETTINGS_MODULE: config.settings.test
       POSTGRES_DB: xmansx
@@ -36,9 +19,15 @@ jobs:
       POSTGRES_PASSWORD: xmansx-ci
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
+      POSTGRES_HOST_PORT: "5432"
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before CI services
+        working-directory: .
+        run: bash .github/scripts/configure-docker-mirror.sh
+      - name: Start isolated backend dependencies
+        run: docker compose -p xmansx-backend-ci -f ../docker-compose.yml up -d --wait postgres redis
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -59,6 +48,9 @@ jobs:
         run: python manage.py spectacular --file /tmp/schema.yml --validate
       - name: Tests
         run: pytest
+      - name: Stop isolated backend dependencies
+        if: always()
+        run: docker compose -p xmansx-backend-ci -f ../docker-compose.yml down -v
 
   frontend:
     name: Frontend (lint, typecheck, tests, build)
@@ -127,6 +119,8 @@ jobs:
       E2E_PRODUCTION_LIKE: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before isolated stack
+        run: bash .github/scripts/configure-docker-mirror.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -148,9 +142,13 @@ jobs:
           npx playwright install --with-deps chromium
           python -m pip install openpyxl
       - name: Start production-like stack
-        run: >-
-          docker compose -p xmansx-ci -f docker-compose.yml
-          -f docker-compose.production.yml up -d --build
+        run: |
+          docker compose -p xmansx-ci -f docker-compose.yml -f docker-compose.production.yml build \
+            --build-arg "PYTHON_BASE_IMAGE=$XMAN_CI_PYTHON_IMAGE" \
+            --build-arg "NODE_BASE_IMAGE=$XMAN_CI_NODE_IMAGE" \
+            --build-arg "NGINX_BASE_IMAGE=$XMAN_CI_NGINX_IMAGE" \
+            --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE"
+          docker compose -p xmansx-ci -f docker-compose.yml -f docker-compose.production.yml up -d --no-build
       - name: Apply migrations
         run: >-
           docker compose -p xmansx-ci -f docker-compose.yml
@@ -210,6 +208,8 @@ jobs:
       E2E_SEED_PASSWORD: Parent-Staging-Local-2026!
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before isolated stack
+        run: bash .github/scripts/configure-docker-mirror.sh
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -227,7 +227,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/parent-staging
           vf=(-p xmansx-parent-ci-materials -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-email-verification.yml)
-          docker compose "${vf[@]}" build tests
+          docker compose "${vf[@]}" build --build-arg "PYTHON_BASE_IMAGE=$XMAN_CI_PYTHON_IMAGE" --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE" tests
           docker compose "${vf[@]}" run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$PWD/artifacts/parent-staging:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
           sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
           docker compose "${sf[@]}" up -d --wait postgres redis
@@ -240,7 +240,7 @@ jobs:
           sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
           chmod 600 artifacts/parent-staging/fixture.json
           docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
-          docker compose "${sf[@]}" build staging-frontend
+          docker compose "${sf[@]}" build --build-arg "NODE_BASE_IMAGE=$XMAN_CI_NODE_IMAGE" --build-arg "NGINX_BASE_IMAGE=$XMAN_CI_NGINX_IMAGE" --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE" staging-frontend
           docker compose "${sf[@]}" up -d staging-app staging-worker staging-beat staging-frontend
           echo "NODE_EXTRA_CA_CERTS=$PWD/artifacts/parent-staging/localhost.crt" >> "$GITHUB_ENV"
           echo "PARENT_E2E_FIXTURE=$PWD/artifacts/parent-staging/fixture.json" >> "$GITHUB_ENV"

@@ -805,16 +805,17 @@ describe("parent portal isolation and family workflows", () => {
           ],
         },
       },
+      "/counselor/cases/": { body: { count: 1, next: null, previous: null, results: [{ id: 7, student_name: "أحمد محمد", status_label: "مفتوحة", grade_name: "الأول", section_name: "2" }] } },
     });
     renderApp("/parent-management");
     expect(
-      await screen.findByLabelText("المحتوى المصرح بنشره"),
+      await screen.findByLabelText("البحث باسم الطالب في حالاتي"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "طلبات التسجيل" })).toBeNull();
     expect(screen.queryByRole("button", { name: "مراجعة التواصل" })).toBeNull();
-    expect(
-      screen.getByLabelText("رقم الحالة الإرشادية المسندة"),
-    ).toBeRequired();
+    expect(screen.queryByLabelText("رقم الحالة الإرشادية المسندة")).toBeNull();
+    expect(screen.queryByLabelText("رقم المستند المصرح (اختياري)")).toBeNull();
+    expect(await screen.findByRole("link", { name: /أحمد محمد.*فتح متابعة الأسرة/ })).toHaveAttribute("href", "/counselor/cases/7?tab=family");
     const user = userEvent.setup();
     await user.click(await screen.findByText("تأكيدات الاطلاع: 1"));
     expect(await screen.findByText(/ولي الأمر ••••4567/)).toBeVisible();
@@ -959,6 +960,13 @@ describe("parent portal isolation and family workflows", () => {
       screen.getByLabelText("الطالب الذي تعتمد علاقته"),
       "5",
     );
+    const proof = screen.getByLabelText("توثيق التحقق من الهوية والصفة");
+    await user.type(proof, "تحقق");
+    await user.click(screen.getByRole("button", { name: "حفظ القرار" }));
+    expect(await screen.findByText("دوّن طريقة التحقق من الهوية والصفة بما لا يقل عن 10 أحرف.")).toBeVisible();
+    expect(calls.filter((call) => call.url.includes("/91/decision/"))).toHaveLength(0);
+    expect(screen.getByRole("dialog", { name: "مراجعة طلب التسجيل #91" })).toBeVisible();
+    await user.clear(proof);
     await user.type(
       screen.getByLabelText("توثيق التحقق من الهوية والصفة"),
       "تحقق حضوري من الأب والهوية",

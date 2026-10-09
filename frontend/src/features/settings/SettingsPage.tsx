@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { FeatureSubscriptionNotice, useSchoolFeatures } from "@/features/platform/schoolFeatures";
 
 import { PageHeader } from "@/components/PageHeader";
 import { useMe } from "@/features/auth/useMe";
@@ -53,6 +54,7 @@ function isTabKey(value: string | null): value is TabKey {
 /** مساحة إعدادات منظمة مع رابط مباشر لكل قسم وصلاحيات واضحة للمستخدم. */
 export function SettingsPage() {
   const me = useMe();
+  const features = useSchoolFeatures();
   const [searchParams, setSearchParams] = useSearchParams();
   const tablistRef = useRef<HTMLElement>(null);
   const requestedTab = searchParams.get("section");
@@ -99,6 +101,7 @@ export function SettingsPage() {
               {TABS.map((item) => {
                 const Icon = item.icon;
                 const selected = tab === item.key;
+                const locked = (item.key === "parents" && features?.PARENT_PORTAL === false) || (item.key === "sms" && features?.ABSENCE_SMS === false);
                 return (
                   <button
                     key={item.key}
@@ -107,13 +110,15 @@ export function SettingsPage() {
                     id={`settings-tab-${item.key}`}
                     aria-label={item.label}
                     aria-selected={selected}
+                    aria-disabled={locked || undefined}
                     aria-controls={`settings-panel-${item.key}`}
                     onClick={() => selectTab(item.key)}
-                    className={`group flex min-w-42 snap-start items-center gap-3 rounded-xl px-3 py-3 text-start transition-all lg:min-w-0 ${selected ? "bg-blue-50 text-blue-800 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+                    className={`group flex min-w-42 snap-start items-center gap-3 rounded-xl px-3 py-3 text-start transition-all lg:min-w-0 ${locked ? "bg-slate-50 text-slate-400" : selected ? "bg-blue-50 text-blue-800 ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
                   >
-                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 group-hover:bg-white"}`}><Icon aria-hidden size={18} /></span>
+                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${locked ? "bg-slate-100 text-slate-400" : selected ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 group-hover:bg-white"}`}><Icon aria-hidden size={18} /></span>
                     <span className="min-w-0">
                       <strong className="block text-sm">{item.label}</strong>
+                      {locked && <span className="mt-0.5 block text-[11px] font-bold text-slate-500">يلزم اشتراك</span>}
                       <span className="mt-0.5 hidden truncate text-[11px] font-normal text-slate-500 lg:block">{item.key === "structure" && me.data?.active_school?.school_type === "GIRLS" ? "الهيكل الدراسي وخيارات تسجيل الطالبات" : item.shortDescription}</span>
                     </span>
                   </button>
@@ -144,8 +149,8 @@ export function SettingsPage() {
           {tab === "bell-schedules" && <BellSchedulesTab canWrite={canManage} />}
           {tab === "attendance" && <AttendanceSettingsTab canWrite={canManage} />}
           {tab === "warnings" && <WarningRulesTab />}
-          {tab === "sms" && <SmsIntegrationTab />}
-          {tab === "parents" && <ParentSettingsTab />}
+          {tab === "sms" && (features?.ABSENCE_SMS === false ? <FeatureSubscriptionNotice feature="ABSENCE_SMS" /> : <SmsIntegrationTab />)}
+          {tab === "parents" && (features?.PARENT_PORTAL === false ? <FeatureSubscriptionNotice feature="PARENT_PORTAL" /> : <ParentSettingsTab />)}
         </section>
       </div>
     </div>
