@@ -24,6 +24,19 @@ function meta(): Meta {
   return JSON.parse(readFileSync(resolve(FIXTURES, "meta.json"), "utf-8")) as Meta;
 }
 
+async function api<T>(page: Page, path: string, body?: unknown) {
+  return page.evaluate(async ({ path, body }) => {
+    const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
+    const response = await fetch(`/api/v1${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf ?? "" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() as T };
+  }, { path, body });
+}
+
 async function login(page: Page, mobile: string, school?: string) {
   await page.goto("/login");
   await page.getByLabel("رقم الجوال").fill(mobile);
@@ -298,6 +311,8 @@ test("vice principal workspaces and detail views stay usable on a phone", async 
   await expect(firstStudentLink).toBeVisible();
   await firstStudentLink.click();
   await expect(page.getByTestId("student-profile-header")).toBeVisible();
+  const studentId = Number(new URL(page.url()).pathname.match(/\/students\/(\d+)/)?.[1]);
+  expect(studentId).toBeGreaterThan(0);
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "vice-principal-phone-student-profile-responsive.png");
   const profileSections = page.getByRole("group", { name: "أقسام ملف الطالب" });
@@ -306,8 +321,26 @@ test("vice principal workspaces and detail views stay usable on a phone", async 
   await assertNoPageOverflow(page);
   await screenshot(page, testInfo, "vice-principal-phone-student-excuses-responsive.png");
 
+  // A fresh shard has no case left behind by counseling.spec.ts. Build its own
+  // case through authorized referral/acknowledgement/open APIs and real users.
+  const counselors = await api<{ counselors: { id: number }[] }>(page, "/referrals/counselors/");
+  expect(counselors.status).toBe(200);
+  const referral = await api<{ id: number }>(page, "/referrals/", {
+    student_id: studentId, category: "OTHER", reason_code: "OTHER_GENERAL",
+    description: "حالة صناعية مستقلة لفحص عرض الوكيل على الهاتف.",
+    assigned_counselor_id: counselors.body.counselors[0].id,
+  });
+  expect(referral.status).toBe(201);
+  await logout(page);
+  await login(page, "0550000005", "ثانوية الأندلس");
+  const acknowledged = await api(page, `/referrals/${referral.body.id}/acknowledge/`, {});
+  expect(acknowledged.status).toBe(200);
+  const opened = await api<{ id: number }>(page, `/referrals/${referral.body.id}/open-case/`, {});
+  expect(opened.status).toBe(201);
+  await logout(page);
+  await login(page, "0550000003", "ثانوية الأندلس");
   await page.goto("/counselor");
-  const firstCaseLink = page.locator('[data-testid^="open-case-mobile-"]').first();
+  const firstCaseLink = page.getByTestId(`open-case-mobile-${opened.body.id}`);
   await expect(firstCaseLink).toBeVisible();
   await firstCaseLink.click();
   await expect(page.getByTestId("case-detail")).toBeVisible();

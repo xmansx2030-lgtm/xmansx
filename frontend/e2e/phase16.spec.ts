@@ -228,7 +228,8 @@ call_command('process_subscription_transitions')
   });
   await page.getByRole("button", { name: "متابعة إلى التأكيد" }).click();
   await page.getByRole("button", { name: "اعتماد الاستيراد" }).click();
-  await expect(page.getByText(/تجاوز عدد الطلاب حد الباقة/)).toBeVisible();
+  // Commit is queued in Celery; the immediate 202 is not its final rejection.
+  await expect(page.getByText(/تجاوز عدد الطلاب حد الباقة/)).toBeVisible({ timeout: 30_000 });
 
   const upgraded = await post(
     platform,
