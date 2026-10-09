@@ -142,9 +142,13 @@ jobs:
           npx playwright install --with-deps chromium
           python -m pip install openpyxl
       - name: Start production-like stack
-        run: >-
-          docker compose -p xmansx-ci -f docker-compose.yml
-          -f docker-compose.production.yml up -d --build
+        run: |
+          docker compose -p xmansx-ci -f docker-compose.yml -f docker-compose.production.yml build \
+            --build-arg "PYTHON_BASE_IMAGE=$XMAN_CI_PYTHON_IMAGE" \
+            --build-arg "NODE_BASE_IMAGE=$XMAN_CI_NODE_IMAGE" \
+            --build-arg "NGINX_BASE_IMAGE=$XMAN_CI_NGINX_IMAGE" \
+            --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE"
+          docker compose -p xmansx-ci -f docker-compose.yml -f docker-compose.production.yml up -d --no-build
       - name: Apply migrations
         run: >-
           docker compose -p xmansx-ci -f docker-compose.yml
@@ -223,7 +227,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/parent-staging
           vf=(-p xmansx-parent-ci-materials -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-email-verification.yml)
-          docker compose "${vf[@]}" build tests
+          docker compose "${vf[@]}" build --build-arg "PYTHON_BASE_IMAGE=$XMAN_CI_PYTHON_IMAGE" --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE" tests
           docker compose "${vf[@]}" run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$PWD/artifacts/parent-staging:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
           sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
           docker compose "${sf[@]}" up -d --wait postgres redis
@@ -236,7 +240,7 @@ jobs:
           sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
           chmod 600 artifacts/parent-staging/fixture.json
           docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
-          docker compose "${sf[@]}" build staging-frontend
+          docker compose "${sf[@]}" build --build-arg "NODE_BASE_IMAGE=$XMAN_CI_NODE_IMAGE" --build-arg "NGINX_BASE_IMAGE=$XMAN_CI_NGINX_IMAGE" --build-arg "BUILDKIT_SYNTAX=$XMAN_CI_DOCKERFILE_IMAGE" staging-frontend
           docker compose "${sf[@]}" up -d staging-app staging-worker staging-beat staging-frontend
           echo "NODE_EXTRA_CA_CERTS=$PWD/artifacts/parent-staging/localhost.crt" >> "$GITHUB_ENV"
           echo "PARENT_E2E_FIXTURE=$PWD/artifacts/parent-staging/fixture.json" >> "$GITHUB_ENV"

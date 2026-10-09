@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Base ----------
-FROM python:3.13-slim AS base
+ARG PYTHON_BASE_IMAGE=python:3.13-slim
+FROM ${PYTHON_BASE_IMAGE} AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
