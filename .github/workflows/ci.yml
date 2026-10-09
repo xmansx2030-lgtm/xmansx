@@ -99,11 +99,15 @@ jobs:
       - name: Tests
         run: python -m pytest bridge/tests -q
 
-  production-e2e:
-    name: Production-like browser gate
+  production-browser:
+    name: Production-like browser shard ${{ matrix.shard }}
     needs: [backend, frontend, bridge]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
@@ -154,7 +158,9 @@ jobs:
           python manage.py migrate --noinput
       - name: Run all browser journeys
         working-directory: frontend
-        run: npm run e2e:release
+        # Same eight shards as e2e:release, with an independent seeded database
+        # on each runner. Keep the serial files, assertions and retry policy.
+        run: npm run e2e -- --workers=1 --retries=1 --shard=${{ matrix.shard }}/8
       - name: Preserve service diagnostics
         if: failure()
         run: >-
@@ -164,7 +170,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: production-e2e-traces
+          name: production-e2e-traces-${{ matrix.shard }}
           path: frontend/test-results
           if-no-files-found: ignore
           retention-days: 7
@@ -173,6 +179,17 @@ jobs:
         run: >-
           docker compose -p xmansx-ci -f docker-compose.yml
           -f docker-compose.production.yml down -v
+
+  production-e2e:
+    name: Production-like browser gate
+    needs: [production-browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every browser shard to pass
+        env:
+          SHARDS_RESULT: ${{ needs.production-browser.result }}
+        run: test "$SHARDS_RESULT" = success
 
   parent-browser:
     name: Parent TLS (${{ matrix.journey }})
