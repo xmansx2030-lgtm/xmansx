@@ -1,0 +1,9 @@
+# Local isolated tests; no host ports, outbound mail, or application deployment.
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+    command: redis-server --maxmemory-policy noeviction
+  tests:
+    image: xmansx-backend:parent-release-verification
