@@ -57,7 +57,7 @@ describe("absence SMS template editor", () => {
     expect(screen.getByRole("button", { name: "حفظ القالب لجميع الطلاب" })).toBeEnabled();
   });
 
-  it("explains a previously uncertain Dreams response without offering a resend", async () => {
+  it.each(["UNKNOWN", "ACCEPTED"] as const)("shows %s delivery without offering a resend", async (status) => {
     mockApi({
       "/auth/me/": {
         body: buildMe({
@@ -81,8 +81,8 @@ describe("absence SMS template editor", () => {
             expected_periods: 1,
             recipient_masked: "***1234",
             eligibility_reason: null,
-            send_status: "UNKNOWN",
-            send_error: "DREAMS_RESPONSE_UNKNOWN",
+            send_status: status,
+            send_error: status === "UNKNOWN" ? "DREAMS_RESPONSE_UNKNOWN" : "",
           }],
         },
       },
@@ -90,10 +90,17 @@ describe("absence SMS template editor", () => {
 
     renderApp("/attendance/absence-messages");
 
-    expect(await screen.findByText(/لم نتأكد من إرسال الرسالة/)).toHaveTextContent(
-      "تحقق من «الرسائل المرسلة» في حساب دريمز قبل إعادة إرسالها",
-    );
+    if (status === "UNKNOWN") {
+      expect(await screen.findByText(/لم نتأكد من إرسال الرسالة/)).toHaveTextContent(
+        "تحقق من «الرسائل المرسلة» في حساب دريمز قبل إعادة إرسالها",
+      );
+    } else {
+      expect(await screen.findByText("قبله المزود")).toBeInTheDocument();
+      expect(screen.queryByText(/لم نتأكد من إرسال الرسالة/)).not.toBeInTheDocument();
+    }
     expect(screen.queryByText(/DREAMS_RESPONSE_UNKNOWN/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /مراجعة إرسال 0 من 0 محدد/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox", { name: "اختيار طالب تجريبي" }));
+    expect(screen.getByRole("button", { name: /مراجعة إرسال 0 من 1 محدد/ })).toBeDisabled();
   });
 });
