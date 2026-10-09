@@ -178,6 +178,7 @@ class Command(BaseCommand):
             school = School.objects.create(
                 name=f"مدرسة اختبار بوابة الأسرة {letter.upper()}",
                 slug=f"parent-e2e-{letter}-{run}",
+                feature_access={"PARENT_PORTAL": True},
             )
             with tenant_context(school_id=school.id):
                 SchoolSettings.objects.create(school=school, timezone="Asia/Riyadh")

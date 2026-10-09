@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
 from common.errors import ApiError
+from common.tenant_rls import tenant_context
 from memberships.models import MembershipStatus, SchoolMembership
 
 
@@ -38,10 +39,13 @@ def school_email_onboarding_state(user, *, enabled, has_school):
         return False, False
     from parents.email_recovery_models import AccountRecoveryEmail
 
-    # Auth views establish the authenticated user's RLS context before building me.
-    item = AccountRecoveryEmail.objects.filter(user_id=user.pk).values(
-        "verified_at", "pending_email_hash",
-    ).first()
+    # An active school is present on /me and school switching. Recovery email
+    # belongs to the global account: its RLS policy deliberately hides it from
+    # school-scoped reads. Read only this owner, then restore the school context.
+    with tenant_context(user_id=user.pk):
+        item = AccountRecoveryEmail.objects.filter(user_id=user.pk).values(
+            "verified_at", "pending_email_hash",
+        ).first()
     verified = bool(item and item["verified_at"])
     pending = bool(item and item["pending_email_hash"])
     return not user.must_change_password and not verified and not pending, not verified and pending

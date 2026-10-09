@@ -26,6 +26,7 @@ class SchoolScopedAPIView(APIView):
     write_roles: tuple = SETTINGS_WRITE_ROLES
     read_capabilities: tuple = ()
     write_capabilities: tuple = ()
+    feature_key: str | None = None
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
@@ -38,6 +39,10 @@ class SchoolScopedAPIView(APIView):
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
+        if self.feature_key:
+            from subscriptions.entitlements import require_feature
+
+            require_feature(request.school, self.feature_key)
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return
         mode = get_school_access_mode(request.school)

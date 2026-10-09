@@ -16,6 +16,16 @@ describe("safe QR return paths", () => {
     expect(safeReturnTo("/parent/register/token?next=evil")).toBeNull();
   });
 
+  it("preserves the parent management page and its known tab after email completion", () => {
+    expect(safeReturnTo("/parent-management")).toBe("/parent-management");
+    expect(withReturnTo("/account/complete-email", "/parent-management?tab=registrations")).toBe(
+      "/account/complete-email?returnTo=%2Fparent-management%3Ftab%3Dregistrations",
+    );
+    expect(safeReturnTo("/parent-management?tab=unknown")).toBeNull();
+    expect(safeReturnTo("/parent-management?tab=registrations&next=https://evil.example")).toBeNull();
+    expect(safeReturnTo("/parent-management#token=secret")).toBeNull();
+  });
+
   it.each([
     "https://evil.example/qr/token",
     "//evil.example/qr/token",

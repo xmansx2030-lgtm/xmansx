@@ -56,6 +56,7 @@ import {
 import type { SchoolType } from "@/types/auth";
 import type { PlatformCapability } from "@/types/auth";
 import { PlatformAccountPanel, PlatformTeamPanel } from "@/features/platform/PlatformTeamPanels";
+import { SchoolFeaturesPanel } from "@/features/platform/SchoolFeaturesPanel";
 import { MinistryCalendarPanel, SchoolCalendarScopePanel } from "@/features/platform/MinistryCalendarPanel";
 import { formatPlanDuration, type PlanDurationUnit } from "@/utils/planDuration";
 
@@ -1050,6 +1051,7 @@ function SchoolsPanel({ plans, canManageSchools, canManageAccounts, canManageSub
               <ErrorLine error={action.error} />
             </div>
             <SchoolAccountManagement key={detail.data.id} detail={detail.data} canManageSchool={canManageSchools} canManageAccounts={canManageAccounts} />
+            <SchoolFeaturesPanel key={`features-${detail.data.id}`} detail={detail.data} canManage={canManageSubscriptions} />
             <UsageGrid usage={detail.data.usage} />
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h4 className="mb-2 font-bold">السجل</h4>

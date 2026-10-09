@@ -14,6 +14,7 @@ from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
 from devices.models import BridgeStatus, DeviceBridgeInstallation
+from subscriptions.entitlements import require_feature
 
 
 def _hash(secret: str) -> str:
@@ -28,6 +29,7 @@ def _issue_token(installation: DeviceBridgeInstallation) -> str:
 
 def create_bridge(*, school, name: str, actor, request=None):
     """ينشئ تثبيت جسر ويعيد (installation, token) — الرمز لا يخزن ولا يعرض ثانية."""
+    require_feature(school, "BIOMETRIC_DEVICES")
     installation = DeviceBridgeInstallation(
         school=school,
         installation_name=name.strip(),
@@ -86,6 +88,7 @@ def authenticate_bridge(token: str | None) -> DeviceBridgeInstallation:
         raise ApiError("BRIDGE_AUTHENTICATION_FAILED", "رمز الجسر غير صالح.", status_code=403)
     if installation.status != BridgeStatus.ACTIVE:
         raise ApiError("BRIDGE_DISABLED", "هذا الجسر موقوف.", status_code=403)
+    require_feature(installation.school, "BIOMETRIC_DEVICES")
     installation.last_seen_at = dj_timezone.now()
     installation.save(update_fields=["last_seen_at", "updated_at"])
     return installation

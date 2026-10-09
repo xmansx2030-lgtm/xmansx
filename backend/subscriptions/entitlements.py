@@ -19,6 +19,11 @@ from subscriptions.models import (
 ENTITLEMENT_TTL = 60
 
 _NAMESPACE = "entl"
+MANAGED_FEATURES = (
+    EntitlementKey.ABSENCE_SMS,
+    EntitlementKey.PARENT_PORTAL,
+    EntitlementKey.BIOMETRIC_DEVICES,
+)
 
 
 def _cache_key(school_id: int, subscription_id: int, version: str) -> str:
@@ -54,9 +59,7 @@ def get_school_entitlements(school) -> dict:
     if cached is not None:
         return cached
     rows = SubscriptionEntitlement.objects.filter(subscription=subscription)
-    value = {
-        row.key: {"numeric": row.numeric_value, "enabled": row.is_enabled} for row in rows
-    }
+    value = {row.key: {"numeric": row.numeric_value, "enabled": row.is_enabled} for row in rows}
     cache.set_many({key: value, pointer_key: key}, timeout=ENTITLEMENT_TTL)
     return value
 
@@ -79,10 +82,25 @@ def invalidate_school_entitlements(school) -> None:
 
 def has_entitlement(school, key: str) -> bool:
     """ميزة منطقية: غياب المفتاح = مسموح (لا نعطل ميزة قائمة بصمت — بند 78)."""
+    if key in MANAGED_FEATURES and key in school.feature_access:
+        return school.feature_access[key] is True
     entry = get_school_entitlements(school).get(key)
     if entry is None:
         return True
     return bool(entry["enabled"])
+
+
+def school_feature_access(school) -> dict:
+    """One public, tenant-scoped projection of platform-controlled feature access."""
+    entitlements = get_school_entitlements(school)
+    return {
+        key: (
+            school.feature_access[key] is True
+            if key in school.feature_access
+            else bool(entitlements.get(key, {}).get("enabled", True))
+        )
+        for key in MANAGED_FEATURES
+    }
 
 
 def get_limit(school, key: str) -> int | None:
@@ -98,10 +116,17 @@ def get_limit(school, key: str) -> int | None:
 def require_feature(school, key: str) -> None:
     """بوابة خادمية للميزة — إخفاء القائمة في الواجهة ليس حماية (بند 75)."""
     if not has_entitlement(school, key):
+        label = EntitlementKey(key).label
+        message = (
+            f"يلزم اشتراك وتفعيل من إدارة المنصة لاستخدام {label}."
+            if key in MANAGED_FEATURES
+            else f"هذه الميزة غير مشمولة في باقة المدرسة ({label})."
+        )
         raise ApiError(
             "FEATURE_NOT_INCLUDED_IN_PLAN",
-            f"هذه الميزة غير مشمولة في باقة المدرسة ({EntitlementKey(key).label}).",
+            message,
             status_code=403,
+            details={"feature": key, "subscription_required": True},
         )
 
 

@@ -15,6 +15,7 @@ from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsInteg
 from school_sms.providers import SmsProviderError, send_sms
 from school_sms.security import decrypt_secret, recipient_hash
 from school_sms.services import eligible_absences, recipient_issue, render_absence_message
+from subscriptions.entitlements import has_entitlement
 
 logger = logging.getLogger("xmansx.sms")
 
@@ -56,6 +57,11 @@ def send_absence_notice(notice_id: int) -> str:
         )
         if notice is None or notice.status != AbsenceSmsStatus.QUEUED:
             return "skipped"
+        if not has_entitlement(notice.school, "ABSENCE_SMS"):
+            notice.status = AbsenceSmsStatus.FAILED
+            notice.failure_code = "FEATURE_NOT_INCLUDED_IN_PLAN"
+            notice.save(update_fields=["status", "failure_code", "updated_at"])
+            return "failed"
         integration = SchoolSmsIntegration.objects.filter(
             school_id=school_id, is_active=True
         ).first()

@@ -13,13 +13,14 @@ import {
   Waypoints,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
 import { Spinner } from "@/components/Spinner";
-import { schoolScopedKey } from "@/features/auth/useMe";
+import { schoolScopedKey, useMe } from "@/features/auth/useMe";
+import { PublicationEditor } from "@/features/parent/PublicationEditor";
 import {
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
@@ -59,13 +60,14 @@ import { useActiveSchoolId, useActiveSchoolType } from "@/features/settings/hook
 import { localIsoDate } from "@/utils/dates";
 import { roleGenitivePluralLabel, roleLabel, studentLabel } from "@/utils/roles";
 
-type Tab = "overview" | "sessions" | "plan" | "requests" | "timeline";
+type Tab = "overview" | "sessions" | "plan" | "requests" | "family" | "timeline";
 
 const TABS: [Tab, string][] = [
   ["overview", "نظرة عامة"],
   ["sessions", "الجلسات"],
   ["plan", "خطة المتابعة"],
   ["requests", "طلبات المعلمين"],
+  ["family", "متابعة الأسرة"],
   ["timeline", "الخط الزمني"],
 ];
 
@@ -104,8 +106,16 @@ export function CaseDetailPage() {
   const id = Number(caseId);
   const schoolId = useActiveSchoolId();
   const schoolType = useActiveSchoolType();
+  const me = useMe();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab");
+  const tab: Tab = TABS.some(([value]) => value === requestedTab) ? requestedTab as Tab : "overview";
+  const setTab = (value: Tab) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set("tab", value);
+    return next;
+  }, { replace: true });
   const [error, setError] = useState<unknown>(null);
 
   const [sessionType, setSessionType] = useState<SessionType>("STUDENT_MEETING");
@@ -209,6 +219,8 @@ export function CaseDetailPage() {
         meta={<><span>فُتح في {data.opened_at.slice(0, 10)}</span><span className="text-white/30">•</span><span>المرشد: {data.counselor_name ?? "—"}</span></>}
         actions={<><Link to="/counselor" className="inline-flex min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-bold text-white transition hover:bg-white/10">العودة للوحة</Link><Link to={`/students/${data.student_id}/attendance`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-950 shadow-lg transition hover:bg-slate-50"><BookOpenCheck aria-hidden size={17} /> ملف {studentLabel(schoolType, true)}</Link></>}
       />
+
+      <Button variant="secondary" onClick={() => setTab("family")}>متابعة ولي الأمر</Button>
 
       {error != null && <ErrorState error={error} />}
 
@@ -863,6 +875,12 @@ export function CaseDetailPage() {
         </div>
       )}
 
+      {tab === "family" && (
+        <PublicationEditor key={id} caseContext={{ id, student_id: data.student_id, student_name: data.student_name }}
+          counselorOnly={!(me.data?.roles.some((role) => ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(role)) ?? false)}
+          canPublish={data.can_manage} />
+      )}
+
       {tab === "timeline" && (
         <div data-testid="case-timeline">
           {timeline.isPending ? (
@@ -875,8 +893,10 @@ export function CaseDetailPage() {
                 <li key={event.id} className="relative flex gap-3 pb-5 last:pb-0 text-sm before:absolute before:bottom-0 before:start-[0.69rem] before:top-6 before:w-px before:bg-slate-200 last:before:hidden">
                   <span className="relative z-10 mt-1 size-6 shrink-0 rounded-full border-4 border-white bg-teal-600 shadow-sm" aria-hidden />
                   <div className="min-w-0 flex-1 rounded-xl bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-black text-slate-800">{event.event_type_label}</span><span className="text-xs text-slate-500">
-                    {event.created_at.slice(0, 10)} · {event.actor_name ?? "—"}
-                  </span></div></div>
+                    {event.created_at.slice(0, 10)} · {event.actor_name ?? (event.event_type.startsWith("FAMILY_") ? "الأسرة" : "—")}
+                  </span></div>
+                  {event.event_type.startsWith("FAMILY_") && typeof event.metadata.title === "string" && <p className="mt-2 text-sm text-slate-600">{event.metadata.title}</p>}
+                  </div>
                 </li>
               ))}
             </ul>

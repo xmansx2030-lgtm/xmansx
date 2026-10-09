@@ -2,6 +2,7 @@ import { apiRequest } from "@/api/client";
 import type { SchoolType } from "@/types/auth";
 import type { PlatformCapability } from "@/types/auth";
 import type { PlanDurationUnit } from "@/utils/planDuration";
+import type { SchoolFeature, SchoolFeatures, SchoolFeatureState } from "@/types/schoolFeatures";
 
 export type PlatformStaffRole = "OPERATIONS_MANAGER" | "SUPPORT" | "BILLING" | "AUDITOR";
 
@@ -129,6 +130,7 @@ export interface Paginated<T> {
 }
 
 export interface SchoolDetail extends SchoolRow {
+  feature_access?: SchoolFeatures;
   created_at: string;
   updated_at: string;
   managers: SchoolManagerAccount[];
@@ -136,6 +138,11 @@ export interface SchoolDetail extends SchoolRow {
   usage: Usage;
   entitlements: Entitlements;
 }
+
+export const updateSchoolFeature = (schoolId: number, feature: SchoolFeature, enabled: boolean) =>
+  apiRequest<SchoolFeatureState>(`/platform/schools/${schoolId}/features/`, {
+    method: "PATCH", body: { feature, enabled },
+  });
 
 export interface SchoolManagerAccount {
   membership_id: number;

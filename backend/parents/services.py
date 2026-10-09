@@ -31,6 +31,7 @@ from parents.security import contact_hash, decrypt_value, encrypt_value, mobile_
 from schools.models import School, SchoolStatus
 from students.models import Student
 from subscriptions.access import FULL, get_school_access_mode
+from subscriptions.entitlements import require_feature
 
 GENERIC_RECEIPT = "تم استلام طلبك، وستقوم المدرسة بمراجعته."
 
@@ -80,10 +81,12 @@ def registration_config(token):
         school = School.objects.filter(id=item["school_id"], status=SchoolStatus.ACTIVE).first()
         if school is None or get_school_access_mode(school) != FULL:
             raise ApiError("REGISTRATION_UNAVAILABLE", "التسجيل غير متاح حالياً.", status_code=404)
+        require_feature(school, "PARENT_PORTAL")
         return school
 
 
 def submit_registration(*, school, data, user=None, request=None):
+    require_feature(school, "PARENT_PORTAL")
     from accounts.mobile import mask_mobile
     from parents.email_recovery_services import (
         mask_recovery_email,
@@ -143,6 +146,7 @@ def receipt_status(receipt: str, *, applicant_note=None):
     with tenant_context(school_id=index["school_id"]), transaction.atomic():
         lock_parent_school(index["school_id"])
         item = GuardianRegistrationRequest.objects.select_for_update().get(id=index["id"])
+        require_feature(item.school, "PARENT_PORTAL")
         if applicant_note and item.status == RegistrationStatus.NEEDS_INFO:
             item.applicant_note = applicant_note
             item.status = RegistrationStatus.PENDING
@@ -239,6 +243,7 @@ def _require_staff(school, membership):
 
 def decide_registration(*, school, membership, request_id, data, request=None):
     _require_staff(school, membership)
+    require_feature(school, "PARENT_PORTAL")
     raw_token = None
     with transaction.atomic():
         lock_parent_school(school.id)
@@ -545,6 +550,7 @@ def activation_index(token):
 def _validate_activation(
     activation, item, student, school, *, for_delivery=False, allow_family=False,
 ):
+    require_feature(school, "PARENT_PORTAL")
     if (
         (not allow_family and hasattr(activation, "family_child"))
         or activation.used_at

@@ -38,8 +38,10 @@ export interface FamilyInvitationMetadata {
   school_name: string; children_count: number; account_exists: boolean;
   requires_login: boolean; email_verified: boolean;
 }
-export function getSchoolFamilies(page = 1, signal?: AbortSignal) {
-  return apiRequest<SchoolFamiliesPage>(`/staff/parents/families/?page=${page}`, { signal });
+export function getSchoolFamilies(page = 1, signal?: AbortSignal, search = "") {
+  const params = new URLSearchParams({ page: String(page) });
+  if (search.trim()) params.set("search", search.trim());
+  return apiRequest<SchoolFamiliesPage>(`/staff/parents/families/?${params}`, { signal });
 }
 export function sendFamilyInvitations(invitations: FamilyInvitationInput[]) {
   return apiRequest<{ invitations: FamilyInvitation[] }>("/staff/parents/families/", {

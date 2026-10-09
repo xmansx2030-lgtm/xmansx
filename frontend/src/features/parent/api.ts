@@ -138,6 +138,14 @@ export interface ParentWarning {
 }
 export interface Publication {
   id: number;
+  student_id?: number;
+  student_name?: string;
+  case_id?: number | null;
+  revoked_at?: string | null;
+  action_count?: number;
+  completed_action_count?: number;
+  action_completed_at?: string | null;
+  action_overdue?: boolean;
   title: string;
   body: string;
   required_action: string;
@@ -579,11 +587,14 @@ export const staffAttachmentDownloadUrl = (
   attachment: number,
 ) =>
   `/api/v1${staffPath}/excuses/${request}/attachments/${attachment}/download/`;
-export const getStaffPublications = (signal?: AbortSignal, page = 1) =>
-  apiRequest<ItemPaged<Publication>>(
-    `${staffPath}/publications/${pageQuery(page)}`,
-    { signal },
+export const getStaffPublications = (signal?: AbortSignal, page = 1, caseId?: number) => {
+  const query = new URLSearchParams();
+  if (page > 1) query.set("page", String(page));
+  if (caseId) query.set("case_id", String(caseId));
+  return apiRequest<ItemPaged<Publication>>(
+    `${staffPath}/publications/${query.size ? `?${query}` : ""}`, { signal },
   );
+};
 export const getStaffAcknowledgements = (signal?: AbortSignal, page = 1) =>
   apiRequest<ItemPaged<StaffAcknowledgement>>(
     `${staffPath}/acknowledgements/${pageQuery(page)}`,

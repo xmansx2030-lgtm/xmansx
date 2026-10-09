@@ -112,6 +112,64 @@ def activate(env, token, **extra):
         )
 
 
+@pytest.mark.parametrize(
+    "search",
+    [
+        "أسرة صناعية",
+        "اسرة صناعية",
+        "0551900003",
+        "٠٥٥١٩٠٠٠٠٣",
+        "+966 55 190 0003",
+        "00966551900003",
+        "900003",
+        "INVITE-00",
+    ],
+)
+def test_search_keeps_all_siblings_and_school_scope(family_env, make_school, search):
+    env = family_env
+    other_school = make_school("مدرسة أخرى")
+    foreign = setup_attendance_env(other_school, students_count=1)["students"][0]
+    Student.objects.filter(pk=foreign.pk).update(
+        guardian_mobile="0551900003",
+        guardian_name="ولي أمر أسرة صناعية",
+        full_name="طالب INVITE-00",
+    )
+    # Enough contacts to place the target family beyond the first page.
+    extra = make_students(env["school"], env["section"], env["year"], 26, prefix="SEARCH")
+    for i, child in enumerate(extra):
+        Student.objects.filter(pk=child.pk).update(
+            guardian_mobile=f"050100{i:04d}", guardian_name=f"أسرة أخرى {i}"
+        )
+    with restricted_role():
+        first_page = env["staff"].get(STAFF).json()
+        assert first_page["count"] == 27
+        assert not any(row["mobile"] == "+966551900003" for row in first_page["results"])
+        response = env["staff"].get(STAFF, {"search": search})
+    assert response.status_code == 200, response.content
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["next"] is None
+    assert payload["results"][0]["child_count"] == 3
+    assert {child["id"] for child in payload["results"][0]["children"]} == {
+        child.id for child in env["family"]
+    }
+
+
+def test_search_reviewed_invitation_name_and_no_results(family_env):
+    env = family_env
+    invite(env, name="أحمد صاحب الدعوة")
+    with restricted_role():
+        found = env["staff"].get(STAFF, {"search": "احمد الدعوة"})
+        missing = env["staff"].get(STAFF, {"search": "اسم غير موجود"})
+        invalid = env["staff"].get(STAFF, {"search": "x" * 151})
+    assert found.status_code == 200, found.content
+    assert found.json()["count"] == 1
+    assert len(found.json()["results"][0]["children"]) == 3
+    assert missing.status_code == 200
+    assert missing.json()["count"] == 0
+    assert invalid.status_code == 400
+
+
 @pytest.mark.parametrize("restricted", [False, True])
 def test_one_invite_three_exact_children_email_gate_and_staff_distinction(family_env, restricted):
     env = family_env

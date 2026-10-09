@@ -23,6 +23,8 @@ const KPI_CARDS: { key: keyof import("@/features/counseling/api").DashboardKpis;
   { key: "waiting_teacher_response", label: "بانتظار رد معلم", icon: MessageSquareReply, tone: "amber" },
   { key: "due_activities", label: "إجراءات مستحقة", icon: CalendarClock, tone: "red" },
   { key: "closed_this_month", label: "أغلقت هذا الشهر", icon: CheckCircle2, tone: "neutral" },
+  { key: "family_pending_actions", label: "بانتظار إجراء الأسرة", icon: MessageSquareReply, tone: "amber" },
+  { key: "family_overdue_actions", label: "متابعة الأسرة المتأخرة", icon: CalendarClock, tone: "red" },
 ];
 
 const CATEGORIES: Record<string, string> = {
@@ -86,7 +88,8 @@ export function CounselorDashboardPage() {
   const newReferrals = kpis.data?.new_referrals ?? 0;
   const dueActivities = kpis.data?.due_activities ?? 0;
   const waitingTeacherResponse = kpis.data?.waiting_teacher_response ?? 0;
-  const needsAttention = newReferrals + dueActivities + waitingTeacherResponse;
+  const familyOverdue = kpis.data?.family_overdue_actions ?? 0;
+  const needsAttention = newReferrals + dueActivities + waitingTeacherResponse + familyOverdue;
   const hasActiveFilters = status !== "live" || category !== "" || sort !== "recent";
 
   const resetFilters = () => {
@@ -123,6 +126,8 @@ export function CounselorDashboardPage() {
         ))}
       </div>
 
+      <Link to="/parent-management?tab=publications" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-bold text-teal-900">متابعة توصيات الأسرة وتفاعل ولي الأمر</Link>
+
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-4 border-b border-slate-100 bg-gradient-to-l from-teal-50 via-white to-violet-50 px-4 py-4 sm:px-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="flex items-start gap-3">
@@ -130,7 +135,7 @@ export function CounselorDashboardPage() {
             <div>
               <p className="text-xs font-bold text-teal-800">بداية منظمة</p>
               <h2 className="mt-0.5 font-black text-slate-900">ركّز على الإجراء التالي</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ ابدأ بالإحالات الجديدة ثم أكمل الإجراءات والردود المستحقة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{needsAttention > 0 ? `لديك ${needsAttention} بندًا يحتاج متابعة؛ راجع الإحالات والإجراءات والردود وتوصيات الأسرة المتأخرة.` : "لا توجد إجراءات عاجلة الآن؛ راجع الحالات النشطة لضمان استمرارية المتابعة."}</p>
             </div>
           </div>
           <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 lg:self-auto" data-testid="counselor-attention-total">
@@ -139,7 +144,7 @@ export function CounselorDashboardPage() {
           </div>
           </div>
           {needsAttention > 0 && (
-            <div className="grid gap-2 border-t border-slate-100 bg-white/75 px-4 py-3 text-xs sm:grid-cols-3 sm:px-5" data-testid="counselor-attention-summary">
+            <div className="grid gap-2 border-t border-slate-100 bg-white/75 px-4 py-3 text-xs sm:grid-cols-2 xl:grid-cols-4 sm:px-5" data-testid="counselor-attention-summary">
               <Link to="/referrals" className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-3 font-bold text-blue-900 transition hover:border-blue-200 hover:bg-blue-100">
                 <span className="inline-flex items-center gap-2"><Inbox aria-hidden size={16} /> إحالات جديدة</span>
                 <strong className="text-base">{newReferrals}</strong>
@@ -152,6 +157,10 @@ export function CounselorDashboardPage() {
                 <span className="inline-flex items-center gap-2"><MessageSquareReply aria-hidden size={16} /> بانتظار رد {roleLabel("TEACHER", schoolType)}</span>
                 <strong className="text-base">{waitingTeacherResponse}</strong>
               </div>
+              <Link to="/parent-management?tab=publications" className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 px-3 font-bold text-red-900">
+                <span className="inline-flex items-center gap-2"><CalendarClock aria-hidden size={16} /> متابعة الأسرة المتأخرة</span>
+                <strong className="text-base">{familyOverdue}</strong>
+              </Link>
             </div>
           )}
         <div className="p-4 sm:p-5">

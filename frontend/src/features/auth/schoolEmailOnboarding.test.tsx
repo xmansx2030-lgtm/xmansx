@@ -118,6 +118,18 @@ describe("old school account email completion", () => {
     expect(screen.queryByLabelText("البريد الإلكتروني")).toBeNull();
   });
 
+  it("returns a school manager to parent registration requests after checking pending email", async () => {
+    mockApi({
+      "/auth/me/": { body: { ...OLD, roles: ["SCHOOL_MANAGER"] } },
+      "/parent/recovery-email/": { body: PENDING },
+      "/staff/parents/registrations/": { body: { results: [], count: 0, next: null, previous: null } },
+    });
+    renderApp("/parent-management?tab=registrations");
+    expect(await screen.findByRole("heading", { name: "إدارة أولياء الأمور" })).toBeVisible();
+    expect(await screen.findByText("لا توجد طلبات تسجيل")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "إكمال البريد الإلكتروني" })).toBeNull();
+  });
+
   it("leaves work available and links failed pending delivery to resend settings", async () => {
     mockApi({ ...WORK, "/auth/me/": { body: COMPLETE },
       "/parent/recovery-email/": { body: { ...PENDING, delivery_status: "FAILED" } } });

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from subscriptions.api import school_views, views
+from subscriptions.api.feature_views import SchoolFeatureAccessView, SchoolFeatureStateView
 
 urlpatterns = [
     path("platform/overview/", views.PlatformOverviewView.as_view()),
@@ -8,6 +9,7 @@ urlpatterns = [
     path("platform/plans/<int:plan_id>/", views.PlanDetailView.as_view()),
     path("platform/schools/", views.SchoolListView.as_view()),
     path("platform/schools/<int:school_id>/", views.SchoolDetailView.as_view()),
+    path("platform/schools/<int:school_id>/features/", SchoolFeatureAccessView.as_view()),
     path(
         "platform/schools/<int:school_id>/managers/",
         views.SchoolManagersView.as_view(),
@@ -40,4 +42,5 @@ urlpatterns = [
     ),
     # جانب المدرسة: قراءة فقط
     path("school/subscription/", school_views.SchoolSubscriptionView.as_view()),
+    path("school/features/", SchoolFeatureStateView.as_view()),
 ]

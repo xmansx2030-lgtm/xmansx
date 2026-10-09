@@ -47,6 +47,9 @@ def ingest_batch(*, bridge, events: list[dict]) -> list[dict]:
     """يعالج دفعة أحداث ويعيد نتيجة لكل حدث: accepted/duplicate/invalid/unmatched."""
     now = dj_timezone.now()
     school = bridge.school
+    from subscriptions.entitlements import require_feature
+
+    require_feature(school, "BIOMETRIC_DEVICES")
     devices = {
         d.id: d for d in AttendanceDevice.objects.filter(school=school, is_active=True)
     }

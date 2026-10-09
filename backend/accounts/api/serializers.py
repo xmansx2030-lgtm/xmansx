@@ -107,6 +107,7 @@ def build_me_payload(
     """الاستجابة الموحدة لـ /me وlogin وswitch — لا حقول حساسة (hash/permissions داخلية)."""
     from parents.models import GuardianStudentRelation
     from platform_team.access import get_platform_access
+    from subscriptions.entitlements import school_feature_access
 
     platform_access = get_platform_access(user)
     # Auth views already establish this user's RLS context (including activation).
@@ -140,6 +141,9 @@ def build_me_payload(
         "school_recovery_email_enabled": school_email_enabled,
         "school_email_completion_required": email_completion_required,
         "school_email_verification_pending": email_verification_pending,
+        "school_features": (
+            school_feature_access(active_membership.school) if active_membership else None
+        ),
         "has_parent_portal": has_parent_portal,
         "active_school": (
             serialize_school(active_membership.school) if active_membership else None

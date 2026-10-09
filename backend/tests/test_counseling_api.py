@@ -444,6 +444,8 @@ def test_dashboard_kpis_shape(env):
         "waiting_teacher_response",
         "due_activities",
         "closed_this_month",
+        "family_pending_actions",
+        "family_overdue_actions",
     }
     assert body["open_cases"] == 1
 

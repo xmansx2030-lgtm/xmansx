@@ -86,6 +86,33 @@ describe("reviewed school families and private invitation", () => {
     expect(screen.getByRole("button", { name: `مراجعة وإعادة دعوة ${FAMILY.name}` })).toBeEnabled();
   });
 
+  it("searches across pages, clears selection, and restores the full list", async () => {
+    const api = staffApi();
+    renderApp("/parent-management?tab=families");
+    await screen.findByRole("heading", { name: FAMILY.name });
+    await userEvent.click(screen.getByLabelText(`اختيار ${FAMILY.name}`));
+    expect(screen.getByRole("button", { name: "مراجعة وإرسال للمحدد (1)" })).toBeEnabled();
+    const search = screen.getByRole("searchbox", { name: "البحث عن ولي الأمر" });
+    fireEvent.change(search, { target: { value: "  ابن صناعي 3  " } });
+    await waitFor(() => expect(api.calls.some(call => new URL(call.url, "http://localhost").searchParams.get("search") === "ابن صناعي 3")).toBe(true));
+    await screen.findByText("1 أسرة مطابقة للبحث");
+    expect(screen.getByText("ابن صناعي 1")).toBeVisible();
+    expect(screen.getByRole("button", { name: "مراجعة وإرسال للمحدد (0)" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "مسح البحث" }));
+    expect(search).toHaveValue("");
+    await screen.findByText("1 أسرة مقترحة");
+  });
+
+  it("explains empty search results and allows clearing the search", async () => {
+    staffApi("SCHOOL_MANAGER", []);
+    renderApp("/parent-management?tab=families");
+    await screen.findByText("لا توجد أسر مقترحة");
+    fireEvent.change(screen.getByRole("searchbox", { name: "البحث عن ولي الأمر" }), { target: { value: "غير موجود" } });
+    await screen.findByText("لا توجد أسر مطابقة للبحث");
+    await userEvent.click(screen.getByRole("button", { name: "مسح البحث" }));
+    await screen.findByText("لا توجد أسر مقترحة");
+  });
+
   it("requires a verified name for ambiguous contact groups", async () => {
     staffApi("SCHOOL_MANAGER", [{ ...FAMILY, name: "تحتاج مراجعة الأسماء", names: ["أحمد", "محمد"], needs_review: true }]);
     renderApp("/parent-management?tab=families");

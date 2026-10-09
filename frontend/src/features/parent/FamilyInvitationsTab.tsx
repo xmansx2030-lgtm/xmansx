@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, MailCheck, Users } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -37,6 +37,16 @@ export function FamilyInvitationsTab() {
   const client = useQueryClient();
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const searching = search.trim() !== appliedSearch;
+  useEffect(() => {
+    if (!searching) return;
+    const timer = window.setTimeout(() => {
+      setAppliedSearch(search.trim()); setPage(1); setSelected([]);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search, searching]);
   const [review, setReview] = useState<ReviewedFamily[] | null>(null);
   const [note, setNote] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -44,7 +54,7 @@ export function FamilyInvitationsTab() {
   const [submitted, setSubmitted] = useState(0);
   const key = schoolScopedKey(me.data?.active_school?.id ?? 0, "parents", "families");
   const families = useQuery({
-    queryKey: [...key, page], queryFn: ({ signal }) => getSchoolFamilies(page, signal),
+    queryKey: [...key, page, appliedSearch], queryFn: ({ signal }) => getSchoolFamilies(page, signal, appliedSearch),
     refetchInterval: (query) => review || query.state.error ? false : 30_000,
     retry: false,
   });
@@ -77,17 +87,24 @@ export function FamilyInvitationsTab() {
     <div className={surface}>
       <h2 className="flex items-center gap-2 text-lg font-black"><Users aria-hidden size={20} />الأسر المستخرجة من بيانات الطلاب</h2>
       <p className="mt-2 text-sm leading-7 text-slate-600">يجمع النظام الأبناء بحسب رقم التواصل المدرسي. راجع صفة ولي الأمر والأبناء قبل الاعتماد؛ ترسل دعوة واحدة لكل أسرة، ولا يمنح التجميع وحده صلاحية متابعة.</p>
+      <div className="mt-4 flex flex-wrap items-end gap-3" role="search" aria-label="البحث عن ولي الأمر">
+        <TextField className="min-w-0 flex-1 basis-64" label="البحث عن ولي الأمر" type="search" maxLength={150}
+          placeholder="اسم ولي الأمر، اسم الطالب، أو رقم الجوال" value={search}
+          description="يبحث في جميع أسر المدرسة، ويعرض جميع الأبناء عند مطابقة أحدهم."
+          onChange={(event) => { setSearch(event.target.value); setSelected([]); }} />
+        {search && <Button variant="secondary" onClick={() => { setSearch(""); setAppliedSearch(""); setPage(1); setSelected([]); }}>مسح البحث</Button>}
+      </div>
     </div>
-    {families.isPending && <PageSkeleton label="جارٍ استخراج الأسر" />}
+    {(searching || families.isPending) && <PageSkeleton label="جارٍ البحث عن الأسر" />}
     {families.isError && <ErrorState error={families.error} />}
-    {families.data && !families.isError && <>
+    {families.data && !families.isError && !searching && <>
       {!ready && <Alert tone="warning" title="إرسال الدعوات غير متاح حالياً">يلزم تفعيل خدمة الدعوات وتهيئة مزود SMS للمدرسة قبل الإرسال.</Alert>}
       {submitted > 0 && <Alert title="تم حفظ اعتماد الدعوات">راجع حالة الإرسال في كل بطاقة؛ قبول المزود لا يثبت وصول SMS أو توثيق البريد.</Alert>}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-bold">{families.data.count} أسرة مقترحة</p>
+        <p className="text-sm font-bold" role="status">{families.data.count} {appliedSearch ? "أسرة مطابقة للبحث" : "أسرة مقترحة"}</p>
         <Button disabled={!ready || !selected.length} onClick={() => open(families.data!.results.filter((row) => selected.includes(row.key)))}>مراجعة وإرسال للمحدد ({selected.length})</Button>
       </div>
-      {!families.data.results.length && <EmptyState title="لا توجد أسر مقترحة" description="تظهر الأسر عند وجود طلاب نشطين وبيانات تواصل مدرسية." />}
+      {!families.data.results.length && <EmptyState title={appliedSearch ? "لا توجد أسر مطابقة للبحث" : "لا توجد أسر مقترحة"} description={appliedSearch ? "جرّب جزءاً من اسم ولي الأمر أو الطالب، أو رقم الجوال، أو امسح البحث لعرض جميع الأسر." : "تظهر الأسر عند وجود طلاب نشطين وبيانات تواصل مدرسية."} />}
       <div className="grid gap-4 xl:grid-cols-2">
         {families.data.results.map((family) => {
           const activated = family.invitation?.lifecycle === "ACTIVATED" && !family.invitation.partial;

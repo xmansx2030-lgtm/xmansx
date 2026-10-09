@@ -107,6 +107,12 @@ class PublicationAcknowledgementOutputSerializer(serializers.Serializer):
 
 
 class StaffPublicationOutputSerializer(PublicationOutputSerializer):
+    student_name = serializers.CharField()
+    case_id = serializers.IntegerField(allow_null=True)
+    action_count = serializers.IntegerField()
+    completed_action_count = serializers.IntegerField()
+    action_completed_at = serializers.DateTimeField(allow_null=True)
+    action_overdue = serializers.BooleanField()
     ack_count = serializers.IntegerField()
     acknowledgements = PublicationAcknowledgementOutputSerializer(many=True)
 

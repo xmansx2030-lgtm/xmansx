@@ -489,6 +489,10 @@ class CaseEventType(models.TextChoices):
     COUNSELOR_REASSIGNED = "COUNSELOR_REASSIGNED", "تغيير المرشد"
     CASE_CLOSED = "CASE_CLOSED", "إغلاق الحالة"
     CASE_REOPENED = "CASE_REOPENED", "إعادة فتح الحالة"
+    FAMILY_CONTENT_PUBLISHED = "FAMILY_CONTENT_PUBLISHED", "نشر توصية للأسرة"
+    FAMILY_CONTENT_ACKNOWLEDGED = "FAMILY_CONTENT_ACKNOWLEDGED", "اطلاع الأسرة على التوصية"
+    FAMILY_ACTION_COMPLETED = "FAMILY_ACTION_COMPLETED", "تأكيد الأسرة تنفيذ الإجراء"
+    FAMILY_CONTENT_REVOKED = "FAMILY_CONTENT_REVOKED", "سحب توصية الأسرة"
 
 
 class CounselorCaseEvent(models.Model):

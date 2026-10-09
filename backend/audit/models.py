@@ -163,6 +163,7 @@ class AuditAction(models.TextChoices):
     SUBSCRIPTION_REACTIVATED = "SUBSCRIPTION_REACTIVATED", "إعادة تفعيل اشتراك"
     SUBSCRIPTION_CANCELLED = "SUBSCRIPTION_CANCELLED", "إلغاء اشتراك"
     ENTITLEMENT_OVERRIDE_CHANGED = "ENTITLEMENT_OVERRIDE_CHANGED", "تعديل تجاوز استحقاق"
+    SCHOOL_FEATURE_ACCESS_CHANGED = "SCHOOL_FEATURE_ACCESS_CHANGED", "تعديل تفعيل ميزة مدرسة"
 
 
 class AuditLog(models.Model):

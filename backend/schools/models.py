@@ -1,6 +1,7 @@
 from django.db import models
 
 from common.models import TimestampedModel
+from schools.feature_defaults import default_feature_access
 from schools.settings_models import EducationStage, SchoolSettings
 
 __all__ = ["School", "SchoolStatus", "SchoolType", "SchoolSettings", "EducationStage"]
@@ -21,6 +22,7 @@ class School(TimestampedModel):
     """المدرسة = المستأجر (Tenant). الأساس فقط — إعدادات التشغيل في المرحلة 3."""
 
     name = models.CharField("اسم المدرسة", max_length=200)
+    feature_access = models.JSONField("تفعيل ميزات المدرسة", default=default_feature_access)
     slug = models.SlugField("المعرف", max_length=100, unique=True, allow_unicode=False)
     status = models.CharField(
         "الحالة",

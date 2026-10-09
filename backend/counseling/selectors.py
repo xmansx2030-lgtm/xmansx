@@ -64,6 +64,9 @@ def can_view_case(*, case, membership, roles) -> bool:
 
 def filter_cases(queryset, params):
     """فلاتر القائمة (البند 60) — كلها اختيارية وتُطبق فوق نطاق الدور."""
+    search = (params.get("search") or "").strip()[:100]
+    if search:
+        queryset = queryset.filter(student__full_name__icontains=search)
     status = params.get("status")
     if status == "live":
         queryset = queryset.filter(status__in=LIVE_CASE_STATUSES)
@@ -134,7 +137,10 @@ def counselor_dashboard_kpis(*, school, membership, roles) -> dict:
         due_date__lte=dj_timezone.localdate(),
     ).count()
 
+    from parents.counseling_integration import family_action_kpis
+
     return {
+        **family_action_kpis(school=school, cases=cases),
         "new_referrals": referrals.count(),
         "open_cases": aggregates["open_cases"] or 0,
         "under_assessment": aggregates["under_assessment"] or 0,
@@ -156,12 +162,9 @@ def case_detail_queryset(school):
 
 
 def case_sessions(case):
-    return (
-        case.sessions.select_related(
-            "created_by_membership__user", "created_by_membership__staff_profile"
-        )
-        .order_by("-occurred_at", "-id")
-    )
+    return case.sessions.select_related(
+        "created_by_membership__user", "created_by_membership__staff_profile"
+    ).order_by("-occurred_at", "-id")
 
 
 def active_sessions(case):
@@ -177,26 +180,20 @@ def case_plans(case):
 
 
 def case_teacher_requests(case):
-    return (
-        case.teacher_requests.select_related(
-            "requested_from_membership__user",
-            "requested_from_membership__staff_profile",
-            "requested_by_membership__user",
-            "requested_by_membership__staff_profile",
-            "response__responded_by_membership__user",
-            "response__responded_by_membership__staff_profile",
-        )
-        .order_by("-created_at")
-    )
+    return case.teacher_requests.select_related(
+        "requested_from_membership__user",
+        "requested_from_membership__staff_profile",
+        "requested_by_membership__user",
+        "requested_by_membership__staff_profile",
+        "response__responded_by_membership__user",
+        "response__responded_by_membership__staff_profile",
+    ).order_by("-created_at")
 
 
 def case_timeline(case):
-    return (
-        case.events.select_related(
-            "actor_membership__user", "actor_membership__staff_profile"
-        )
-        .order_by("-created_at", "-id")
-    )
+    return case.events.select_related(
+        "actor_membership__user", "actor_membership__staff_profile"
+    ).order_by("-created_at", "-id")
 
 
 def teacher_requests_for(*, school, membership):
