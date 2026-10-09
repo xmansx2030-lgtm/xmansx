@@ -72,7 +72,8 @@ def send_sms(*, provider: str, username: str, secret: str, sender: str,
         )
         if re.fullmatch(r"-\d+", response):
             raise SmsProviderError(f"DREAMS_{response.removeprefix('-')}")
-        if re.fullmatch(r"Result\s*:\s*Success", response, re.I):
+        # Dreams also returns bare Success (observed on a delivered production SMS).
+        if re.fullmatch(r"(?:Result\s*:\s*)?Success", response, re.I):
             return SmsProviderResult()
         match = re.fullmatch(r"Result\s*:\s*(\d+)(?::[^\s]*)?", response, re.I)
         if match:
