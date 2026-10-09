@@ -40,9 +40,9 @@ describe("counselor family integration", () => {
     expect(screen.queryByLabelText("عنوان الرسالة للأسرة")).toBeNull();
     expect(screen.getByRole("tab", { name: /متابعة الأسرة.*يلزم اشتراك/ })).toBeVisible();
     expect(calls.some(call => call.url.includes("/staff/parents/publications/"))).toBe(false);
-    await userEvent.setup().click(screen.getByRole("tab", { name: "نظرة عامة", exact: true }));
+    await userEvent.setup().click(screen.getByRole("tab", { name: "نظرة عامة" }));
     expect(notice).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "نظرة عامة", exact: true })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "نظرة عامة" })).toHaveAttribute("aria-selected", "true");
   });
 
   beforeEach(() => { queryClient.clear(); document.cookie = "csrftoken=test-token"; });
