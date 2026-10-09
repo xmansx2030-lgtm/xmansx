@@ -255,3 +255,10 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.24.3"
+      - name: Scan complete history including merged branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/gitleaks-8.24.3/gitleaks git --redact --log-opts="--all" --no-banner
+          /tmp/gitleaks-8.24.3/gitleaks dir --redact --no-banner

@@ -1,0 +1,38 @@
+title = "XMAN SX secrets scan"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+# These exact published development values are fixtures, never deployment
+# secrets. AND scopes each exception to both the literal and its source path.
+[[rules.allowlists]]
+description = "Published local Fernet key; production explicitly rejects it"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['^g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo=$']
+paths = ['^docker-compose\.parent-verification\.yml$', '^backend/config/settings/production\.py$', '^backend/tests/test_phase17_hardening\.py$']
+
+[[rules.allowlists]]
+description = "Disposable isolated capacity fixture encryption key"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['^lBWikOx1S1n4CMQf9jJzE9EDFS3ueHCzXNYto625q6A=$']
+paths = ['^docker-compose\.capacity\.yml$']
+
+[[rules.allowlists]]
+description = "Production-settings unit test key"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['^ehl1c-0LD6bf60FHqC3_5VdHF1gcn6tZYpqUg_knyJ0=$']
+paths = ['^backend/tests/test_phase17_hardening\.py$']
+
+[[rules.allowlists]]
+description = "Existing DEBUG-only synthetic benchmark account password"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['^Bench-123456$']
+paths = ['^backend/(attendance|devices|excuses|referrals|student_warnings|students)/management/commands/benchmark_[a-z_]+\.py$']
+
