@@ -43,7 +43,7 @@ services:
     volumes:
       - verification_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U parent_verify_owner -d parent_verification"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U parent_verify_owner -d parent_verification"]
       interval: 2s
       timeout: 3s
       retries: 30

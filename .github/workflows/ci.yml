@@ -175,10 +175,14 @@ jobs:
           -f docker-compose.production.yml down -v
 
   parent-browser:
-    name: Parent portal isolated TLS browser gate
+    name: Parent TLS (${{ matrix.journey }})
     needs: [backend, frontend, bridge]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        journey: [parent-family-invitations, parent-email-activation, parent-email-recovery, parent-portal, parent-family-followup]
     env:
       E2E_BASE_URL: https://localhost:8445
       COMPOSE_PROJECT_NAME: xmansx-parent-email-activation-synthetic-staging
@@ -208,9 +212,13 @@ jobs:
           docker compose "${vf[@]}" build tests
           docker compose "${vf[@]}" run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$PWD/artifacts/parent-staging:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
           sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
-          docker compose "${sf[@]}" up -d postgres redis
+          docker compose "${sf[@]}" up -d --wait postgres redis
           docker compose "${sf[@]}" run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
-          docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_family_invitations --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json
+          if [[ '${{ matrix.journey }}' == parent-family-invitations ]]; then
+            docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_family_invitations --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json
+          else
+            docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_staging --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json --enable-registration
+          fi
           sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
           chmod 600 artifacts/parent-staging/fixture.json
           docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
@@ -218,23 +226,14 @@ jobs:
           docker compose "${sf[@]}" up -d staging-app staging-worker staging-beat staging-frontend
           echo "NODE_EXTRA_CA_CERTS=$PWD/artifacts/parent-staging/localhost.crt" >> "$GITHUB_ENV"
           echo "PARENT_E2E_FIXTURE=$PWD/artifacts/parent-staging/fixture.json" >> "$GITHUB_ENV"
-      - name: Family invitations, activation, recovery and existing parent journeys
+      - name: Run journey on its own fresh TLS database and security Redis
         shell: bash
         run: |
           set -euo pipefail
-          sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
-          for journey in parent-family-invitations parent-email-activation parent-email-recovery parent-portal parent-family-followup; do
-            if [[ "$journey" != parent-family-invitations ]]; then
-              # Preserve the actual 20 login attempts/IP/300s limit; wait for
-              # its window instead of flushing Redis or weakening assertions.
-              sleep 310
-              docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_staging --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json --enable-registration
-              sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
-              chmod 600 artifacts/parent-staging/fixture.json
-              docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
-            fi
-            (cd frontend && npx --no-install playwright test --config playwright.parent.config.ts "$journey.spec.ts")
-          done
+          # Each matrix job owns a fresh database and Redis on its own runner.
+          # Keep the actual 20/IP/300s and mobile limits; no Redis flushing.
+          cd frontend
+          npx --no-install playwright test --config playwright.parent.config.ts '${{ matrix.journey }}.spec.ts'
       - name: Stop only the isolated CI stack
         if: always()
         run: >-
