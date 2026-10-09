@@ -8,10 +8,11 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 from uuid import UUID
 
-from common.email_templates import SUBSCRIPTION_TITLES, render_subscription_email
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+
+from common.email_templates import SUBSCRIPTION_TITLES, render_subscription_email
 
 TITLES = SUBSCRIPTION_TITLES
 

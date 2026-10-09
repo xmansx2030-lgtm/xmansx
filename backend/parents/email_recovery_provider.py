@@ -17,10 +17,11 @@ from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 from uuid import UUID
 
-from common.email_templates import render_account_email
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+
+from common.email_templates import render_account_email
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 ALLOWED_PURPOSES = frozenset({"RECOVERY_EMAIL_VERIFICATION", "PASSWORD_RESET"})

@@ -6,6 +6,7 @@ from html import unescape
 from html.parser import HTMLParser
 
 import pytest
+
 from common.email_templates import (
     SUBSCRIPTION_TITLES,
     render_account_email,

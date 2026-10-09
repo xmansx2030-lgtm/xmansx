@@ -174,6 +174,77 @@ jobs:
           docker compose -p xmansx-ci -f docker-compose.yml
           -f docker-compose.production.yml down -v
 
+  parent-browser:
+    name: Parent portal isolated TLS browser gate
+    needs: [backend, frontend, bridge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_BASE_URL: https://localhost:8445
+      COMPOSE_PROJECT_NAME: xmansx-parent-email-activation-synthetic-staging
+      PARENT_E2E_EXTERNAL_PREVIEW: "1"
+      PARENT_E2E_SYNTHETIC_STAGING: "1"
+      PARENT_VERIFICATION_LOCAL_ONLY: "1"
+      E2E_SEED_PASSWORD: Parent-Staging-Local-2026!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build browser client
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Prepare fresh private synthetic TLS stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/parent-staging
+          vf=(-p xmansx-parent-ci-materials -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-email-verification.yml)
+          docker compose "${vf[@]}" build tests
+          docker compose "${vf[@]}" run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$PWD/artifacts/parent-staging:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
+          sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
+          docker compose "${sf[@]}" up -d postgres redis
+          docker compose "${sf[@]}" run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
+          docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_family_invitations --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json
+          sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
+          chmod 600 artifacts/parent-staging/fixture.json
+          docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
+          docker compose "${sf[@]}" build staging-frontend
+          docker compose "${sf[@]}" up -d staging-app staging-worker staging-beat staging-frontend
+          echo "NODE_EXTRA_CA_CERTS=$PWD/artifacts/parent-staging/localhost.crt" >> "$GITHUB_ENV"
+          echo "PARENT_E2E_FIXTURE=$PWD/artifacts/parent-staging/fixture.json" >> "$GITHUB_ENV"
+      - name: Family invitations, activation, recovery and existing parent journeys
+        shell: bash
+        run: |
+          set -euo pipefail
+          sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
+          for journey in parent-family-invitations parent-email-activation parent-email-recovery parent-portal parent-family-followup; do
+            if [[ "$journey" != parent-family-invitations ]]; then
+              # Preserve the actual 20 login attempts/IP/300s limit; wait for
+              # its window instead of flushing Redis or weakening assertions.
+              sleep 310
+              docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_staging --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json --enable-registration
+              sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
+              chmod 600 artifacts/parent-staging/fixture.json
+              docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
+            fi
+            (cd frontend && npx --no-install playwright test --config playwright.parent.config.ts "$journey.spec.ts")
+          done
+      - name: Stop only the isolated CI stack
+        if: always()
+        run: >-
+          docker compose --env-file artifacts/parent-staging/.env
+          -f docker-compose.parent-verification.yml
+          -f docker-compose.parent-release-verification.yml
+          -f docker-compose.parent-staging.yml
+          -f docker-compose.parent-email-verification.yml
+          -f docker-compose.parent-family-verification.yml down -v
+
   secrets-scan:
     name: Secrets scan (gitleaks)
     runs-on: ubuntu-latest
