@@ -157,6 +157,20 @@ def attachment_row(attachment):
     }
 
 
+def _reviewer_name(obj):
+    if not obj.reviewed_by_membership_id:
+        return ""
+    membership = obj.reviewed_by_membership
+    if membership is None:
+        return "موظف المدرسة"
+    profile = getattr(membership, "staff_profile", None)
+    return (
+        (profile.display_name if profile else "")
+        or membership.user.get_full_name()
+        or "موظف المدرسة"
+    )
+
+
 def excuse_row(obj, *, staff=False):
     row = {
         "id": obj.id,
@@ -175,7 +189,9 @@ def excuse_row(obj, *, staff=False):
     }
     if staff:
         row["student_name"] = obj.student.full_name
-        row["requester_name"] = obj.requester.display_name
+        row["requester_name"] = obj.requester.get_full_name() or "ولي الأمر"
+        row["reviewed_at"] = _iso(obj.reviewed_at)
+        row["reviewer_name"] = _reviewer_name(obj)
     return row
 
 
@@ -197,7 +213,9 @@ def correction_row(obj, *, staff=False):
     }
     if staff:
         row["student_name"] = obj.student.full_name
-        row["requester_name"] = obj.requester.display_name
+        row["requester_name"] = obj.requester.get_full_name() or "ولي الأمر"
+        row["reviewed_at"] = _iso(obj.reviewed_at)
+        row["reviewer_name"] = _reviewer_name(obj)
     return row
 
 
@@ -876,13 +894,19 @@ class StaffRequestsView(SchoolScopedAPIView):
         limit = offset + size
         excuses = (
             ParentExcuseRequest.objects.filter(school=request.school)
-            .select_related("student", "requester")
+            .select_related(
+                "student", "requester", "reviewed_by_membership__user",
+                "reviewed_by_membership__staff_profile",
+            )
             .prefetch_related("attachments")
             .order_by("-created_at", "-id")
         )
         corrections = (
             AttendanceCorrectionRequest.objects.filter(school=request.school)
-            .select_related("student", "requester", "session")
+            .select_related(
+                "student", "requester", "session", "reviewed_by_membership__user",
+                "reviewed_by_membership__staff_profile",
+            )
             .order_by("-created_at", "-id")
         )
         count = excuses.count() + corrections.count()
@@ -892,6 +916,35 @@ class StaffRequestsView(SchoolScopedAPIView):
         payload["excuses"] = [row for row in payload["items"] if row["type"] == "EXCUSE"]
         payload["corrections"] = [row for row in payload["items"] if row["type"] == "CORRECTION"]
         return Response(payload)
+
+
+class StaffExcuseDetailView(SchoolScopedAPIView):
+    read_roles = write_roles = REVIEW_ROLES
+    model = ParentExcuseRequest
+
+    @extend_schema(responses=output.StaffExcuseOutputSerializer)
+    def get(self, request, request_id):
+        queryset = self.model.objects.filter(id=request_id, school=request.school).select_related(
+            "student", "requester", "reviewed_by_membership__user",
+            "reviewed_by_membership__staff_profile",
+        )
+        if self.model is ParentExcuseRequest:
+            queryset = queryset.prefetch_related("attachments")
+        else:
+            queryset = queryset.select_related("session")
+        obj = queryset.first()
+        if obj is None:
+            raise not_found()
+        return Response(
+            excuse_row(obj, staff=True)
+            if isinstance(obj, ParentExcuseRequest)
+            else correction_row(obj, staff=True)
+        )
+
+
+@extend_schema_view(get=extend_schema(responses=output.StaffCorrectionOutputSerializer))
+class StaffCorrectionDetailView(StaffExcuseDetailView):
+    model = AttendanceCorrectionRequest
 
 
 class StaffExcuseDecisionView(SchoolScopedAPIView):

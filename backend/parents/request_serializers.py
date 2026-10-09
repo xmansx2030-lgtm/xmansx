@@ -71,11 +71,15 @@ class CorrectionOutputSerializer(serializers.Serializer):
 class StaffExcuseOutputSerializer(ExcuseOutputSerializer):
     student_name = serializers.CharField()
     requester_name = serializers.CharField(allow_blank=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    reviewer_name = serializers.CharField(allow_blank=True)
 
 
 class StaffCorrectionOutputSerializer(CorrectionOutputSerializer):
     student_name = serializers.CharField()
     requester_name = serializers.CharField(allow_blank=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    reviewer_name = serializers.CharField(allow_blank=True)
 
 
 class DocumentOutputSerializer(serializers.Serializer):

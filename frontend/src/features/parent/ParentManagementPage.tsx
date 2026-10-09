@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HeartHandshake } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -14,6 +15,7 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { toCanonicalMobile } from "@/features/auth/mobile";
+import { REASON_LABELS } from "@/features/excuses/api";
 import {
   blockRecipient,
   decideFamilyRequest,
@@ -26,6 +28,7 @@ import {
   getRegistrations,
   getStaffRelations,
   getStaffRequests,
+  getStaffRequest,
   getStaffPublications,
   getStaffAcknowledgements,
   publishFamilyContent,
@@ -76,7 +79,11 @@ export function ParentManagementPage() {
     me.data?.roles.some((role) =>
       ["SCHOOL_MANAGER", "VICE_PRINCIPAL"].includes(role),
     ) ?? false;
-  const [selected, setSelected] = useState<Tab>("registrations");
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab");
+  const selected: Tab = requestedTab && Object.hasOwn(tabLabels, requestedTab)
+    ? requestedTab as Tab
+    : "registrations";
   const tab = administrator ? selected : "publications";
   const available = administrator
     ? (Object.keys(tabLabels) as Tab[])
@@ -103,7 +110,7 @@ export function ParentManagementPage() {
             variant={tab === item ? "primary" : "ghost"}
             className="shrink-0"
             aria-pressed={tab === item}
-            onClick={() => setSelected(item)}
+            onClick={() => setParams({ tab: item })}
           >
             {tabLabels[item]}
           </Button>
@@ -672,7 +679,17 @@ function RelationDecision({
 function StaffRequests() {
   const key = useStaffKey("requests");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<FamilyRequest | null>(null);
+  const [params, setParams] = useSearchParams();
+  const type = params.get("type");
+  const id = params.get("request") ?? "";
+  const selected: Pick<FamilyRequest, "type" | "id"> | null = (type === "EXCUSE" || type === "CORRECTION") && /^[1-9]\d*$/.test(id)
+    && Number.isSafeInteger(Number(id)) ? { type, id: Number(id) } : null;
+  function closeDecision() {
+    const next = new URLSearchParams(params);
+    next.delete("type");
+    next.delete("request");
+    setParams(next, { replace: true });
+  }
   const requests = useQuery({
     queryKey: [...key, page],
     queryFn: ({ signal }) => getStaffRequests(signal, page),
@@ -702,9 +719,9 @@ function StaffRequests() {
                   <Badge tone="neutral">{REQUEST_LABELS[request.status]}</Badge>
                   <Button
                     variant="secondary"
-                    onClick={() => setSelected(request)}
+                    onClick={() => setParams({ tab: "requests", type: request.type, request: String(request.id) })}
                   >
-                    مراجعة طلب الأسرة
+                    {["PENDING", "NEEDS_INFO"].includes(request.status) ? "مراجعة طلب الأسرة" : "عرض طلب الأسرة"}
                   </Button>
                 </div>
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-7">
@@ -726,7 +743,7 @@ function StaffRequests() {
         hasPrevious={!!requests.data?.previous}
       />
       {selected && (
-        <FamilyDecision request={selected} onClose={() => setSelected(null)} />
+        <FamilyDecision request={selected} onClose={closeDecision} />
       )}
     </>
   );
@@ -735,10 +752,29 @@ function FamilyDecision({
   request,
   onClose,
 }: {
-  request: FamilyRequest;
+  request: Pick<FamilyRequest, "type" | "id">;
   onClose: () => void;
 }) {
   const key = useStaffKey("requests");
+  const detail = useQuery({
+    queryKey: [...key, "detail", request.type, request.id],
+    queryFn: ({ signal }) => getStaffRequest(request.type, request.id, signal),
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    retry: false,
+  });
+  return (
+    <Modal title={`طلب الأسرة #${request.id}`} onClose={onClose}>
+      {detail.isPending && <PageSkeleton label="جارٍ تحميل معلومات الطلب الحالية" />}
+      {detail.isError && <ErrorState error={detail.error} />}
+      {detail.isSuccess && <FamilyDecisionForm request={detail.data} />}
+    </Modal>
+  );
+}
+function FamilyDecisionForm({ request }: { request: FamilyRequest }) {
+  const key = useStaffKey("requests");
+  const me = useMe();
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState("APPROVED");
   const [note, setNote] = useState("");
@@ -751,17 +787,56 @@ function FamilyDecision({
         note.trim(),
         request.type === "CORRECTION" ? request.session_updated_at : undefined,
       ),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: key }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({ queryKey: schoolScopedKey(me.data?.active_school?.id ?? 0, "dashboard") });
+    },
   });
+  const canDecide = ["PENDING", "NEEDS_INFO"].includes(request.status) && !action.isSuccess;
+  const facts = [
+    ["الطالب", request.student_name || `الطالب #${request.student_id}`],
+    ["مقدم الطلب", request.requester_name || "لم يسجل الاسم"],
+    ["حالة الطلب", REQUEST_LABELS[request.status]],
+    ["وقت تقديم الطلب", dateTime(request.created_at)],
+    ["آخر تحديث للطلب", dateTime(request.updated_at)],
+    ...(request.reviewed_at ? [
+      ["صاحب القرار السابق", request.reviewer_name || "لم يسجل الاسم"],
+      ["وقت القرار السابق", dateTime(request.reviewed_at)],
+    ] : []),
+    ...(request.type === "EXCUSE" ? [["نوع العذر", REASON_LABELS[request.reason_type]]] : []),
+  ];
+  const targets = request.type === "EXCUSE" ? request.targets : [{
+    attendance_date: request.attendance_date,
+    period_sequence: request.period_sequence,
+  }];
   return (
-    <Modal title={`قرار طلب الأسرة #${request.id}`} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
-          if (note.trim()) action.mutate();
+          if (canDecide && note.trim()) action.mutate();
         }}
       >
+        <dl className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-sm text-slate-500">{label}</dt>
+              <dd className="font-bold">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <section aria-label="التواريخ والحصص المطلوبة" className="space-y-2">
+          <h2 className="font-bold">{request.type === "EXCUSE" ? "نطاق العذر المطلوب" : "الحضور المطلوب تصحيحه"}</h2>
+          <ul className="space-y-2">
+            {targets.map((target, index) => (
+              <li key={index} className="rounded-xl border border-slate-200 p-3">
+                <time dateTime={target.attendance_date} dir="ltr">{target.attendance_date}</time>
+                {" · "}{target.period_sequence === null ? "اليوم الدراسي كاملاً" : `الحصة ${target.period_sequence}`}
+              </li>
+            ))}
+          </ul>
+        </section>
+        {request.decision_note && <Alert title="رد المدرسة المسجل">{request.decision_note}</Alert>}
         <p className="whitespace-pre-wrap text-sm leading-7">
           {request.type === "EXCUSE" ? request.notes : request.reason}
         </p>
@@ -784,8 +859,9 @@ function FamilyDecision({
         >
           {request.type === "EXCUSE"
             ? "يبقى الغياب الفعلي محفوظاً."
-            : "يسجل النظام الموظف والسبب والتاريخ في سجل التغيير."}
+            : "الموافقة تصحح الغياب إلى حاضر في الحصة المحددة فقط، إذا بقي الغياب قائماً في تحضير معتمد. يسجل النظام الموظف والسبب والتاريخ في سجل التغيير."}
         </Alert>
+        {canDecide && <>
         <SelectField
           label="قرار الطلب"
           value={decision}
@@ -802,18 +878,18 @@ function FamilyDecision({
           required
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          maxLength={600}
+          maxLength={500}
         />
+        </>}
         {action.isError && <ErrorState error={action.error} />}
         {action.isSuccess ? (
           <Alert tone="success" title="تم حفظ القرار" />
-        ) : (
+        ) : canDecide ? (
           <Button type="submit" loading={action.isPending}>
             حفظ قرار الطلب
           </Button>
-        )}
+        ) : <Alert title="طلب منتهٍ — للاطلاع فقط">لا يمكن إصدار قرار جديد لهذا الطلب.</Alert>}
       </form>
-    </Modal>
   );
 }
 function Contacts() {

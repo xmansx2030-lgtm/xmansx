@@ -50,6 +50,8 @@ urlpatterns = [
         views.ParentPublicationAcknowledgeView.as_view(),
     ),
     path("staff/parents/requests/", views.StaffRequestsView.as_view()),
+    path("staff/parents/excuses/<int:request_id>/", views.StaffExcuseDetailView.as_view()),
+    path("staff/parents/corrections/<int:request_id>/", views.StaffCorrectionDetailView.as_view()),
     path("staff/parents/acknowledgements/", views.StaffAcknowledgementsView.as_view()),
     path(
         "staff/parents/excuses/<int:request_id>/decision/", views.StaffExcuseDecisionView.as_view()

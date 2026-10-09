@@ -90,6 +90,9 @@ export interface ExcuseRequest {
   relation_id?: number;
   student_id: number;
   student_name?: string;
+  requester_name?: string;
+  reviewed_at?: string | null;
+  reviewer_name?: string;
   status: RequestStatus;
   reason_type: ReasonType;
   notes: string;
@@ -106,6 +109,9 @@ export interface CorrectionRequest {
   relation_id?: number;
   student_id: number;
   student_name?: string;
+  requester_name?: string;
+  reviewed_at?: string | null;
+  reviewer_name?: string;
   session_id: number;
   attendance_date: string;
   period_sequence: number;
@@ -545,6 +551,11 @@ export const getStaffRequests = (signal?: AbortSignal, page = 1) =>
       corrections: CorrectionRequest[];
     }
   >(`${staffPath}/requests/${pageQuery(page)}`, { signal });
+export const getStaffRequest = (type: FamilyRequest["type"], id: number, signal?: AbortSignal) =>
+  apiRequest<FamilyRequest>(
+    `${staffPath}/${type === "EXCUSE" ? "excuses" : "corrections"}/${id}/`,
+    { signal },
+  );
 export const decideFamilyRequest = (
   type: FamilyRequest["type"],
   id: number,

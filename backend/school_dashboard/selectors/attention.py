@@ -13,6 +13,8 @@ from attendance.selectors.monitoring import (
     get_current_section_attendance_statuses,
 )
 from excuses.models import AbsenceExcuse, AbsenceExcuseStatus
+from parents.models import AttendanceCorrectionRequest, ParentExcuseRequest
+from parents.request_models import ParentRequestStatus
 from referrals.models import ReferralStatus, StudentReferral
 
 #: سقف العناصر المعروضة لكل نوع — طابور عمل لا تقرير شامل
@@ -153,6 +155,37 @@ def counseling_items(*, school) -> list[dict]:
     return counseling_bridge.attention_items(school=school)
 
 
+def pending_family_requests(*, school, model, request_type) -> list[dict]:
+    """School review queue; never copy request text, attachments or global contacts."""
+    rows = (
+        model.objects.filter(
+            school=school, status__in=(ParentRequestStatus.PENDING, ParentRequestStatus.NEEDS_INFO)
+        )
+        .select_related("student")
+        .order_by("created_at", "id")[:MAX_ITEMS_PER_KIND]
+    )
+    label = "عذر ولي أمر" if request_type == "EXCUSE" else "طلب تصحيح حضور"
+    return [
+        _item(
+            kind=f"PARENT_{request_type}_PENDING",
+            entity_type=f"PARENT_{request_type}_REQUEST",
+            entity_id=row.id,
+            reason_code="FAMILY_AWAITING_INFORMATION"
+            if row.status == "NEEDS_INFO"
+            else "FAMILY_AWAITING_SCHOOL_REVIEW",
+            text=(
+                f"{label} "
+                f"{'يحتاج استكمالاً' if row.status == 'NEEDS_INFO' else 'بانتظار المراجعة'} "
+                f"— {row.student.full_name}"
+            ),
+            priority=PRIORITY_NORMAL,
+            target_url=f"/parent-management?tab=requests&type={request_type}&request={row.id}",
+            occurred_at=row.created_at.isoformat(),
+        )
+        for row in rows
+    ]
+
+
 def attention_queue(*, school) -> dict:
     """طابور العمل الموحد — مرتب بالأولوية البصرية ثم النوع."""
     groups = {
@@ -161,6 +194,12 @@ def attention_queue(*, school) -> dict:
         "excuse_pending": pending_excuses(school=school),
         "referral_unassigned": unassigned_referrals(school=school),
         "counseling": counseling_items(school=school),
+        "parent_excuse_pending": pending_family_requests(
+            school=school, model=ParentExcuseRequest, request_type="EXCUSE"
+        ),
+        "parent_correction_pending": pending_family_requests(
+            school=school, model=AttendanceCorrectionRequest, request_type="CORRECTION"
+        ),
     }
     items = [item for group in groups.values() for item in group]
     items.sort(key=lambda row: (0 if row["priority"] == PRIORITY_HIGH else 1, row["kind"]))

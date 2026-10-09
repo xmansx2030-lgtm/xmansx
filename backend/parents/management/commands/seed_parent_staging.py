@@ -14,7 +14,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from academics.models import AcademicYear
+from academics.models import AcademicYear, Semester
 from accounts.models import User
 from attendance.services.day_context import get_or_refresh_pristine_day_context
 from attendance.services.sessions import start_session, submit_session
@@ -129,6 +129,11 @@ class Command(BaseCommand):
                     code="PARENT_STAGING_ACCEPTANCE",
                 )
                 year = AcademicYear.objects.get(school=school, status="ACTIVE")
+                Semester.objects.create(
+                    school=school, academic_year=year,
+                    name="الفصل الصناعي للقبول", sequence=1,
+                    start_date=year.start_date, end_date=year.end_date, status="ACTIVE",
+                )
                 identifier = f"S{fixture['run']}{index}"
                 student = Student.objects.create(
                     school=school,
