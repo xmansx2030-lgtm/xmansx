@@ -12,23 +12,6 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_DB: xmansx
-          POSTGRES_USER: xmansx
-          POSTGRES_PASSWORD: xmansx-ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U xmansx -d xmansx"
-          --health-interval 5s --health-timeout 3s --health-retries 10
-      redis:
-        image: redis:8.0-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       DJANGO_SETTINGS_MODULE: config.settings.test
       POSTGRES_DB: xmansx
@@ -36,9 +19,15 @@ jobs:
       POSTGRES_PASSWORD: xmansx-ci
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
+      POSTGRES_HOST_PORT: "5432"
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before CI services
+        working-directory: .
+        run: bash .github/scripts/configure-docker-mirror.sh
+      - name: Start isolated backend dependencies
+        run: docker compose -p xmansx-backend-ci -f ../docker-compose.yml up -d --wait postgres redis
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -59,6 +48,9 @@ jobs:
         run: python manage.py spectacular --file /tmp/schema.yml --validate
       - name: Tests
         run: pytest
+      - name: Stop isolated backend dependencies
+        if: always()
+        run: docker compose -p xmansx-backend-ci -f ../docker-compose.yml down -v
 
   frontend:
     name: Frontend (lint, typecheck, tests, build)
@@ -127,6 +119,8 @@ jobs:
       E2E_PRODUCTION_LIKE: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before isolated stack
+        run: bash .github/scripts/configure-docker-mirror.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -210,6 +204,8 @@ jobs:
       E2E_SEED_PASSWORD: Parent-Staging-Local-2026!
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Docker Hub cache before isolated stack
+        run: bash .github/scripts/configure-docker-mirror.sh
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

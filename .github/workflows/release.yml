@@ -45,7 +45,14 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.sha }}
 
+      - name: Configure Docker Hub cache before release builder
+        run: bash .github/scripts/configure-docker-mirror.sh
+
       - uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - uses: docker/login-action@v3
         with:
