@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { activeJobPollingInterval } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -73,10 +74,8 @@ export function InactiveStudentsPage() {
     queryKey: schoolScopedKey(schoolId, "purge-job", activeJobId ?? 0),
     queryFn: ({ signal }) => getPurgeJob(activeJobId!, signal),
     enabled: activeJobId !== null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "PENDING" || status === "RUNNING" ? 1200 : false;
-    },
+    refetchInterval: activeJobPollingInterval(["PENDING", "RUNNING"]),
+    refetchIntervalInBackground: false,
   });
 
   function fail(e: unknown, fallback: string) {

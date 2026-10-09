@@ -536,6 +536,7 @@ a[class*="text-blue-"]:hover {
   }
 
   body:has(.qr-print-sheet) aside,
+  body:has(.qr-print-sheet) .skip-link,
   body:has(.qr-print-sheet) header {
     display: none !important;
   }
@@ -549,6 +550,10 @@ a[class*="text-blue-"]:hover {
 
   .qr-print-preview {
     display: block !important;
+  }
+
+  .qr-print-preview:not(.qr-print-ready) {
+    display: none !important;
   }
 
   .qr-print-sheet {
@@ -576,6 +581,7 @@ a[class*="text-blue-"]:hover {
   }
 
   body:has(.report-print-root) aside,
+  body:has(.report-print-root) .skip-link,
   body:has(.report-print-root) .app-shell-header,
   body:has(.report-print-root) #main-content > .ds-page > header,
   body:has(.report-print-root) .print\:hidden,
@@ -610,6 +616,15 @@ a[class*="text-blue-"]:hover {
     min-width: 0 !important;
     width: 100% !important;
     font-size: 9pt !important;
+  }
+
+  .report-print-root thead {
+    display: table-header-group;
+  }
+
+  .report-print-root tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .report-print-root th,

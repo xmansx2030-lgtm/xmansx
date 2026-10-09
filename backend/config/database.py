@@ -26,12 +26,13 @@ def postgres_database(*, production: bool) -> dict:
         timeout = env_int("DATABASE_POOL_TIMEOUT_SECONDS", 5)
         max_idle = env_int("DATABASE_POOL_MAX_IDLE_SECONDS", 300)
         max_lifetime = env_int("DATABASE_POOL_MAX_LIFETIME_SECONDS", 1800)
+        max_waiting = env_int("DATABASE_POOL_MAX_WAITING", 16)
         if min_size < 0 or max_size < 1 or min_size > max_size:
             raise ImproperlyConfigured(
                 "DATABASE_POOL_MIN_SIZE must be non-negative and no greater than "
                 "DATABASE_POOL_MAX_SIZE"
             )
-        if min(timeout, max_idle, max_lifetime) < 1:
+        if min(timeout, max_idle, max_lifetime, max_waiting) < 1:
             raise ImproperlyConfigured("Database pool timeouts must be positive")
         options["pool"] = {
             "min_size": min_size,
@@ -39,6 +40,7 @@ def postgres_database(*, production: bool) -> dict:
             "timeout": timeout,
             "max_idle": max_idle,
             "max_lifetime": max_lifetime,
+            "max_waiting": max_waiting,
         }
 
     def value(name: str, default):

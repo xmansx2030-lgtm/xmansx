@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { activeJobPollingInterval } from "@/app/polling";
 import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
@@ -52,8 +53,8 @@ export function StaffImportWizard() {
     queryKey: schoolScopedKey(schoolId, "staff-import-job", job?.id ?? 0),
     queryFn: ({ signal }) => getStaffImportJob(job!.id, signal),
     enabled: job !== null && (job.status === "PROCESSING" || step === 2),
-    refetchInterval: (query) =>
-      query.state.data?.status === "PROCESSING" ? 1500 : false,
+    refetchInterval: activeJobPollingInterval(["PROCESSING"]),
+    refetchIntervalInBackground: false,
   });
   const liveJob = committedJob ?? jobQuery.data ?? job;
 

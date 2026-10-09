@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Send } from "lucide-react";
 import { useRef, useState } from "react";
+import { adaptivePollingInterval, POLLING } from "@/app/polling";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Alert } from "@/components/Alert";
@@ -178,7 +179,8 @@ export function AbsenceMessagesPage() {
     enabled: schoolId > 0,
     refetchInterval: (query) => query.state.data?.students.some(
       (student) => student.send_status === "QUEUED" || student.send_status === "SENDING",
-    ) ? 5_000 : false,
+    ) ? adaptivePollingInterval(POLLING.jobStatus)(query) : false,
+    refetchIntervalInBackground: false,
   });
   const send = useMutation({
     mutationFn: async ({ date: targetDate, studentIds }: { date: string; schoolId: number; contextKey: string; studentIds: number[] }) => {

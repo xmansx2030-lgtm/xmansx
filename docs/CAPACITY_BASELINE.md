@@ -4,6 +4,9 @@ This document records observed local capacity, not guaranteed production capacit
 sizing must be repeated on the real topology with TLS termination, production database storage,
 network latency, monitoring, and explicit container resource limits.
 
+The [2026-10-08 hardening and 100-school verification](CAPACITY_HARDENING_2026_10_08.md)
+is the current follow-up. Historical results below are retained unchanged.
+
 > A partial local rebaseline was completed on 2026-09-22 after polling,
 > live-read caching, database pooling, Redis role isolation, and proxy changes.
 > Production revalidation remains pending; neither local result is a Render SLA.

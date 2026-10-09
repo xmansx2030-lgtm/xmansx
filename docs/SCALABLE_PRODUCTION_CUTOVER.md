@@ -27,7 +27,7 @@ objects are copied would be destructive.
 
 ## Capacity topology
 
-- Two private Gunicorn instances, each with two processes and four threads; no
+- Four private Gunicorn instances, each with two processes and four threads; no
   local disk, so horizontal scaling works.
 - A bounded native psycopg pool per process (`1..4` web connections and `1..2`
   worker connections). Recalculate the total before increasing replica,
@@ -40,8 +40,9 @@ objects are copied would be destructive.
   cache; a persistent `noeviction` security/rate-limit store; and a persistent
   `noeviction` Celery broker/result store. Cache pressure therefore cannot
   evict security counters or queued jobs.
-- PostgreSQL 1 CPU / 2 GB, 50 GB autoscaling storage, private ingress, and an HA
-  standby. Increase compute after load-test evidence, not by guesswork.
+- PostgreSQL 2 CPU / 4 GB, 50 GB autoscaling storage, private ingress, and an HA
+  standby. This is a local candidate topology for the 100-school / 2,000-user
+  target; see the [October verification](CAPACITY_HARDENING_2026_10_08.md).
 - Visible browser tabs use staggered polling and exponential failure backoff;
   hidden tabs stop polling. High-frequency current-period and monitoring reads
   are school-scoped, short-lived, and request-coalesced in the shared cache.
@@ -52,12 +53,15 @@ in PostgreSQL session settings for the duration of each request.
 
 ## Connection budget
 
-The current Blueprint can open at most 16 web-pool connections (2 replicas x 2
+The current Blueprint can open at most 32 web-pool connections (4 replicas x 2
 processes x 4) and 12 import-worker pool connections (2 replicas x 3 prefork
 children x 2). The maintenance worker and scheduler are bounded separately by
-the shared `1..2` worker setting. Treat this as a ceiling, not an expected
-steady-state count, and leave room for migrations, administration, health
-checks, and failover before changing any concurrency value.
+the shared `1..2` worker setting. Budget 48 for these pools, plus 4 reserved
+for the two import-worker parent processes, then administration and migrations.
+Web pool wait queues are bounded at 16 per process (workers: 8). Treat these
+as ceilings, not expected steady-state counts. Confirm the database's actual
+`SHOW max_connections`, reserve headroom for rolling releases, and stagger web
+and worker rollouts before changing any concurrency value.
 
 ## Required post-cutover benchmark
 

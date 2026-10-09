@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { adaptivePollingInterval } from "@/app/polling";
 
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
@@ -46,7 +47,8 @@ export function useMinistryCalendarQuery() {
     queryKey: schoolScopedKey(schoolId, "ministry-calendar"),
     queryFn: ({ signal }) => getMinistryCalendar(signal),
     enabled: schoolId > 0,
-    refetchInterval: 60_000,
+    refetchInterval: adaptivePollingInterval(60_000),
+    refetchIntervalInBackground: false,
   });
 }
 

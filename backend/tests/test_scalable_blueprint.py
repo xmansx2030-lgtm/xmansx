@@ -39,9 +39,15 @@ def test_scalable_web_pool_is_bounded_per_replica():
     )
     env = _env_map(core)
 
-    assert core["numInstances"] == 2
+    assert core["numInstances"] == 4
     assert env["GUNICORN_WORKERS"]["value"] == "2"
     assert env["GUNICORN_THREADS"]["value"] == "4"
     assert env["DATABASE_POOL_ENABLED"]["value"] == "true"
     assert env["DATABASE_POOL_MIN_SIZE"]["value"] == "1"
     assert env["DATABASE_POOL_MAX_SIZE"]["value"] == "4"
+    assert env["DATABASE_POOL_MAX_WAITING"]["value"] == "16"
+    web_connections = (
+        core["numInstances"] * int(env["GUNICORN_WORKERS"]["value"])
+        * int(env["DATABASE_POOL_MAX_SIZE"]["value"])
+    )
+    assert web_connections == 32
