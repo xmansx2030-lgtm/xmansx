@@ -130,6 +130,17 @@ test("Phase 16 SaaS lifecycle, limits, isolation, and recovery", async ({
   };
   expect(school.temporary_password).toBeTruthy();
 
+  // New schools require explicit platform activation before device lifecycle tests.
+  const initialFeatures = await platform.get(`/api/v1/platform/schools/${school.id}/features/`);
+  expect(initialFeatures.status()).toBe(200);
+  expect((await initialFeatures.json()).features.BIOMETRIC_DEVICES).toBe(false);
+  const enabledDevices = await patch(platform, `/platform/schools/${school.id}/features/`, {
+    feature: "BIOMETRIC_DEVICES",
+    enabled: true,
+  });
+  expect(enabledDevices.status()).toBe(200);
+  expect((await enabledDevices.json()).features.BIOMETRIC_DEVICES).toBe(true);
+
   djangoShell(`
 from datetime import date
 from academics.models import AcademicYear, AcademicYearStatus

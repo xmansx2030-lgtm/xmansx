@@ -5,6 +5,7 @@ import os
 import uuid
 from datetime import time, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -35,6 +36,14 @@ from parents.services import decide_registration, submit_registration
 from schools.models import School, SchoolSettings
 from student_warnings.models import StudentWarning
 from students.models import Grade, Section, Student, StudentEnrollment
+
+
+def start_fixture_session(*, fixture_now, **kwargs):
+    # Only this guarded synthetic seed simulates a time after both fixture periods.
+    # Keep real administrative period-start validation in place for all requests.
+    attendance_now = fixture_now.replace(hour=1, minute=0, second=0, microsecond=0)
+    with patch("attendance.services.admin_preparation.school_now", return_value=attendance_now):
+        return start_session(**kwargs)
 
 
 def fixture_pdf():
@@ -287,14 +296,16 @@ class Command(BaseCommand):
                         school_id=school.id,
                     )
                     # Reuse production services and roster snapshots for actual submission.
-                    draft, _, _ = start_session(
+                    draft, _, _ = start_fixture_session(
+                        fixture_now=local,
                         school=school,
                         membership=membership,
                         section=section,
                         attendance_date=today,
                         period_sequence=1,
                     )
-                    submitted, _, _ = start_session(
+                    submitted, _, _ = start_fixture_session(
+                        fixture_now=local,
                         school=school,
                         membership=membership,
                         section=section,
@@ -380,7 +391,8 @@ class Command(BaseCommand):
                         document_id=document.id,
                     )
                 elif index == 2:
-                    submitted, _, _ = start_session(
+                    submitted, _, _ = start_fixture_session(
+                        fixture_now=local,
                         school=school,
                         membership=membership,
                         section=section,
