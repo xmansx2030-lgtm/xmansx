@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// These UI journeys use page.route rather than a real authenticated session.
+// A production NetworkOnly service worker owns subsequent API fetches, which
+// Playwright cannot intercept. Keep it out of this mocked fixture only; the
+// phase17 journeys still exercise the real service worker and offline isolation.
+test.use({ serviceWorkers: "block" });
+
 test("school registration and teacher first login require email, then show verification", async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.setItem("pwa-install-dismissed-until", String(Date.now() + 86_400_000)));
   const school = { id: 20, name: "مدرسة البريد التجريبية", slug: "email-school", school_type: "BOYS" };

@@ -186,6 +186,7 @@ jobs:
     env:
       E2E_BASE_URL: https://localhost:8445
       COMPOSE_PROJECT_NAME: xmansx-parent-email-activation-synthetic-staging
+      PARENT_E2E_PREVIEW: "1"
       PARENT_E2E_EXTERNAL_PREVIEW: "1"
       PARENT_E2E_SYNTHETIC_STAGING: "1"
       PARENT_VERIFICATION_LOCAL_ONLY: "1"
