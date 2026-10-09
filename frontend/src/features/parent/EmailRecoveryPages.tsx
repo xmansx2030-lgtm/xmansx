@@ -1,7 +1,7 @@
-import { isCancelledError, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isCancelledError, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { MailCheck, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { getMe } from "@/api/auth";
 import { ApiError } from "@/api/client";
@@ -14,6 +14,8 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
 import { toCanonicalMobile, toLatinDigits } from "@/features/auth/mobile";
 import { ME_QUERY_KEY, useLogout, useMe } from "@/features/auth/useMe";
+import { authenticatedDestination } from "@/features/auth/destination";
+import { safeReturnTo } from "@/features/auth/returnTo";
 import { parentKey } from "@/features/parent/api";
 import type { Me } from "@/types/auth";
 import {
@@ -36,7 +38,7 @@ import { SpaceSwitchButton } from "@/features/parent/SpaceSwitchButton";
 
 function RecoveryLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <main className="auth-shell grid min-h-dvh place-items-center overflow-x-hidden px-4 py-8" dir="rtl">
+    <main style={{ maxHeight: "none" }} className="auth-shell grid min-h-dvh place-items-center overflow-x-hidden px-4 py-8" dir="rtl">
       <section className="auth-card w-full min-w-0 max-w-lg rounded-3xl p-5 sm:p-9">
         <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800">
           <MailCheck aria-hidden size={25} />
@@ -77,20 +79,41 @@ function DeliveryNotice({ status }: { status: RecoveryEmailStatus["delivery_stat
   return null;
 }
 
-export function RecoveryEmailPage() {
+function syncSchoolEmailState(queryClient: QueryClient, ownerId: number, value: RecoveryEmailStatus) {
+  queryClient.setQueryData<Me>(ME_QUERY_KEY, (current) => {
+    if (current?.id !== ownerId || !current.school_recovery_email_enabled
+        || !(current.memberships.length || current.invitations.length)) return current;
+    const required = !value.verified && !value.pending_email_masked;
+    const pending = !value.verified && !!value.pending_email_masked;
+    if (current.school_email_completion_required === required
+        && current.school_email_verification_pending === pending) return current;
+    return { ...current, school_email_completion_required: required, school_email_verification_pending: pending };
+  });
+}
+
+export function CompleteSchoolEmailPage() {
+  return <RecoveryEmailPage completion />;
+}
+
+export function RecoveryEmailPage({ completion = false }: { completion?: boolean }) {
   const me = useMe();
   const status = useRecoveryEmailStatus();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const logout = useLogout();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeReturnTo(searchParams.get("returnTo"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [editing, setEditing] = useState(false);
-  const updateStatus = (value: RecoveryEmailStatus, ownerId?: number) => {
+  const updateStatus = async (value: RecoveryEmailStatus, ownerId?: number) => {
+    if (!ownerId || queryClient.getQueryData<Me>(ME_QUERY_KEY)?.id !== ownerId) return;
+    await queryClient.cancelQueries({ queryKey: ME_QUERY_KEY });
     if (!ownerId || queryClient.getQueryData<Me>(ME_QUERY_KEY)?.id !== ownerId) return;
     queryClient.setQueryData(recoveryEmailKey(ownerId), value);
+    syncSchoolEmailState(queryClient, ownerId, value);
     setPassword("");
     setEmail("");
     setEditing(false);
@@ -107,6 +130,13 @@ export function RecoveryEmailPage() {
     onSuccess: (value, _variables, context) => updateStatus(value, context?.ownerId),
     gcTime: 0,
   });
+  useEffect(() => {
+    const ownerId = me.data?.id;
+    if (ownerId && status.data && (status.data.verified || status.data.pending_email_masked)
+        && queryClient.getQueryData(recoveryEmailKey(ownerId)) === status.data) {
+      syncSchoolEmailState(queryClient, ownerId, status.data);
+    }
+  }, [me.data?.id, status.data, queryClient]);
   function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -122,8 +152,12 @@ export function RecoveryEmailPage() {
   const ready = status.data?.verified;
   const pending = status.data?.pending_email_masked;
   const busy = enroll.isPending || resend.isPending;
+  if (completion && me.isSuccess && !me.data.school_email_completion_required) {
+    return <Navigate to={authenticatedDestination(me.data, returnTo)} replace />;
+  }
   return (
-    <RecoveryLayout title="بريد استرداد كلمة المرور">
+    <RecoveryLayout title={completion ? "إكمال البريد الإلكتروني" : "بريد استرداد كلمة المرور"}>
+      {completion && <p className="text-sm leading-7 text-slate-600">أدخل بريدك الشخصي وكلمة المرور الحالية لإكمال بيانات حسابك. بعد إدخال البريد يمكنك متابعة عملك أثناء انتظار توثيقه.</p>}
       {status.isPending && <PageSkeleton label="جارٍ التحقق من بريد الاسترداد" />}
       {status.isError && <ErrorState error={status.error} />}
       {status.isSuccess && (
@@ -134,10 +168,11 @@ export function RecoveryEmailPage() {
             </Alert>
           ) : (
             <Alert tone="warning" title="بانتظار توثيق بريد الاسترداد">
-              أكمل توثيق بريد يمكنك الوصول إليه قبل عرض بيانات الأبناء. تبقى موافقة المدرسة والعلاقات السابقة محفوظة.
+              {me.data?.has_parent_portal ? "أكمل توثيق بريد يمكنك الوصول إليه قبل عرض بيانات الأبناء. تبقى موافقة المدرسة والعلاقات السابقة محفوظة." : "أكمل توثيق بريدك لاستخدامه في استعادة كلمة المرور."}
             </Alert>
           )}
           <p className="text-sm leading-7 text-slate-600">{RECOVERY_EMAIL_DESCRIPTION}</p>
+          {me.data?.roles.includes("SCHOOL_MANAGER") && <p className="text-sm leading-7 text-slate-600">ستصلك أيضاً تفاصيل اشتراك المدرسة وتنبيهاته إلى بريدك الموثق.</p>}
           {pending && (
             <>
               <p className="text-sm text-slate-600">البريد بانتظار التوثيق: <b dir="ltr" className="break-all">{pending}</b></p>
@@ -157,7 +192,7 @@ export function RecoveryEmailPage() {
           )}
           {(!ready && !pending || editing) && (
             <form className="space-y-4" onSubmit={submit} noValidate>
-              <TextField label="البريد الإلكتروني" type="email" inputMode="email" autoComplete="email" dir="ltr" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} error={emailError} description="يرجى إدخال بريد إلكتروني يمكنك الوصول إليه." />
+              <TextField label="البريد الإلكتروني" type="email" inputMode="email" autoComplete="email" dir="ltr" required maxLength={254} value={email} onChange={(event) => { setEmail(event.target.value); setEmailError(""); }} error={emailError} description="يرجى إدخال بريد إلكتروني يمكنك الوصول إليه." />
               <PasswordInput label="كلمة المرور الحالية" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
               {error && <Alert tone="danger" title={error} />}
               <Button fullWidth type="submit" loading={enroll.isPending} disabled={!status.data.enabled || busy}>إرسال رابط توثيق البريد</Button>
@@ -168,11 +203,11 @@ export function RecoveryEmailPage() {
           )}
           {enroll.isError && <ErrorState error={enroll.error} />}
           {resend.isError && <ErrorState error={resend.error} />}
-          {ready && <Link to="/parent" className="inline-flex min-h-11 items-center font-bold text-teal-800">الانتقال إلى أبنائي</Link>}
+          {ready && me.data?.has_parent_portal && <Link to="/parent" className="inline-flex min-h-11 items-center font-bold text-teal-800">الانتقال إلى أبنائي</Link>}
         </>
       )}
       <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
-        {!!me.data?.memberships.length && (
+        {!!me.data?.memberships.length && (!completion || !me.data.school_email_completion_required) && (
           <SpaceSwitchButton destination={me.data.active_school ? "/workspace" : "/select-school"}>مساحة العمل</SpaceSwitchButton>
         )}
         <Button variant="ghost" onClick={() => void logout().then(() => navigate("/login", { replace: true }))}>تسجيل الخروج</Button>
@@ -201,7 +236,11 @@ export function VerifyRecoveryEmailPage() {
       await purgeSensitiveBrowserCaches({ preserveAttendanceDrafts: true });
       // Verification changes no session. Never restore a stale user after another login.
       if (ownerId && queryClient.getQueryData<Me>(ME_QUERY_KEY)?.id === ownerId) {
-        queryClient.setQueryData(recoveryEmailKey(ownerId), value);
+        await queryClient.cancelQueries({ queryKey: ME_QUERY_KEY });
+        if (queryClient.getQueryData<Me>(ME_QUERY_KEY)?.id === ownerId) {
+          queryClient.setQueryData(recoveryEmailKey(ownerId), value);
+          syncSchoolEmailState(queryClient, ownerId, value);
+        }
       }
     },
   });
@@ -227,7 +266,7 @@ export function VerifyRecoveryEmailPage() {
       {check.isError && <ErrorState error={check.error} />}
       {check.isSuccess && me.isSuccess && !verify.isSuccess && (
         <>
-          <p className="text-sm leading-7 text-slate-600">اضغط لتأكيد ملكيتك للبريد الذي استلم هذا الرابط. لن تُستخدم الرسائل إلا لتوثيق البريد واستعادة كلمة المرور.</p>
+          <p className="text-sm leading-7 text-slate-600">اضغط لتأكيد ملكيتك للبريد الذي استلم هذا الرابط واستخدامه لاستعادة كلمة المرور.{me.data?.roles.includes("SCHOOL_MANAGER") && " يستقبل مدير المدرسة أيضاً تفاصيل الاشتراك وتنبيهاته."}</p>
           <Button fullWidth loading={verify.isPending} onClick={() => verify.mutate()}>توثيق البريد الإلكتروني</Button>
         </>
       )}
@@ -235,7 +274,8 @@ export function VerifyRecoveryEmailPage() {
       {verify.isSuccess && (
         <>
           <Alert tone="success" title="تم توثيق بريد الاسترداد" live />
-          <Link to="/parent" className="inline-flex min-h-11 items-center font-bold text-teal-800">الانتقال إلى أبنائي</Link>
+          {me.data?.has_parent_portal && <Link to="/parent" className="inline-flex min-h-11 items-center font-bold text-teal-800">الانتقال إلى أبنائي</Link>}
+          {!!me.data?.memberships.length && <Link to={me.data.active_school ? "/workspace" : "/select-school"} className="inline-flex min-h-11 items-center font-bold text-teal-800">الانتقال إلى مساحة العمل</Link>}
         </>
       )}
       {me.isSuccess && <Link to="/parent/recovery-email" className="inline-flex min-h-11 items-center text-sm font-bold text-teal-800">إعدادات بريد الاسترداد</Link>}

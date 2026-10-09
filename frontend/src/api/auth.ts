@@ -49,6 +49,7 @@ export function changeInitialPassword(
   currentPassword: string,
   newPassword: string,
   confirmPassword: string,
+  email?: string,
 ): Promise<Me> {
   return apiRequest<Me>("/auth/change-initial-password/", {
     method: "POST",
@@ -56,6 +57,7 @@ export function changeInitialPassword(
       current_password: currentPassword,
       new_password: newPassword,
       confirm_password: confirmPassword,
+      ...(email !== undefined ? { email } : {}),
     },
   });
 }

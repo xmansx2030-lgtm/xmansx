@@ -13,6 +13,8 @@
 - لا اسم باقة داخل منطق الأعمال — القرار من الاستحقاقات.
 """
 
+import uuid
+
 from django.db import models
 
 from common.models import TimestampedModel
@@ -250,6 +252,30 @@ class SubscriptionEventType(models.TextChoices):
     REACTIVATED = "REACTIVATED", "إعادة تفعيل"
     CANCELLED = "CANCELLED", "إلغاء"
     ENTITLEMENT_OVERRIDDEN = "ENTITLEMENT_OVERRIDDEN", "تجاوز استحقاق"
+
+
+class SubscriptionEmailDelivery(TimestampedModel):
+    """Durable manager-only mail outbox; no password, student data or raw address."""
+
+    # UUID is also the provider idempotency key; no sensitive Celery arguments.
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey("schools.School", on_delete=models.CASCADE)
+    subscription = models.ForeignKey(SchoolSubscription, on_delete=models.CASCADE)
+    recipient = models.ForeignKey("accounts.User", null=True, on_delete=models.SET_NULL)
+    deduplication_key = models.CharField(max_length=64, unique=True)
+    recipient_hash = models.CharField(max_length=64)
+    kind = models.CharField(max_length=24)
+    snapshot = models.JSONField(default=dict)
+    status = models.CharField(max_length=24, default="PENDING", choices=[
+        (value, value) for value in (
+            "PENDING", "SENDING", "SUBMITTED_TO_PROVIDER", "FAILED", "UNKNOWN", "CANCELLED"
+        )
+    ])
+    provider_reference = models.CharField(max_length=36, blank=True)
+    error_code = models.CharField(max_length=48, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "created_at"], name="sub_email_pending_idx")]
 
 
 class SubscriptionEvent(models.Model):

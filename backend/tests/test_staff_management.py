@@ -690,6 +690,7 @@ def test_initial_password_change_full_flow(make_user, make_membership, make_scho
         {
             "current_password": "Temp-12345",
             "new_password": "Jadeed-9x!",
+            "email": "teacher@example.invalid",
             "confirm_password": "Jadeed-9x!",
         },
         content_type="application/json",

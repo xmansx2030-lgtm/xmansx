@@ -11,13 +11,13 @@ import ssl
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parseaddr
-from html import escape
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 from uuid import UUID
 
+from common.email_templates import render_account_email
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -64,32 +64,10 @@ def recovery_link(*, purpose, token):
     return f"{origin}{path}#token={quote(token, safe='')}"
 
 
-def _content(*, purpose, link, expires_at):
-    verification = purpose == "RECOVERY_EMAIL_VERIFICATION"
-    subject = (
-        "توثيق بريد الاسترداد — منصة المواظبة" if verification
-        else "استعادة كلمة المرور — منصة المواظبة"
+def _content(*, purpose, link, expires_at, school_name=""):
+    return render_account_email(
+        purpose=purpose, link=link, expires_at=expires_at, school_name=school_name,
     )
-    heading = "توثيق بريد الاسترداد" if verification else "إنشاء كلمة مرور جديدة"
-    explanation = (
-        "طلبت توثيق هذا البريد لاستعادة كلمة المرور فقط. افتح الرابط وأكمل التحقق صراحةً."
-        if verification else "وصلنا طلب لاستعادة كلمة مرور حسابك في منصة المواظبة."
-    )
-    expires = expires_at.isoformat()
-    caution = "إذا لم تطلب هذه العملية، تجاهل الرسالة. لن تتغير بيانات حسابك بمجرد فتح الرابط."
-    text = f"منصة المواظبة\n{explanation}\n{heading}: {link}\nينتهي الرابط: {expires}\n{caution}"
-    html = (
-        '<html lang="ar" dir="rtl"><body style="font-family:Arial,sans-serif;'
-        'background:#f5f7fa;padding:24px"><main style="max-width:560px;margin:auto;'
-        'background:#fff;padding:24px;border-radius:12px"><h1>منصة المواظبة</h1>'
-        f"<h2>{heading}</h2><p>{explanation}</p>"
-        f'<p><a href="{escape(link, quote=True)}" style="display:inline-block;'
-        'background:#14532d;color:#fff;padding:14px 24px;text-decoration:none;'
-        f'border-radius:8px">{heading}</a></p>'
-        f"<p>ينتهي الرابط: <bdi>{escape(expires)}</bdi></p><p>{caution}</p>"
-        "</main></body></html>"
-    )
-    return subject, text, html
 
 
 def _valid_sender(value):

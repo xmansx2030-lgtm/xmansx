@@ -7,6 +7,7 @@ import { changeInitialPassword } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
+import { TextField } from "@/components/TextField";
 import { ME_QUERY_KEY, useLogout, useMe } from "@/features/auth/useMe";
 import { authenticatedDestination } from "@/features/auth/destination";
 
@@ -23,13 +24,14 @@ export function ChangeInitialPasswordPage() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [email, setEmail] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => changeInitialPassword(current, next, confirm),
+    mutationFn: () => changeInitialPassword(current, next, confirm, me.data?.requires_initial_email ? email.trim() : undefined),
     onSuccess: (updated) => {
       queryClient.setQueryData(ME_QUERY_KEY, updated);
-      navigate(authenticatedDestination(updated), { replace: true });
+      navigate(updated.school_recovery_email_enabled ? "/account/recovery-email" : authenticatedDestination(updated), { replace: true });
     },
   });
   const logoutMutation = useMutation({
@@ -38,7 +40,7 @@ export function ChangeInitialPasswordPage() {
   });
 
   if (me.isSuccess && !me.data.must_change_password) {
-    return <Navigate to={authenticatedDestination(me.data)} replace />;
+    return <Navigate to={me.data.school_recovery_email_enabled ? "/account/recovery-email" : authenticatedDestination(me.data)} replace />;
   }
   if (me.isError) return <Navigate to="/login" replace />;
 
@@ -72,13 +74,17 @@ export function ChangeInitialPasswordPage() {
       setFieldError("تأكيد كلمة المرور غير مطابق.");
       return;
     }
+    if (me.data?.requires_initial_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFieldError("أدخل بريدًا إلكترونيًا صحيحًا لإكمال أول تسجيل دخول.");
+      return;
+    }
     mutation.mutate();
   }
 
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
 
   return (
-    <main className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:py-10">
+    <main style={{ maxHeight: "none" }} className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:py-10">
       <form
         onSubmit={handleSubmit}
         noValidate
@@ -125,6 +131,12 @@ export function ChangeInitialPasswordPage() {
           autoComplete="new-password"
           className="mb-4"
         />
+
+        {me.data?.requires_initial_email && (
+          <TextField label="البريد الإلكتروني" type="email" autoComplete="email" dir="ltr" required
+            value={email} onChange={(event) => { setEmail(event.target.value); setFieldError(null); }} className="mb-4"
+            description="أدخل بريدك الشخصي الذي يمكنك الوصول إليه." />
+        )}
 
         {fieldError && (
           <p role="alert" className="mb-3 text-sm text-red-700">

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -32,6 +33,7 @@ class SchoolRegistrationSerializer(serializers.Serializer):
     school_type = serializers.ChoiceField(choices=SchoolType.choices)
     manager_name = serializers.CharField(max_length=150, trim_whitespace=True)
     manager_mobile = serializers.CharField(max_length=20)
+    manager_email = serializers.EmailField(max_length=254)
     password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
     confirm_password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
     plan_id = serializers.IntegerField(min_value=1)
@@ -110,6 +112,17 @@ def build_me_payload(
     # Auth views already establish this user's RLS context (including activation).
     # This is one owned existence lookup, without redundant context round trips.
     has_parent_portal = GuardianStudentRelation.objects.filter(user=user).exists()
+    school_email_enabled = bool(
+        settings.SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED
+        and settings.PARENT_RECOVERY_EMAIL_ENABLED
+        and not platform_access["is_platform_user"]
+        and not user.is_superuser and not user.is_staff
+    )
+    from accounts.contact_email import school_email_onboarding_state
+
+    email_completion_required, email_verification_pending = school_email_onboarding_state(
+        user, enabled=school_email_enabled, has_school=bool(memberships or invitations),
+    )
     return {
         "id": user.id,
         "mobile": user.mobile,
@@ -120,6 +133,13 @@ def build_me_payload(
         "platform_role_label": platform_access["role_label"],
         "platform_capabilities": platform_access["capabilities"],
         "must_change_password": user.must_change_password,
+        "requires_initial_email": bool(
+            user.must_change_password and not user.email
+            and (memberships or invitations) and not platform_access["is_platform_user"]
+        ),
+        "school_recovery_email_enabled": school_email_enabled,
+        "school_email_completion_required": email_completion_required,
+        "school_email_verification_pending": email_verification_pending,
         "has_parent_portal": has_parent_portal,
         "active_school": (
             serialize_school(active_membership.school) if active_membership else None

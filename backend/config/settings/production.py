@@ -167,3 +167,20 @@ if PARENT_RECOVERY_EMAIL_ENABLED and PARENT_RECOVERY_EMAIL_ADAPTER == "resend":
         or urlparse(PARENT_PORTAL_BASE_URL).scheme != "https"
     ):
         raise ImproperlyConfigured("Resend recovery requires its key, sender and HTTPS origin")
+
+if SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED and not PARENT_RECOVERY_EMAIL_ENABLED:
+    raise ImproperlyConfigured("School recovery requires the verified recovery-email service")
+if SUBSCRIPTION_EMAIL_ENABLED:
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+
+    _subscription_sender = parseaddr(SUBSCRIPTION_EMAIL_FROM)[1]
+    try:
+        validate_email(_subscription_sender)
+    except ValidationError as exc:
+        raise ImproperlyConfigured("An approved subscription sender must be configured") from exc
+    if (not RESEND_API_KEY or "\r" in SUBSCRIPTION_EMAIL_FROM or "\n" in SUBSCRIPTION_EMAIL_FROM
+            or _subscription_sender.rsplit("@", 1)[-1].lower().endswith(
+                (".invalid", ".test", ".localhost")
+            )):
+        raise ImproperlyConfigured("Subscription email requires Resend and an approved sender")

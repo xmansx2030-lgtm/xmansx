@@ -40,7 +40,7 @@ def _lock_school(school) -> None:
 
 
 def log_event(*, subscription, event_type, actor=None, reason="", metadata=None):
-    return SubscriptionEvent.objects.create(
+    event = SubscriptionEvent.objects.create(
         school=subscription.school,
         subscription=subscription,
         event_type=event_type,
@@ -48,6 +48,10 @@ def log_event(*, subscription, event_type, actor=None, reason="", metadata=None)
         reason=reason[:300],
         metadata=metadata or {},
     )
+    from subscriptions.email_services import queue_event
+
+    queue_event(event)
+    return event
 
 
 def _copy_entitlements(subscription: SchoolSubscription) -> None:

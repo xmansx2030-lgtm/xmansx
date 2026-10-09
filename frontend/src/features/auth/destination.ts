@@ -8,6 +8,7 @@ export function authenticatedDestination(
 ): string {
   if (me.must_change_password) return "/change-password";
   if (me.is_platform_admin) return "/platform";
+  if (me.school_email_completion_required) return withReturnTo("/account/complete-email", returnTo);
   if (returnTo?.startsWith("/parent")) return returnTo;
   if (me.active_school) return returnTo ?? "/workspace";
   if (

@@ -147,6 +147,7 @@ Student.objects.create(school=school, national_id_encrypted='phase16-e2e', natio
   );
   const passwordChange = await post(manager, "/auth/change-initial-password/", {
     current_password: school.temporary_password,
+    email: `phase16-${unique}@school.invalid`,
     new_password: `Phase16-${unique}!Safe`,
     confirm_password: `Phase16-${unique}!Safe`,
   });

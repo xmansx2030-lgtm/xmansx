@@ -125,6 +125,7 @@ describe("Initial password change", () => {
   const TEMP_ACCOUNT = buildMe({
     mobile: "+966550000001",
     must_change_password: true,
+    requires_initial_email: true,
     active_school: { id: 10, name: "ثانوية الأندلس", slug: "andalus" },
     roles: ["SCHOOL_MANAGER"],
     memberships: [membership(1, 10, "ثانوية الأندلس", ["SCHOOL_MANAGER"])],
@@ -180,5 +181,27 @@ describe("Initial password change", () => {
 
     expect(await screen.findByRole("button", { name: "تسجيل الدخول" })).toBeInTheDocument();
     expect(calls.some(({ url, init }) => url.includes("/auth/logout/") && init?.method === "POST")).toBe(true);
+  });
+
+  it("requires a personal email and submits it with the first password change", async () => {
+    const updated = { ...TEMP_ACCOUNT, must_change_password: false, requires_initial_email: false, school_recovery_email_enabled: true };
+    const { calls } = mockApi({
+      "/auth/me/": { body: TEMP_ACCOUNT },
+      "/auth/change-initial-password/": { body: updated },
+      "/parent/recovery-email/": { body: { verified: false, pending_email_masked: "t***@e***", email_masked: "", enabled: true, delivery_status: "PENDING", verification_required: true } },
+    });
+    renderApp("/change-password");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("كلمة المرور الحالية"), "Temp-12345");
+    await user.type(screen.getByLabelText("كلمة المرور الجديدة"), "New-School-2026!");
+    await user.type(screen.getByLabelText("تأكيد كلمة المرور"), "New-School-2026!");
+    await user.click(screen.getByRole("button", { name: "حفظ كلمة المرور" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("أدخل بريدًا إلكترونيًا صحيحًا");
+    expect(calls.some(({ url }) => url.includes("/auth/change-initial-password/"))).toBe(false);
+    await user.type(screen.getByLabelText("البريد الإلكتروني"), "teacher@example.invalid");
+    await user.click(screen.getByRole("button", { name: "حفظ كلمة المرور" }));
+    expect(await screen.findByRole("heading", { name: "بريد استرداد كلمة المرور" })).toBeInTheDocument();
+    const sent = calls.find(({ url }) => url.includes("/auth/change-initial-password/"));
+    expect(JSON.parse(String(sent?.init?.body))).toMatchObject({ email: "teacher@example.invalid", new_password: "New-School-2026!" });
   });
 });

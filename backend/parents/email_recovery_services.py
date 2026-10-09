@@ -112,8 +112,16 @@ def owns_parent_account(user):
     return has_guardian_credentials(user.id)
 
 
+def owns_recovery_account(user):
+    if owns_parent_account(user):
+        return True
+    return settings.SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED and SchoolMembership.objects.filter(
+        user_id=user.id
+    ).exists()
+
+
 def eligible_for_password_recovery(user):
-    """Teacher+parent is allowed; every privileged school/platform role fails closed."""
+    """School roles can opt into verified email; platform accounts remain excluded."""
     if (
         not user.is_active
         or user.must_change_password
@@ -124,6 +132,8 @@ def eligible_for_password_recovery(user):
         return False
     if PlatformStaffMembership.objects.filter(user_id=user.id).exists():
         return False
+    if settings.SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED:
+        return owns_recovery_account(user)
     if (
         SchoolMembershipRole.objects.filter(membership__user_id=user.id)
         .exclude(role=SchoolRole.TEACHER)
@@ -260,7 +270,7 @@ def enroll_recovery_email(user, email, current_password):
             or fresh.must_change_password
             or not hmac.compare_digest(fresh.password, user.password)
             or not fresh.check_password(current_password)
-            or not owns_parent_account(fresh)
+            or not owns_recovery_account(fresh)
         ):
             raise ApiError(
                 "RECOVERY_PROOF_REQUIRED", "تحقق من كلمة المرور الحالية للحساب.", status_code=403
@@ -270,6 +280,19 @@ def enroll_recovery_email(user, email, current_password):
             "PARENT_RECOVERY_EMAIL_REQUESTED", actor=fresh, target_type="User", target_id=fresh.id
         )
     return email_status(fresh)
+
+
+def enroll_school_contact(user):
+    """An authenticated registration/first-password change nominates, never verifies."""
+    if not settings.SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED or not user.email:
+        return
+    if (user.is_superuser or user.is_staff
+            or PlatformStaffMembership.objects.filter(user=user).exists()):
+        return
+    with email_scope(user_id=user.pk, action="ENROLL"), transaction.atomic():
+        fresh = User.objects.select_for_update().get(pk=user.pk)
+        if not fresh.must_change_password and owns_recovery_account(fresh):
+            _enroll_locked(fresh, normalize_recovery_email(fresh.email), initial_only=True)
 
 
 def enroll_registration_email(user, email, *, new_account=False):
@@ -562,6 +585,12 @@ def verify_recovery_email(user, token):
                 target_id=fresh.id,
                 metadata={"revision": item.revision},
             )
+            if settings.SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED:
+                fresh.email = decrypt_value(item.current_email_encrypted)
+                fresh.save(update_fields=["email", "updated_at"])
+                from subscriptions.email_services import queue_initial_manager_details
+
+                queue_initial_manager_details(fresh)
     except IntegrityError as exc:
         # Unique verified email conflict is never evidence about another account.
         raise ApiError("RECOVERY_TOKEN_INVALID", LINK_UNAVAILABLE_MESSAGE) from exc

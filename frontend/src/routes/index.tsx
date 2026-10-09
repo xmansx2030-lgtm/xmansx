@@ -55,6 +55,14 @@ export const routes = [
         element: <RequireAuth />,
         children: [
           {
+            path: "/account/complete-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).CompleteSchoolEmailPage }),
+          },
+          {
+            path: "/account/recovery-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).RecoveryEmailPage }),
+          },
+          {
             path: "/parent/recovery-email",
             lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).RecoveryEmailPage }),
           },
