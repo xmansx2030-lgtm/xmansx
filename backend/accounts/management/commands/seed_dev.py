@@ -79,7 +79,9 @@ class Command(BaseCommand):
         password = options["password"]
         schools: dict[str, School] = {}
         for name, slug in SCHOOLS:
-            school, _ = School.objects.get_or_create(slug=slug, defaults={"name": name, "feature_access": {}})
+            school, _ = School.objects.get_or_create(
+                slug=slug, defaults={"name": name, "feature_access": {}}
+            )
             schools[slug] = school
             # عام دراسي نشط لكل مدرسة (يلزم للاستيراد) — idempotent
             active_year = AcademicYear.objects.filter(
