@@ -160,7 +160,7 @@ def create_purge_job(*, school, actor, confirmation_token: str, reason: str = ""
     return job
 
 
-def purge_student(student: Student) -> tuple[int, int, int]:
+def purge_student(student: Student, *, actor=None, job_id=None) -> tuple[int, int, int]:
     """حذف طالب واحد: DB ذريًا ثم ملفات التخزين — يعيد (db_rows, storage_ok, storage_failed)."""
     storage_files = []
     for collector in PURGE_STORAGE_COLLECTORS:
@@ -168,11 +168,17 @@ def purge_student(student: Student) -> tuple[int, int, int]:
 
     db_rows = 0
     with transaction.atomic():
-        for _, queryset_fn in PURGE_STEPS:
-            deleted, _ = queryset_fn([student.id]).delete()
-            db_rows += deleted
-        student.delete()
-        db_rows += 1
+        from parents.recovery_purge import recovery_purge_scope
+
+        with recovery_purge_scope(
+            school_id=student.school_id, student_id=student.id,
+            actor_id=getattr(actor, "id", None), job_id=job_id,
+        ):
+            for _, queryset_fn in PURGE_STEPS:
+                deleted, _ = queryset_fn([student.id]).delete()
+                db_rows += deleted
+            student.delete()
+            db_rows += 1
 
     storage_ok = 0
     storage_failed = 0

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   LayoutGrid,
+  HeartHandshake,
   School,
   Send,
   Settings2,
@@ -24,8 +25,10 @@ import { SmsIntegrationTab } from "@/features/settings/tabs/SmsIntegrationTab";
 import { StructureTab } from "@/features/settings/tabs/StructureTab";
 import { WarningRulesTab } from "@/features/settings/tabs/WarningRulesTab";
 import { WeekDaysTab } from "@/features/settings/tabs/WeekDaysTab";
+import { ParentSettingsTab } from "@/features/parent/ParentSettingsTab";
 
 const TABS = [
+  { key: "parents", label: "تسجيل أولياء الأمور", shortDescription: "رابط التسجيل وQR ومؤشرات البوابة", icon: HeartHandshake },
   { key: "info", label: "بيانات المدرسة", shortDescription: "الهوية والشعار والبيانات الرسمية", icon: School },
   { key: "calendar", label: "العام الدراسي", shortDescription: "الأعوام والفصول الدراسية", icon: CalendarRange },
   { key: "structure", label: "الصفوف والفصول", shortDescription: "الهيكل الدراسي وخيارات تسجيل الطلاب", icon: LayoutGrid },
@@ -142,6 +145,7 @@ export function SettingsPage() {
           {tab === "attendance" && <AttendanceSettingsTab canWrite={canManage} />}
           {tab === "warnings" && <WarningRulesTab />}
           {tab === "sms" && <SmsIntegrationTab />}
+          {tab === "parents" && <ParentSettingsTab />}
         </section>
       </div>
     </div>

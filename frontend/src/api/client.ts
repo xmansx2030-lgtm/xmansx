@@ -20,14 +20,16 @@ export class ApiError extends Error {
   readonly status: number;
   readonly details: Record<string, unknown>;
   readonly requestId: string | null;
+  readonly retryAfterMs: number;
 
-  constructor(status: number, body: ApiErrorBody, requestId: string | null) {
+  constructor(status: number, body: ApiErrorBody, requestId: string | null, retryAfterMs = 0) {
     super(body.message);
     this.name = "ApiError";
     this.code = body.code;
     this.status = status;
     this.details = body.details;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -62,7 +64,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
   const headers: Record<string, string> = {};
-  if (body !== undefined) {
+  const isMultipart = body instanceof FormData;
+  if (body !== undefined && !isMultipart) {
     headers["Content-Type"] = "application/json";
   }
   if (method !== "GET") {
@@ -79,7 +82,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       method,
       credentials: "include",
       headers: Object.keys(headers).length > 0 ? headers : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isMultipart ? body : body !== undefined ? JSON.stringify(body) : undefined,
       signal: combinedSignal,
     });
   } catch (error) {
@@ -116,7 +119,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     } catch {
       // استجابة غير JSON — نبقي الرسالة العامة
     }
-    throw new ApiError(response.status, errorBody, requestId);
+    const retryAfter = response.headers.get("Retry-After");
+    const seconds = retryAfter === null ? 0 : Number(retryAfter);
+    const retryAfterMs = Number.isFinite(seconds)
+      ? Math.max(0, seconds * 1000)
+      : Math.max(0, Date.parse(retryAfter ?? "") - Date.now()) || 0;
+    throw new ApiError(response.status, errorBody, requestId, retryAfterMs);
   }
 
   if (response.status === 204) {

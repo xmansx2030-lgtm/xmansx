@@ -5,6 +5,7 @@ paginated, filterable rows without creating another source of truth.
 """
 
 from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models.functions import Coalesce, Collate
 
 from attendance.models import DailyAbsenceStatus
 from common.errors import ApiError
@@ -60,16 +61,16 @@ def _student_id(*, school, value) -> int | None:
     return student_id
 
 
-def _paginate(items: list[dict], params) -> tuple[list[dict], int, int, int]:
+def _paginate(queryset, params, *, total=None):
+    """Slice in PostgreSQL before serializing/decrypting any result rows."""
+    total = queryset.count() if total is None else total
     if params.get("_export_all") == "1":
-        total = len(items)
-        return items, total, 1, total
+        return queryset, total, 1, total
     page = max(_positive_int(params.get("page"), field="page", default=1), 1)
     page_size = _positive_int(params.get("page_size"), field="page_size", default=25)
     page_size = min(max(page_size, 1), 100)
-    total = len(items)
     start = (page - 1) * page_size
-    return items[start : start + page_size], total, page, page_size
+    return queryset[start : start + page_size], total, page, page_size
 
 
 def absence_report(*, school, date_range, scope, params) -> dict:
@@ -132,8 +133,12 @@ def absence_report(*, school, date_range, scope, params) -> dict:
                 "id", filter=Q(absence_status=DailyAbsenceStatus.UNDETERMINED)
             ),
         )
-        .order_by("-full_absence_days", "-unexcused_absent_periods", "student__full_name")
+        .order_by(
+            "-full_absence_days", "-unexcused_absent_periods", "student__full_name",
+            "student_id", "section_id",
+        )
     )
+    page_rows, count, page, page_size = _paginate(grouped, params)
     items = [
         {
             "student_id": row["student_id"],
@@ -148,9 +153,8 @@ def absence_report(*, school, date_range, scope, params) -> dict:
             "unexcused_absent_periods": row["unexcused_absent_periods"] or 0,
             "incomplete_days": row["incomplete_days"],
         }
-        for row in grouped
+        for row in page_rows
     ]
-    page_items, count, page, page_size = _paginate(items, params)
     return {
         "summary": {
             "students": totals["students"] or 0,
@@ -161,7 +165,7 @@ def absence_report(*, school, date_range, scope, params) -> dict:
             "unexcused_absent_periods": totals["unexcused_periods"] or 0,
             "incomplete_days": totals["incomplete_days"] or 0,
         },
-        "results": page_items,
+        "results": items,
         "count": count,
         "page": page,
         "page_size": page_size,
@@ -207,44 +211,40 @@ def lateness_report(*, school, date_range, scope, params) -> dict:
     if student_id:
         morning_rows = morning_rows.filter(student_id=student_id)
 
-    morning = {
-        row["student_id"]: row
-        for row in morning_rows.values("student_id").annotate(
-            occurrences=Count("id"), minutes=Sum("counted_late_minutes")
+    grouped = (
+        morning_rows.values("student_id", "student__full_name").annotate(
+            morning_occurrences=Count("id"),
+            morning_minutes=Coalesce(Sum("counted_late_minutes"), 0),
         )
-    }
-    student_ids = set(morning)
-
-    labels = _student_labels(school, student_ids)
-    items = []
-    for current_id in student_ids:
-        morning_row = morning.get(current_id, {})
-        morning_occurrences = morning_row.get("occurrences", 0) or 0
-        morning_minutes = morning_row.get("minutes", 0) or 0
-        if morning_occurrences < min_occurrences or morning_minutes < min_minutes:
-            continue
-        items.append(
-            {
-                **labels[current_id],
-                "morning_occurrences": morning_occurrences,
-                "morning_minutes": morning_minutes,
-            }
-        )
-    items.sort(
-        key=lambda row: (
-            -row["morning_occurrences"],
-            -row["morning_minutes"],
-            row["full_name"],
+        .filter(morning_occurrences__gte=min_occurrences, morning_minutes__gte=min_minutes)
+        .order_by(
+            "-morning_occurrences", "-morning_minutes",
+            Collate("student__full_name", "C"), "student_id",
         )
     )
-    page_items, count, page, page_size = _paginate(items, params)
+    totals = grouped.order_by().aggregate(
+        students=Count("student_id"),
+        total_occurrences=Sum("morning_occurrences"),
+        total_minutes=Sum("morning_minutes"),
+    )
+    page_rows, count, page, page_size = _paginate(grouped, params, total=totals["students"])
+    page_rows = list(page_rows)
+    labels = _student_labels(school, {row["student_id"] for row in page_rows})
+    items = [
+        {
+            **labels[row["student_id"]],
+            "morning_occurrences": row["morning_occurrences"],
+            "morning_minutes": row["morning_minutes"],
+        }
+        for row in page_rows
+    ]
     return {
         "summary": {
             "students": count,
-            "morning_occurrences": sum(row["morning_occurrences"] for row in items),
-            "morning_minutes": sum(row["morning_minutes"] for row in items),
+            "morning_occurrences": totals["total_occurrences"] or 0,
+            "morning_minutes": totals["total_minutes"] or 0,
         },
-        "results": page_items,
+        "results": items,
         "count": count,
         "page": page,
         "page_size": page_size,
@@ -294,11 +294,13 @@ def referrals_report(*, school, membership, roles, date_range, params) -> dict:
         ),
         high_priority=Count("id", filter=Q(priority=ReferralPriority.HIGH)),
     )
-    items = [serialize_referral_row(referral) for referral in queryset.order_by("-created_at")]
-    page_items, count, page, page_size = _paginate(items, params)
+    page_rows, count, page, page_size = _paginate(
+        queryset.order_by("-created_at", "-id"), params, total=totals["total"]
+    )
+    items = [serialize_referral_row(referral) for referral in page_rows.iterator(chunk_size=500)]
     return {
         "summary": {key: value or 0 for key, value in totals.items()},
-        "results": page_items,
+        "results": items,
         "count": count,
         "page": page,
         "page_size": page_size,

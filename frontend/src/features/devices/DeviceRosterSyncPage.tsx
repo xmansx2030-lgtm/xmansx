@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ListChecks, RefreshCw, ShieldCheck } from 
 import { useState } from "react";
 
 import { ApiError } from "@/api/client";
+import { activeJobPollingInterval } from "@/app/polling";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { PageHeader } from "@/components/PageHeader";
@@ -65,10 +66,8 @@ export function DeviceRosterSyncPage() {
     queryKey: schoolScopedKey(schoolId, "device-roster-job", jobId),
     queryFn: ({ signal }) => getRosterJob(jobId!, signal),
     enabled: jobId !== null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "ANALYZING" || status === "APPROVED" || status === "RUNNING" ? 3000 : false;
-    },
+    refetchInterval: activeJobPollingInterval(["ANALYZING", "APPROVED", "RUNNING"]),
+    refetchIntervalInBackground: false,
   });
   const items = useQuery({
     queryKey: schoolScopedKey(schoolId, "device-roster-items", jobId, action),

@@ -10,6 +10,7 @@ import { Spinner } from "@/components/Spinner";
 import { safeReturnTo } from "@/features/auth/returnTo";
 import { ME_QUERY_KEY, useLogout, useMe, useSwitchSchool } from "@/features/auth/useMe";
 import { roleLabels } from "@/utils/roles";
+import { SchoolEmailVerificationNotice } from "@/features/auth/SchoolEmailVerificationNotice";
 
 export function SelectSchoolPage() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export function SelectSchoolPage() {
   if (me.isError) return <Navigate to="/login" replace />;
   if (me.data.must_change_password) return <Navigate to="/change-password" replace />;
   if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
+  if (me.data.has_parent_portal && me.data.memberships.length === 0 && me.data.invitations.length === 0) return <Navigate to="/parent" replace />;
   if (me.data.memberships.length === 0 && me.data.invitations.length === 0) {
     return <Navigate to="/" replace />;
   }
@@ -56,6 +58,7 @@ export function SelectSchoolPage() {
   return (
     <main className="auth-shell flex min-h-dvh items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8 sm:py-10">
       <div className="auth-card w-full min-w-0 max-w-xl rounded-3xl p-5 shadow-[0_24px_70px_rgba(3,27,24,0.18)] sm:p-9">
+        <SchoolEmailVerificationNotice />
         <span className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-800 ring-1 ring-teal-100"><Building2 aria-hidden size={24} /></span>
         <p className="mb-1 text-center text-sm font-bold text-teal-800">مساحة العمل</p>
         <h1 className="text-center text-2xl font-black text-slate-900">اختر المدرسة</h1>

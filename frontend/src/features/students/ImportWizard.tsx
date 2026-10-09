@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { activeJobPollingInterval } from "@/app/polling";
 import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
@@ -59,10 +60,8 @@ export function ImportWizard() {
     enabled:
       job !== null &&
       (job.status === "PROCESSING" || job.status === "IMPORTING" || step === 2 || step === 3),
-    refetchInterval: (query) =>
-      query.state.data?.status === "PROCESSING" || query.state.data?.status === "IMPORTING"
-        ? 1500
-        : false,
+    refetchInterval: activeJobPollingInterval(["PROCESSING", "IMPORTING"]),
+    refetchIntervalInBackground: false,
   });
   const liveJob = jobQuery.data ?? job;
 

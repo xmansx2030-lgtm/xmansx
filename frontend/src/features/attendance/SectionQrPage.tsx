@@ -13,7 +13,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import QRCode from "qrcode";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -28,6 +28,7 @@ import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import { sectionLabel } from "@/features/attendance/sectionLabel";
 import { STAGE_LABELS } from "@/features/settings/api";
 import { useSettingsQuery } from "@/features/settings/hooks";
+import { usePrintShortcut } from "@/hooks/usePrintShortcut";
 import type { SchoolType } from "@/types/auth";
 import { studentCountLabel, studentPluralLabel } from "@/utils/roles";
 
@@ -48,6 +49,8 @@ export function SectionQrPage() {
   const [gradeFilter, setGradeFilter] = useState("");
   const [rotating, setRotating] = useState(false);
   const [actionError, setActionError] = useState<unknown>(null);
+  const [readyQr, setReadyQr] = useState<{ url: string; canvas: HTMLCanvasElement } | null>(null);
+  const [qrRenderError, setQrRenderError] = useState<{ url: string; error: unknown } | null>(null);
 
   const sectionsQuery = useQuery({
     queryKey: schoolScopedKey(activeSchoolId, "attendance", "sections"),
@@ -55,14 +58,7 @@ export function SectionQrPage() {
     enabled: activeSchoolId > 0,
   });
 
-  const qrQuery = useQuery({
-    queryKey: schoolScopedKey(activeSchoolId, "attendance", "section-qr", selectedId),
-    queryFn: ({ signal }) => getSectionQr(selectedId as number, signal),
-    enabled: activeSchoolId > 0 && selectedId !== null,
-  });
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const qrUrl = qrQuery.data ? `${window.location.origin}${qrQuery.data.url_path}` : null;
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const schoolName = settingsQuery.data?.school.name ?? me.data?.active_school?.name ?? "المدرسة";
   const logoUrl = settingsQuery.data?.logo_url ?? null;
   const stageLabel = settingsQuery.data
@@ -81,18 +77,35 @@ export function SectionQrPage() {
       return matchesGrade && (needle === "" || searchable.includes(needle));
     });
   }, [gradeFilter, search, sectionsQuery.data]);
-  const selectedSection = (sectionsQuery.data ?? []).find((section) => section.id === selectedId);
+  const selectedSection = filteredSections.find((section) => section.id === selectedId);
+  const qrQuery = useQuery({
+    queryKey: schoolScopedKey(activeSchoolId, "attendance", "section-qr", selectedId),
+    queryFn: ({ signal }) => getSectionQr(selectedId as number, signal),
+    enabled: activeSchoolId > 0 && selectedSection !== undefined,
+  });
+  const qrUrl = selectedSection && qrQuery.data?.section_id === selectedSection.id
+    ? `${window.location.origin}${qrQuery.data.url_path}` : null;
 
   useEffect(() => {
-    if (qrUrl && canvasRef.current) {
-      void QRCode.toCanvas(canvasRef.current, qrUrl, {
+    let cancelled = false;
+    if (qrUrl && qrQuery.isSuccess && canvas) {
+      void QRCode.toCanvas(canvas, qrUrl, {
         width: 640,
         margin: 3,
         errorCorrectionLevel: "H",
         color: { dark: "#0f172a", light: "#ffffff" },
+      }).then(() => {
+        if (!cancelled) setReadyQr({ url: qrUrl, canvas });
+      }).catch((error: unknown) => {
+        if (!cancelled) setQrRenderError({ url: qrUrl, error });
       });
     }
-  }, [qrUrl]);
+    return () => { cancelled = true; };
+  }, [qrUrl, qrQuery.isSuccess, canvas]);
+
+  const canPrint = qrQuery.isSuccess && qrUrl !== null && readyQr?.url === qrUrl && readyQr.canvas === canvas && !rotating;
+  const printQr = () => { if (canPrint) window.print(); };
+  usePrintShortcut(printQr);
 
   const handleRotate = async () => {
     if (selectedId === null) return;
@@ -210,7 +223,7 @@ export function SectionQrPage() {
         )}
       </section>
 
-      {selectedId === null && sectionsQuery.isSuccess && sectionsQuery.data.length > 0 && (
+      {!selectedSection && sectionsQuery.isSuccess && sectionsQuery.data.length > 0 && (
         <section className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center print:hidden">
           <QrCode aria-hidden size={34} className="mx-auto text-slate-400" />
           <h2 className="mt-3 font-black text-slate-800">اختر فصلًا لمعاينة بطاقة الطباعة</h2>
@@ -218,14 +231,16 @@ export function SectionQrPage() {
         </section>
       )}
 
-      {selectedId !== null && (
+      {selectedSection && (
         <section className="rounded-3xl border border-slate-200 bg-slate-100/70 p-3 shadow-sm print:border-0 print:bg-white print:p-0 print:shadow-none sm:p-5" aria-live="polite">
           {qrQuery.isPending && <div className="rounded-2xl bg-white p-10 print:hidden"><Spinner label="جارٍ تجهيز بطاقة الفصل..." /></div>}
           {qrQuery.isError && <div className="rounded-2xl bg-white p-5 print:hidden"><ErrorState error={qrQuery.error} /></div>}
+          {!canPrint && <p className="hidden print:block">انتظر اكتمال تجهيز رمز الفصل ثم استخدم «طباعة بطاقة الفصل» أو Ctrl+P.</p>}
           {qrQuery.isSuccess && selectedSection && (
-            <div className="qr-print-preview grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
+            <div className={`qr-print-preview ${canPrint ? "qr-print-ready" : ""} grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]`}>
               <QrPrintSheet
-                canvasRef={canvasRef}
+                key={`${activeSchoolId}-${selectedId}-${qrUrl}`}
+                canvasRef={setCanvas}
                 schoolName={schoolName}
                 logoUrl={logoUrl}
                 stageLabel={stageLabel}
@@ -245,7 +260,7 @@ export function SectionQrPage() {
                   {qrQuery.data.department && <ReviewItem label="القسم" value={qrQuery.data.department} />}
                 </div>
 
-                <Button onClick={() => window.print()} className="mt-5 w-full py-3" data-testid="print-qr">
+                <Button onClick={printQr} disabled={!canPrint} className="mt-5 w-full py-3" data-testid="print-qr">
                   <Printer aria-hidden size={18} /> طباعة بطاقة الفصل
                 </Button>
 
@@ -264,6 +279,7 @@ export function SectionQrPage() {
                   </Button>
                 </div>
                 {actionError != null && <div className="mt-4"><ErrorState error={actionError} /></div>}
+                {qrRenderError && qrRenderError.url === qrUrl && <div className="mt-4"><ErrorState error={qrRenderError.error} /></div>}
               </aside>
             </div>
           )}
@@ -307,7 +323,7 @@ function QrPrintSheet({
   section,
   schoolType,
 }: {
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  canvasRef: React.Ref<HTMLCanvasElement>;
   schoolName: string;
   logoUrl: string | null;
   stageLabel: string | null;

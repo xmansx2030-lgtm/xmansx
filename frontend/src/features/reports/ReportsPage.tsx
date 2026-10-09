@@ -10,7 +10,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/Badge";
@@ -47,6 +48,7 @@ import {
   type ReportResponse,
 } from "@/features/reports/api";
 import { getSections, getStudents, type StudentRow } from "@/features/students/api";
+import { usePrintShortcut } from "@/hooks/usePrintShortcut";
 import { roleLabel, studentCountLabel, studentLabel, studentPluralLabel } from "@/utils/roles";
 
 type Tab = "absence" | "lateness" | "referrals";
@@ -67,6 +69,9 @@ const PRESETS: [ReportPreset, string][] = [
 ];
 
 const INITIAL_FILTERS: CommonReportFilters = { preset: "LAST_30_DAYS", page: 1 };
+const ABSENCE_TYPE_LABELS: Record<string, string> = { ALL: "الكل", FULL: "يوم كامل", PARTIAL: "جزئي" };
+const EXCUSE_TYPE_LABELS: Record<string, string> = { ALL: "الكل", UNEXCUSED: "دون عذر", EXCUSED: "بعذر فقط", MIXED: "مختلط" };
+const REFERRAL_STATUS_LABELS: Record<string, string> = { OPEN: "المفتوحة", PENDING_VICE: "بانتظار الوكيل", UNDER_VICE_REVIEW: "قيد معالجة الوكيل", REFERRED: "محوّلة للمرشد", ACKNOWLEDGED: "قيد متابعة المرشد", CLOSED: "مغلقة", CANCELLED: "ملغاة" };
 
 const REPORT_TITLES: Record<Tab, string> = {
   absence: "تقرير الغياب",
@@ -149,6 +154,7 @@ export function ReportsPage() {
     toDate: todayIso(),
   });
   const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [clearedReports, setClearedReports] = useState<Record<Tab, boolean>>({
     absence: false,
     lateness: false,
@@ -175,6 +181,12 @@ export function ReportsPage() {
   const sections = (sectionsQuery.data ?? []).filter(
     (section) => !draft.grade || section.grade_id === draft.grade,
   );
+  const selectedSection = sectionsQuery.data?.find((section) => section.id === draft.section);
+  const filterLabels = [
+    ...(draft.grade ? [`الصف: ${grades.find(([id]) => id === draft.grade)?.[1] ?? "صف محدد"}`] : []),
+    ...(selectedSection ? [`الفصل: ${selectedSection.grade_name} / ${selectedSection.name}${selectedSection.department ? ` / ${selectedSection.department}` : ""}`] : []),
+    ...(selectedStudent ? [`${studentLabel(schoolType, true)}: ${selectedStudent.full_name}`] : []),
+  ];
 
   const updateFilters = (next: React.SetStateAction<CommonReportFilters>) => {
     setDraft((current) => {
@@ -205,7 +217,7 @@ export function ReportsPage() {
         description={isCounselorReport ? "تقارير الإحالات المحوّلة إليك مع الفلاتر والطباعة والتصدير." : `تقارير الغياب والتأخر والإحالات المخصصة ${schoolType === "GIRLS" ? "لمديرة المدرسة والوكيلة" : "لمدير المدرسة والوكيل"}.`}
         tone={isCounselorReport ? "counselor" : "executive"}
         badge={isCounselorReport ? "إحالاتي فقط" : "نطاق المدرسة الحالية"}
-        actions={<Button variant="secondary" onClick={() => window.print()}><Printer aria-hidden size={17} /> طباعة التقرير النشط</Button>}
+        actions={<Button variant="secondary" type="submit" form="active-report-print" disabled={clearedReports[tab] || schoolId <= 0} loading={isPrinting} loadingLabel="جارٍ إعداد جميع النتائج للطباعة..."><Printer aria-hidden size={17} /> طباعة التقرير النشط</Button>}
       />
 
       <Tabs
@@ -247,6 +259,9 @@ export function ReportsPage() {
           isCleared={clearedReports.absence}
           onClear={clearCurrentReport}
           onRestore={restoreCurrentReport}
+          isPrinting={isPrinting}
+          onPrintingChange={setIsPrinting}
+          filterLabels={filterLabels}
         />
       )}
       {tab === "lateness" && (
@@ -259,6 +274,9 @@ export function ReportsPage() {
           isCleared={clearedReports.lateness}
           onClear={clearCurrentReport}
           onRestore={restoreCurrentReport}
+          isPrinting={isPrinting}
+          onPrintingChange={setIsPrinting}
+          filterLabels={filterLabels}
         />
       )}
       {tab === "referrals" && (
@@ -272,6 +290,9 @@ export function ReportsPage() {
           isCleared={clearedReports.referrals}
           onClear={clearCurrentReport}
           onRestore={restoreCurrentReport}
+          isPrinting={isPrinting}
+          onPrintingChange={setIsPrinting}
+          filterLabels={filterLabels}
         />
       )}
     </div>
@@ -312,7 +333,7 @@ function ReportFilters({ schoolId, draft, setDraft, selectedStudent, setSelected
   );
 }
 
-function AbsenceReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore }: ReportProps) {
+function AbsenceReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore, isPrinting, onPrintingChange, filterLabels }: ReportProps) {
   const [absenceType, setAbsenceType] = useState("ALL");
   const [excuseType, setExcuseType] = useState("ALL");
   const [excelLoading, setExcelLoading] = useState(false);
@@ -327,12 +348,18 @@ function AbsenceReport({ schoolId, filters, onPage, schoolType, schoolName, isCl
       description="نتائج الغياب مجمعة حسب الطالب؛ الكامل يعني الغياب في كل الحصص المعتمدة، والجزئي يعني حضورًا مثبتًا في حصة أخرى."
       fileSlug="absence-report"
       schoolName={schoolName}
+      scopeLabel={filters.student ? `سجل ${studentLabel(schoolType, true)} المحدد بالفلتر` : undefined}
       query={report}
       rows={report.data?.results ?? []}
       columns={absenceColumns}
       controls={<><Select label="نوع الغياب" value={absenceType} onChange={(value) => { setAbsenceType(value); onPage(1); }} options={[["ALL", "الكل"], ["FULL", "يوم كامل"], ["PARTIAL", "جزئي"]]} /><Select label="حالة العذر" value={excuseType} onChange={(value) => { setExcuseType(value); onPage(1); }} options={[["ALL", "الكل"], ["UNEXCUSED", "دون عذر"], ["EXCUSED", "بعذر فقط"], ["MIXED", "مختلط"]]} /></>}
-      summary={report.data && <div className="max-w-sm"><MetricCard label={studentPluralLabel(schoolType)} value={report.data.summary.students} /></div>}
-      table={report.data && <AbsenceTable rows={report.data.results} />}
+      summary={(data) => <div className="max-w-sm"><MetricCard label={studentPluralLabel(schoolType)} value={data.summary.students} /></div>}
+      table={(data) => <AbsenceTable rows={data.results} />}
+      loadPrintReport={(signal) => getAbsenceReport(printFilters(filters, report.data!.context), { absenceType, excuseType }, signal)}
+      printScope={JSON.stringify([schoolId, filters, absenceType, excuseType])}
+      isPrinting={isPrinting}
+      onPrintingChange={onPrintingChange}
+      filterLabels={[...filterLabels, `نوع الغياب: ${ABSENCE_TYPE_LABELS[absenceType]}`, `حالة العذر: ${EXCUSE_TYPE_LABELS[excuseType]}`]}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}
       onExportExcel={async () => {
@@ -352,7 +379,7 @@ function AbsenceReport({ schoolId, filters, onPage, schoolType, schoolName, isCl
   );
 }
 
-function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore }: ReportProps) {
+function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore, isPrinting, onPrintingChange, filterLabels }: ReportProps) {
   const [minOccurrences, setMinOccurrences] = useState(0);
   const [minMinutes, setMinMinutes] = useState(0);
   const [excelLoading, setExcelLoading] = useState(false);
@@ -367,12 +394,18 @@ function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isC
       description="نتائج التأخر الصباحي من سجلات الحضور الصباحي فقط."
       fileSlug="lateness-report"
       schoolName={schoolName}
+      scopeLabel={filters.student ? `سجل ${studentLabel(schoolType, true)} المحدد بالفلتر` : undefined}
       query={report}
       rows={report.data?.results ?? []}
       columns={latenessColumns}
       controls={<><NumberFilter label="الحد الأدنى للمرات" value={minOccurrences} onChange={setMinOccurrences} /><NumberFilter label="الحد الأدنى للدقائق" value={minMinutes} onChange={setMinMinutes} /></>}
-      summary={report.data && <div className="max-w-sm"><MetricCard label={studentCountLabel(schoolType)} value={report.data.summary.students} /></div>}
-      table={report.data && <LatenessTable rows={report.data.results} range={report.data.context.range} />}
+      summary={(data) => <div className="max-w-sm"><MetricCard label={studentCountLabel(schoolType)} value={data.summary.students} /></div>}
+      table={(data) => <LatenessTable rows={data.results} range={data.context.range} />}
+      loadPrintReport={(signal) => getLatenessReport(printFilters(filters, report.data!.context), { minOccurrences, minMinutes }, signal)}
+      printScope={JSON.stringify([schoolId, filters, minOccurrences, minMinutes])}
+      isPrinting={isPrinting}
+      onPrintingChange={onPrintingChange}
+      filterLabels={[...filterLabels, ...(minOccurrences ? [`الحد الأدنى للمرات: ${minOccurrences}`] : []), ...(minMinutes ? [`الحد الأدنى للدقائق: ${minMinutes}`] : [])]}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}
       onExportExcel={async () => {
@@ -392,7 +425,7 @@ function LatenessReport({ schoolId, filters, onPage, schoolType, schoolName, isC
   );
 }
 
-function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore, isCounselorReport }: ReportProps & { isCounselorReport: boolean }) {
+function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, isCleared, onClear, onRestore, isCounselorReport, isPrinting, onPrintingChange, filterLabels }: ReportProps & { isCounselorReport: boolean }) {
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
@@ -415,6 +448,7 @@ function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, is
       description={isCounselorReport ? "الإحالات المحوّلة إليك فقط، حسب الفترة والفلاتر المحددة." : "الإحالات المعروضة للمدير والوكيل حسب نطاق الرؤية والصلاحيات الحالية."}
       fileSlug="referrals-report"
       schoolName={schoolName}
+      scopeLabel={filters.student ? `سجل ${studentLabel(schoolType, true)} المحدد بالفلتر` : undefined}
       query={report}
       rows={report.data?.results ?? []}
       columns={referralColumns}
@@ -430,18 +464,31 @@ function ReferralsReport({ schoolId, filters, onPage, schoolType, schoolName, is
         <Select label="المُحيل" value={source} onChange={setSource} options={[["", "الكل"], ["TEACHER", roleLabel("TEACHER", schoolType)], ["VICE_PRINCIPAL", roleLabel("VICE_PRINCIPAL", schoolType)], ["SCHOOL_MANAGER", roleLabel("SCHOOL_MANAGER", schoolType)]]} />
         {!isCounselorReport && <Select label="المرشد" value={counselor} onChange={setCounselor} options={[["", "الكل"], ["UNASSIGNED", "غير معيّنة"], ...(counselors.data?.counselors.map((item) => [String(item.id), item.name] as [string, string]) ?? [])]} />}
       </>}
-      summary={report.data && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <MetricCard label="إجمالي الإحالات" value={report.data.summary.total} />
+      summary={(data) => <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MetricCard label="إجمالي الإحالات" value={data.summary.total} />
         {isCounselorReport ? <>
-          <MetricCard label="قيد متابعة المرشد" value={report.data.summary.acknowledged} tone="amber" />
-          <MetricCard label="مغلقة" value={report.data.summary.closed} tone="teal" />
+          <MetricCard label="قيد متابعة المرشد" value={data.summary.acknowledged} tone="amber" />
+          <MetricCard label="مغلقة" value={data.summary.closed} tone="teal" />
         </> : <>
-          <MetricCard label="بانتظار الوكيل" value={report.data.summary.new} tone="amber" />
-          <MetricCard label="تحتاج تعيين وكيل" value={report.data.summary.unassigned} tone="red" />
+          <MetricCard label="بانتظار الوكيل" value={data.summary.new} tone="amber" />
+          <MetricCard label="تحتاج تعيين وكيل" value={data.summary.unassigned} tone="red" />
         </>}
-        <MetricCard label="محوّلة للمرشد" value={report.data.summary.referred} tone="blue" />
+        <MetricCard label="محوّلة للمرشد" value={data.summary.referred} tone="blue" />
       </div>}
-      table={report.data && <ReferralsTable rows={report.data.results} />}
+      table={(data) => <ReferralsTable rows={data.results} />}
+      loadPrintReport={(signal) => getReferralsReport(printFilters(filters, report.data!.context), extra, signal)}
+      printScope={JSON.stringify([schoolId, filters, extra])}
+      isPrinting={isPrinting}
+      onPrintingChange={onPrintingChange}
+      filterLabels={[
+        ...filterLabels,
+        ...(status ? [`الحالة: ${REFERRAL_STATUS_LABELS[status]}`] : []),
+        ...(priority ? [`الأولوية: ${priority === "HIGH" ? "عاجلة" : "عادية"}`] : []),
+        ...(category ? [`الفئة: ${options.data?.categories.find((item) => item.value === category)?.label ?? category}`] : []),
+        ...(reason ? [`السبب: ${reasons.find((item) => item.value === reason)?.label ?? reason}`] : []),
+        ...(source ? [`المُحيل: ${roleLabel(source as "TEACHER" | "VICE_PRINCIPAL" | "SCHOOL_MANAGER", schoolType)}`] : []),
+        ...(!isCounselorReport && counselor ? [`المرشد: ${counselor === "UNASSIGNED" ? "غير معيّنة" : counselors.data?.counselors.find((item) => String(item.id) === counselor)?.name ?? "مرشد محدد"}`] : []),
+      ]}
       footer={report.data && <Pagination page={report.data.page} totalPages={Math.max(Math.ceil(report.data.count / report.data.page_size), 1)} onChange={onPage} />}
       excelLoading={excelLoading}
       onExportExcel={async () => {
@@ -470,6 +517,14 @@ interface ReportProps {
   isCleared: boolean;
   onClear: () => void;
   onRestore: () => void;
+  isPrinting: boolean;
+  onPrintingChange: (printing: boolean) => void;
+  filterLabels: string[];
+}
+
+function printFilters(filters: CommonReportFilters, context: ReportResponse<unknown, unknown>["context"]): CommonReportFilters {
+  // Freeze the displayed dates, including presets that could cross midnight during preparation.
+  return { ...filters, preset: "CUSTOM", fromDate: context.range.from_date, toDate: context.range.to_date, page: 1, allResults: true };
 }
 
 function ReportFrame<TRow, TSummary = unknown>({
@@ -477,6 +532,7 @@ function ReportFrame<TRow, TSummary = unknown>({
   description,
   fileSlug,
   schoolName,
+  scopeLabel,
   controls,
   query,
   rows,
@@ -489,11 +545,17 @@ function ReportFrame<TRow, TSummary = unknown>({
   isCleared,
   onClear,
   onRestore,
+  loadPrintReport,
+  printScope,
+  isPrinting,
+  onPrintingChange,
+  filterLabels,
 }: {
   title: string;
   description: string;
   fileSlug: string;
   schoolName: string;
+  scopeLabel?: string;
   controls: React.ReactNode;
   query: {
     isPending: boolean;
@@ -503,15 +565,52 @@ function ReportFrame<TRow, TSummary = unknown>({
   };
   rows: TRow[];
   columns: CsvColumn<TRow>[];
-  summary?: React.ReactNode;
-  table?: React.ReactNode;
+  summary: (data: ReportResponse<TSummary, TRow>) => React.ReactNode;
+  table: (data: ReportResponse<TSummary, TRow>) => React.ReactNode;
   footer?: React.ReactNode;
   excelLoading: boolean;
   onExportExcel: () => Promise<void>;
   isCleared: boolean;
   onClear: () => void;
   onRestore: () => void;
+  loadPrintReport: (signal: AbortSignal) => Promise<ReportResponse<TSummary, TRow>>;
+  printScope: string;
+  isPrinting: boolean;
+  onPrintingChange: (printing: boolean) => void;
+  filterLabels: string[];
 }) {
+  const [printData, setPrintData] = useState<ReportResponse<TSummary, TRow> | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const printController = useRef<AbortController | null>(null);
+  useEffect(() => () => printController.current?.abort(), [printScope, isCleared]);
+
+  const printReport = async () => {
+    if (!query.data || query.isError || isCleared || isPrinting || printController.current) return;
+    const controller = new AbortController();
+    printController.current = controller;
+    setPrintError(null);
+    onPrintingChange(true);
+    try {
+      // The same protected report endpoint returns a single complete snapshot, without a page-size cap.
+      const data = await loadPrintReport(controller.signal);
+      controller.signal.throwIfAborted();
+      if (data.results.length !== data.count) throw new Error("لم يتم تحميل جميع النتائج.");
+      await document.fonts?.ready;
+      controller.signal.throwIfAborted();
+      flushSync(() => setPrintData(data));
+      window.print();
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setPrintError(`تعذر إعداد جميع النتائج للطباعة. ${error instanceof Error ? error.message : "أعد المحاولة."}`);
+      }
+    } finally {
+      setPrintData(null);
+      printController.current = null;
+      onPrintingChange(false);
+    }
+  };
+  usePrintShortcut(() => { void printReport(); });
+  const displayedData = printData ?? query.data;
   const count = query.data?.count ?? rows.length;
   const canUseResults = rows.length > 0 && !isCleared;
   return (
@@ -533,11 +632,12 @@ function ReportFrame<TRow, TSummary = unknown>({
               <p className="text-xs font-bold text-slate-500">تقرير مدرسي رسمي</p>
               <h2 className="mt-1 text-xl font-black text-slate-950">{title}</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+              {filterLabels.length > 0 && <p className="mt-2 text-xs leading-6 text-slate-600" data-testid="report-filter-summary">{filterLabels.join(" · ")}</p>}
             </div>
             <dl className="grid gap-1 text-xs text-slate-600 sm:grid-cols-2 lg:min-w-[24rem]">
               <div><dt className="font-bold text-slate-500">المدرسة</dt><dd className="font-semibold text-slate-900">{schoolName}</dd></div>
-              <div><dt className="font-bold text-slate-500">الفترة</dt><dd className="font-semibold text-slate-900">{formatRange(query.data?.context)}</dd></div>
-              <div><dt className="font-bold text-slate-500">النطاق</dt><dd className="font-semibold text-slate-900">{formatScope(query.data?.context)}</dd></div>
+              <div><dt className="font-bold text-slate-500">الفترة</dt><dd className="font-semibold text-slate-900">{formatRange(displayedData?.context)}</dd></div>
+              <div><dt className="font-bold text-slate-500">النطاق</dt><dd className="font-semibold text-slate-900">{scopeLabel ?? formatScope(displayedData?.context)}</dd></div>
               <div><dt className="font-bold text-slate-500">وقت الإعداد</dt><dd className="font-semibold text-slate-900">{formatDateTime(new Date())}</dd></div>
             </dl>
           </header>
@@ -546,7 +646,7 @@ function ReportFrame<TRow, TSummary = unknown>({
             <p className="text-sm font-bold text-slate-700">
               {count > 0 ? `عدد النتائج المطابقة: ${count}` : "لا توجد نتائج مطابقة للفلاتر الحالية"}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <form id="active-report-print" onSubmit={(event) => { event.preventDefault(); void printReport(); }} className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
                 size="sm"
@@ -565,15 +665,18 @@ function ReportFrame<TRow, TSummary = unknown>({
               >
                 <Download aria-hidden size={15} /> تصدير المعروض CSV
               </Button>
-              <Button variant="secondary" size="sm" disabled={!query.data} onClick={() => window.print()}><Printer aria-hidden size={15} /> طباعة واضحة</Button>
+              <Button variant="secondary" size="sm" type="submit" disabled={!query.data || query.isError} loading={isPrinting} loadingLabel="جارٍ إعداد جميع النتائج للطباعة..."><Printer aria-hidden size={15} /> طباعة واضحة</Button>
               <Button variant="danger" size="sm" disabled={!query.data} onClick={onClear}><Trash2 aria-hidden size={15} /> مسح النتائج المعروضة</Button>
-            </div>
+            </form>
           </div>
 
           {query.isPending && <Spinner label="جارٍ إعداد التقرير..." />}
           {query.isError && <ErrorState error={query.error} />}
-          {summary && <div className="mt-4">{summary}</div>}
-          {table && <div className="mt-4">{table}</div>}
+          {printError && <p role="alert" className="report-screen-only mt-4 text-sm font-bold text-red-700">{printError}</p>}
+          {displayedData && <div className={`mt-4 ${printData ? "" : "report-screen-only"}`}>{summary(displayedData)}</div>}
+          {query.data && <div className="report-screen-only mt-4">{table(query.data)}</div>}
+          {!printData && <p className="hidden print:block mt-4">للطباعة بجميع النتائج المطابقة للفلاتر، استخدم «طباعة واضحة» أو «طباعة التقرير النشط» أو Ctrl+P داخل صفحة التقرير، وانتظر اكتمال إعداد النتائج.</p>}
+          {printData && <div className="hidden print:block" data-testid="report-print-table"><p className="my-3 text-sm font-bold">عدد النتائج المطبوعة: {printData.count}</p>{table(printData)}</div>}
           {footer && <div className="report-screen-only mt-4">{footer}</div>}
         </section>
       )}

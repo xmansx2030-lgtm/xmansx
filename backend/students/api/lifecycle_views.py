@@ -198,7 +198,9 @@ class StudentPurgeView(SchoolScopedAPIView):
                 "لا يمكن الحذف النهائي لطالب نشط — غيّر حالته أولاً.",
                 status_code=409,
             )
-        db_rows, storage_ok, storage_failed = purge_service.purge_student(student)
+        db_rows, storage_ok, storage_failed = purge_service.purge_student(
+            student, actor=request.user
+        )
         record_event(
             AuditAction.STUDENT_PERMANENTLY_PURGED,
             request=request,

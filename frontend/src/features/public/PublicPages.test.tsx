@@ -137,6 +137,11 @@ describe("Public landing and school registration", () => {
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: /إنشاء المدرسة وبدء التجربة/ }));
 
+    expect(await screen.findByRole("alert")).toHaveTextContent("أدخل بريدًا إلكترونيًا صحيحًا");
+    expect(calls.some(({ url }) => url.includes("/auth/register-school/"))).toBe(false);
+    await user.type(screen.getByLabelText("البريد الإلكتروني للمدير"), "manager@example.invalid");
+    await user.click(screen.getByRole("button", { name: /إنشاء المدرسة وبدء التجربة/ }));
+
     await waitFor(() => expect(calls.some(({ url }) => url.includes("/auth/register-school/"))).toBe(true));
     expect(await screen.findByTestId("active-school-name")).toHaveTextContent("ثانوية الإتقان التجريبية");
 
@@ -145,6 +150,7 @@ describe("Public landing and school registration", () => {
       school_name: "ثانوية الإتقان التجريبية",
       school_type: "GIRLS",
       manager_mobile: "+966551234567",
+      manager_email: "manager@example.invalid",
       plan_id: 7,
       terms_accepted: true,
     });

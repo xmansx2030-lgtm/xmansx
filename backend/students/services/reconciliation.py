@@ -9,6 +9,7 @@ from django.utils import timezone
 from attendance.models import AttendanceMark, DailyAttendanceSummary
 from audit.models import AuditAction
 from audit.services import record_event
+from parents.access import lock_parent_school
 from students.management.commands.audit_student_reconciliation import audit_group
 from students.models import (
     EnrollmentStatus,
@@ -23,6 +24,8 @@ _MOVABLE_RELATIONS = {
     "attendance.DailyAttendanceSummary",
     "attendance.AttendanceMark",
 }
+# Contact reviews grant no access. Keep them on archived source records as evidence.
+_RETAINED_SOURCE_RELATIONS = {"parents.GuardianContactReview"}
 
 
 def _validated_summaries(student_ids):
@@ -56,6 +59,7 @@ def _validated_summaries(student_ids):
 @transaction.atomic
 def reconcile_group(ids, *, school_id, expected_import_job_id):
     """Move verified history to the file's student, retaining old identifiers as aliases."""
+    lock_parent_school(school_id)
     students = list(Student.objects.select_for_update().filter(pk__in=ids))
     if len(students) != len(ids):
         raise CommandError("A student record disappeared during reconciliation.")
@@ -78,7 +82,9 @@ def reconcile_group(ids, *, school_id, expected_import_job_id):
 
     for relation in report["relations"]:
         source_count = sum(relation["counts"].get(item.pk, 0) for item in sources)
-        if source_count and relation["model"] not in _MOVABLE_RELATIONS:
+        if source_count and relation["model"] not in (
+            _MOVABLE_RELATIONS | _RETAINED_SOURCE_RELATIONS
+        ):
             raise CommandError(f"Unsupported linked history: {relation['model']}.")
         if relation["model"] == "attendance.AttendanceMark" and relation["collisions"]:
             raise CommandError("Attendance marks overlap in one session; manual review required.")

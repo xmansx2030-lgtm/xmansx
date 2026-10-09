@@ -23,10 +23,9 @@ from student_warnings.models import (
     WarningStatus,
 )
 
+# A student has at most one daily summary/arrival per school and date. The date
+# guard therefore bounds detailed reports to 366 rows without truncating results.
 MAX_REPORT_DAYS = 366
-# حارس حجم مضبوط بالقياس: الرسم يكلف ~250ms لكل صفحة A4، و500 صف ≈ 20 صفحة ≈ 5 ثوانٍ.
-# ما فوق ذلك يقسم على فترات بدل حجز عامل خادم دقائق (انظر GENERATED_DOCUMENTS.md).
-MAX_REPORT_ROWS = 500
 
 DAY_STATUS_LABELS = {
     DailyAbsenceStatus.FULL: "غياب يوم كامل",
@@ -182,7 +181,7 @@ def warning_snapshot(*, school, warning: StudentWarning, membership, title: str)
             "metric_value_at_issue": warning.metric_value_at_issue,
             "unit": "يوم" if warning.warning_type == WarningRuleType.UNEXCUSED_FULL_DAY_ABSENCE
             else "مرة",
-            "issued_at": warning.issued_at.date().isoformat(),
+            "issued_at": dj_timezone.localtime(warning.issued_at).date().isoformat(),
             "issued_by": _membership_name(warning.issued_by_membership),
             "academic_year": warning.academic_year.name,
             "notes": warning.notes,
@@ -264,7 +263,7 @@ def absence_report_snapshot(*, school, student, membership, from_date: date, to_
         )
         .exclude(absence_status=DailyAbsenceStatus.NONE)
         .select_related("section")
-        .order_by("attendance_date")[:MAX_REPORT_ROWS]
+        .order_by("attendance_date")
     )
     rows = []
     totals = {
@@ -310,7 +309,7 @@ def absence_report_snapshot(*, school, student, membership, from_date: date, to_
             "period": {"from": from_date.isoformat(), "to": to_date.isoformat()},
             "rows": rows,
             "totals": totals,
-            "truncated": len(rows) >= MAX_REPORT_ROWS,
+            "truncated": False,
         },
     )
 
@@ -326,7 +325,7 @@ def morning_late_snapshot(*, school, student, membership, from_date: date, to_da
         student=student,
         status=ArrivalStatus.LATE,
         attendance_date__range=(from_date, to_date),
-    ).order_by("attendance_date")[:MAX_REPORT_ROWS]
+    ).order_by("attendance_date")
     rows = []
     occurrences = 0
     raw_minutes = 0
@@ -362,7 +361,7 @@ def morning_late_snapshot(*, school, student, membership, from_date: date, to_da
                 "counted_late_minutes": counted_minutes,
                 "duration": format_minutes(counted_minutes),
             },
-            "truncated": len(rows) >= MAX_REPORT_ROWS,
+            "truncated": False,
         },
     )
 
@@ -391,24 +390,28 @@ def attendance_report_snapshot(
         {
             "level_label": WARNING_LEVEL_LABELS.get(w.level, w.level),
             "type_label": WARNING_TYPE_LABELS.get(w.warning_type, w.warning_type),
-            "issued_at": w.issued_at.date().isoformat(),
+            "issued_at": dj_timezone.localtime(w.issued_at).date().isoformat(),
             "metric_value_at_issue": w.metric_value_at_issue,
             "threshold_at_issue": w.threshold_at_issue,
             "status_label": "صادر" if w.status == WarningStatus.ISSUED else "ملغى",
         }
-        for w in StudentWarning.objects.filter(school=school, student=student).order_by("issued_at")
+        for w in StudentWarning.objects.filter(
+            school=school, student=student, issued_at__date__range=(from_date, to_date)
+        ).order_by("issued_at", "id")
     ]
     actions = [
         {
-            "performed_at": a.performed_at.date().isoformat(),
+            "performed_at": dj_timezone.localtime(a.performed_at).date().isoformat(),
             "type_label": ACTION_TYPE_LABELS.get(a.action_type, a.action_type),
             "performed_by": _membership_name(a.performed_by_membership),
             "notes": a.notes,
             "status_label": "منفذ" if a.status == StudentActionStatus.COMPLETED else "ملغى",
         }
-        for a in StudentAction.objects.filter(school=school, student=student)
+        for a in StudentAction.objects.filter(
+            school=school, student=student, performed_at__date__range=(from_date, to_date)
+        )
         .select_related("performed_by_membership__staff_profile", "performed_by_membership__user")
-        .order_by("performed_at")
+        .order_by("performed_at", "id")
     ]
 
     return _base(
@@ -437,9 +440,9 @@ def default_range(school) -> tuple[date, date]:
     try:
         year = active_year(school)
     except ApiError:
-        today = date.today()
+        today = dj_timezone.localdate()
         return today - timedelta(days=90), today
-    return year.start_date, min(year.end_date, date.today())
+    return year.start_date, min(year.end_date, dj_timezone.localdate())
 
 
 BUILDERS = {

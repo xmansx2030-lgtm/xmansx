@@ -1,4 +1,5 @@
 from django.contrib.auth import update_session_auth_hash
+from django.db import transaction
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -34,8 +35,9 @@ class PlatformAccountView(PlatformAPIView):
     def get(self, request: Request) -> Response:
         return Response(_account_payload(request.user))
 
+    @transaction.atomic
     def patch(self, request: Request) -> Response:
-        user = User.objects.get(id=request.user.id)
+        user = User.objects.select_for_update().get(id=request.user.id)
         name = str(request.data.get("name", user.display_name)).strip()
         if len(name) < 2:
             raise ApiError("VALIDATION_ERROR", "أدخل الاسم كاملًا.")
@@ -48,6 +50,14 @@ class PlatformAccountView(PlatformAPIView):
                 raise ApiError(
                     "INVALID_CURRENT_PASSWORD",
                     "يلزم إدخال كلمة المرور الحالية لتغيير رقم الجوال.",
+                )
+            from parents.credential_protection import has_guardian_credentials
+
+            if has_guardian_credentials(user.pk):
+                raise ApiError(
+                    "GUARDIAN_MOBILE_REVIEW_REQUIRED",
+                    "رقم دخول ولي الأمر حساب عالمي؛ يلزم تحقق مستقل معتمد لتغييره.",
+                    409,
                 )
             if User.objects.exclude(id=user.id).filter(mobile=mobile).exists():
                 raise ApiError("MOBILE_ALREADY_EXISTS", "رقم الجوال مرتبط بحساب آخر.", 409)

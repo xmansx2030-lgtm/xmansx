@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useMe } from "@/features/auth/useMe";
+import { withReturnTo } from "@/features/auth/returnTo";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
 
 function FullPageSpinner() {
@@ -17,6 +18,7 @@ function FullPageSpinner() {
  *  (الحماية الحقيقية على الـ Backend — هذا UX فقط) */
 export function RequireAuth() {
   const me = useMe();
+  const location = useLocation();
 
   if (me.isPending) return <FullPageSpinner />;
   if (me.isError) {
@@ -27,6 +29,10 @@ export function RequireAuth() {
   }
   if (me.data.must_change_password) {
     return <Navigate to="/change-password" replace />;
+  }
+  if (me.data.school_email_completion_required && !me.data.is_platform_admin
+      && location.pathname !== "/account/complete-email") {
+    return <Navigate to={withReturnTo("/account/complete-email", location.pathname + location.search)} replace />;
   }
   return <Outlet />;
 }
@@ -40,6 +46,7 @@ export function RequireActiveSchool() {
   if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
 
   if (me.data.active_school === null) {
+    if (me.data.has_parent_portal && me.data.memberships.length === 0) return <Navigate to="/parent" replace />;
     if (me.data.memberships.length > 0 || me.data.invitations.length > 0) {
       return <Navigate to="/select-school" replace />;
     }

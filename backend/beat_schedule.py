@@ -9,6 +9,7 @@ def build_beat_schedule(
     backup_enabled: bool,
     backup_interval_seconds: int,
     ministry_calendar_enabled: bool = True,
+    subscription_email_enabled: bool = False,
 ) -> dict[str, dict]:
     schedule = {
         "system-operational-heartbeat": {
@@ -33,5 +34,10 @@ def build_beat_schedule(
             "task": "academics.apply_ministry_calendars",
             "schedule": 5 * 60,
             "options": {"expires": 4 * 60},
+        }
+    if subscription_email_enabled:
+        schedule["subscription-manager-emails"] = {
+            "task": "subscriptions.process_manager_emails", "schedule": 60,
+            "options": {"expires": 55},
         }
     return schedule

@@ -99,11 +99,15 @@ jobs:
       - name: Tests
         run: python -m pytest bridge/tests -q
 
-  production-e2e:
-    name: Production-like browser gate
+  production-browser:
+    name: Production-like browser shard ${{ matrix.shard }}
     needs: [backend, frontend, bridge]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
@@ -154,7 +158,9 @@ jobs:
           python manage.py migrate --noinput
       - name: Run all browser journeys
         working-directory: frontend
-        run: npm run e2e:release
+        # Same eight shards as e2e:release, with an independent seeded database
+        # on each runner. Keep the serial files, assertions and retry policy.
+        run: npm run e2e -- --workers=1 --retries=1 --shard=${{ matrix.shard }}/8
       - name: Preserve service diagnostics
         if: failure()
         run: >-
@@ -164,7 +170,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: production-e2e-traces
+          name: production-e2e-traces-${{ matrix.shard }}
           path: frontend/test-results
           if-no-files-found: ignore
           retention-days: 7
@@ -173,6 +179,88 @@ jobs:
         run: >-
           docker compose -p xmansx-ci -f docker-compose.yml
           -f docker-compose.production.yml down -v
+
+  production-e2e:
+    name: Production-like browser gate
+    needs: [production-browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every browser shard to pass
+        env:
+          SHARDS_RESULT: ${{ needs.production-browser.result }}
+        run: test "$SHARDS_RESULT" = success
+
+  parent-browser:
+    name: Parent TLS (${{ matrix.journey }})
+    needs: [backend, frontend, bridge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        journey: [parent-family-invitations, parent-email-activation, parent-email-recovery, parent-portal, parent-family-followup]
+    env:
+      E2E_BASE_URL: https://localhost:8445
+      COMPOSE_PROJECT_NAME: xmansx-parent-email-activation-synthetic-staging
+      PARENT_E2E_PREVIEW: "1"
+      PARENT_E2E_EXTERNAL_PREVIEW: "1"
+      PARENT_E2E_SYNTHETIC_STAGING: "1"
+      PARENT_VERIFICATION_LOCAL_ONLY: "1"
+      E2E_SEED_PASSWORD: Parent-Staging-Local-2026!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build browser client
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Prepare fresh private synthetic TLS stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/parent-staging
+          vf=(-p xmansx-parent-ci-materials -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-email-verification.yml)
+          docker compose "${vf[@]}" build tests
+          docker compose "${vf[@]}" run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$PWD/artifacts/parent-staging:/materials" tests python /workspace/scripts/parent_staging_materials.py --output /materials
+          sf=(--env-file artifacts/parent-staging/.env -f docker-compose.parent-verification.yml -f docker-compose.parent-release-verification.yml -f docker-compose.parent-staging.yml -f docker-compose.parent-email-verification.yml -f docker-compose.parent-family-verification.yml)
+          docker compose "${sf[@]}" up -d --wait postgres redis
+          docker compose "${sf[@]}" run --rm --no-deps tests python /workspace/scripts/parent_portal_verification_init.py
+          if [[ '${{ matrix.journey }}' == parent-family-invitations ]]; then
+            docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_family_invitations --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json
+          else
+            docker compose "${sf[@]}" run --rm --no-deps --volume "$PWD/artifacts/parent-staging:/fixtures" -e DJANGO_SETTINGS_MODULE=config.settings.local tests python manage.py seed_parent_staging --password "$E2E_SEED_PASSWORD" --output /fixtures/fixture.json --enable-registration
+          fi
+          sudo chown "$(id -u):$(id -g)" artifacts/parent-staging/fixture.json
+          chmod 600 artifacts/parent-staging/fixture.json
+          docker compose "${sf[@]}" run --rm --no-deps staging-storage-init
+          docker compose "${sf[@]}" build staging-frontend
+          docker compose "${sf[@]}" up -d staging-app staging-worker staging-beat staging-frontend
+          echo "NODE_EXTRA_CA_CERTS=$PWD/artifacts/parent-staging/localhost.crt" >> "$GITHUB_ENV"
+          echo "PARENT_E2E_FIXTURE=$PWD/artifacts/parent-staging/fixture.json" >> "$GITHUB_ENV"
+      - name: Run journey on its own fresh TLS database and security Redis
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Each matrix job owns a fresh database and Redis on its own runner.
+          # Keep the actual 20/IP/300s and mobile limits; no Redis flushing.
+          cd frontend
+          npx --no-install playwright test --config playwright.parent.config.ts '${{ matrix.journey }}.spec.ts'
+      - name: Stop only the isolated CI stack
+        if: always()
+        run: >-
+          docker compose --env-file artifacts/parent-staging/.env
+          -f docker-compose.parent-verification.yml
+          -f docker-compose.parent-release-verification.yml
+          -f docker-compose.parent-staging.yml
+          -f docker-compose.parent-email-verification.yml
+          -f docker-compose.parent-family-verification.yml down -v
 
   secrets-scan:
     name: Secrets scan (gitleaks)
@@ -184,3 +272,10 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.24.3"
+      - name: Scan complete history including merged branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/gitleaks-8.24.3/gitleaks git --redact --log-opts="--all" --no-banner
+          /tmp/gitleaks-8.24.3/gitleaks dir --redact --no-banner

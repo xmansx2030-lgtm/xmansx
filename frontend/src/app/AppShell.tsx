@@ -8,10 +8,12 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigation } from "react-router-dom";
 
 import { SchoolSwitcher } from "@/features/auth/SchoolSwitcher";
+import { SchoolEmailVerificationNotice } from "@/features/auth/SchoolEmailVerificationNotice";
 import { useLogout, useMe } from "@/features/auth/useMe";
 import { roleLabels, studentPluralLabel } from "@/utils/roles";
 import type { SchoolCapability, SchoolRole } from "@/types/auth";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
+import { SpaceSwitchButton } from "@/features/parent/SpaceSwitchButton";
 
 type Role = SchoolRole;
 type NavigationGroup = "overview" | "students" | "operations" | "management";
@@ -28,6 +30,7 @@ interface NavigationItem {
 const MANAGER_VP: Role[] = ["SCHOOL_MANAGER", "VICE_PRINCIPAL"];
 const MANAGER_VP_COUNSELOR: Role[] = [...MANAGER_VP, "COUNSELOR"];
 const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
+  "/parent-management",
   "/dashboard",
   "/reports",
   "/warnings",
@@ -39,6 +42,7 @@ const VICE_PRINCIPAL_PRIMARY_PATHS = new Set([
   "/academic-calendar",
 ]);
 const MANAGER_PRIMARY_PATHS = new Set([
+  "/parent-management",
   "/dashboard",
   "/reports",
   "/students",
@@ -63,6 +67,7 @@ const NAVIGATION: NavigationItem[] = [
   { to: "/reports", label: "التقارير", roles: MANAGER_VP_COUNSELOR, icon: FileSpreadsheet, group: "overview" },
   { to: "/workspace", label: "التحضير", roles: ["TEACHER"], icon: BookOpenCheck, group: "overview" },
   { to: "/students", label: "الطلاب", roles: MANAGER_VP_COUNSELOR, icon: GraduationCap, group: "students" },
+  { to: "/parent-management", label: "إدارة أولياء الأمور", roles: MANAGER_VP_COUNSELOR, icon: HeartHandshake, group: "students" },
   { to: "/warnings", label: "الإنذارات", roles: MANAGER_VP, icon: BellRing, group: "students" },
   { to: "/excuses", label: "الأعذار", roles: MANAGER_VP_COUNSELOR, icon: BookOpenCheck, group: "students" },
   { to: "/referrals", label: "الإحالات", roles: MANAGER_VP_COUNSELOR, icon: Send, group: "students" },
@@ -176,6 +181,7 @@ function UserPanel({ onLogout, mobile = false }: { onLogout: () => void; mobile?
       </span>
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm font-bold ${mobile ? "text-slate-900" : "text-white"}`} data-testid={mobile ? "user-name-mobile" : "user-name"}>{me.data.name}</p>
+        {me.data.school_recovery_email_enabled && <Link to="/account/recovery-email" className={`inline-flex min-h-9 items-center text-xs font-bold ${mobile ? "text-teal-800" : "text-teal-200"}`}>بريد استرداد الحساب</Link>}
         <p className={`truncate text-xs ${mobile ? "text-slate-500" : "text-slate-400"}`} data-testid={mobile ? "user-roles-mobile" : "user-roles"}>{roleLabels(me.data.roles, me.data.active_school?.school_type)}</p>
       </div>
       <button type="button" onClick={onLogout} aria-label="تسجيل الخروج" className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-2 ${mobile ? "text-slate-600 hover:bg-red-50 hover:text-red-700" : "text-slate-300 hover:bg-red-500/10 hover:text-red-200"}`}>
@@ -243,6 +249,7 @@ export function AppShell() {
                 <span aria-current="page" className="truncate font-bold text-slate-700">{currentLabel}</span>
               </nav>
             </div>
+            {me.data?.has_parent_portal && <SpaceSwitchButton destination="/parent">بوابة ولي الأمر</SpaceSwitchButton>}
             <button type="button" aria-label={mobileMenuOpen ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#dce8e4] bg-white text-slate-700 shadow-sm transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-2 lg:hidden" onClick={() => setMobileMenuOpen((open) => !open)}>
               {mobileMenuOpen ? <X aria-hidden size={20} /> : <Menu aria-hidden size={20} />}
             </button>
@@ -261,7 +268,9 @@ export function AppShell() {
           </div>
         )}
 
-        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8"><Outlet /></main>
+        <main id="main-content" tabIndex={-1} aria-busy={isNavigating || undefined} className="mx-auto w-full max-w-[94rem] px-3 py-5 sm:px-6 sm:py-7 xl:px-8">
+          <SchoolEmailVerificationNotice /><Outlet />
+        </main>
       </div>
     </div>
   );

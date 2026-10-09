@@ -24,6 +24,7 @@ export interface SchoolRegistrationInput {
   school_type: SchoolType;
   manager_name: string;
   manager_mobile: string;
+  manager_email: string;
   password: string;
   confirm_password: string;
   plan_id: number;

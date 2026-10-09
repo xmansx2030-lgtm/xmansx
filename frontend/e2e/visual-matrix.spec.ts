@@ -54,6 +54,7 @@ async function login(page: Page, mobile: string, school?: string) {
 
 async function assertViewportContract(page: Page, path: string) {
   await expect(page.locator("main h1").first(), path).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "حدث خطأ غير متوقع" }), path).toHaveCount(0);
   const audit = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     content: document.documentElement.scrollWidth,
@@ -72,9 +73,30 @@ async function assertViewportContract(page: Page, path: string) {
   expect(audit.unlabelledFields, path).toBe(0);
 }
 
+/** Hundreds of full reloads are an artificial request burst. Respect the real
+ * 240/account/minute budget, reserving room for requests from the current page.
+ * BrowserContext also observes service-worker requests; no Redis keys or
+ * production limits are changed for this matrix. */
+function requestPacer(page: Page) {
+  let minute = Math.floor(Date.now() / 60_000);
+  let count = 0;
+  page.context().on("request", (request) => {
+    if (!new URL(request.url()).pathname.startsWith("/api/")) return;
+    const now = Math.floor(Date.now() / 60_000);
+    if (now !== minute) { minute = now; count = 0; }
+    count += 1;
+  });
+  return async () => {
+    if (Math.floor(Date.now() / 60_000) === minute && count >= 180) {
+      await page.waitForTimeout((minute + 1) * 60_000 - Date.now() + 1500);
+    }
+  };
+}
+
 test.describe.configure({ mode: "serial", timeout: 720_000 });
 
 test("all manager workspaces satisfy the exact responsive RTL matrix", async ({ page }, testInfo: TestInfo) => {
+  const pace = requestPacer(page);
   await login(page, "0550000002", "ثانوية الأندلس");
 
   for (const viewport of VIEWPORTS) {
@@ -82,6 +104,7 @@ test("all manager workspaces satisfy the exact responsive RTL matrix", async ({ 
     for (const path of MANAGER_ROUTES) {
       await page.goto(path);
       await assertViewportContract(page, path);
+      await pace();
     }
     await page.goto("/dashboard");
     await page.screenshot({ path: testInfo.outputPath(`manager-${viewport.width}.png`), fullPage: false });
@@ -89,6 +112,7 @@ test("all manager workspaces satisfy the exact responsive RTL matrix", async ({ 
 });
 
 test("teacher, counselor, and platform shells satisfy the same viewport contract", async ({ page }) => {
+  const pace = requestPacer(page);
   const roleJourneys = [
     { mobile: "0550000001", school: "ثانوية الأندلس", routes: ["/", "/teacher/follow-ups", "/referrals/mine"] },
     { mobile: "0550000005", school: "ثانوية الأندلس", routes: ["/counselor", "/students", "/excuses", "/referrals"] },
@@ -101,6 +125,7 @@ test("teacher, counselor, and platform shells satisfy the same viewport contract
       for (const path of journey.routes) {
         await page.goto(path);
         await assertViewportContract(page, path);
+        await pace();
       }
     }
     await page.getByRole("button", { name: "تسجيل الخروج" }).click();

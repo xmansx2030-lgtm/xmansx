@@ -155,7 +155,7 @@ class WarningsView(SchoolScopedAPIView):
         queryset = StudentWarning.objects.filter(school=request.school).select_related(
             "issued_by_membership__user", "issued_by_membership__staff_profile",
             "voided_by_membership__user", "voided_by_membership__staff_profile",
-        ).order_by("-issued_at")
+        ).order_by("-issued_at", "-id")
         student_id = request.query_params.get("student")
         if student_id:
             queryset = queryset.filter(student_id=student_id)

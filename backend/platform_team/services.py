@@ -174,6 +174,14 @@ def update_member(*, user_id: int, data: dict, actor, request=None) -> dict:
     if "mobile" in data:
         normalized = _normalize_mobile(str(data["mobile"]))
         if normalized != user.mobile:
+            from parents.credential_protection import has_guardian_credentials
+
+            if has_guardian_credentials(user.pk):
+                raise ApiError(
+                    "GUARDIAN_MOBILE_REVIEW_REQUIRED",
+                    "رقم دخول ولي الأمر حساب عالمي؛ يلزم تحقق مستقل معتمد لتغييره.",
+                    409,
+                )
             if User.objects.exclude(id=user.id).filter(mobile=normalized).exists():
                 raise ApiError("MOBILE_ALREADY_EXISTS", "رقم الجوال مرتبط بحساب آخر.", 409)
             user.mobile = normalized
@@ -226,6 +234,14 @@ def run_member_action(*, user_id: int, action: str, actor, request=None) -> dict
         event = AuditAction.PLATFORM_STAFF_REACTIVATED
         result = {"member": member_payload(membership), "temporary_password": None}
     elif action == "reset-password":
+        from parents.credential_protection import has_guardian_credentials
+
+        if has_guardian_credentials(membership.user_id):
+            raise ApiError(
+                "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
+                "هذا حساب ولي أمر عالمي؛ يلزم إجراء مستقل موثق للتحقق من ملكية الحساب.",
+                409,
+            )
         if membership.user.memberships.exists():
             raise ApiError(
                 "SCHOOL_ACCOUNT_NOT_ALLOWED",

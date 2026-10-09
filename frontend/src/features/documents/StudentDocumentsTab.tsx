@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
 import { schoolScopedKey, useMe } from "@/features/auth/useMe";
 import {
@@ -11,14 +12,14 @@ import {
   type DocumentType,
   RANGE_DOCUMENT_TYPES,
   WARNING_LEVEL_DOCUMENT,
-  documentDownloadUrl,
+  documentPrintUrl,
   generateDocument,
   getStudentDocuments,
+  getDocumentWarningOptions,
   previewDocument,
   retryDocument,
   voidDocument,
 } from "@/features/documents/api";
-import { getStudentWarnings } from "@/features/warnings/api";
 import { localIsoDate } from "@/utils/dates";
 import { studentLabel } from "@/utils/roles";
 
@@ -77,15 +78,17 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   const [voidId, setVoidId] = useState<number | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [error, setError] = useState<unknown>(null);
+  const [documentPage, setDocumentPage] = useState({ schoolId, studentId, page: 1 });
+  const page = documentPage.schoolId === schoolId && documentPage.studentId === studentId ? documentPage.page : 1;
 
   const list = useQuery({
-    queryKey: schoolScopedKey(schoolId, "documents", studentId),
-    queryFn: ({ signal }) => getStudentDocuments(studentId, signal),
+    queryKey: schoolScopedKey(schoolId, "documents", studentId, page),
+    queryFn: ({ signal }) => getStudentDocuments(studentId, signal, page),
     enabled: schoolId > 0,
   });
   const warnings = useQuery({
-    queryKey: schoolScopedKey(schoolId, "warnings", "student", studentId),
-    queryFn: ({ signal }) => getStudentWarnings(studentId, signal),
+    queryKey: schoolScopedKey(schoolId, "warnings", "document-options", studentId),
+    queryFn: ({ signal }) => getDocumentWarningOptions(studentId, signal),
     enabled: schoolId > 0 && canManage,
   });
 
@@ -158,7 +161,7 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   if (list.isError) return <ErrorState error={list.error} />;
 
   const rows = list.data?.results ?? [];
-  const issuedWarnings = (warnings.data?.results ?? []).filter((row) => row.status === "ISSUED");
+  const issuedWarnings = (warnings.data ?? []).filter((row) => row.status === "ISSUED");
   const warningTypes = issuedWarnings.map((warning) => ({
     id: warning.id,
     label: `${warning.level_label} — ${warning.warning_type_label}`,
@@ -168,6 +171,7 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
   return (
     <div className="space-y-5 text-slate-800" data-testid="student-documents-tab">
       {error != null && <ErrorState error={error} />}
+      {warnings.isError && <ErrorState error={warnings.error} />}
 
       {canManage && (
         <div
@@ -334,7 +338,9 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
                 {row.can_download && (
                   <a
                     data-testid={`doc-download-${row.id}`}
-                    href={documentDownloadUrl(row.id)}
+                    href={documentPrintUrl(row.id)}
+                    target="_blank"
+                    rel="noreferrer"
                     className="rounded font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 focus:outline-none focus:ring-2 focus:ring-teal-700"
                   >
                     عرض / إعادة طباعة
@@ -387,6 +393,7 @@ export function StudentDocumentsTab({ studentId }: { studentId: number }) {
           ))}
         </ul>
       )}
+      {(list.data?.count ?? 0) > 25 && <Pagination page={page} totalPages={Math.ceil(list.data!.count / 25)} onChange={(nextPage) => setDocumentPage({ schoolId, studentId, page: nextPage })} />}
     </div>
   );
 }

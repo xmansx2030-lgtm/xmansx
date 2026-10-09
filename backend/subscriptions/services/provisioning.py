@@ -40,6 +40,7 @@ def create_school(
     school_type: str,
     manager_name: str,
     manager_mobile: str,
+    manager_email: str | None = None,
     plan_id: int | None = None,
     subscription_mode: str = "TRIAL",
     trial_days: int | None = None,
@@ -76,7 +77,12 @@ def create_school(
         if password is None:
             temporary_password = generate_temporary_password()
             password = temporary_password
-        user = User.objects.create_user(mobile=mobile, password=password)
+        from accounts.contact_email import normalize_contact_email
+
+        user = User.objects.create_user(
+            mobile=mobile, password=password,
+            email=normalize_contact_email(manager_email) if manager_email is not None else "",
+        )
         user.first_name = manager_name.strip()[:150]
         user.must_change_password = manager_password is None
         user.save(update_fields=["first_name", "must_change_password"])
@@ -117,6 +123,11 @@ def create_school(
             current=count_active_staff(school) - 1,
             adding=1,
         )
+
+    if source == "self_registration":
+        from parents.email_recovery_services import enroll_school_contact
+
+        enroll_school_contact(user)
 
     record_event(
         AuditAction.PLATFORM_SCHOOL_CREATED,

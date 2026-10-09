@@ -248,7 +248,7 @@ def main() -> None:
         [ref_nid(i + 1), name, referrals_grade, referrals_section, ""]
         for i, name in enumerate(referrals_students)
     ]
-    # ‏noor-10: الرقم 9 محجوز لملف مستندات المرحلة 12 (تطوير متوازٍ)
+    # noor-10: الرقم 9 محجوز لملف مستندات المرحلة 12 (تطوير متوازٍ)
     _write(FIXTURES_DIR / "noor-10.xlsx", referrals_rows)
 
     # ---- ملف الإرشاد (م14) — صف/فصل مستقل: الحالة الإرشادية لا تختلط

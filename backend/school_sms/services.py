@@ -11,6 +11,7 @@ from attendance.models import DailyAbsenceStatus, DailyAttendanceSummary
 from audit.models import AuditAction
 from audit.services import record_event
 from common.errors import ApiError
+from parents.contact_security import blocked_student_ids
 from school_sms.models import AbsenceSmsNotice, AbsenceSmsStatus, SchoolSmsIntegration
 from school_sms.security import encrypt_secret, recipient_hash
 from schools.models import SchoolSettings
@@ -116,11 +117,13 @@ def render_absence_message(*, school, summary) -> str:
 def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
     integration = SchoolSmsIntegration.objects.filter(school=school).first()
     rows = list(candidate_absences(school=school, attendance_date=attendance_date))
+    blocked_ids = blocked_student_ids(school=school, students=[row.student for row in rows])
     candidate_ids = [row.student_id for row in rows]
     ready_ids = [
         row.student_id
         for row in eligible_absences(school=school, attendance_date=attendance_date)
         if recipient_issue(row.student.guardian_mobile) is None
+        and row.student_id not in blocked_ids
     ]
     page = max(page, 1)
     entries = rows[(page - 1) * MAX_SEND_BATCH:page * MAX_SEND_BATCH]
@@ -147,6 +150,8 @@ def absence_preview(*, school, attendance_date: date, page: int = 1) -> dict:
             reason = "EXCUSED_ABSENCE"
         elif recipient_issue(row.student.guardian_mobile):
             reason = recipient_issue(row.student.guardian_mobile)
+        elif row.student_id in blocked_ids:
+            reason = "RECIPIENT_SECURITY_REVIEW"
         else:
             reason = None
         return {
@@ -223,8 +228,15 @@ def queue_absence_sms(*, school, actor, attendance_date: date,
             raise ApiError("SMS_RECIPIENT_INVALID", "يوجد رقم جوال ولي أمر غير صحيح؛ صححه أولًا.")
         queued = []
         skipped = []
+        blocked = []
+        blocked_ids = blocked_student_ids(
+            school=school, students=[row.student for row in summaries.values()]
+        )
         for student_id in student_ids:
             row = summaries[student_id]
+            if student_id in blocked_ids:
+                blocked.append(student_id)
+                continue
             defaults = {
                 "absence_status": row.absence_status,
                 "provider": integration.provider,
@@ -269,4 +281,4 @@ def queue_absence_sms(*, school, actor, attendance_date: date,
             ).update(status=AbsenceSmsStatus.FAILED, failure_code="QUEUE_UNAVAILABLE")
             queue_failed.append(notice_id)
     return {"queued": len(queued) - len(queue_failed), "skipped": len(skipped),
-            "queue_failed": len(queue_failed)}
+            "queue_failed": len(queue_failed), "blocked": len(blocked)}

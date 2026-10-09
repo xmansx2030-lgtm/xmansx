@@ -1,11 +1,16 @@
 """Regression tests for cache pressure protections."""
 
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 import common.cache as resilient_cache
 import school_dashboard.cache as dashboard_cache
+from common.cache import delete_if_value
+from common.errors import ApiError
 from operations.health import database_resource_usage, redis_resource_usage
 
 
@@ -115,6 +120,25 @@ def test_performance_cache_outage_warning_is_rate_limited(monkeypatch):
     assert logger.warning.call_count == 2
 
 
+def test_performance_cache_circuit_bounds_retries_and_invalidation(monkeypatch):
+    backend = resilient_cache.ResilientRedisCache("redis://unused/0", {})
+    monkeypatch.setattr(resilient_cache, "_retry_cache_at", 0.0)
+    ticks = [10.0]
+    monkeypatch.setattr(resilient_cache.time, "monotonic", lambda: ticks[0])
+    monkeypatch.setattr(resilient_cache, "_log_cache_unavailable", Mock())
+    failed = Mock(side_effect=OSError("synthetic unavailable"))
+    assert backend._fallback(failed, None) is None
+    assert backend._fallback(failed, None) is None
+    assert failed.call_count == 1
+    # A mutation still succeeds while this optional cache is unavailable.
+    monkeypatch.setattr(dashboard_cache, "cache", backend)
+    dashboard_cache.invalidate_school(900)
+    ticks[0] = 12.1
+    recovered = Mock(return_value="recovered")
+    assert backend._fallback(recovered, None) == "recovered"
+    recovered.assert_called_once()
+
+
 def test_database_resource_usage_is_aggregate_only(monkeypatch):
     cursor = Mock()
     cursor.fetchone.return_value = (12, 3, 1)
@@ -131,6 +155,7 @@ def test_database_resource_usage_is_aggregate_only(monkeypatch):
 
 
 def test_redis_resource_usage_returns_only_pressure_metrics(monkeypatch):
+    monkeypatch.setattr("operations.health.unique_redis_urls", lambda: ("redis://synthetic/0",))
     client = Mock()
     client.info.side_effect = [
         {"used_memory": 100, "used_memory_peak": 140, "maxmemory": 1024},
@@ -159,3 +184,80 @@ def test_long_running_jobs_do_not_store_duplicate_results_in_redis():
     assert process_import_job.ignore_result is True
     assert commit_student_import_job.ignore_result is True
     assert run_purge_job.ignore_result is True
+
+
+class _AtomicCache(_Cache):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.mutex = Lock()
+
+    def get(self, *args, **kwargs):
+        with self.mutex:
+            return super().get(*args, **kwargs)
+
+    def set(self, *args, **kwargs):
+        with self.mutex:
+            return super().set(*args, **kwargs)
+
+    def add(self, *args, **kwargs):
+        with self.mutex:
+            return super().add(*args, **kwargs)
+
+    def delete_if_value(self, key, expected):
+        with self.mutex:
+            if self.values.get(key) == expected:
+                self.values.pop(key)
+                return True
+            return False
+
+
+@pytest.mark.parametrize("outage", [False, True])
+def test_slow_cold_fill_is_shared_instead_of_eight_fallback_builds(monkeypatch, outage):
+    fake = _AtomicCache(acquire_lock=not outage)
+    if outage:
+        fake.is_available = lambda: False
+        fake.set = lambda *_args, **_kwargs: False
+    monkeypatch.setattr(dashboard_cache, "cache", fake)
+    gate = Barrier(8)
+    builder = Mock(side_effect=lambda: (time.sleep(1.25), {"school": 1})[1])
+
+    def request(_):
+        gate.wait()
+        return dashboard_cache.cached(key="dash:1:slow", ttl=15, builder=builder)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(request, range(8)))
+    assert results == [{"school": 1}] * 8
+    assert builder.call_count == 1
+
+
+def test_cold_lease_wait_expires_without_starting_another_builder(monkeypatch, settings):
+    fake = _AtomicCache(acquire_lock=False)
+    monkeypatch.setattr(dashboard_cache, "cache", fake)
+    settings.DASHBOARD_CACHE_WAIT_SECONDS = 0.05
+    builder = Mock()
+    with pytest.raises(ApiError) as error:
+        dashboard_cache.cached(key="dash:1:busy", ttl=15, builder=builder)
+    assert error.value.code == "DATA_REFRESH_BUSY"
+    assert error.value.status_code == 503
+    builder.assert_not_called()
+
+
+def test_builder_error_releases_its_lease_and_allows_a_later_refresh(monkeypatch):
+    fake = _AtomicCache()
+    monkeypatch.setattr(dashboard_cache, "cache", fake)
+    with pytest.raises(RuntimeError, match="synthetic"):
+        dashboard_cache.cached(
+            key="dash:1:failure", ttl=15, builder=Mock(side_effect=RuntimeError("synthetic"))
+        )
+    recovered = dashboard_cache.cached(
+        key="dash:1:failure", ttl=15, builder=lambda: "recovered"
+    )
+    assert recovered == "recovered"
+
+
+def test_real_redis_lease_release_cannot_delete_a_successor():
+    from django.core.cache import cache
+    cache.set("pressure:lease", "successor", timeout=30)
+    assert delete_if_value(cache, "pressure:lease", "expired-owner") is False
+    assert cache.get("pressure:lease") == "successor"
+    assert delete_if_value(cache, "pressure:lease", "successor") is True

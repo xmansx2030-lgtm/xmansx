@@ -31,6 +31,7 @@ export function RegisterSchoolPage() {
   const me = useMe();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [completedRegistration, setCompletedRegistration] = useState(false);
   const [searchParams] = useSearchParams();
   const requestedPlan = Number(searchParams.get("plan"));
   const plans = useQuery({
@@ -45,6 +46,7 @@ export function RegisterSchoolPage() {
   const [planId, setPlanId] = useState<number | null>(Number.isFinite(requestedPlan) && requestedPlan > 0 ? requestedPlan : null);
   const [managerName, setManagerName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -63,10 +65,11 @@ export function RegisterSchoolPage() {
   const mutation = useMutation({
     mutationFn: (input: SchoolRegistrationInput) => registerSchool(input),
     onSuccess: async (data) => {
+      setCompletedRegistration(true);
       queryClient.clear();
       await purgeSensitiveBrowserCaches();
       queryClient.setQueryData(ME_QUERY_KEY, data);
-      navigate("/workspace", { replace: true });
+      navigate(data.school_recovery_email_enabled ? "/account/recovery-email" : "/workspace", { replace: true });
     },
     onError: (error) => {
       if (!(error instanceof ApiError)) return;
@@ -75,6 +78,7 @@ export function RegisterSchoolPage() {
         school_type: firstDetail(error.details, "school_type"),
         manager_name: firstDetail(error.details, "manager_name"),
         manager_mobile: firstDetail(error.details, "manager_mobile"),
+        manager_email: firstDetail(error.details, "manager_email"),
         password: firstDetail(error.details, "password"),
         confirm_password: firstDetail(error.details, "confirm_password"),
         plan_id: firstDetail(error.details, "plan_id"),
@@ -86,6 +90,7 @@ export function RegisterSchoolPage() {
   if (me.isSuccess) {
     if (me.data.must_change_password) return <Navigate to="/change-password" replace />;
     if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
+    if (completedRegistration && me.data.school_recovery_email_enabled) return <Navigate to="/account/recovery-email" replace />;
     return <Navigate to={me.data.active_school ? "/workspace" : "/select-school"} replace />;
   }
 
@@ -103,6 +108,7 @@ export function RegisterSchoolPage() {
     const errors: FieldErrors = {};
     if (managerName.trim().length < 3) errors.manager_name = "أدخل اسم مدير المدرسة من 3 أحرف على الأقل.";
     if (!canonicalMobile) errors.manager_mobile = "أدخل رقم جوال سعودي صحيحًا.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.manager_email = "أدخل بريدًا إلكترونيًا صحيحًا.";
     if (password.length < 8 || /^\d+$/.test(password)) errors.password = "استخدم 8 أحرف على الأقل، ولا تجعلها أرقامًا فقط.";
     if (password !== confirmPassword) errors.confirm_password = "تأكيد كلمة المرور غير مطابق.";
     if (!termsAccepted) errors.terms_accepted = "وافق على الإقرار لإكمال التسجيل.";
@@ -112,6 +118,7 @@ export function RegisterSchoolPage() {
     mutation.mutate({
       school_name: schoolName.trim(), school_type: schoolType,
       manager_name: managerName.trim(), manager_mobile: canonicalMobile,
+      manager_email: email.trim(),
       password, confirm_password: confirmPassword, plan_id: effectivePlanId,
       terms_accepted: termsAccepted,
     });
@@ -151,6 +158,7 @@ export function RegisterSchoolPage() {
             </> : <>
               <div className="mb-6 rounded-2xl border border-teal-100 bg-teal-50/70 p-4"><p className="text-xs font-bold text-teal-800">المدرسة المختارة</p><div className="mt-1 flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{schoolName}</strong><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-teal-800">{selectedPlan?.name}</span></div></div>
               <div className="grid gap-5 sm:grid-cols-2"><TextField label="اسم مدير المدرسة" name="manager_name" autoComplete="name" placeholder="الاسم الكامل" maxLength={150} required value={managerName} onChange={(event) => setManagerName(event.target.value)} error={fieldErrors.manager_name} /><TextField label="رقم الجوال" name="manager_mobile" type="tel" inputMode="tel" dir="ltr" autoComplete="tel" placeholder="05XXXXXXXX" maxLength={20} required value={mobile} onChange={(event) => setMobile(toLatinDigits(event.target.value))} error={fieldErrors.manager_mobile} /></div>
+              <TextField label="البريد الإلكتروني للمدير" name="manager_email" type="email" dir="ltr" autoComplete="email" maxLength={254} required value={email} onChange={(event) => { setEmail(event.target.value); if (fieldErrors.manager_email) setFieldErrors((previous) => ({ ...previous, manager_email: undefined })); }} error={fieldErrors.manager_email} description="لاستلام تفاصيل اشتراك المدرسة وتنبيهاته." className="mt-5" />
               <div className="mt-5 grid gap-5 sm:grid-cols-2"><PasswordInput label="كلمة المرور" name="password" autoComplete="new-password" required value={password} onChange={(event) => setPassword(event.target.value)} error={fieldErrors.password} /><PasswordInput label="تأكيد كلمة المرور" name="confirm_password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} error={fieldErrors.confirm_password} /></div>
               <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">{passwordChecks.map((check) => <li key={check.label} className={`flex items-center gap-1.5 text-xs font-semibold ${check.valid ? "text-emerald-700" : "text-slate-400"}`}><span className={`grid size-5 place-items-center rounded-full ${check.valid ? "bg-emerald-50" : "bg-slate-100"}`}><Check size={12} /></span>{check.label}</li>)}</ul>
               <label className={`mt-6 flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${fieldErrors.terms_accepted ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"}`}><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} className="mt-0.5 size-5 shrink-0" /><span className="text-sm leading-6 text-slate-600">أقر بصحة بيانات المدرسة، وأوافق على استخدامها لإنشاء الحساب وتشغيل الخدمة.</span></label>{fieldErrors.terms_accepted && <p role="alert" className="mt-2 text-sm text-red-700">{fieldErrors.terms_accepted}</p>}

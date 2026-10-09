@@ -12,6 +12,7 @@ from django.utils import timezone
 from attendance.models import AttendanceMark, AttendanceSession, DailyAttendanceSummary
 from audit.models import AuditLog
 from common.errors import ApiError
+from parents.models import GuardianContactReview, GuardianStudentRelation, RelationStatus
 from students.management.commands.audit_student_reconciliation import (
     _parse_group,
     audit_group,
@@ -25,6 +26,131 @@ from students.models import (
 )
 from students.services.lifecycle import set_student_status
 from tests.attendance_helpers import setup_attendance_env
+
+
+@pytest.fixture
+def parent_reconciliation_case(make_school, make_user):
+    school = make_school()
+    env = setup_attendance_env(school, students_count=2)
+    target, source = env["students"]
+    Student.objects.filter(pk__in=[target.pk, source.pk]).update(
+        full_name="الطالب نفسه", guardian_name="ولي الأمر"
+    )
+    StudentEnrollment.objects.filter(student_id__in=[target.pk, source.pk]).update(
+        enrolled_at=date(2026, 9, 29)
+    )
+    actor = make_user("0550008030")
+    import_job = StudentImportJob.objects.create(
+        school=school,
+        uploaded_by=actor,
+        academic_year=env["year"],
+        original_filename="students.xlsx",
+        status=ImportJobStatus.COMPLETED,
+        summary={"missing_ids": [source.pk]},
+    )
+    target.refresh_from_db()
+    source.refresh_from_db()
+    return school, target, source, import_job, actor
+
+
+@pytest.mark.django_db
+def test_reconciliation_retains_source_contact_reviews_without_moving_them(
+    parent_reconciliation_case,
+):
+    school, target, source, import_job, _ = parent_reconciliation_case
+    # Explicit evidence keeps this regression valid even without PostgreSQL triggers.
+    review = GuardianContactReview.objects.create(
+        school=school,
+        student=source,
+        previous_revision=source.guardian_contact_revision,
+        current_revision=source.guardian_contact_revision,
+        source="RECONCILIATION_REGRESSION",
+        reason="مراجعة تحتاج توثيقاً مستقلاً",
+    )
+    before = list(
+        GuardianContactReview.objects.filter(student_id__in=[target.pk, source.pk])
+        .order_by("pk")
+        .values_list("pk", "student_id", "current_revision", "resolved_at")
+    )
+    report = audit_group([target.pk, source.pk], school_id=school.pk)
+    audited = next(
+        row for row in report["relations"] if row["model"] == "parents.GuardianContactReview"
+    )
+    assert audited["counts"][source.pk] >= 1
+
+    call_command(
+        "audit_student_reconciliation",
+        "--school-id",
+        str(school.pk),
+        "--group",
+        f"{target.pk}:{source.pk}",
+        "--apply",
+        "--expected-import-job",
+        str(import_job.pk),
+        stdout=StringIO(),
+    )
+    source.refresh_from_db()
+    review.refresh_from_db()
+    assert source.status == "ARCHIVED"
+    assert source.merged_into_id == target.pk
+    assert review.student_id == source.pk
+    assert (
+        list(
+            GuardianContactReview.objects.filter(student_id__in=[target.pk, source.pk])
+            .order_by("pk")
+            .values_list("pk", "student_id", "current_revision", "resolved_at")
+        )
+        == before
+    )
+    assert not GuardianStudentRelation.objects.filter(student=target).exists()
+
+
+@pytest.mark.django_db
+def test_reconciliation_blocks_source_guardian_grant_before_archiving_or_reparenting(
+    parent_reconciliation_case,
+    make_user,
+):
+    school, target, source, import_job, reviewer = parent_reconciliation_case
+    parent = make_user("0550008031")
+    relation = GuardianStudentRelation.objects.create(
+        school=school,
+        student=source,
+        user=parent,
+        status=RelationStatus.ACTIVE,
+        approved_by=reviewer,
+        approved_at=timezone.now(),
+        contact_revision=source.guardian_contact_revision,
+        verification_note="تحقق مستقل من هوية ولي الأمر وصفته",
+    )
+    source_enrollment_ids = list(
+        StudentEnrollment.objects.filter(student=source).values_list("pk", flat=True)
+    )
+    with pytest.raises(
+        CommandError, match="Unsupported linked history: parents.GuardianStudentRelation"
+    ):
+        call_command(
+            "audit_student_reconciliation",
+            "--school-id",
+            str(school.pk),
+            "--group",
+            f"{target.pk}:{source.pk}",
+            "--apply",
+            "--expected-import-job",
+            str(import_job.pk),
+            stdout=StringIO(),
+        )
+    source.refresh_from_db()
+    relation.refresh_from_db()
+    assert source.status == "ACTIVE"
+    assert source.merged_into_id is None
+    assert relation.student_id == source.pk
+    assert relation.user_id == parent.pk
+    assert relation.status == RelationStatus.ACTIVE
+    assert not GuardianStudentRelation.objects.filter(student=target).exists()
+    assert (
+        list(StudentEnrollment.objects.filter(student=source).values_list("pk", flat=True))
+        == source_enrollment_ids
+    )
 
 
 @pytest.mark.django_db
@@ -125,9 +251,13 @@ def test_reconciliation_audit_reports_attendance_and_enrollment_collisions(
     with pytest.raises(CommandError, match="Conflicting attendance facts"):
         call_command(
             "audit_student_reconciliation",
-            "--school-id", str(school.pk),
-            "--group", f"{target.pk}:{old_one.pk}:{old_two.pk}",
-            "--apply", "--expected-import-job", str(import_job.pk),
+            "--school-id",
+            str(school.pk),
+            "--group",
+            f"{target.pk}:{old_one.pk}:{old_two.pk}",
+            "--apply",
+            "--expected-import-job",
+            str(import_job.pk),
             stdout=StringIO(),
         )
     assert Student.objects.filter(pk__in=[old_one.pk, old_two.pk], status="ACTIVE").count() == 2

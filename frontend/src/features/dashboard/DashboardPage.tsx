@@ -13,6 +13,7 @@ import {
   FileCheck2,
   Filter,
   GraduationCap,
+  HeartHandshake,
   Settings,
   RefreshCw,
   Send,
@@ -1128,6 +1129,8 @@ function AttentionRow({ item }: { item: AttentionItem }) {
     ATTENDANCE_OVERDUE: { icon: Activity, action: "متابعة التحضير" },
     WARNING_DUE: { icon: BellRing, action: "مراجعة الإنذار" },
     EXCUSE_PENDING: { icon: FileCheck2, action: "مراجعة العذر" },
+    PARENT_EXCUSE_PENDING: { icon: HeartHandshake, action: "مراجعة عذر ولي الأمر" },
+    PARENT_CORRECTION_PENDING: { icon: FileCheck2, action: "مراجعة تصحيح الحضور" },
     REFERRAL_UNASSIGNED: { icon: Send, action: "تعيين وكيل" },
   };
   const meta = presentation[item.kind] ?? { icon: AlertTriangle, action: "فتح المتابعة" };

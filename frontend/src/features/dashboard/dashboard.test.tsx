@@ -358,6 +358,19 @@ describe("لوحة إدارة المدرسة", () => {
     ).toHaveTextContent("50%");
   });
 
+  it.each(["SCHOOL_MANAGER", "VICE_PRINCIPAL"])("%s sees family actions linked to the exact request", async (role) => {
+    mockDashboard({
+      "/auth/me/": { body: roleMe([role as "SCHOOL_MANAGER" | "VICE_PRINCIPAL"]) },
+      "/dashboard/attention/": { body: { total: 2, counts: { parent_excuse_pending: 1, parent_correction_pending: 1 }, items: [
+        { kind: "PARENT_EXCUSE_PENDING", entity_id: 901, priority: "NORMAL", display_text: "عذر ولي أمر بانتظار المراجعة", target_url: "/parent-management?tab=requests&type=EXCUSE&request=901" },
+        { kind: "PARENT_CORRECTION_PENDING", entity_id: 902, priority: "NORMAL", display_text: "طلب تصحيح حضور بانتظار المراجعة", target_url: "/parent-management?tab=requests&type=CORRECTION&request=902" },
+      ] } },
+    });
+    renderApp("/dashboard");
+    expect(await screen.findByRole("link", { name: "مراجعة عذر ولي الأمر" })).toHaveAttribute("href", "/parent-management?tab=requests&type=EXCUSE&request=901");
+    expect(screen.getByRole("link", { name: "مراجعة تصحيح الحضور" })).toHaveAttribute("href", "/parent-management?tab=requests&type=CORRECTION&request=902");
+  });
+
   it("أساس صفري يظهر «جديد» لا نسبة لا نهائية", async () => {
     mockDashboard();
     renderApp("/dashboard");

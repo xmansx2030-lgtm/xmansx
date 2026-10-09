@@ -47,6 +47,7 @@ def payload(plan, *, mobile="0551234567"):
         "school_type": "GIRLS",
         "manager_name": "ريم القحطاني",
         "manager_mobile": mobile,
+        "manager_email": "manager@example.invalid",
         "password": PASSWORD,
         "confirm_password": PASSWORD,
         "plan_id": plan.id,

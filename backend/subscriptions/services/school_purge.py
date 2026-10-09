@@ -17,6 +17,7 @@ from django.db.models.deletion import ProtectedError
 from audit.models import AuditAction, AuditLog
 from audit.services import record_event
 from common.errors import ApiError
+from common.tenant_rls import tenant_context
 from memberships.models import SchoolMembership
 from platform_team.access import PlatformCapability, has_platform_capability
 from schools.models import School
@@ -158,21 +159,37 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
                     "user_id", flat=True
                 )
             )
-            storage_objects = _storage_objects(school.id, scoped_models)
+            User = get_user_model()
+            # Recovery completion locks User before employment/role rows. Match
+            # that order before deleting those rows, including shared employees.
+            list(
+                User.objects.select_for_update()
+                .filter(id__in=member_user_ids)
+                .order_by("id")
+                .values_list("id", flat=True)
+            )
+            from parents.recovery_purge import recovery_purge_scope
 
-            for scoped in scoped_models:
-                if scoped.model is AuditLog:
-                    deleted, _ = _delete_school_audit_logs(school.id)
-                else:
-                    deleted, _ = scoped.model._default_manager.filter(
-                        **{scoped.school_field.attname: school.id}
-                    ).delete()
+            # Recovery review metadata deliberately ignores ordinary platform RLS
+            # bypass. This exact deletion purpose is checked again by PostgreSQL.
+            with (
+                tenant_context(user_id=actor.id, bypass=True),
+                recovery_purge_scope(school_id=school.id, actor_id=actor.id),
+            ):
+                storage_objects = _storage_objects(school.id, scoped_models)
+
+                for scoped in scoped_models:
+                    if scoped.model is AuditLog:
+                        deleted, _ = _delete_school_audit_logs(school.id)
+                    else:
+                        deleted, _ = scoped.model._default_manager.filter(
+                            **{scoped.school_field.attname: school.id}
+                        ).delete()
+                    database_records_deleted += deleted
+
+                deleted, _ = school.delete()
                 database_records_deleted += deleted
 
-            deleted, _ = school.delete()
-            database_records_deleted += deleted
-
-            User = get_user_model()
             orphan_ids = list(
                 User.objects.filter(id__in=member_user_ids, memberships__isnull=True)
                 .filter(
@@ -182,6 +199,32 @@ def permanently_delete_school(*, school_id: int, confirmation_name: str, actor, 
                 )
                 .values_list("id", flat=True)
             )
+            # A global employee account may still follow children at another school.
+            from parents.models import GuardianStudentRelation
+
+            guardian_user_ids = set(
+                GuardianStudentRelation.objects.filter(user_id__in=orphan_ids)
+                .values_list("user_id", flat=True)
+            )
+            orphan_ids = [user_id for user_id in orphan_ids if user_id not in guardian_user_ids]
+            # A recovery credential belongs to the global account, even after its
+            # final school is removed. These tables reject ordinary platform
+            # bypass; read only an existence bit in each exact candidate's scope.
+            from parents.email_recovery_models import (
+                AccountRecoveryEmail,
+                AccountRecoveryEmailDelivery,
+            )
+            from parents.email_recovery_services import email_scope
+
+            recovery_bound_ids = set()
+            for user_id in orphan_ids:
+                with email_scope(user_id=user_id):
+                    if (
+                        AccountRecoveryEmail.objects.filter(user_id=user_id).exists()
+                        or AccountRecoveryEmailDelivery.objects.filter(user_id=user_id).exists()
+                    ):
+                        recovery_bound_ids.add(user_id)
+            orphan_ids = [user_id for user_id in orphan_ids if user_id not in recovery_bound_ids]
             if orphan_ids:
                 User.objects.filter(id__in=orphan_ids).delete()
                 deleted_user_accounts = len(orphan_ids)

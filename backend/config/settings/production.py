@@ -4,6 +4,8 @@
 لا سقوط صامت إلى default غير آمن.
 """
 
+import os
+from email.utils import parseaddr
 from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet
@@ -41,6 +43,7 @@ R2_BACKUP_ENABLED = env_bool("R2_BACKUP_ENABLED", R2_ENABLED)
 
 # مفاتيح تشفير المعرفات — إلزامية في الإنتاج (ADR-009)
 FIELD_ENCRYPTION_KEYS = env_list("FIELD_ENCRYPTION_KEYS")
+PARENT_PORTAL_BASE_URL = env_str("PARENT_PORTAL_BASE_URL", "")
 NATIONAL_ID_HMAC_KEY = env_str("NATIONAL_ID_HMAC_KEY")
 
 _DEV_FERNET_KEY = "g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo="
@@ -135,3 +138,56 @@ if SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS <= 0:
 _reject_insecure_production_values()
 _validate_origins("DJANGO_CSRF_TRUSTED_ORIGINS", CSRF_TRUSTED_ORIGINS)
 _validate_origins("DJANGO_CORS_ALLOWED_ORIGINS", CORS_ALLOWED_ORIGINS)
+
+if PARENT_RECOVERY_EMAIL_ADAPTER != "resend" and (
+    os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings.parent_staging"
+    or os.environ.get("PARENT_STAGING_LOCAL_ONLY") != "1"
+):
+    raise ImproperlyConfigured("Production recovery email must use Resend")
+if PARENT_FAMILY_INVITATION_SMS_ADAPTER != "provider" and (
+    os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings.parent_staging"
+    or os.environ.get("PARENT_STAGING_LOCAL_ONLY") != "1"
+):
+    raise ImproperlyConfigured("Production family invitations must use the school SMS provider")
+if not 300 <= PARENT_FAMILY_INVITATION_TTL_SECONDS <= 172800:
+    raise ImproperlyConfigured("Family invitation TTL must be between 300 and 172800 seconds")
+if not 300 <= PARENT_RECOVERY_VERIFY_TTL_SECONDS <= 86400:
+    raise ImproperlyConfigured("Recovery verification TTL must be between 300 and 86400 seconds")
+if not 60 <= PARENT_RECOVERY_RESET_TTL_SECONDS <= 900:
+    raise ImproperlyConfigured("Recovery reset TTL must be between 60 and 900 seconds")
+if not 1 <= RESEND_TIMEOUT_SECONDS <= 30:
+    raise ImproperlyConfigured("Resend timeout must be between 1 and 30 seconds")
+if PARENT_RECOVERY_EMAIL_ENABLED and PARENT_RECOVERY_EMAIL_ADAPTER == "resend":
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+
+    _sender = parseaddr(RESEND_FROM_EMAIL)[1]
+    try:
+        validate_email(_sender)
+    except ValidationError as exc:
+        raise ImproperlyConfigured("An approved recovery sender must be configured") from exc
+    if (
+        not RESEND_API_KEY
+        or "\r" in RESEND_FROM_EMAIL
+        or "\n" in RESEND_FROM_EMAIL
+        or _sender.rsplit("@", 1)[-1].lower().endswith((".invalid", ".test", ".localhost"))
+        or urlparse(PARENT_PORTAL_BASE_URL).scheme != "https"
+    ):
+        raise ImproperlyConfigured("Resend recovery requires its key, sender and HTTPS origin")
+
+if SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED and not PARENT_RECOVERY_EMAIL_ENABLED:
+    raise ImproperlyConfigured("School recovery requires the verified recovery-email service")
+if SUBSCRIPTION_EMAIL_ENABLED:
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+
+    _subscription_sender = parseaddr(SUBSCRIPTION_EMAIL_FROM)[1]
+    try:
+        validate_email(_subscription_sender)
+    except ValidationError as exc:
+        raise ImproperlyConfigured("An approved subscription sender must be configured") from exc
+    if (not RESEND_API_KEY or "\r" in SUBSCRIPTION_EMAIL_FROM or "\n" in SUBSCRIPTION_EMAIL_FROM
+            or _subscription_sender.rsplit("@", 1)[-1].lower().endswith(
+                (".invalid", ".test", ".localhost")
+            )):
+        raise ImproperlyConfigured("Subscription email requires Resend and an approved sender")

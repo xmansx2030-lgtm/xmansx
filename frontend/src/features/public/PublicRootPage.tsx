@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 
 import { useMe } from "@/features/auth/useMe";
+import { authenticatedDestination } from "@/features/auth/destination";
 import { LandingPage } from "@/features/public/LandingPage";
 
 /** الصفحة العامة تبقى متاحة للزائر، والمسجل يُعاد إلى مساحة عمله بلا وميض تسجيل. */
@@ -18,10 +19,7 @@ export function PublicRootPage() {
     );
   }
   if (me.isSuccess) {
-    if (me.data.must_change_password) return <Navigate to="/change-password" replace />;
-    if (me.data.is_platform_admin) return <Navigate to="/platform" replace />;
-    if (me.data.active_school) return <Navigate to="/workspace" replace />;
-    return <Navigate to="/select-school" replace />;
+    return <Navigate to={authenticatedDestination(me.data)} replace />;
   }
   return <LandingPage />;
 }

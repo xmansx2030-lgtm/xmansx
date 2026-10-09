@@ -1,0 +1,10 @@
+# Independent local email verification after base + release-verification.
+# Avoid sharing host ports or databases with earlier verification projects.
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  staging-frontend:
+    image: xmansx-frontend:parent-email-activation-staging
+    profiles: [synthetic-email-browser]

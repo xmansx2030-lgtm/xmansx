@@ -9,6 +9,9 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:5173";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Parent journeys require their private fixture, TLS certificate and fake
+  // delivery adapters. Run them with playwright.parent.config.ts instead.
+  testIgnore: ["parent-*.spec.ts"],
   globalSetup: "./e2e/global-setup.ts",
   // الملفات تتشارك مدارس الـ seed وقيود «عملية واحدة جارية لكل مدرسة» — تسلسل كامل
   workers: 1,

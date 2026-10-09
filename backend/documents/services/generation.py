@@ -186,6 +186,10 @@ def generate_document(
 
     try:
         with transaction.atomic():
+            # Parent acknowledgements lock the school/student before the warning.
+            # Serialize this short creation step before acquiring the warning,
+            # including the pending document's student FK check at commit.
+            lock_school_capacity(school)
             if warning is not None:
                 locked_warning = StudentWarning.objects.select_for_update().get(id=warning.id)
                 if locked_warning.status != WarningStatus.ISSUED:
@@ -254,6 +258,9 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
 
     try:
         with transaction.atomic():
+            # Parent operations hold a school key lock before warning/document
+            # locks; keep capacity locking in that same school-first order.
+            lock_school_capacity(document.school)
             if document.warning_id:
                 warning = StudentWarning.objects.select_for_update().get(id=document.warning_id)
                 if warning.status != WarningStatus.ISSUED:
@@ -262,7 +269,6 @@ def _produce_file(*, document: GeneratedDocument, membership, request=None) -> G
             document = GeneratedDocument.objects.select_for_update().get(id=document.id)
             if document.status == DocumentStatus.VOIDED:
                 return document
-            lock_school_capacity(document.school)
             require_storage_capacity(document.school, adding_bytes=len(pdf_bytes))
             document.file.save(f"{document.id}.pdf", ContentFile(pdf_bytes), save=False)
             document.mime_type = MIME_PDF

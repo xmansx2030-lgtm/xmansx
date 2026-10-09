@@ -1,0 +1,101 @@
+# Isolated local verification only. All credentials below are public test values.
+# Mount the complete checkout read-only so root-level contract files are available.
+name: xmansx-parent-verification
+
+x-verification-environment: &verification-environment
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  PARENT_VERIFICATION_LOCAL_ONLY: "1"
+  POSTGRES_DB: parent_verification
+  POSTGRES_USER: parent_verify_owner
+  POSTGRES_PASSWORD: parent-verify-owner-local-only
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  DJANGO_SECRET_KEY: parent-verification-local-only-secret
+  FIELD_ENCRYPTION_KEYS: g8_LpA8xmZcbg6EMSduJi5tKU9zdBr0HncpN9zAcFNo=
+  NATIONAL_ID_HMAC_KEY: parent-verification-local-only-hmac
+  REDIS_URL: redis://redis:6379/0
+  CACHE_REDIS_URL: redis://redis:6379/0
+  SECURITY_REDIS_URL: redis://redis:6379/1
+  CELERY_BROKER_URL: redis://redis:6379/3
+  CELERY_RESULT_BACKEND: redis://redis:6379/4
+  GENERATED_DOCUMENTS_ROOT: /tmp/parent-verification/private
+  MEDIA_ROOT: /tmp/parent-verification/media
+  DATABASE_BACKUP_ROOT: /tmp/parent-verification/backups
+  BACKUP_STORAGE_LOCATION: /tmp/parent-verification/repository
+  BACKUP_ENVIRONMENT: local
+  BACKUP_REMOTE_ENABLED: "false"
+  BACKUP_SCHEDULE_ENABLED: "false"
+  R2_ENABLED: "false"
+  R2_BACKUP_ENABLED: "false"
+  SENTRY_DSN: ""
+  PARENT_PORTAL_BASE_URL: http://localhost:5174
+  DEV_EXTRA_ORIGINS: http://localhost:5174,http://127.0.0.1:5174
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: parent_verification
+      POSTGRES_USER: parent_verify_owner
+      POSTGRES_PASSWORD: parent-verify-owner-local-only
+    ports:
+      - "127.0.0.1:5544:5432"
+    volumes:
+      - verification_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U parent_verify_owner -d parent_verification"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8.0-alpine
+    ports:
+      - "127.0.0.1:6399:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  tests:
+    image: xmansx-backend:parent-verification
+    build:
+      context: ./backend
+      target: dev
+    working_dir: /workspace/backend
+    environment: *verification-environment
+    volumes:
+      - ./:/workspace:ro
+      - verification_private:/tmp/parent-verification/private
+    command: pytest --create-db --reuse-db -q -rs -o cache_dir=/tmp/parent-verification/pytest-cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  app:
+    image: xmansx-backend:parent-verification
+    working_dir: /workspace/backend
+    environment:
+      <<: *verification-environment
+      DJANGO_SETTINGS_MODULE: config.settings.parent_verification
+      POSTGRES_USER: parent_verify_app
+      POSTGRES_PASSWORD: parent-verify-app-local-only
+      LOGIN_RATE_LIMIT_IP_MAX: "500"
+    volumes:
+      - ./:/workspace:ro
+      - verification_private:/tmp/parent-verification/private
+    ports:
+      - "127.0.0.1:8011:8000"
+    command: python manage.py runserver 0.0.0.0:8000 --noreload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  verification_pgdata:
+  verification_private:

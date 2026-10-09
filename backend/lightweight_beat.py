@@ -35,6 +35,7 @@ backup_enabled = _env_bool("BACKUP_SCHEDULE_ENABLED", False)
 app.conf.update(
     timezone="Asia/Riyadh",
     beat_schedule=build_beat_schedule(
+        subscription_email_enabled=_env_bool("SUBSCRIPTION_EMAIL_ENABLED", False),
         ministry_calendar_enabled=_env_bool("MINISTRY_CALENDAR_ENABLED", True),
         heartbeat_interval_seconds=_env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
         backup_enabled=backup_enabled,

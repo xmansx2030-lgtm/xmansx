@@ -9,6 +9,12 @@ describe("safe QR return paths", () => {
       "/login?returnTo=%2Fqr%2Fvalid-token_123",
     );
   });
+  it("allows bounded parent destinations and school UUID registration only", () => {
+    expect(safeReturnTo("/parent")).toBe("/parent");
+    expect(safeReturnTo("/parent/register/11111111-1111-4111-8111-111111111111")).toBe("/parent/register/11111111-1111-4111-8111-111111111111");
+    expect(safeReturnTo("/parent/activate#token=secret")).toBeNull();
+    expect(safeReturnTo("/parent/register/token?next=evil")).toBeNull();
+  });
 
   it.each([
     "https://evil.example/qr/token",

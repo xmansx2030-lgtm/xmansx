@@ -97,6 +97,18 @@ test("new teacher journey: import → one-time credentials → forced password c
   await page.getByLabel("كلمة المرور الحالية").fill(teacher1TempPassword);
   await page.getByLabel("كلمة المرور الجديدة").fill(TEACHER1_NEW_PASSWORD);
   await page.getByLabel("تأكيد كلمة المرور").fill(TEACHER1_NEW_PASSWORD);
+  let passwordChanges = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/auth/change-initial-password/") {
+      passwordChanges += 1;
+    }
+  });
+  // The school email extension requires the imported employee's own email
+  // before the atomic first-password change; importing staff still needs none.
+  await page.getByRole("button", { name: "حفظ كلمة المرور" }).click();
+  await expect(page.getByRole("alert")).toContainText("أدخل بريدًا إلكترونيًا صحيحًا");
+  expect(passwordChanges).toBe(0);
+  await page.getByLabel("البريد الإلكتروني", { exact: true }).fill(`teacher-${m.tag}@example.invalid`);
   await page.getByRole("button", { name: "حفظ كلمة المرور" }).click();
 
   // يدخل مدرسته (الوحيدة) مباشرة
@@ -104,6 +116,7 @@ test("new teacher journey: import → one-time credentials → forced password c
     timeout: 15_000,
   });
   await expect(page.getByTestId("user-roles")).toHaveText("معلم");
+  expect(passwordChanges).toBe(1);
 });
 
 test("existing multi-school teacher: B imports same mobile → invitation → accept → both schools", async ({

@@ -6,7 +6,7 @@
  */
 
 import { apiRequest } from "@/api/client";
-import type { Paginated } from "@/features/warnings/api";
+import type { Paginated, WarningRow } from "@/features/warnings/api";
 
 export type ActionType =
   | "PARENT_CONTACT"
@@ -141,8 +141,22 @@ export const cancelStudentAction = (actionId: number, reason: string) =>
     body: { reason },
   });
 
-export const getStudentDocuments = (studentId: number, signal?: AbortSignal) =>
-  apiRequest<Paginated<DocumentRow>>(`/documents/?student=${studentId}`, { signal });
+export const getStudentDocuments = (studentId: number, signal?: AbortSignal, page = 1) =>
+  apiRequest<Paginated<DocumentRow>>(`/documents/?student=${studentId}&page=${page}&page_size=25`, { signal });
+
+/** Every issued warning is selectable, including warnings beyond the first page. */
+export async function getDocumentWarningOptions(studentId: number, signal?: AbortSignal): Promise<WarningRow[]> {
+  const warnings: WarningRow[] = [];
+  for (let page = 1; ; page += 1) {
+    const data = await apiRequest<Paginated<WarningRow>>(
+      `/warnings/?student=${studentId}&status=ISSUED&page=${page}&page_size=100`, { signal },
+    );
+    if (data.next && data.results.length === 0) throw new Error("تعذر تحميل بقية الإنذارات.");
+    warnings.push(...data.results);
+    // Keep the same student/status parameters; never follow a server-supplied URL.
+    if (!data.next) return warnings;
+  }
+}
 
 export const previewDocument = (payload: Omit<GeneratePayload, "create_action" | "notes">) =>
   apiRequest<DocumentPreview>("/documents/preview/", { method: "POST", body: payload });

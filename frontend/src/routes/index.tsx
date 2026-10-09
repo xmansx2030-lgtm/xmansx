@@ -24,7 +24,31 @@ export const routes = [
       { path: "/", element: <PublicRootPage /> },
       { path: "/register", element: <RegisterSchoolPage /> },
       { path: "/login", element: <LoginPage /> },
+      {
+        path: "/forgot-password",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).ForgotParentPasswordPage }),
+      },
+      {
+        path: "/reset-password",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).ResetParentPasswordPage }),
+      },
+      {
+        path: "/parent/verify-email",
+        lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).VerifyRecoveryEmailPage }),
+      },
       { path: "/change-password", element: <ChangeInitialPasswordPage /> },
+      {
+        path: "/parent/register/:schoolToken",
+        lazy: async () => ({ Component: (await import("@/features/parent/RegistrationPage")).RegistrationPage }),
+      },
+      {
+        path: "/parent/activate",
+        lazy: async () => ({ Component: (await import("@/features/parent/ActivationPage")).ActivationPage }),
+      },
+      {
+        path: "/parent/invitation",
+        lazy: async () => ({ Component: (await import("@/features/parent/FamilyInvitationPage")).FamilyInvitationPage }),
+      },
       {
         path: "/qr/:token",
         lazy: async () => ({
@@ -34,6 +58,31 @@ export const routes = [
       {
         element: <RequireAuth />,
         children: [
+          {
+            path: "/account/complete-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).CompleteSchoolEmailPage }),
+          },
+          {
+            path: "/account/recovery-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).RecoveryEmailPage }),
+          },
+          {
+            path: "/parent/recovery-email",
+            lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).RecoveryEmailPage }),
+          },
+          {
+            path: "parent",
+            lazy: async () => ({ Component: (await import("@/features/parent/ParentShell")).ParentShell }),
+            children: [
+              { index: true, lazy: async () => ({ Component: (await import("@/features/parent/ParentPages")).ParentHomePage }) },
+              { path: "attendance", lazy: async () => ({ Component: (await import("@/features/parent/ParentPages")).ParentAttendancePage }) },
+              { path: "children/:relationId", lazy: async () => ({ Component: (await import("@/features/parent/ChildPage")).ChildPage }) },
+              { path: "requests", lazy: async () => ({ Component: (await import("@/features/parent/ParentPages")).ParentRequestsPage }) },
+              { path: "notifications", lazy: async () => ({ Component: (await import("@/features/parent/ParentPages")).ParentNotificationsPage }) },
+              { path: "account", lazy: async () => ({ Component: (await import("@/features/parent/ParentPages")).ParentAccountPage }) },
+              { path: "*", element: <NotFoundPage /> },
+            ],
+          },
           { path: "/select-school", element: <SelectSchoolPage /> },
           {
             element: <RequirePlatformAdmin />,
@@ -149,6 +198,10 @@ export const routes = [
                   {
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL", "COUNSELOR"]} />,
                     children: [
+                      {
+                        path: "parent-management",
+                        lazy: async () => ({ Component: (await import("@/features/parent/ParentManagementPage")).ParentManagementPage }),
+                      },
                       {
                         path: "academic-calendar",
                         lazy: async () => ({ Component: (await import("@/features/settings/SchoolCalendarPage")).SchoolCalendarPage }),

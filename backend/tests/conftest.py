@@ -26,7 +26,13 @@ def _isolated_media_root(settings, tmp_path):
 @pytest.fixture
 def make_user(db):
     def _make(mobile: str, **kwargs) -> User:
-        return User.objects.create_user(mobile=mobile, password=PASSWORD, **kwargs)
+        verified = kwargs.pop("recovery_email_verified", False)
+        user = User.objects.create_user(mobile=mobile, password=PASSWORD, **kwargs)
+        if verified:
+            from tests.parent_email_helpers import provision_verified_recovery_email
+
+            provision_verified_recovery_email(user)
+        return user
 
     return _make
 

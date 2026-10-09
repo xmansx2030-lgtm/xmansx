@@ -125,6 +125,14 @@ services:
         value: "5"
       - key: DATABASE_CONN_MAX_AGE
         value: "60"
+      - key: DATABASE_POOL_ENABLED
+        value: "true"
+      - key: DATABASE_POOL_MIN_SIZE
+        value: "0"
+      - key: DATABASE_POOL_MAX_SIZE
+        value: "2"
+      - key: DATABASE_POOL_MAX_WAITING
+        value: "4"
       - key: CELERY_WORKER_CONCURRENCY
         value: "1"
       - key: CELERY_WORKER_POOL
@@ -159,6 +167,8 @@ services:
           property: hostport
       - key: PUBLIC_SCHEME
         value: https
+      - key: API_MAX_INFLIGHT
+        value: "16"
 
 databases:
   - name: xmansx-postgres

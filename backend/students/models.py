@@ -85,6 +85,8 @@ class Student(TimestampedModel):
     full_name = models.CharField("اسم الطالب", max_length=200)
     guardian_name = models.CharField(max_length=150, blank=True, default="")
     guardian_mobile = models.CharField(max_length=16, blank=True, default="")  # مطبع إن وجد
+    # PostgreSQL owns revision changes, including queryset/bulk/direct SQL writes.
+    guardian_contact_revision = models.PositiveIntegerField(default=1, db_default=1, editable=False)
     merged_into = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.PROTECT,
         related_name="merged_duplicates",

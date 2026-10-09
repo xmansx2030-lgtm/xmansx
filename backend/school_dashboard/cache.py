@@ -11,8 +11,17 @@
 import hashlib
 import json
 import time
+import uuid
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeout
+from threading import Lock
 
+from django.conf import settings
 from django.core.cache import cache
+from redis.exceptions import RedisError
+
+from common.cache import delete_if_value
+from common.errors import ApiError
 
 #: آجال قصيرة: التشغيل اليومي يتغير كل لحظة، والتاريخ أبطأ تغيرًا
 TTL_TODAY = 15
@@ -23,9 +32,10 @@ TTL_TREND = 180
 # not send every polling client to PostgreSQL. Fresh values are always used
 # when available; stale data is returned only while one request revalidates.
 STALE_GRACE_SECONDS = 30
-LOCK_TTL_SECONDS = 10
-INITIAL_FILL_WAIT_SECONDS = 1.0
 INITIAL_FILL_WAIT_STEP_SECONDS = 0.05
+_flight_lock = Lock()
+_flights: dict[str, Future] = {}
+_MAX_FLIGHTS = 256
 
 _NAMESPACE = "dash"
 
@@ -49,14 +59,67 @@ def cached(
     builder,
     stale_grace_seconds: int = STALE_GRACE_SECONDS,
 ):
-    """Return a fresh value, or briefly stale data while one request refreshes it.
-
-    ``cache.add`` is atomic in Redis. Its short lease coalesces TTL-boundary
-    misses without making a failed cache a correctness dependency: when Redis
-    is unavailable the function still calls ``builder`` as before.
-    """
+    """Share cold fills locally and across replicas; never stampede on timeout."""
     if ttl <= 0:
         return builder()
+    hit = cache.get(key)
+    if hit is not None:
+        return hit
+
+    with _flight_lock:
+        flight = _flights.get(key)
+        owner = flight is None
+        if owner:
+            if len(_flights) >= _MAX_FLIGHTS:
+                raise _busy()
+            flight = _flights[key] = Future()
+    if not owner:
+        stale = cache.get(f"{key}:stale")
+        if stale is not None:
+            return stale
+        try:
+            return flight.result(timeout=settings.DASHBOARD_CACHE_WAIT_SECONDS)
+        except FutureTimeout as exc:
+            raise _busy() from exc
+    try:
+        value = _fill(key=key, ttl=ttl, builder=builder, stale_grace=stale_grace_seconds)
+        flight.set_result(value)
+        return value
+    except BaseException as exc:
+        flight.set_exception(exc)
+        raise
+    finally:
+        with _flight_lock:
+            _flights.pop(key, None)
+
+
+def _busy():
+    error = ApiError(
+        "DATA_REFRESH_BUSY", "جاري تحديث البيانات، حاول بعد قليل.", status_code=503
+    )
+    error.wait = 2
+    return error
+
+
+def _cache_available():
+    check = getattr(cache, "is_available", None)
+    return check is None or check()
+
+
+def _release(key, token):
+    try:
+        release = getattr(cache, "delete_if_value", None)
+        if release is not None:
+            release(key, token)
+        elif hasattr(cache, "_cache"):
+            delete_if_value(cache, key, token)
+        # Other backends leave the bounded lease to expire; never compare/delete
+        # non-atomically, which could delete a successor's lock.
+    except (RedisError, OSError, TimeoutError):
+        pass
+
+
+def _fill(*, key, ttl, builder, stale_grace):
     hit = cache.get(key)
     if hit is not None:
         return hit
@@ -64,31 +127,27 @@ def cached(
     stale_key = f"{key}:stale"
     stale = cache.get(stale_key)
     lock_key = f"{key}:refresh-lock"
-    lock_timeout = min(max(ttl, 1), LOCK_TTL_SECONDS)
-
-    if cache.add(lock_key, "1", timeout=lock_timeout):
-        value = builder()
-        cache.set(key, value, timeout=ttl)
-        cache.set(stale_key, value, timeout=ttl + stale_grace_seconds)
-        return value
-
-    if stale is not None:
-        return stale
-
-    # A cold cache has no safe stale value. Let the lock owner fill it first;
-    # if it is unavailable or slow, preserve availability with one fallback
-    # build instead of returning an incomplete dashboard response.
-    deadline = time.monotonic() + INITIAL_FILL_WAIT_SECONDS
-    while time.monotonic() < deadline:
+    token = uuid.uuid4().hex
+    deadline = time.monotonic() + settings.DASHBOARD_CACHE_WAIT_SECONDS
+    while True:
+        acquired = cache.add(lock_key, token, timeout=settings.DASHBOARD_CACHE_LEASE_SECONDS)
+        if acquired or not _cache_available():
+            try:
+                value = builder()
+                cache.set(key, value, timeout=ttl)
+                cache.set(stale_key, value, timeout=ttl + stale_grace)
+                return value
+            finally:
+                if acquired:
+                    _release(lock_key, token)
+        if stale is not None:
+            return stale
+        if time.monotonic() >= deadline:
+            raise _busy()
         time.sleep(INITIAL_FILL_WAIT_STEP_SECONDS)
         hit = cache.get(key)
         if hit is not None:
             return hit
-
-    value = builder()
-    cache.set(key, value, timeout=ttl)
-    cache.set(stale_key, value, timeout=ttl + stale_grace_seconds)
-    return value
 
 
 def invalidate_school(school_id: int) -> None:

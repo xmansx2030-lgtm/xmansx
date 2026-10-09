@@ -21,6 +21,7 @@ export interface CommonReportFilters {
   student?: number | null;
   page?: number;
   pageSize?: number;
+  allResults?: boolean;
 }
 
 export interface ReportResponse<TSummary, TRow> {
@@ -98,6 +99,7 @@ function query(filters: CommonReportFilters, extra: Record<string, string | numb
   if (filters.student) params.set("student", String(filters.student));
   if (filters.page) params.set("page", String(filters.page));
   if (filters.pageSize) params.set("page_size", String(filters.pageSize));
+  if (filters.allResults) params.set("_export_all", "1");
   Object.entries(extra).forEach(([key, value]) => {
     if (value !== undefined && value !== "") params.set(key, String(value));
   });

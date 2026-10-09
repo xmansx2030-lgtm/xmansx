@@ -4,11 +4,15 @@
 production.py يعيد فرض المتغيرات الحساسة كمتغيرات إلزامية بلا defaults.
 """
 
+import math
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 from beat_schedule import build_beat_schedule
 from config.database import postgres_database
 from config.env import env_bool, env_float, env_int, env_list, env_str
+from config.redis import cache_options
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -40,6 +44,7 @@ INSTALLED_APPS = [
     "counseling",
     "school_dashboard",
     "school_sms",
+    "parents",
     "subscriptions",
     "platform_team",
     "audit",
@@ -98,6 +103,29 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {"default": postgres_database(production=False)}
 DATABASE_RLS_ENFORCED = False
 
+# Activation URL is constructed from trusted deployment configuration, never Host.
+PARENT_PORTAL_BASE_URL = env_str("PARENT_PORTAL_BASE_URL", "http://localhost:5173")
+PARENT_ACTIVATION_TTL_SECONDS = env_int("PARENT_ACTIVATION_TTL_SECONDS", 48 * 60 * 60)
+PARENT_FAMILY_INVITATION_TTL_SECONDS = env_int("PARENT_FAMILY_INVITATION_TTL_SECONDS", 24 * 60 * 60)
+PARENT_FAMILY_INVITATION_SMS_ENABLED = env_bool("PARENT_FAMILY_INVITATION_SMS_ENABLED", False)
+# Only invitation delivery; absence SMS configuration and eligibility are independent.
+PARENT_FAMILY_INVITATION_SMS_ADAPTER = env_str("PARENT_FAMILY_INVITATION_SMS_ADAPTER", "provider")
+PARENT_REGISTRATION_IP_LIMIT = env_int("PARENT_REGISTRATION_IP_LIMIT", 60)
+PARENT_REGISTRATION_MOBILE_LIMIT = env_int("PARENT_REGISTRATION_MOBILE_LIMIT", 10)
+
+# Recovery delivery only; this never disables the parent-space ownership gate.
+PARENT_RECOVERY_EMAIL_ENABLED = env_bool("PARENT_RECOVERY_EMAIL_ENABLED", False)
+PARENT_RECOVERY_VERIFY_TTL_SECONDS = env_int("PARENT_RECOVERY_VERIFY_TTL_SECONDS", 86400)
+PARENT_RECOVERY_RESET_TTL_SECONDS = env_int("PARENT_RECOVERY_RESET_TTL_SECONDS", 900)
+PARENT_RECOVERY_EMAIL_ADAPTER = env_str("PARENT_RECOVERY_EMAIL_ADAPTER", "resend")
+PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT = env_str("PARENT_RECOVERY_SYNTHETIC_EMAIL_ROOT", "")
+RESEND_API_KEY = env_str("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = env_str("RESEND_FROM_EMAIL", "")
+RESEND_TIMEOUT_SECONDS = env_int("RESEND_TIMEOUT_SECONDS", 10)
+SUBSCRIPTION_EMAIL_ENABLED = env_bool("SUBSCRIPTION_EMAIL_ENABLED", False)
+SUBSCRIPTION_EMAIL_FROM = env_str("SUBSCRIPTION_EMAIL_FROM", RESEND_FROM_EMAIL)
+SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED = env_bool("SCHOOL_ACCOUNT_EMAIL_RECOVERY_ENABLED", False)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Argon2id أولاً (ADR-004) — البقية للتوافق مع hashes قديمة فقط
@@ -155,11 +183,13 @@ CACHES = {
         "BACKEND": "common.cache.ResilientRedisCache",
         "LOCATION": CACHE_REDIS_URL,
         "KEY_PREFIX": "xmansx",
+        "OPTIONS": cache_options("cache"),
     },
     "security": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": SECURITY_REDIS_URL,
         "KEY_PREFIX": "xmansx-security",
+        "OPTIONS": cache_options("security"),
     },
 }
 
@@ -183,6 +213,18 @@ SELF_REGISTRATION_RATE_LIMIT_MOBILE = (
 PDF_RENDER_CONCURRENCY = env_int("PDF_RENDER_CONCURRENCY", 4)
 ATTENDANCE_CURRENT_PERIOD_CACHE_TTL = env_int("ATTENDANCE_CURRENT_PERIOD_CACHE_TTL", 10)
 ATTENDANCE_MONITORING_CACHE_TTL = env_int("ATTENDANCE_MONITORING_CACHE_TTL", 5)
+DASHBOARD_CACHE_WAIT_SECONDS = env_float("DASHBOARD_CACHE_WAIT_SECONDS", 5.0)
+DASHBOARD_CACHE_LEASE_SECONDS = env_int("DASHBOARD_CACHE_LEASE_SECONDS", 30)
+API_RATE_LIMIT_ENABLED = env_bool("API_RATE_LIMIT_ENABLED", True)
+API_USER_REQUESTS_PER_MINUTE = env_int("API_USER_REQUESTS_PER_MINUTE", 240)
+API_USER_EXPORTS_PER_MINUTE = env_int("API_USER_EXPORTS_PER_MINUTE", 12)
+if (
+    not math.isfinite(DASHBOARD_CACHE_WAIT_SECONDS)
+    or DASHBOARD_CACHE_WAIT_SECONDS <= 0
+    or DASHBOARD_CACHE_LEASE_SECONDS <= 0
+    or min(API_USER_REQUESTS_PER_MINUTE, API_USER_EXPORTS_PER_MINUTE) <= 0
+):
+    raise ImproperlyConfigured("Cache wait/lease and account request budgets must be positive")
 
 # ---- تشفير المعرفات الحساسة (ADR-009) ----
 # مفاتيح تطوير فقط — production.py يفرضها من البيئة ويفشل بدونها
@@ -282,14 +324,34 @@ if R2_BACKUP_ENABLED:
 CELERY_RESULT_EXPIRES = env_int("CELERY_RESULT_EXPIRES", 60 * 60)
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_POOL_LIMIT = env_int("CELERY_BROKER_POOL_LIMIT", 4)
+CELERY_BROKER_CONNECTION_TIMEOUT = 5
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "max_connections": env_int("CELERY_BROKER_MAX_CONNECTIONS", 16),
+    "socket_connect_timeout": 3,
+    "socket_timeout": 5,
+    "retry_on_timeout": False,
+    "health_check_interval": 30,
+}
+CELERY_REDIS_MAX_CONNECTIONS = env_int("CELERY_RESULT_MAX_CONNECTIONS", 8)
+CELERY_REDIS_SOCKET_CONNECT_TIMEOUT = 3
+CELERY_REDIS_SOCKET_TIMEOUT = 5
+if min(
+    CELERY_BROKER_POOL_LIMIT,
+    CELERY_BROKER_TRANSPORT_OPTIONS["max_connections"],
+    CELERY_REDIS_MAX_CONNECTIONS,
+) < 1:
+    raise ImproperlyConfigured("Celery Redis connection limits must be positive")
 CELERY_TIMEZONE = TIME_ZONE
 # Fair scheduling prevents one large school's imports from reserving a whole
 # worker's future task capacity. Jobs are idempotent and acknowledged on finish.
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_IMPORTS = ("parents.email_recovery_tasks", "parents.activation_email")
 CELERY_TASK_ROUTES = {
     "students.process_import_job": {"queue": "imports"},
+    "students.commit_import_job": {"queue": "imports"},
     "staff.process_import_job": {"queue": "imports"},
     "students.run_purge_job": {"queue": "maintenance"},
     "operations.scheduled_database_backup": {"queue": "maintenance"},
@@ -299,6 +361,7 @@ CELERY_TASK_ROUTES = {
 _backup_schedule_enabled = env_bool("BACKUP_SCHEDULE_ENABLED", False)
 MINISTRY_CALENDAR_ENABLED = env_bool("MINISTRY_CALENDAR_ENABLED", True)
 CELERY_BEAT_SCHEDULE = build_beat_schedule(
+    subscription_email_enabled=SUBSCRIPTION_EMAIL_ENABLED,
     ministry_calendar_enabled=MINISTRY_CALENDAR_ENABLED,
     heartbeat_interval_seconds=env_int("OPERATIONAL_HEARTBEAT_INTERVAL_SECONDS", 120),
     backup_enabled=_backup_schedule_enabled,
@@ -315,6 +378,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": ["common.throttling.AccountPressureThrottle"],
     # آمن افتراضيًا: كل endpoint مغلق ما لم يصرح بعكس ذلك (health تصرح بـ AllowAny)
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "common.errors.api_exception_handler",
@@ -329,6 +393,15 @@ SPECTACULAR_SETTINGS = {
     # الإنتاج: الوثائق للمستخدمين المصادقين فقط — local.py يفتحها للتطوير
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    "ENUM_NAME_OVERRIDES": {
+        "ParentRequestStatusEnum": ["PENDING", "NEEDS_INFO", "APPROVED", "REJECTED", "CANCELLED"],
+        "ParentExcuseTypeEnum": ["EXCUSE"],
+        "ParentCorrectionTypeEnum": ["CORRECTION"],
+        "RecoveryOperationEnum": "parents.recovery_models.RecoveryOperation",
+        "RecoveryEvidenceKindEnum": "parents.recovery_models.RecoveryEvidenceKind",
+        "RecoveryReviewStageEnum": "parents.recovery_models.RecoveryReviewStage",
+        "RecoveryRecommendationEnum": "parents.recovery_models.RecoveryRecommendation",
+    },
 }
 
 # ---- CORS: مغلق افتراضيًا؛ local.py يسمح لـ Vite dev فقط ----

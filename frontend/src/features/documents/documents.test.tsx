@@ -393,8 +393,47 @@ describe("student documents tab (Phase 12)", () => {
     expect(screen.getByTestId("doc-status-41")).toHaveTextContent("جاهز");
     expect(screen.getByTestId("doc-download-41")).toHaveAttribute(
       "href",
-      "/api/v1/documents/41/download/",
+      "/api/v1/documents/41/download/?inline=1",
     );
+  });
+
+  it("provides saved print copies beyond the first page", async () => {
+    const firstRows = Array.from({ length: 25 }, (_, i) => ({ ...DOCUMENT_ROW, id: i + 1 }));
+    mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/attendance-profile/": { body: PROFILE },
+      "/warnings/?student=5": { body: WARNINGS },
+      "/documents/?student=5&page=2": { body: { count: 26, next: null, previous: "page=1", results: [{ ...DOCUMENT_ROW, id: 26 }] } },
+      "/documents/?student=5": { body: { count: 26, next: "page=2", previous: null, results: firstRows } },
+    });
+    const user = await openTab("المستندات");
+    await screen.findByTestId("doc-row-1");
+    expect(screen.queryByTestId("doc-row-26")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "التالي" }));
+    await screen.findByTestId("doc-row-26");
+    expect(screen.getByText("صفحة 2 من 2")).toBeInTheDocument();
+    expect(screen.getByTestId("doc-download-26")).toHaveAttribute("href", "/api/v1/documents/26/download/?inline=1");
+    expect(screen.getByTestId("doc-download-26")).toHaveAttribute("target", "_blank");
+  });
+
+  it("allows selecting an issued warning beyond the first 100 options for printing", async () => {
+    const warning = WARNINGS.results[0]!;
+    const { calls } = mockApi({
+      "/auth/me/": { body: roleMe(["VICE_PRINCIPAL"]) },
+      "/attendance-profile/": { body: PROFILE },
+      "/documents/?student=5": { body: { count: 0, next: null, previous: null, results: [] } },
+      "/warnings/?student=5&status=ISSUED&page=2": { body: { count: 101, next: null, previous: "page=1", results: [{ ...warning, id: 199 }] } },
+      "/warnings/?student=5": { body: { count: 101, next: "page=2", previous: null, results: Array.from({ length: 100 }, (_, i) => ({ ...warning, id: i + 1 })) } },
+      "/documents/preview/": { body: PREVIEW },
+    });
+    const user = await openTab("المستندات");
+    await waitFor(() => expect(calls.some((call) => call.url.includes("status=ISSUED&page=2&page_size=100"))).toBe(true));
+    await user.selectOptions(screen.getByTestId("document-type"), "WARNING_LEVEL_2");
+    await user.selectOptions(screen.getByTestId("document-warning"), "199");
+    await user.click(screen.getByTestId("preview-document"));
+    await screen.findByTestId("document-preview");
+    const request = calls.find((call) => call.url.includes("/documents/preview/"))!;
+    expect(JSON.parse(String(request.init?.body))).toMatchObject({ student_id: 5, warning_id: 199, document_type: "WARNING_LEVEL_2" });
   });
 
   it("offers retry for a failed document and hides download", async () => {

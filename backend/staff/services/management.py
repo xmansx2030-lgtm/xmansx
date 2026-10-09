@@ -249,12 +249,24 @@ def reset_teacher_password(*, membership: SchoolMembership, actor, request=None)
             409,
         )
     user = User.objects.select_for_update().get(id=membership.user_id)
-    has_other_school = (
-        SchoolMembership.objects.filter(user_id=membership.user_id)
-        .exclude(school_id=membership.school_id)
-        .exclude(status__in=[MembershipStatus.LEFT, MembershipStatus.DECLINED])
-        .exists()
-    )
+    from common.tenant_rls import tenant_context
+    from parents.credential_protection import has_guardian_credentials
+
+    # Subject-only link discovery exposes no other school's student records.
+    with tenant_context(user_id=user.pk):
+        has_other_school = (
+            SchoolMembership.objects.filter(user_id=membership.user_id)
+            .exclude(school_id=membership.school_id)
+            .exclude(status__in=[MembershipStatus.LEFT, MembershipStatus.DECLINED])
+            .exists()
+        )
+    has_guardian_links = has_guardian_credentials(user.pk)
+    if has_guardian_links:
+        raise ApiError(
+            "GUARDIAN_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
+            "هذا حساب ولي أمر عالمي؛ يلزم إجراء مستقل موثق للتحقق من ملكية الحساب.",
+            409,
+        )
     if has_other_school:
         raise ApiError(
             "SHARED_ACCOUNT_PASSWORD_RESET_NOT_ALLOWED",
