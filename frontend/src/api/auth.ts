@@ -20,6 +20,14 @@ export function logout(): Promise<{ detail: string }> {
   return apiRequest<{ detail: string }>("/auth/logout/", { method: "POST" });
 }
 
+export async function changeAccountPassword(currentPassword: string, newPassword: string, confirmPassword: string) {
+  await ensureCsrfCookie();
+  return apiRequest<{ detail: string }>("/auth/change-password/", {
+    method: "POST",
+    body: { current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword },
+  });
+}
+
 export function getMe(signal?: AbortSignal): Promise<Me> {
   return apiRequest<Me>("/auth/me/", { signal });
 }

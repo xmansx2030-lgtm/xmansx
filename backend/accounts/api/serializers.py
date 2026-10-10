@@ -26,6 +26,12 @@ class ActiveSchoolSerializer(serializers.Serializer):
     school_id = serializers.IntegerField(min_value=1)
 
 
+class AccountPasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+
+
 class SchoolRegistrationSerializer(serializers.Serializer):
     """مدخلات التسجيل العام؛ لا يقبل حالة اشتراك أو مدة تجربة من العميل."""
 

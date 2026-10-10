@@ -19,6 +19,9 @@ urlpatterns = [
     path("me/", views.MeView.as_view(), name="auth-me"),
     path("schools/", views.MySchoolsView.as_view(), name="auth-schools"),
     path(
+        "change-password/", views.ChangeAccountPasswordView.as_view(), name="auth-change-password",
+    ),
+    path(
         "change-initial-password/",
         views.ChangeInitialPasswordView.as_view(),
         name="auth-change-initial-password",

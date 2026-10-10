@@ -8,6 +8,11 @@
 @import "@fontsource/ibm-plex-sans-arabic/latin-700.css";
 @import "tailwindcss";
 
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #52756e #102b28;
+}
+
 /* هوية هادئة وعالية التباين، عربية وRTL أولاً. */
 @theme {
   --color-brand-50: #ecfdf8;

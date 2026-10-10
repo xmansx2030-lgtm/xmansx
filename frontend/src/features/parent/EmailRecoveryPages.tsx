@@ -207,6 +207,9 @@ export function RecoveryEmailPage({ completion = false }: { completion?: boolean
         </>
       )}
       <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+        {!completion && returnTo === "/account" && (
+          <Link to="/account" className="inline-flex min-h-11 items-center font-bold text-teal-800">العودة إلى إدارة الحساب</Link>
+        )}
         {!!me.data?.memberships.length && (!completion || !me.data.school_email_completion_required) && (
           <SpaceSwitchButton destination={me.data.active_school ? "/workspace" : "/select-school"}>مساحة العمل</SpaceSwitchButton>
         )}

@@ -128,6 +128,7 @@ class AuditAction(models.TextChoices):
     STAFF_DELETED = "STAFF_DELETED", "حذف موظف نهائيًا"
     STAFF_PASSWORD_RESET = "STAFF_PASSWORD_RESET", "إعادة ضبط كلمة مرور معلم"
     INITIAL_PASSWORD_CHANGED = "INITIAL_PASSWORD_CHANGED", "تغيير كلمة المرور الأولية"
+    ACCOUNT_PASSWORD_CHANGED = "ACCOUNT_PASSWORD_CHANGED", "تغيير كلمة مرور الحساب"
     # المرحلة 16 — إدارة المنصة والاشتراكات (بلا أسرار ولا بيانات طلاب)
     PLATFORM_SCHOOL_CREATED = "PLATFORM_SCHOOL_CREATED", "إنشاء مدرسة من المنصة"
     PLATFORM_SCHOOL_UPDATED = "PLATFORM_SCHOOL_UPDATED", "تحديث مدرسة من المنصة"
