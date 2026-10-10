@@ -15,15 +15,21 @@ import { RouteErrorPage } from "@/routes/RouteErrorPage";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PublicRootPage } from "@/features/public/PublicRootPage";
 import { RegisterSchoolPage } from "@/features/public/RegisterSchoolPage";
+import { FeaturePage } from "@/features/public/FeaturePage";
+import { PUBLIC_FEATURES } from "@/seo/content";
+import { SeoLayout } from "@/seo/SeoLayout";
 
 export const routes = [
   {
+    element: <SeoLayout />,
     errorElement: <RouteErrorPage />,
     hydrateFallbackElement: <div className="min-h-screen bg-slate-50 p-4 sm:p-8"><PageSkeleton label="جارٍ تحميل المنصة" /></div>,
     children: [
       { path: "/", element: <PublicRootPage /> },
+      ...PUBLIC_FEATURES.map((feature) => ({ path: feature.path, element: <FeaturePage feature={feature} /> })),
       { path: "/register", element: <RegisterSchoolPage /> },
       { path: "/login", element: <LoginPage /> },
+      { path: "*", element: <NotFoundPage /> },
       {
         path: "/forgot-password",
         lazy: async () => ({ Component: (await import("@/features/parent/EmailRecoveryPages")).ForgotParentPasswordPage }),

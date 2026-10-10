@@ -10,6 +10,7 @@ import { getPublicPlans, type PublicPlan } from "@/features/public/api";
 import type { SchoolType } from "@/types/auth";
 import { formatPlanDuration } from "@/utils/planDuration";
 import { studentPluralLabel } from "@/utils/roles";
+import { supportWhatsAppUrl } from "@/utils/supportWhatsApp";
 
 const ACCESS_LABELS: Record<SubscriptionState["access_mode"], string> = {
   FULL: "وصول كامل",
@@ -48,8 +49,10 @@ function planHighlights(plan: PublicPlan) {
 }
 
 function planRequestUrl(planName: string, schoolName: string) {
-  const message = `السلام عليكم، أرغب في اختيار ${planName} لمدرسة ${schoolName} في منصة المواظبة XMANSX.`;
-  return `https://wa.me/966537720207?text=${encodeURIComponent(message)}`;
+  return supportWhatsAppUrl("طلب اختيار باقة لمدرستي.", [
+    `اسم المدرسة: ${schoolName}`,
+    `الباقة المطلوبة: ${planName}`,
+  ]);
 }
 
 function UsageRows({ usage, schoolType }: { usage: Usage; schoolType: SchoolType }) {
@@ -173,7 +176,7 @@ export function SchoolSubscriptionPage() {
                   {isCurrent ? (
                     <span className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-teal-100 px-4 text-sm font-black text-teal-900">مفعلة حاليًا</span>
                   ) : (
-                    <a href={planRequestUrl(plan.name, schoolName)} target="_blank" rel="noreferrer" className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white hover:bg-teal-800">اطلب اختيار هذه الباقة <ArrowLeft aria-hidden size={16} /></a>
+                    <a href={planRequestUrl(plan.name, schoolName)} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white hover:bg-teal-800">اطلب اختيار هذه الباقة <ArrowLeft aria-hidden size={16} /></a>
                   )}
                 </article>
               );

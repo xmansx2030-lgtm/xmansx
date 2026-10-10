@@ -296,6 +296,13 @@ describe("platform and subscription UI", () => {
       "href",
       expect.stringContaining("https://wa.me/966537720207?text="),
     );
+    const supportLink = screen.getByRole("link", { name: /اطلب اختيار هذه الباقة/ });
+    const message = new URL(supportLink.getAttribute("href") ?? "").searchParams.get("text");
+    expect(message).toContain("فريق منصة المواظبة");
+    expect(message).toContain("سبب التواصل: طلب اختيار باقة لمدرستي.");
+    expect(message).toContain("اسم المدرسة: مدرسة النور");
+    expect(message).toContain("الباقة المطلوبة: المتقدمة");
+    expect(message).not.toMatch(/xmansx/i);
   });
 
   it("shows suspended schools as blocked with preserved-data guidance", async () => {

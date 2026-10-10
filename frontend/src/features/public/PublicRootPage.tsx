@@ -4,20 +4,10 @@ import { useMe } from "@/features/auth/useMe";
 import { authenticatedDestination } from "@/features/auth/destination";
 import { LandingPage } from "@/features/public/LandingPage";
 
-/** الصفحة العامة تبقى متاحة للزائر، والمسجل يُعاد إلى مساحة عمله بلا وميض تسجيل. */
+/** المحتوى العام لا ينتظر API المصادقة؛ المسجل يُعاد إلى مساحة عمله كالمعتاد. */
 export function PublicRootPage() {
   const me = useMe();
 
-  if (me.isPending) {
-    return (
-      <div role="status" aria-label="جارٍ التحقق من الحساب" className="grid min-h-dvh place-items-center bg-[#061916] px-6 text-white">
-        <div className="flex items-center gap-3 rounded-2xl border border-teal-300/15 bg-white/[0.04] px-5 py-4">
-          <span aria-hidden="true" className="size-2 animate-pulse rounded-full bg-teal-300" />
-          <p className="text-sm font-bold text-teal-100">منصة المواظبة</p>
-        </div>
-      </div>
-    );
-  }
   if (me.isSuccess) {
     return <Navigate to={authenticatedDestination(me.data)} replace />;
   }
