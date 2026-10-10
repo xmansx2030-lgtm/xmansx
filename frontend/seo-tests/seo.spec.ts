@@ -22,9 +22,16 @@ test("serves actual crawler files and meaningful HTTP statuses", async ({ reques
   expect(await missing.text()).toContain("الصفحة غير موجودة");
   const discoveryMissing = await request.get("/features/not-a-feature");
   expect(discoveryMissing.status()).toBe(404);
-  const trailing = await request.get("/features/reports/?source=test", { maxRedirects: 0 });
+  const trailing = await request.get("/features/reports/?source=test", {
+    maxRedirects: 0, headers: { "X-Forwarded-Proto": "https" },
+  });
   expect(trailing.status()).toBe(301);
-  expect(trailing.headers().location).toContain("/features/reports?source=test");
+  expect(trailing.headers().location).toBe("/features/reports?source=test");
+  const indexAlias = await request.get("/index.html?source=test", {
+    maxRedirects: 0, headers: { "X-Forwarded-Proto": "https" },
+  });
+  expect(indexAlias.status()).toBe(301);
+  expect(indexAlias.headers().location).toBe("/?source=test");
   expect((await request.get("/icons/pwa-512.png")).status()).toBe(200);
   expect((await request.get("/app.html")).status()).toBe(200);
 });
