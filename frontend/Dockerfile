@@ -18,6 +18,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+ARG VITE_SITE_URL=https://mowadhabah.com
+ARG VITE_SEARCH_INDEXING=true
+ARG VITE_GOOGLE_SITE_VERIFICATION
+ARG VITE_BING_SITE_VERIFICATION
 RUN npm run build
 
 # ---------- Production (static via nginx, /api proxied to backend) ----------
@@ -28,7 +32,9 @@ ENV PORT=80 \
     API_MAX_INFLIGHT=128 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY infra-nginx.conf /etc/nginx/templates/default.conf.template
-COPY infra-security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf
+COPY --from=build /app/dist/.nginx/security-headers.conf /etc/nginx/snippets/xmansx-security-headers.conf
+COPY --from=build /app/dist/.nginx/seo-locations.conf /etc/nginx/snippets/xmansx-seo-locations.conf
+COPY --from=build /app/dist/.nginx/indexing.conf /etc/nginx/snippets/xmansx-indexing.conf
 COPY --chmod=755 infra-render-dns.envsh /docker-entrypoint.d/15-render-dns.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80 10000

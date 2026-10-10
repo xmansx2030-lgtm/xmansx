@@ -29,9 +29,10 @@ describe("LoginPage", () => {
     const whatsappLink = screen.getByRole("link", {
       name: "تواصل معنا عبر واتساب على الرقم 0537720207",
     });
-    expect(decodeURIComponent(whatsappLink.getAttribute("href") ?? "")).toContain(
-      "منصة المواظبة XMANSX",
-    );
+    const message = new URL(whatsappLink.getAttribute("href") ?? "").searchParams.get("text");
+    expect(message).toContain("فريق منصة المواظبة");
+    expect(message).toContain("سبب التواصل: المساعدة في تسجيل الدخول إلى الحساب.");
+    expect(message).not.toMatch(/xmansx/i);
   });
 
   it("validates mobile before calling the API", async () => {

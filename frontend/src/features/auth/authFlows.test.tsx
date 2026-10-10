@@ -145,6 +145,11 @@ describe("Initial password change", () => {
       "href",
       expect.stringContaining("https://wa.me/966537720207?text="),
     );
+    const supportLink = screen.getByRole("link", { name: "تواصل مع الدعم عبر واتساب" });
+    const message = new URL(supportLink.getAttribute("href") ?? "").searchParams.get("text");
+    expect(message).toContain("فريق منصة المواظبة");
+    expect(message).toContain("سبب التواصل: المساعدة في تغيير كلمة المرور المؤقتة وإكمال أول تسجيل دخول.");
+    expect(message).not.toMatch(/xmansx/i);
   });
 
   it.each([

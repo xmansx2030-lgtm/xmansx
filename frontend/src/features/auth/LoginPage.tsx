@@ -15,10 +15,9 @@ import { safeReturnTo } from "@/features/auth/returnTo";
 import { authenticatedDestination } from "@/features/auth/destination";
 import { ME_QUERY_KEY, useMe } from "@/features/auth/useMe";
 import type { Me } from "@/types/auth";
+import { supportWhatsAppUrl } from "@/utils/supportWhatsApp";
 
-const WHATSAPP_MESSAGE =
-  "السلام عليكم، أحتاج التواصل معكم بخصوص منصة المواظبة XMANSX.";
-const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+const WHATSAPP_URL = supportWhatsAppUrl("المساعدة في تسجيل الدخول إلى الحساب.");
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -139,7 +138,7 @@ export function LoginPage() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="تواصل معنا عبر واتساب على الرقم 0537720207"
-        title="تواصل معنا عبر واتساب"
+        title="مساعدة في تسجيل الدخول عبر واتساب"
         className="fixed bottom-5 left-5 z-40 grid size-14 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_12px_30px_rgba(7,27,25,0.35)] ring-1 ring-white/30 transition duration-200 hover:-translate-y-1 hover:bg-[#20bd5a] hover:shadow-[0_16px_36px_rgba(7,27,25,0.42)] focus-visible:outline-white sm:bottom-7 sm:left-7 sm:size-16"
       >
         <svg

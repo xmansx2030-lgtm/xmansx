@@ -10,10 +10,11 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { TextField } from "@/components/TextField";
 import { ME_QUERY_KEY, useLogout, useMe } from "@/features/auth/useMe";
 import { authenticatedDestination } from "@/features/auth/destination";
+import { supportWhatsAppUrl } from "@/utils/supportWhatsApp";
 
-const WHATSAPP_MESSAGE =
-  "السلام عليكم، أحتاج مساعدة في تغيير كلمة المرور المؤقتة لمنصة المواظبة XMANSX.";
-const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+const WHATSAPP_URL = supportWhatsAppUrl(
+  "المساعدة في تغيير كلمة المرور المؤقتة وإكمال أول تسجيل دخول.",
+);
 
 /** شاشة إجبارية للحسابات الجديدة — لا وصول للتطبيق قبل تغيير الكلمة المؤقتة. */
 export function ChangeInitialPasswordPage() {

@@ -77,6 +77,8 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      - name: Verify public SEO artifacts
+        run: npm run seo:check
 
   bridge:
     name: Device bridge tests
@@ -154,6 +156,12 @@ jobs:
           docker compose -p xmansx-ci -f docker-compose.yml
           -f docker-compose.production.yml exec -T backend
           python manage.py migrate --noinput
+      - name: Verify crawler responses, private metadata and PWA installation
+        if: matrix.shard == 1
+        working-directory: frontend
+        env:
+          SEO_BASE_URL: http://localhost:5173
+        run: npm run seo:test
       - name: Run all browser journeys
         working-directory: frontend
         # Same eight shards as e2e:release, with an independent seeded database

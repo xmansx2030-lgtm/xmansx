@@ -51,9 +51,18 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: false,
         skipWaiting: false,
-        navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api\//, /^\/media\//],
+        navigateFallback: "app.html",
+        navigateFallbackDenylist: [/^\/api\//, /^\/media\//, /^\/robots\.txt$/, /^\/sitemap\.xml$/],
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
+        // The private shell supports offline app startup; public feature HTML is
+        // served at canonical URLs by nginx rather than at these storage paths.
+        globIgnores: ["features/*.html", "404.html", ".nginx/**"],
+        // /index.html permanently redirects to /. Workbox precaching cannot
+        // install redirected responses, so cache the canonical homepage URL.
+        manifestTransforms: [async (entries) => ({
+          manifest: entries.map((entry) => entry.url === "index.html" ? { ...entry, url: "/" } : entry),
+          warnings: [],
+        })],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/"),

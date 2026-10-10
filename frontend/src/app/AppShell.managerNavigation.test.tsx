@@ -26,7 +26,7 @@ describe("وضوح غلاف مدير المدرسة", () => {
 
   it("يعرض المدرسة الوحيدة كمعلومة ثابتة بلا زر تبديل ميت", async () => {
     mockApi({ "/auth/me/": { body: MANAGER } });
-    renderApp("/does-not-exist");
+    renderApp("/workspace");
 
     const currentSchool = await screen.findByRole("group", { name: "المدرسة الحالية" });
     expect(within(currentSchool).getByTestId("active-school-name")).toHaveTextContent("ثانوية الأندلس");
@@ -35,7 +35,7 @@ describe("وضوح غلاف مدير المدرسة", () => {
 
   it("يعرض إجراءات المتابعة الحساسة مباشرة ويبقي الأدوات الأقل تكرارًا منظمة", async () => {
     mockApi({ "/auth/me/": { body: MANAGER } });
-    renderApp("/does-not-exist");
+    renderApp("/workspace");
 
     const navigation = await screen.findByRole("navigation", { name: "التنقل الرئيسي" });
     expect(within(navigation).getByRole("link", { name: "الإنذارات" })).toHaveAttribute("href", "/warnings");
@@ -57,7 +57,7 @@ describe("وضوح غلاف مدير المدرسة", () => {
 
   it("يعرض للوكيل لوحة متابعة وينقل الإنذارات والإحالات إلى التنقل الأساسي", async () => {
     mockApi({ "/auth/me/": { body: VICE_PRINCIPAL } });
-    renderApp("/does-not-exist");
+    renderApp("/workspace");
 
     const navigation = await screen.findByRole("navigation", { name: "التنقل الرئيسي" });
     expect(within(navigation).getByRole("link", { name: "لوحة المتابعة" })).toHaveAttribute("href", "/dashboard");

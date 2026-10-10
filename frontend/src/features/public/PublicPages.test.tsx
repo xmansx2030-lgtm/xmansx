@@ -93,6 +93,12 @@ describe("Public landing and school registration", () => {
       "href",
       expect.stringContaining("https://wa.me/966537720207?text="),
     );
+    const supportLink = screen.getByRole("link", { name: /اطلب هذه الباقة/ });
+    const message = new URL(supportLink.getAttribute("href") ?? "").searchParams.get("text");
+    expect(message).toContain("فريق منصة المواظبة");
+    expect(message).toContain("سبب التواصل: طلب الاشتراك في إحدى باقات المنصة.");
+    expect(message).toContain("الباقة المطلوبة: باقة المؤسسات");
+    expect(message).not.toMatch(/xmansx/i);
   });
 
   it("keeps paid plans without trials out of the self-registration choices", async () => {

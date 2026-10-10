@@ -10,9 +10,12 @@ import { Link } from "react-router-dom";
 
 import { getPublicPlans, type PublicPlan } from "@/features/public/api";
 import { formatPlanDuration } from "@/utils/planDuration";
+import { HOME_QUESTIONS, PUBLIC_FEATURES } from "@/seo/content";
+import { supportWhatsAppUrl } from "@/utils/supportWhatsApp";
 
-const WHATSAPP_MESSAGE = "السلام عليكم، أود معرفة المزيد عن منصة المواظبة XMANSX.";
-const WHATSAPP_URL = `https://wa.me/966537720207?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+const WHATSAPP_URL = supportWhatsAppUrl("الاستفسار عن خدمات المنصة والباقات المتاحة.");
+const SCHOOL_SETUP_URL = supportWhatsAppUrl("المساعدة في تسجيل المدرسة وبدء استخدام المنصة.");
+const PLAN_GUIDANCE_URL = supportWhatsAppUrl("اختيار الباقة المناسبة وتجهيز المدرسة.");
 
 const FEATURES: Array<{
   id: string;
@@ -86,8 +89,9 @@ function planHighlights(plan: PublicPlan) {
 }
 
 function planContactUrl(planName: string) {
-  const message = `السلام عليكم، أرغب في الاشتراك في ${planName} لمنصة المواظبة XMANSX.`;
-  return `https://wa.me/966537720207?text=${encodeURIComponent(message)}`;
+  return supportWhatsAppUrl("طلب الاشتراك في إحدى باقات المنصة.", [
+    `الباقة المطلوبة: ${planName}`,
+  ]);
 }
 
 function ProductPreview() {
@@ -182,7 +186,7 @@ export function LandingPage() {
             <div className="max-w-2xl">
               <p className="mb-6 inline-flex min-h-9 items-center gap-2 rounded-full border border-teal-300/20 bg-teal-300/8 px-4 text-xs font-bold text-teal-200"><span className="size-1.5 rounded-full bg-teal-300 shadow-[0_0_12px_#5eead4]" /> منصة تشغيل يومية للمدرسة</p>
               <h1 className="text-4xl font-black leading-[1.25] tracking-[-0.035em] sm:text-6xl lg:text-[4.35rem]">كل تفاصيل المواظبة.<br /><span className="landing-shimmer">في صورة واحدة واضحة.</span></h1>
-              <p className="mt-7 max-w-xl text-base leading-8 text-slate-300 sm:text-lg">منصة عربية تجمع الحضور والمتابعة الطلابية والإجراءات والتقارير؛ لتعمل الإدارة والمعلم والإرشاد من مساحة واحدة، بثقة وسرعة.</p>
+              <p className="mt-7 max-w-xl text-base leading-8 text-slate-300 sm:text-lg">منصة المواظبة لإدارة الحضور والغياب والتأخر الصباحي والمتابعة الطلابية والتقارير المدرسية؛ لتعمل الإدارة والمعلم والإرشاد من مساحة واحدة، بثقة وسرعة.</p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <Link to="/register" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-teal-400 px-7 text-base font-black text-slate-950 shadow-[0_14px_45px_rgba(45,212,191,0.2)] transition hover:-translate-y-1 hover:bg-teal-300">أنشئ مدرستك الآن <ArrowLeft size={19} /></Link>
                 <Link to="/login" className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-teal-300/50 bg-teal-300/10 px-7 text-base font-black text-teal-100 transition hover:bg-teal-300/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">لديك حساب؟ سجّل الدخول</Link>
@@ -222,7 +226,7 @@ export function LandingPage() {
               <h2 className="mt-3 text-3xl font-black sm:text-5xl">باقات واضحة، وبداية أسهل</h2>
             </div>
             {plans.isPending ? (
-              <div className="mt-12 grid gap-5 md:grid-cols-2" aria-label="جاري تحميل الباقات"><div className="h-80 animate-pulse rounded-[2rem] bg-slate-200" /><div className="h-80 animate-pulse rounded-[2rem] bg-slate-200" /></div>
+              <div className="mt-12" aria-label="جاري تحميل الباقات"><p className="text-center text-sm leading-7 text-slate-600">تُحمّل الأسعار والمدد من الباقات المتاحة حاليًا. يمكنك التواصل مع فريقنا لمراجعة احتياجات مدرستك.</p><div className="mt-6 grid gap-5 md:grid-cols-2" aria-hidden="true"><div className="h-80 animate-pulse rounded-[2rem] bg-slate-200" /><div className="h-80 animate-pulse rounded-[2rem] bg-slate-200" /></div></div>
             ) : plans.isError ? (
               <div className="mx-auto mt-12 max-w-xl rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-amber-50 text-amber-700"><CircleAlert size={22} /></span><h3 className="mt-4 text-xl font-black">تعذر تحميل الباقات الآن</h3><p className="mt-2 text-sm leading-7 text-slate-600">تحقق من اتصالك ثم أعد المحاولة، أو تواصل معنا لمساعدتك في اختيار الباقة.</p><button type="button" onClick={() => void plans.refetch()} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white hover:bg-teal-800"><RefreshCw size={16} /> إعادة المحاولة</button></div>
             ) : plans.data && plans.data.length > 0 ? (
@@ -242,22 +246,27 @@ export function LandingPage() {
                       {plan.can_self_register ? (
                         <Link to={`/register?plan=${plan.id}`} className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white transition group-hover:bg-teal-800">{isFree ? `ابدأ مجانًا لمدة ${duration}` : plan.trial_days > 0 ? `ابدأ تجربة ${plan.trial_days.toLocaleString("ar-SA")} يومًا` : "ابدأ التسجيل"} <ArrowLeft size={16} /></Link>
                       ) : (
-                        <a href={planContactUrl(plan.name)} target="_blank" rel="noreferrer" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white transition group-hover:bg-teal-800">اطلب هذه الباقة <ArrowLeft size={16} /></a>
+                        <a href={planContactUrl(plan.name)} target="_blank" rel="noopener noreferrer" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white transition group-hover:bg-teal-800">اطلب هذه الباقة <ArrowLeft size={16} /></a>
                       )}
                     </article>
                   );
                 })}
               </div>
             ) : (
-              <div className="mt-12 rounded-3xl border border-slate-200 bg-white p-8 text-center"><h3 className="text-xl font-black">سيتم إعلان الباقات قريبًا</h3><p className="mt-2 text-sm text-slate-600">تواصل معنا لتجهيز مدرستك وخطة التشغيل المناسبة.</p><a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-teal-700 px-5 text-sm font-black text-white">تواصل معنا</a></div>
+              <div className="mt-12 rounded-3xl border border-slate-200 bg-white p-8 text-center"><h3 className="text-xl font-black">سيتم إعلان الباقات قريبًا</h3><p className="mt-2 text-sm text-slate-600">تواصل معنا لتجهيز مدرستك وخطة التشغيل المناسبة.</p><a href={PLAN_GUIDANCE_URL} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-teal-700 px-5 text-sm font-black text-white">تواصل معنا</a></div>
             )}
           </div>
         </section>
 
-        <section className="px-4 py-24 sm:px-6 lg:px-8"><div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] border border-teal-300/18 bg-gradient-to-l from-teal-300 to-emerald-300 p-8 text-slate-950 sm:p-12 lg:p-16"><div className="landing-grid absolute inset-0 opacity-15" /><div className="relative max-w-3xl"><p className="text-sm font-black">خطوتك التالية بسيطة</p><h2 className="mt-4 text-3xl font-black leading-tight sm:text-5xl">اجعل يوم مدرستك أوضح من أول حصة.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-slate-800">أنشئ مدرستك، ادخل مباشرة إلى لوحة التشغيل، وأكمل الإعداد وفق خطوات جاهزية واضحة.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link to="/register" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-7 font-black text-white">أنشئ مدرستك الآن <ArrowLeft size={18} /></Link><a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-950/15 bg-white/45 px-7 font-black">تحدث مع فريقنا</a></div></div></div></section>
+        <section className="px-4 py-24 sm:px-6 lg:px-8"><div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] border border-teal-300/18 bg-gradient-to-l from-teal-300 to-emerald-300 p-8 text-slate-950 sm:p-12 lg:p-16"><div className="landing-grid absolute inset-0 opacity-15" /><div className="relative max-w-3xl"><p className="text-sm font-black">خطوتك التالية بسيطة</p><h2 className="mt-4 text-3xl font-black leading-tight sm:text-5xl">اجعل يوم مدرستك أوضح من أول حصة.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-slate-800">أنشئ مدرستك، ادخل مباشرة إلى لوحة التشغيل، وأكمل الإعداد وفق خطوات جاهزية واضحة.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link to="/register" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-7 font-black text-white">أنشئ مدرستك الآن <ArrowLeft size={18} /></Link><a href={SCHOOL_SETUP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-950/15 bg-white/45 px-7 font-black">تحدث مع فريقنا</a></div></div></div></section>
       </div>
 
-      <footer className="border-t border-white/8 px-4 py-10 sm:px-6 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-start"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-teal-400 text-slate-950"><Building2 size={20} /></span><div><p className="text-sm font-black">منصة المواظبة</p><p className="mt-0.5 text-xs text-slate-500">تشغيل مدرسي أكثر وضوحًا</p></div></div><div className="flex flex-wrap justify-center gap-5 text-sm font-semibold text-slate-400"><Link to="/login" className="hover:text-white">تسجيل الدخول</Link><Link to="/register" className="hover:text-white">تسجيل مدرسة</Link><a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className="hover:text-white">تواصل معنا</a></div><p className="text-xs text-slate-600">© {new Date().getFullYear()} XMANSX</p></div></footer>
+      <section className="bg-[#f4f8f7] px-4 py-16 text-slate-900 sm:px-6 lg:px-8" aria-labelledby="public-services">
+        <div className="mx-auto max-w-7xl"><h2 id="public-services" className="text-2xl font-black sm:text-3xl">اكتشف خدمات منصة المواظبة</h2><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{PUBLIC_FEATURES.map((feature) => <Link key={feature.path} to={feature.path} className="rounded-2xl border border-slate-200 bg-white p-6 transition hover:border-teal-500"><h3 className="font-black text-teal-800">{feature.label}</h3><p className="mt-3 text-sm leading-7 text-slate-600">{feature.description}</p><span className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-teal-700">تعرّف على الخدمة <ArrowLeft aria-hidden size={16} /></span></Link>)}</div>
+          <section className="mt-14 max-w-3xl" aria-labelledby="home-faq"><h2 id="home-faq" className="text-2xl font-black">أسئلة شائعة عن المنصة</h2><div className="mt-6 space-y-4">{HOME_QUESTIONS.map(({ question, answer }) => <details key={question} className="rounded-2xl border border-slate-200 bg-white p-5"><summary className="min-h-11 cursor-pointer content-center font-bold">{question}</summary><p className="mt-3 leading-8 text-slate-600">{answer}</p></details>)}</div></section>
+        </div>
+      </section>
+      <footer className="border-t border-white/8 px-4 py-10 sm:px-6 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-start"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-teal-400 text-slate-950"><Building2 size={20} /></span><div><p className="text-sm font-black">منصة المواظبة</p><p className="mt-0.5 text-xs text-slate-500">تشغيل مدرسي أكثر وضوحًا</p></div></div><div className="flex flex-wrap justify-center gap-5 text-sm font-semibold text-slate-400"><Link to="/login" className="hover:text-white">تسجيل الدخول</Link><Link to="/register" className="hover:text-white">تسجيل مدرسة</Link><a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white">تواصل معنا</a></div><p className="text-xs text-slate-600">© {new Date().getFullYear()} منصة المواظبة</p></div></footer>
     </main>
   );
 }

@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node scripts/build.mjs",
     "preview": "vite preview",
+    "seo:check": "node scripts/check-seo.mjs",
+    "seo:test": "playwright test -c playwright.seo.config.ts",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",

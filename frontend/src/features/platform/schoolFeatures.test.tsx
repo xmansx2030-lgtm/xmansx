@@ -73,7 +73,7 @@ describe("school feature controls", () => {
 
   it("keeps the icon visible and opens a subscription notice without navigating", async () => {
     mockApi({ "/auth/me/": { body: manager }, "/school/features/": { body: { school_id: school.id, features: disabled } } });
-    renderApp("/does-not-exist");
+    renderApp("/workspace");
     const navigation = await screen.findByRole("navigation", { name: "التنقل الرئيسي" });
     const locked = within(navigation).getByRole("button", { name: "إدارة أولياء الأمور — يلزم اشتراك" });
     expect(locked).toHaveAttribute("aria-disabled", "true");
@@ -85,7 +85,7 @@ describe("school feature controls", () => {
   it("re-enables navigation after refreshing the same school's feature state", async () => {
     let flags = disabled;
     mockApi({ "/auth/me/": { body: manager }, "/school/features/": () => ({ body: { school_id: school.id, features: flags } }) });
-    renderApp("/does-not-exist");
+    renderApp("/workspace");
     expect(await screen.findByRole("button", { name: "إدارة أولياء الأمور — يلزم اشتراك" })).toBeInTheDocument();
     flags = { ...disabled, PARENT_PORTAL: true };
     await act(async () => { await queryClient.invalidateQueries({ queryKey: ["school", school.id, "feature-access"] }); });
