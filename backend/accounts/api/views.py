@@ -24,6 +24,7 @@ from rest_framework.views import APIView
 
 from accounts import rate_limit, registration_rate_limit
 from accounts.api.serializers import (
+    AccountPasswordSerializer,
     ActiveSchoolSerializer,
     LoginSerializer,
     SchoolRegistrationSerializer,
@@ -412,6 +413,74 @@ class ChangeInitialPasswordView(APIView):
         active = _resolve_active_membership(request, memberships)
         invitations = invited_memberships_for_user(user)
         return Response(build_me_payload(user, memberships, active, invitations))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ChangeAccountPasswordView(APIView):
+    """Self-service only: preserve the current session and global account identity."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = AccountPasswordSerializer
+
+    def post(self, request: Request) -> Response:
+        from django.contrib.auth import update_session_auth_hash
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        from parents.rate_limit import consume
+
+        require_password_changed(request.user)
+        if request.user.is_platform_admin:
+            raise ApiError("FORBIDDEN", "استخدم إدارة حساب المنصة لتغيير كلمة المرور.",
+                           status_code=403)
+        # Share the bounded account quota with password changes in the parent space.
+        consume(kind="password-user", value=str(request.user.id), limit=10)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        current, new_password = data["current_password"], data["new_password"]
+        authenticated_password = request.user.password
+        if not check_password(current, authenticated_password):
+            raise ApiError("INVALID_CURRENT_PASSWORD", "كلمة المرور الحالية غير صحيحة.")
+        if new_password != data["confirm_password"]:
+            raise ApiError("VALIDATION_ERROR", "تأكيد كلمة المرور غير مطابق.")
+        if new_password == current:
+            raise ApiError("VALIDATION_ERROR", "كلمة المرور الجديدة مطابقة للحالية.")
+        _validate_new_password(request.user, new_password)
+
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=request.user.pk)
+            if (
+                not user.is_active
+                or not constant_time_compare(user.password, authenticated_password)
+                or not constant_time_compare(
+                    user.get_session_auth_hash(), request.session.get(HASH_SESSION_KEY, "")
+                )
+            ):
+                raise ApiError(
+                    "SESSION_CREDENTIALS_CHANGED", "تغيرت بيانات الدخول؛ سجل الدخول مجدداً.",
+                    status_code=403,
+                )
+            require_password_changed(user)
+            if user.is_platform_admin:
+                raise ApiError("FORBIDDEN", "استخدم إدارة حساب المنصة لتغيير كلمة المرور.",
+                               status_code=403)
+            if not check_password(current, user.password):
+                raise ApiError("INVALID_CURRENT_PASSWORD", "كلمة المرور الحالية غير صحيحة.")
+            _validate_new_password(user, new_password)
+            try:
+                validate_password(new_password, user=user)
+            except ValidationError as exc:
+                raise ApiError(
+                    "VALIDATION_ERROR", "كلمة المرور لا تستوفي شروط الأمان.",
+                    details={"new_password": exc.messages},
+                ) from exc
+            user.set_password(new_password)
+            user.save(update_fields=["password", "updated_at"])
+            record_event(AuditAction.ACCOUNT_PASSWORD_CHANGED, request=request, actor=user)
+
+        update_session_auth_hash(request, user)
+        return Response({"detail": "تم تغيير كلمة المرور وإنهاء الجلسات الأخرى."})
 
 
 def _get_own_invitation(user, invitation_id: int) -> SchoolMembership:

@@ -109,6 +109,10 @@ export const routes = [
                 children: [
                   { path: "workspace", element: <HomePage /> },
                   {
+                    path: "account",
+                    lazy: async () => ({ Component: (await import("@/features/auth/AccountPage")).AccountPage }),
+                  },
+                  {
                     element: <RequireSchoolRoles allowedRoles={["SCHOOL_MANAGER", "VICE_PRINCIPAL"]} />,
                     children: [
                       {

@@ -26,6 +26,14 @@ describe("safe QR return paths", () => {
     expect(safeReturnTo("/parent-management#token=secret")).toBeNull();
   });
 
+  it("allows the personal account page without query strings, fragments or subpaths", () => {
+    expect(safeReturnTo("/account")).toBe("/account");
+    expect(withReturnTo("/account/recovery-email", "/account")).toBe("/account/recovery-email?returnTo=%2Faccount");
+    for (const value of ["/account?next=https://evil.example", "/account#token=secret", "/account/../platform", "//account"]) {
+      expect(safeReturnTo(value)).toBeNull();
+    }
+  });
+
   it.each([
     "https://evil.example/qr/token",
     "//evil.example/qr/token",

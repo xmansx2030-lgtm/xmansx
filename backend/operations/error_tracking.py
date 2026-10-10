@@ -56,6 +56,7 @@ def _parent_context(event, frames):
             "/api/v1/parent/", "/api/v1/staff/parents/",
             "/api/v1/identity-review/parent-recovery/", "/api/v1/auth/parent-password-recovery/",
             "/api/v1/auth/register-school/", "/api/v1/auth/change-initial-password/",
+            "/api/v1/auth/change-password/",
         )
     ):
         return True
