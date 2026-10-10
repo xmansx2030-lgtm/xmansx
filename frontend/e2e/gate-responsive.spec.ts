@@ -127,8 +127,18 @@ test("gate guard phone workspace is focused, responsive, and safe", async ({ pag
   await page.getByRole("button", { name: "فتح قائمة التنقل" }).click();
   const navigation = page.locator("#mobile-navigation");
   await expect(navigation.getByRole("link", { name: "بوابة المدرسة" })).toBeVisible();
-  await expect(navigation.getByRole("link")).toHaveCount(1);
+  await expect(navigation.getByRole("link")).toHaveCount(2);
+  const accountLink = navigation.getByRole("link", { name: "إدارة الحساب", exact: true });
+  await expect(accountLink).toBeVisible();
+  await expect(accountLink).toHaveAttribute("href", "/account");
   await expect(page.getByTestId("user-roles-mobile")).toHaveText("حارس البوابة");
+  await assertNoPageOverflow(page);
+
+  await accountLink.click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole("heading", { name: "إدارة الحساب", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "تغيير كلمة المرور", exact: true })).toBeVisible();
+  await expect(navigation).toHaveCount(0);
   await assertNoPageOverflow(page);
 
   await page.goto("/student-leaves");

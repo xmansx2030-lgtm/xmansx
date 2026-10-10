@@ -270,10 +270,20 @@ test("teacher mobile templates remain focused and responsive with realistic data
 
   await page.getByRole("button", { name: "فتح قائمة التنقل" }).click();
   const navigation = page.locator("#mobile-navigation");
-  await expect(navigation.getByRole("link")).toHaveCount(3);
+  await expect(navigation.getByRole("link")).toHaveCount(4);
+  const accountLink = navigation.getByRole("link", { name: "إدارة الحساب", exact: true });
+  await expect(accountLink).toBeVisible();
+  await expect(accountLink).toHaveAttribute("href", "/account");
   await expect(navigation.getByRole("link", { name: "التحضير" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "طلبات المتابعة" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "التحويلات" })).toBeVisible();
   await expect(page.getByTestId("user-roles-mobile")).toHaveText("معلم");
+  await assertNoPageOverflow(page);
+
+  await accountLink.click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole("heading", { name: "إدارة الحساب", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "تغيير كلمة المرور", exact: true })).toBeVisible();
+  await expect(navigation).toHaveCount(0);
   await assertNoPageOverflow(page);
 });
