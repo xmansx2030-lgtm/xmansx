@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Mowadhabah storage backup
+
+[Timer]
+OnCalendar=*-*-* 18:10:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+Unit=mowadhabah-files-backup.service
+
+[Install]
+WantedBy=timers.target

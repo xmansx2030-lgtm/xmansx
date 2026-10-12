@@ -1,0 +1,11 @@
+[Unit]
+Description=Verified Mowadhabah media and document archive to private R2
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mowadhabah
+ExecStart=/bin/bash /opt/mowadhabah/backup_storage.sh
+UMask=0077
+TimeoutStartSec=1800
