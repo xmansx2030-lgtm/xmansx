@@ -1,0 +1,156 @@
+name: mowadhabah
+
+x-application: &application
+  image: ${BACKEND_IMAGE:?Set the immutable backend image digest}
+  restart: unless-stopped
+  env_file:
+    - path: application.env
+      format: raw
+  environment:
+    PORT: "8000"
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    REDIS_URL: redis://redis:6379/0
+    CACHE_REDIS_URL: redis://redis:6379/0
+    SECURITY_REDIS_URL: redis://redis:6379/1
+    CELERY_BROKER_URL: redis://redis:6379/2
+    CELERY_RESULT_BACKEND: redis://redis:6379/3
+  volumes:
+    - storage:/app/storage
+  networks:
+    - backend
+    - egress
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    storage-init:
+      condition: service_completed_successfully
+  security_opt:
+    - no-new-privileges:true
+  logging: &logging
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set the application database name}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set a separate database administrator password}
+      POSTGRES_APP_USER: ${POSTGRES_USER:?Set the restricted application role}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_PASSWORD:?Set the application role password}
+    command: [postgres, -c, shared_buffers=128MB, -c, max_connections=80, -c, log_min_messages=warning]
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./restore:/restore:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    cpus: 0.75
+    logging: *logging
+
+  redis:
+    image: redis:8.0-alpine
+    restart: unless-stopped
+    command: [redis-server, --appendonly, "yes", --maxmemory, 64mb, --maxmemory-policy, noeviction]
+    volumes: [redisdata:/data]
+    networks: [backend]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *logging
+
+  storage-init:
+    image: ${BACKEND_IMAGE:?Set the immutable backend image digest}
+    user: root
+    restart: "no"
+    command: [sh, -ec, "mkdir -p /app/storage/media /app/storage/documents /app/storage/backups /app/storage/backup-repository && chown -R app:app /app/storage"]
+    volumes: [storage:/app/storage]
+    networks: [backend]
+
+  backend:
+    <<: *application
+    command: [gunicorn, config.wsgi:application, --config, config/gunicorn.conf.py]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/api/v1/health/',headers={'Host':'mowadhabah.com','X-Forwarded-Proto':'https'}); urllib.request.urlopen(r,timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 1.0
+
+  worker:
+    <<: *application
+    profiles: [live]
+    command: [celery, -A, config, worker, --loglevel=info, --pool=solo, --concurrency=1, -Q, "celery,imports,maintenance"]
+    healthcheck:
+      test: [CMD-SHELL, "celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    mem_limit: 768m
+    cpus: 1.0
+
+  beat:
+    <<: *application
+    profiles: [live]
+    command: [celery, -A, "lightweight_beat:app", beat, --loglevel=info, --schedule, /app/storage/celerybeat-schedule]
+    mem_limit: 128m
+    cpus: 0.15
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?Set the immutable frontend image digest}
+    restart: unless-stopped
+    environment:
+      PORT: "80"
+      BACKEND_HOSTPORT: backend:8000
+      PUBLIC_SCHEME: https
+      API_MAX_INFLIGHT: "16"
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-9085}:80"
+    networks:
+      backend: {}
+      edge:
+        aliases: [mowadhabah-frontend]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "wget -q --spider --header='Host: mowadhabah.com' http://127.0.0.1/robots.txt"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+networks:
+  backend:
+    internal: true
+  egress: {}
+  edge:
+    external: true
+    name: school-platform-edge
+
+volumes:
+  pgdata:
+  redisdata:
+  storage:
