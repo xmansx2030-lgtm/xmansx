@@ -14,6 +14,7 @@ from attendance.models import (
     AttendanceSession,
     DailyAttendanceSummary,
 )
+from attendance.services.daily_summary import classify_daily_attendance
 from attendance.services.day_context import build_day_schedule_snapshot
 from devices.models import SchoolArrival
 from schools.models import SchoolSettings
@@ -123,28 +124,17 @@ def summary_payload(
         status, complete = summary.absence_status, summary.completeness_status
         updated_at = summary.calculated_at
     else:
-        status = (
-            "UNDETERMINED"
-            if not submitted
-            else "NONE"
-            if not absent
-            else "FULL"
-            if absent == submitted
-            else "PARTIAL"
+        complete, status = classify_daily_attendance(
+            expected=expected, submitted=submitted, absent=absent
         )
-        complete = (
-            "COMPLETE"
-            if expected_known and expected > 0 and submitted >= expected
-            else "INCOMPLETE"
-        )
+        if not expected_known:
+            complete = "INCOMPLETE"
     label = {
-        "UNDETERMINED": "لم يعتمد تحضير",
+        "UNDETERMINED": "اليوم غير مكتمل",
         "NONE": "حاضر",
-        "PARTIAL": "غياب جزئي",
-        "FULL": "غياب يوم كامل",
+        "PARTIAL": "حاضر مع غياب جزئي",
+        "FULL": "غائب",
     }[status]
-    if complete != "COMPLETE":
-        label = "اليوم غير مكتمل" if not absent else "غياب مسجل — اليوم غير مكتمل"
     return {
         "date": day.isoformat(),
         "absence_status": status,
@@ -442,10 +432,12 @@ def child_history(relation, *, from_date=None, to_date=None):
             )
         rows.append({**daily, "morning": morning_payload(arrivals.get(day))})
     total = {
+        "present_days": sum(r["absence_status"] in {"NONE", "PARTIAL"} for r in rows),
         "full_absence_days": sum(
-            r["absence_status"] == "FULL" and r["completeness_status"] == "COMPLETE" for r in rows
+            r["absence_status"] == "FULL" for r in rows
         ),
         "partial_absence_days": sum(r["absence_status"] == "PARTIAL" for r in rows),
+        "undetermined_days": sum(r["absence_status"] == "UNDETERMINED" for r in rows),
         "incomplete_days": sum(r["completeness_status"] != "COMPLETE" for r in rows),
         "present_periods": sum(r["present_periods"] for r in rows),
         "absent_periods": sum(r["absent_periods"] for r in rows),

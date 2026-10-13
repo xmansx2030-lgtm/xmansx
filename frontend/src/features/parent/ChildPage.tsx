@@ -214,11 +214,14 @@ function Today({ detail }: { detail: ChildDetail }) {
   return (
     <>
       {isIncomplete(detail.today) && (
-        <Alert tone="warning" title="لم يكتمل تحضير اليوم">
-          النتائج الحالية للحصص المعتمدة فقط. لا نعرض هذا اليوم باعتباره غياب
-          يوم كامل مؤكداً حتى اكتمال بياناته.
+        <Alert tone="warning" title="لم يعتمد تحضير اليوم">
+          ستظهر حالة اليوم بعد اعتماد تحضير حصة واحدة على الأقل.
         </Alert>
       )}
+      <p className="text-sm text-slate-600">
+        حالة اليوم بحسب الحصص المعتمدة فقط. حضور أي حصة يجعل اليوم حاضرًا،
+        والحصص التي لم يعتمد تحضيرها لا تدخل في الحساب.
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <section className={surface}>
           <h2 className="font-black">الحضور الصباحي</h2>
@@ -244,9 +247,11 @@ function Today({ detail }: { detail: ChildDetail }) {
           <h2 className="font-black">الحصص المعتمدة اليوم</h2>
           <p className="mt-3 text-2xl font-black text-teal-800">
             {detail.today.submitted_periods}{" "}
-            <span className="text-base font-medium text-slate-500">
-              من {detail.today.expected_periods}
-            </span>
+            {detail.today.expected_periods > 0 && (
+              <span className="text-base font-medium text-slate-500">
+                من {detail.today.expected_periods}
+              </span>
+            )}
           </p>
           <p className="mt-2 text-sm">
             حضور: {detail.today.present_periods} · غياب:{" "}
@@ -343,8 +348,12 @@ function History({ relation, onAccessError }: { relation: number; onAccessError:
             <h2 className="font-black">ملخص الفترة</h2>
             <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {[
-                ["غياب كامل مكتمل", history.data.summary.full_absence_days],
-                ["غياب جزئي", history.data.summary.partial_absence_days],
+                ["أيام الحضور", history.data.summary.present_days],
+                ["أيام الغياب الكامل", history.data.summary.full_absence_days],
+                [
+                  "أيام الحضور مع غياب جزئي",
+                  history.data.summary.partial_absence_days,
+                ],
                 ["حصص بعذر", history.data.summary.excused_absent_periods],
                 ["حصص دون عذر", history.data.summary.unexcused_absent_periods],
                 ["أيام التأخر الصباحي", history.data.summary.morning_late_days],
@@ -354,7 +363,7 @@ function History({ relation, onAccessError }: { relation: number; onAccessError:
                 ],
                 ["الحصص الحاضرة", history.data.summary.present_periods],
                 ["الحصص الغائبة", history.data.summary.absent_periods],
-                ["أيام غير مكتملة", history.data.summary.incomplete_days],
+                ["أيام غير مكتملة", history.data.summary.undetermined_days],
               ].map(([label, value]) => (
                 <div key={String(label)}>
                   <dt className="text-xs text-slate-500">{label}</dt>
@@ -362,6 +371,10 @@ function History({ relation, onAccessError }: { relation: number; onAccessError:
                 </div>
               ))}
             </dl>
+            <p className="mt-4 text-xs text-slate-500">
+              أيام الحضور تشمل أيام الحضور مع غياب جزئي. يعتمد التصنيف على
+              الحصص المعتمدة دون اشتراط تحضير جميع حصص الجدول.
+            </p>
           </section>
           {history.data.results.length ? (
             <div className="space-y-3">
@@ -374,7 +387,8 @@ function History({ relation, onAccessError }: { relation: number; onAccessError:
                     <DayBadge day={day} />
                   </div>
                   <p className="mt-3 text-sm">
-                    حصص معتمدة: {day.submitted_periods} / {day.expected_periods}{" "}
+                    حصص معتمدة: {day.submitted_periods}
+                    {day.expected_periods > 0 ? ` / ${day.expected_periods}` : ""}{" "}
                     · حضور: {day.present_periods} · غياب: {day.absent_periods}
                   </p>
                   <p className="mt-2 text-xs text-slate-500">

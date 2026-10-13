@@ -45,20 +45,20 @@ export function todayDate(): string {
   }).format(new Date());
 }
 export function isIncomplete(day: ParentDay | null): boolean {
+  // Timetable coverage does not determine the official daily attendance state.
   return (
     !!day &&
-    (day.completeness_status !== "COMPLETE" ||
-      day.submitted_periods < day.expected_periods)
+    (day.submitted_periods === 0 || day.absence_status === "UNDETERMINED")
   );
 }
 export function dayLabel(day: ParentDay | null): string {
   if (!day) return "لا توجد بيانات معتمدة اليوم";
-  if (isIncomplete(day)) return "بيانات اليوم غير مكتملة";
+  if (isIncomplete(day)) return "اليوم غير مكتمل";
   return {
-    FULL: "غياب يوم كامل",
-    PARTIAL: "غياب جزئي",
+    FULL: "غائب",
+    PARTIAL: "حاضر مع غياب جزئي",
     NONE: "حاضر",
-    UNDETERMINED: "لم يتحدد بعد",
+    UNDETERMINED: "اليوم غير مكتمل",
   }[day.absence_status];
 }
 export function DayBadge({ day }: { day: ParentDay | null }) {
@@ -69,7 +69,9 @@ export function DayBadge({ day }: { day: ParentDay | null }) {
           ? "warning"
           : day.absence_status === "NONE"
             ? "success"
-            : "danger"
+            : day.absence_status === "FULL"
+              ? "danger"
+              : "warning"
       }
     >
       {dayLabel(day)}

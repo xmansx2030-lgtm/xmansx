@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/app/queryClient";
 import { buildMe, membership, mockApi as baseMockApi, UNAUTHENTICATED } from "@/test/mockApi";
 import { renderApp } from "@/test/renderApp";
-import { parentKey, type ChildDetail } from "@/features/parent/api";
+import {
+  parentKey,
+  type ChildDetail,
+  type ParentDay,
+  type ParentPeriod,
+} from "@/features/parent/api";
 import { todayDate } from "@/features/parent/shared";
 
 vi.mock("qrcode", () => ({
@@ -310,20 +315,181 @@ describe("parent portal isolation and family workflows", () => {
       screen.getByRole("button", { name: "مساحة العمل" }),
     ).toBeInTheDocument();
   });
-  it("labels draft and future periods accurately and never confirms incomplete FULL days", async () => {
+  it("shows absence from an approved period while draft and future periods stay uncounted", async () => {
     detailApi();
     renderApp("/parent/children/11");
     expect(
       await screen.findByText("بانتظار اعتماد التحضير"),
     ).toBeInTheDocument();
     expect(screen.getByText("لم تبدأ")).toBeInTheDocument();
-    expect(screen.getByText("بيانات اليوم غير مكتملة")).toBeInTheDocument();
-    expect(screen.queryByText("غياب يوم كامل")).toBeNull();
+    const header = screen
+      .getByRole("heading", { name: "أحمد محمد" })
+      .closest("header")!;
+    expect(within(header).getByText("غائب", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("اليوم غير مكتمل")).toBeNull();
+    expect(screen.queryByText("لم يكتمل تحضير اليوم")).toBeNull();
+    expect(screen.queryByText("لم يعتمد تحضير اليوم")).toBeNull();
     const second = screen
       .getByRole("heading", { name: "الحصة الثانية" })
       .closest("li");
     expect(second).toHaveTextContent("بانتظار اعتماد التحضير");
     expect(second).not.toHaveTextContent("غائب");
+  });
+  it.each([
+    ["NONE", 1, 0, "INCOMPLETE", 5, "حاضر"],
+    ["NONE", 2, 0, "INCOMPLETE", 5, "حاضر"],
+    ["FULL", 0, 1, "INCOMPLETE", 5, "غائب"],
+    ["FULL", 0, 2, "INCOMPLETE", 5, "غائب"],
+    ["PARTIAL", 1, 1, "INCOMPLETE", 5, "حاضر مع غياب جزئي"],
+    ["NONE", 1, 0, "NO_TIMETABLE", 0, "حاضر"],
+    ["UNDETERMINED", 0, 0, "INCOMPLETE", 5, "اليوم غير مكتمل"],
+    ["UNDETERMINED", 0, 0, "COMPLETE", 0, "اليوم غير مكتمل"],
+  ] as const)(
+    "keeps the child card and profile consistent for %s with %i present and %i absent approved periods (%s, %i planned)",
+    async (status, present, absent, completeness, expected, label) => {
+      const day: ParentDay = {
+        ...DAY,
+        absence_status: status,
+        completeness_status: completeness,
+        expected_periods: expected,
+        submitted_periods: present + absent,
+        present_periods: present,
+        absent_periods: absent,
+        unexcused_absent_periods: absent,
+      };
+      const child = { ...CHILD, today: day };
+      const selected = present + absent === 1 ? [3] : [1, 3];
+      const submittedStates = [
+        ...Array<"PRESENT">(present).fill("PRESENT"),
+        ...Array<"ABSENT">(absent).fill("ABSENT"),
+      ];
+      const periodLabels = {
+        PRESENT: "حاضر",
+        ABSENT: "غائب",
+        IN_PROGRESS: "بانتظار اعتماد التحضير",
+        NOT_RECORDED: "لم يسجل تحضير",
+      };
+      const periods: ParentPeriod[] = Array.from({ length: 5 }, (_, index) => {
+        const sequence = index + 1;
+        const selectedIndex = selected.indexOf(sequence);
+        const periodStatus = submittedStates[selectedIndex] ??
+          (sequence === 2 ? "IN_PROGRESS" : "NOT_RECORDED");
+        return {
+          ...DETAIL.periods[0]!,
+          sequence,
+          period_sequence: sequence,
+          name: `الحصة ${sequence}`,
+          session_id: periodStatus === "NOT_RECORDED" ? null : 50 + sequence,
+          status: periodStatus,
+          status_label: periodLabels[periodStatus],
+        };
+      });
+      mockApi({
+        "/auth/me/": { body: PARENT },
+        "/parent/children/11/": {
+          body: { ...DETAIL, child, today: day, periods },
+        },
+        "/parent/children/": { body: { results: [child] } },
+      });
+      renderApp("/parent");
+      const card = await screen.findByTestId("parent-child-11");
+      expect(within(card).getByText(label, { exact: true })).toBeInTheDocument();
+      const user = userEvent.setup();
+      await user.click(
+        within(card).getByRole("link", { name: "متابعة المواظبة" }),
+      );
+      const heading = await screen.findByRole("heading", {
+        name: "أحمد محمد",
+        level: 1,
+      });
+      expect(
+        within(heading.closest("header")!).getByText(label, { exact: true }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("بانتظار اعتماد التحضير")).toBeInTheDocument();
+      expect(screen.getAllByText("لم يسجل تحضير").length).toBeGreaterThan(0);
+      if (status === "UNDETERMINED") {
+        expect(screen.getByText("لم يعتمد تحضير اليوم")).toBeInTheDocument();
+      } else {
+        expect(screen.queryByText("اليوم غير مكتمل")).toBeNull();
+        expect(screen.queryByText("لم يعتمد تحضير اليوم")).toBeNull();
+      }
+      if (expected === 0) expect(screen.queryByText("من 0")).toBeNull();
+    },
+  );
+  it("shows approved attendance history and day totals without requiring every planned period", async () => {
+    const days: ParentDay[] = [
+      { ...DAY, date: "2026-09-01" },
+      {
+        ...DAY,
+        date: "2026-09-02",
+        absence_status: "NONE",
+        present_periods: 1,
+        absent_periods: 0,
+        unexcused_absent_periods: 0,
+      },
+      {
+        ...DAY,
+        date: "2026-09-03",
+        absence_status: "PARTIAL",
+        submitted_periods: 2,
+        present_periods: 1,
+      },
+      {
+        ...DAY,
+        date: "2026-09-04",
+        absence_status: "UNDETERMINED",
+        submitted_periods: 0,
+        absent_periods: 0,
+        unexcused_absent_periods: 0,
+      },
+    ];
+    mockApi({
+      "/auth/me/": { body: PARENT },
+      "/parent/children/11/history/": {
+        body: {
+          results: days,
+          summary: {
+            present_days: 2,
+            full_absence_days: 1,
+            partial_absence_days: 1,
+            undetermined_days: 1,
+            incomplete_days: 4,
+            present_periods: 2,
+            absent_periods: 2,
+            excused_absent_periods: 0,
+            unexcused_absent_periods: 2,
+            morning_late_days: 0,
+            counted_late_minutes: 0,
+          },
+        },
+      },
+      "/parent/children/11/": { body: DETAIL },
+    });
+    renderApp("/parent/children/11?tab=history");
+    await screen.findByRole("heading", { name: "ملخص الفترة" });
+    for (const [label, value] of [
+      ["أيام الحضور", "2"],
+      ["أيام الغياب الكامل", "1"],
+      ["أيام الحضور مع غياب جزئي", "1"],
+      ["أيام غير مكتملة", "1"],
+    ] as const) {
+      expect(
+        screen.getByText(label, { exact: true }).parentElement?.querySelector("dd"),
+      ).toHaveTextContent(new RegExp(`^${value}$`));
+    }
+    for (const [date, label] of [
+      ["2026-09-01", "غائب"],
+      ["2026-09-02", "حاضر"],
+      ["2026-09-03", "حاضر مع غياب جزئي"],
+      ["2026-09-04", "اليوم غير مكتمل"],
+    ] as const) {
+      const article = screen
+        .getByRole("heading", { name: date })
+        .closest("article")!;
+      expect(within(article).getByText(label, { exact: true })).toBeInTheDocument();
+    }
+    expect(screen.queryByText("غياب كامل مكتمل")).toBeNull();
+    expect(screen.queryByText("بيانات اليوم غير مكتملة")).toBeNull();
   });
   it("treats missing morning arrival as no record and not proof of absence", async () => {
     detailApi();

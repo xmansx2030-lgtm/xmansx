@@ -67,8 +67,10 @@ export interface ParentHistory {
   from_date: string;
   to_date: string;
   summary: {
+    present_days: number;
     full_absence_days: number;
     partial_absence_days: number;
+    undetermined_days: number;
     excused_absent_periods: number;
     unexcused_absent_periods: number;
     present_periods: number;

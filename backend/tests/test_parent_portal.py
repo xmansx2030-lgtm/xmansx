@@ -320,12 +320,22 @@ def test_live_attendance_only_confirms_submitted_facts(portal_env, state, absent
     result = env["parent"].get(f"/api/v1/parent/children/{relation.id}/").json()
     assert result["periods"][0]["status"] == expected
     assert result["today"]["absent_periods"] == (1 if expected == "ABSENT" else 0)
+    status, label = {
+        "ABSENT": ("FULL", "غائب"),
+        "PRESENT": ("NONE", "حاضر"),
+        "IN_PROGRESS": ("UNDETERMINED", "اليوم غير مكتمل"),
+    }[expected]
+    assert result["today"]["absence_status"] == status
+    assert result["today"]["absence_status_label"] == label
+    children = env["parent"].get("/api/v1/parent/children/").json()["results"]
+    assert children[0]["today"]["absence_status"] == status
+    assert children[0]["today"]["absence_status_label"] == label
     assert result["morning"]["status"] == "NOT_RECORDED"
     assert "guardian_mobile" not in str(result)
     assert "national_id" not in str(result)
 
 
-def test_future_period_and_incomplete_full_history_are_explained(portal_env):
+def test_future_period_and_full_history_with_one_submitted_period(portal_env):
     env = portal_env
     relation, _, _ = activate(env)
     tomorrow = env["local_now"].date() + timedelta(days=1)
@@ -363,9 +373,10 @@ def test_future_period_and_incomplete_full_history_are_explained(portal_env):
         calculated_at=timezone.now(),
     )
     history = env["parent"].get(f"/api/v1/parent/children/{relation.id}/history/").json()
-    assert history["summary"]["full_absence_days"] == 0
+    assert history["summary"]["full_absence_days"] == 1
+    assert history["summary"]["present_days"] == 0
     assert history["results"][0]["completeness_status"] == "INCOMPLETE"
-    assert "غير مكتمل" in history["results"][0]["absence_status_label"]
+    assert history["results"][0]["absence_status_label"] == "غائب"
 
 
 def test_morning_uses_counted_minutes_only(portal_env):
@@ -384,6 +395,8 @@ def test_morning_uses_counted_minutes_only(portal_env):
     response = env["parent"].get(f"/api/v1/parent/children/{relation.id}/").json()
     assert response["morning"]["counted_late_minutes"] == 10
     assert response["today"]["absent_periods"] == 0
+    assert response["today"]["absence_status"] == "UNDETERMINED"
+    assert response["today"]["absence_status_label"] == "اليوم غير مكتمل"
 
 
 @pytest.mark.parametrize(
@@ -543,7 +556,8 @@ def test_history_keeps_unsubmitted_days_and_missing_summary_facts_without_guessi
     assert by_date[draft.attendance_date.isoformat()]["submitted_periods"] == 0
     assert by_date[submitted.attendance_date.isoformat()]["absent_periods"] == 1
     assert by_date[submitted.attendance_date.isoformat()]["completeness_status"] == "INCOMPLETE"
-    assert history["summary"]["full_absence_days"] == 0
+    assert history["summary"]["full_absence_days"] == 1
+    assert history["summary"]["undetermined_days"] == 1
     detail = (
         env["parent"]
         .get(f"/api/v1/parent/children/{relation.id}/?date={submitted.attendance_date}")
@@ -551,6 +565,91 @@ def test_history_keeps_unsubmitted_days_and_missing_summary_facts_without_guessi
     )
     assert detail["today"]["completeness_status"] == "INCOMPLETE"
     assert detail["periods"][0]["status"] == "ABSENT"
+
+
+@pytest.mark.parametrize("saved_summaries", [True, False])
+def test_parent_states_and_totals_match_staff_with_selected_periods(portal_env, saved_summaries):
+    from attendance.models import AttendanceDayContext
+    from attendance.services.daily_summary import recalculate_daily_attendance_for_section
+    from students.services.attendance_profile import get_profile_summary
+
+    env = portal_env
+    relation, _, _ = activate(env)
+    today = env["local_now"].date()
+    cases = [
+        (today - timedelta(days=4), [False], False, "NONE", "حاضر"),
+        (today - timedelta(days=3), [True], True, "FULL", "غائب"),
+        (today - timedelta(days=2), [False, True], True, "PARTIAL", "حاضر مع غياب جزئي"),
+        (today - timedelta(days=1), [], False, "UNDETERMINED", "اليوم غير مكتمل"),
+        (today, [], True, "UNDETERMINED", "اليوم غير مكتمل"),
+    ]
+    for day, absences, has_draft, _, _ in cases:
+        AttendanceDayContext.objects.create(
+            school=env["school"],
+            academic_year=env["year"],
+            attendance_date=day,
+            timezone_snapshot="Asia/Riyadh",
+            schedule_snapshot={
+                "periods": [
+                    {"sequence": i, "name": f"الحصة {i}", "is_attendance_period": True}
+                    for i in range(1, 9)
+                ]
+            },
+        )
+        for sequence, absent in enumerate(absences, start=3):
+            session = make_session(env, sequence=sequence, absent=absent)
+            session.attendance_date = day
+            session.save(update_fields=["attendance_date"])
+        # Draft marks and unprepared lessons must not affect the official state.
+        if has_draft:
+            draft = make_session(env, status="IN_PROGRESS", sequence=8)
+            draft.attendance_date = day
+            draft.save(update_fields=["attendance_date"])
+        recalculate_daily_attendance_for_section(
+            school=env["school"], section=env["section"], attendance_date=day
+        )
+
+    official = get_profile_summary(
+        school=env["school"], student=env["student"], from_date=cases[0][0], to_date=today
+    )
+    if not saved_summaries:
+        DailyAttendanceSummary.objects.filter(school=env["school"]).delete()
+    summary_count = DailyAttendanceSummary.objects.count()
+    response = env["parent"].get(
+        f"/api/v1/parent/children/{relation.id}/history/",
+        {"from_date": cases[0][0].isoformat(), "to_date": today.isoformat()},
+    )
+    assert response.status_code == 200, response.content
+    history = response.json()
+    by_date = {row["date"]: row for row in history["results"]}
+    assert len(by_date) == 5
+    for day, absences, _, status, label in cases:
+        row = by_date[day.isoformat()]
+        detail_response = env["parent"].get(
+            f"/api/v1/parent/children/{relation.id}/", {"date": day.isoformat()}
+        )
+        assert detail_response.status_code == 200, detail_response.content
+        detail = detail_response.json()["today"]
+        for actual in (row, detail):
+            assert actual["absence_status"] == status
+            assert actual["absence_status_label"] == label
+            assert actual["submitted_periods"] == len(absences)
+            assert actual["absent_periods"] == sum(absences)
+            assert actual["completeness_status"] == "INCOMPLETE"
+    for field, expected in {
+        "present_days": 2,
+        "full_absence_days": 1,
+        "partial_absence_days": 1,
+        "undetermined_days": 2,
+        "present_periods": 2,
+        "absent_periods": 2,
+    }.items():
+        assert history["summary"][field] == expected
+        if field.endswith("days"):
+            assert history["summary"][field] == official[field]
+    assert history["summary"]["incomplete_days"] == 5
+    # Reading a child's file must not write or repair school attendance records.
+    assert DailyAttendanceSummary.objects.count() == summary_count
 
 
 def test_historical_detail_uses_saved_expected_count_without_context(portal_env):
