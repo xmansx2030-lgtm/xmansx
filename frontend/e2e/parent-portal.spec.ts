@@ -245,6 +245,13 @@ test("real parent lifecycle across schools, attendance, requests and private pub
     expect(children.results).toHaveLength(3);
     if (!relationA || !relationB)
       throw new Error("Both approved child relations must exist.");
+    await expect(
+      page.getByTestId(`parent-child-${relationA}`).getByText("غائب", { exact: true }),
+    ).toBeVisible();
+    const thirdChild = page.locator("article").filter({
+      has: page.getByRole("heading", { name: schoolC.student_name, exact: true }),
+    });
+    await expect(thirdChild.getByText("اليوم غير مكتمل", { exact: true })).toBeVisible();
     await page
       .getByRole("link", { name: `تنبيهات وإجراءات ${schoolA.student_name}` })
       .click();
@@ -269,7 +276,17 @@ test("real parent lifecycle across schools, attendance, requests and private pub
       has: page.getByRole("heading", { name: "الحصة 1", exact: true }),
     });
     await expect(firstPeriod).toContainText("بانتظار اعتماد التحضير");
+    const dayHeader = page.locator("header").filter({
+      has: page.getByRole("heading", { name: schoolA.student_name, exact: true }),
+    });
+    await expect(dayHeader.getByText("غائب", { exact: true })).toBeVisible();
+    await expect(page.getByText("لم يعتمد تحضير اليوم", { exact: true })).toHaveCount(0);
     await expect(page.getByText("تأخر صباحي محتسب: 7 دقيقة")).toBeVisible();
+    await page.getByRole("tab", { name: "سجل المواظبة" }).click();
+    await expect(
+      page.getByText("أيام الغياب الكامل", { exact: true }).locator(".."),
+    ).toContainText("1");
+    await page.getByRole("tab", { name: "اليوم", exact: true }).click();
     expect(
       (
         await post(
@@ -284,14 +301,14 @@ test("real parent lifecycle across schools, attendance, requests and private pub
     ).toBe(200);
     await expect(firstPeriod).toContainText("غائب", { timeout: 40_000 });
     await expect(
-      page.getByText("غياب يوم كامل", { exact: true }),
+      dayHeader.getByText("غائب", { exact: true }),
     ).toBeVisible();
     await page.getByRole("tab", { name: "سجل المواظبة" }).click();
     await expect(
       page.getByRole("heading", { name: "ملخص الفترة" }),
     ).toBeVisible();
     await expect(
-      page.getByText("غياب كامل مكتمل", { exact: true }).locator(".."),
+      page.getByText("أيام الغياب الكامل", { exact: true }).locator(".."),
     ).toContainText("1");
     await expect(
       page.getByText("دقائق التأخر المحتسبة", { exact: true }).locator(".."),
@@ -314,7 +331,7 @@ test("real parent lifecycle across schools, attendance, requests and private pub
       ),
     ).toBe(true);
     await page.screenshot({
-      path: "../artifacts/parent-portal-mobile.png",
+      path: resolve(process.env.PARENT_E2E_SCREENSHOT_DIR ?? "../artifacts", "parent-portal-mobile.png"),
       fullPage: true,
     });
     await page.setViewportSize({ width: 768, height: 1024 });
@@ -329,12 +346,12 @@ test("real parent lifecycle across schools, attendance, requests and private pub
     ).toBeVisible();
     await expect(page.getByText("تأخر صباحي محتسب: 7 دقيقة")).toBeVisible();
     await page.screenshot({
-      path: "../artifacts/parent-portal-tablet.png",
+      path: resolve(process.env.PARENT_E2E_SCREENSHOT_DIR ?? "../artifacts", "parent-portal-tablet.png"),
       fullPage: true,
     });
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.screenshot({
-      path: "../artifacts/parent-portal-desktop.png",
+      path: resolve(process.env.PARENT_E2E_SCREENSHOT_DIR ?? "../artifacts", "parent-portal-desktop.png"),
       fullPage: true,
     });
     await page.getByRole("tab", { name: "تقديم طلب" }).click();
@@ -399,6 +416,17 @@ test("real parent lifecycle across schools, attendance, requests and private pub
     expect(facts.periods.find((period) => period.sequence === 2)?.status).toBe(
       "PRESENT",
     );
+    await page.goto(`/parent/children/${relationA}`);
+    await expect(
+      dayHeader.getByText("حاضر مع غياب جزئي", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "سجل المواظبة" }).click();
+    await expect(
+      page.getByText("أيام الحضور", { exact: true }).locator(".."),
+    ).toContainText("1");
+    await expect(
+      page.getByText("أيام الغياب الكامل", { exact: true }).locator(".."),
+    ).toContainText("0");
     await page.getByRole("tab", { name: "الإنذارات" }).click();
     const unacknowledgedWarnings = (await (
       await page.request.get(`/api/v1/parent/children/${relationA}/warnings/`)

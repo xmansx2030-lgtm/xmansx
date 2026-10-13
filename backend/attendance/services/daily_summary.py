@@ -28,7 +28,8 @@ from attendance.services.day_context import get_or_create_attendance_day_context
 from students.services.enrollments import enrollments_on_date
 
 
-def _classify(*, expected: int, submitted: int, absent: int) -> tuple[str, str]:
+def classify_daily_attendance(*, expected: int, submitted: int, absent: int) -> tuple[str, str]:
+    """Classify approved facts independently of timetable completion."""
     complete = expected > 0 and submitted >= expected
     completeness = DailyCompleteness.COMPLETE if complete else DailyCompleteness.INCOMPLETE
     # لا توجد حقيقة حضور أو غياب لليوم قبل اعتماد أي حصة.
@@ -116,7 +117,7 @@ def recalculate_daily_attendance_for_section(
     def build_fields(student_id: int) -> dict:
         counters = marks_by_student.get(student_id, {})
         absent = counters.get("absent", 0)
-        completeness, absence = _classify(
+        completeness, absence = classify_daily_attendance(
             expected=expected, submitted=submitted, absent=absent
         )
         # م10 — التصنيف الإداري مشتق من التغطية: excused + unexcused = absent

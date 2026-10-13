@@ -219,8 +219,10 @@ class HistoryDaySerializer(ParentDaySerializer):
 
 
 class HistorySummarySerializer(serializers.Serializer):
+    present_days = serializers.IntegerField()
     full_absence_days = serializers.IntegerField()
     partial_absence_days = serializers.IntegerField()
+    undetermined_days = serializers.IntegerField()
     incomplete_days = serializers.IntegerField()
     present_periods = serializers.IntegerField()
     absent_periods = serializers.IntegerField()
