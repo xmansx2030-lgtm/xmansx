@@ -1,7 +1,109 @@
-modules = ["python-3.12", "nodejs-20", "web"]
+modules = ["web", "python-base-3.13", "nodejs-24", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["redis"]
 
 [agent]
 expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Redis"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Celery worker"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Celery beat"
+
+[[workflows.workflow]]
+name = "Redis"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mkdir -p .cache/redis && redis-server --bind 127.0.0.1 --port 6379 --appendonly yes --dir .cache/redis"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev -- --host 0.0.0.0 --port 5000 --strictPort"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Backend API"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/replit-backend.sh python manage.py runserver 0.0.0.0:8000 --noreload"
+waitForPort = 8000
+
+[[workflows.workflow]]
+name = "Celery worker"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/replit-backend.sh python -m celery -A config worker --loglevel=info -Q celery,imports,maintenance --concurrency=2"
+
+[[workflows.workflow]]
+name = "Celery beat"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/replit-backend.sh python -m celery -A config beat --loglevel=info --schedule /tmp/xmansx-celerybeat-schedule"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
+
+[[ports]]
+localPort = 23636
+externalPort = 3001
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 300000

@@ -80,6 +80,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    allowedHosts: true,
     // نفس الـ Origin عبر Proxy — تقليل CORS حتى في التطوير
     proxy: {
       "/api": {

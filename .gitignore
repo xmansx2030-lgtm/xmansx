@@ -15,6 +15,7 @@ __pycache__/
 *.egg-info/
 .eggs/
 .venv/
+.pythonlibs/
 venv/
 .mypy_cache/
 .ruff_cache/
@@ -29,6 +30,7 @@ backend/mediafiles/
 backend/privatefiles/
 backend/local_storage/
 backups/
+.cache/redis/
 restore-drills/
 celerybeat-schedule*
 

@@ -1,2 +1,5 @@
 - [GitHub connector pushes](github-connector-pushes.md) — OAuth API access may not authenticate git push; keep the remote and local commit trees aligned.
 - [Sandbox shell output](sandbox-shell-output.md) — CodeExecution shell output can alter delimiters; avoid parsing git output by tabs there.
+- [Backend workflow port detection](backend-workflow-port-detection.md) — console workflow port checks need a network bind even when local proxy calls succeed.
+- [Vite preview port stability](vite-preview-port-stability.md) — pin the preview port in the workflow command rather than relying on environment detection in Vite config.
+- [Published design source](published-design-source.md) — compare live and local source before redesigning; a missing local route does not prove the live feature is absent.
