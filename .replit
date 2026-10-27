@@ -74,23 +74,23 @@ waitForPort = 8000
 name = "Celery worker"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash scripts/replit-backend.sh celery -A config worker --loglevel=info -Q celery,imports,maintenance --concurrency=2"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/replit-backend.sh python -m celery -A config worker --loglevel=info -Q celery,imports,maintenance --concurrency=2"
 
 [[workflows.workflow]]
 name = "Celery beat"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash scripts/replit-backend.sh celery -A config beat --loglevel=info --schedule /tmp/xmansx-celerybeat-schedule"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/replit-backend.sh python -m celery -A config beat --loglevel=info --schedule /tmp/xmansx-celerybeat-schedule"
 
 [[ports]]
 localPort = 5000
@@ -99,3 +99,7 @@ externalPort = 80
 [[ports]]
 localPort = 8000
 externalPort = 8000
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 300000

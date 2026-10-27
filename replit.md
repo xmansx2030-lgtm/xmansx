@@ -21,12 +21,19 @@ The development database starts empty; no data from Docker or another server
 was imported. Do not replace a real database with it without an explicit migration
 plan.
 
-If starting from a clean workspace, install Python 3.13, Node.js 24, Redis and
-the project dependencies (Python project in `backend/pyproject.toml`, frontend
-using `cd frontend && npm ci`). Then start Redis and run migrations once:
+The configured post-merge hook installs frontend dependencies from the lockfile,
+installs the backend and its development/test extras into Replit's Python user
+site, checks Django, and applies development database migrations. It does not
+create accounts or seed school data. The hook runs automatically after task
+merges and can safely be rerun.
+Backend command-line tools use `python -m` (for example `python -m celery`)
+because installing into Python's user site does not add those tools to PATH.
+
+If starting from a clean workspace, ensure Python 3.13, Node.js 24, Redis and
+the provisioned development PostgreSQL are available, then run:
 
 ```bash
-bash scripts/replit-backend.sh python manage.py migrate --noinput
+bash scripts/post-merge.sh
 ```
 
 The backend wrapper requires Replit's provisioned PostgreSQL variables. It does
